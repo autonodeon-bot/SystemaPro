@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PIPELINES_DATA, MOCK_INSPECTORS, MOCK_CADASTRAL } from '../constants';
 import { Layers, Zap, Info, Wind, Navigation, Users, Hexagon, Triangle, MapPin, Gauge, Globe, Map as MapIcon } from 'lucide-react';
 import { WeatherState, Inspector } from '../types';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+
+// Declare Leaflet global
+declare const L: any;
 
 const PipelineMap = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);

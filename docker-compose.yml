@@ -1,3 +1,6 @@
+
+version: '3.8'
+
 services:
   backend:
     build: 
@@ -12,13 +15,10 @@ services:
       - DB_HOST=99f541abb57e364deed82c1d.twc1.net
       - DB_PORT=5432
       - DB_NAME=default_db
-      - DB_SSLMODE=verify-full
-      - DB_SSLCERT=/app/certs/root.crt
     volumes:
-      - ./backend/certs:/app/certs:ro
+      # Монтируем папку с сертификатами внутрь контейнера
+      - ./backend/certs:/app/certs
     restart: always
-    networks:
-      - app-network
 
   frontend:
     build:
@@ -30,9 +30,3 @@ services:
     depends_on:
       - backend
     restart: always
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
