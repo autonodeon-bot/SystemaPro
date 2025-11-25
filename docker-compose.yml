@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: es_td_ngo_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_USER=gen_user
+      - DB_PASS=#BeH)(rn;Cl}7a
+      - DB_HOST=99f541abb57e364deed82c1d.twc1.net
+      - DB_PORT=5432
+      - DB_NAME=default_db
+    volumes:
+      - ./backend/certs:/app/certs
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: es_td_ngo_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
