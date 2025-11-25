@@ -1,0 +1,40 @@
+name: es_td_ngo_mobile
+description: Мобильное приложение инженера диагностики (ЕС ТД НГО)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  
+  # State & Routing
+  flutter_riverpod: ^2.5.1
+  go_router: ^13.2.0
+  
+  # Forms & UI
+  flutter_form_builder: ^9.1.1
+  form_builder_validators: ^9.1.0
+  form_builder_image_picker: ^3.0.0
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.6
+  lucide_icons: ^0.300.0
+  
+  # Database (Offline-first)
+  isar: ^3.1.0
+  isar_flutter_libs: ^3.1.0
+  path_provider: ^2.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  isar_generator: ^3.1.0
+  build_runner: ^2.4.8
+
+flutter:
+  uses-material-design: true
