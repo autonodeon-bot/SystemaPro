@@ -1,6 +1,4 @@
 
-version: '3.8'
-
 services:
   backend:
     build: 
@@ -15,9 +13,13 @@ services:
       - DB_HOST=99f541abb57e364deed82c1d.twc1.net
       - DB_PORT=5432
       - DB_NAME=default_db
+      - DB_SSLMODE=require
+      - DB_SSLCERT=/app/certs/root.crt
     volumes:
       # Монтируем папку с сертификатами внутрь контейнера
       - ./backend/certs:/app/certs
+      # Монтируем папку для отчетов
+      - ./backend/reports:/app/reports
     restart: always
 
   frontend:

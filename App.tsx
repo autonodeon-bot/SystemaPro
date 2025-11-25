@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Map as MapIcon, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText } from 'lucide-react';
+import { LayoutDashboard, Map as MapIcon, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import PipelineMap from './pages/PipelineMap';
 import DynamicInspection from './pages/DynamicInspection';
 import TechSpecs from './pages/TechSpecs';
+import EquipmentManagement from './pages/EquipmentManagement';
+import ClientPortal from './pages/ClientPortal';
+import ProjectsManagement from './pages/ProjectsManagement';
+import ResourceManagement from './pages/ResourceManagement';
+import RegulatoryDocuments from './pages/RegulatoryDocuments';
+import CompetenciesManagement from './pages/CompetenciesManagement';
+import ReportGeneration from './pages/ReportGeneration';
+import InspectionsList from './pages/InspectionsList';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
   const location = useLocation();
@@ -37,10 +45,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
           <SidebarItem to="/" icon={LayoutDashboard} label={isSidebarOpen ? "Дашборд" : ""} />
+          <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? "Оборудование" : ""} />
+          <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Чек-листы" : ""} />
+          <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
+          <SidebarItem to="/resources" icon={Calculator} label={isSidebarOpen ? "Ресурс оборудования" : ""} />
+          <SidebarItem to="/reports" icon={Sparkles} label={isSidebarOpen ? "Генерация отчетов" : ""} />
+          <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Нормативные документы" : ""} />
+          <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
+          <SidebarItem to="/client-portal" icon={Users} label={isSidebarOpen ? "Клиентский портал" : ""} />
           <SidebarItem to="/map" icon={MapIcon} label={isSidebarOpen ? "Карта ОПО" : ""} />
           <SidebarItem to="/inspection" icon={ClipboardList} label={isSidebarOpen ? "Диагностика" : ""} />
           <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
-          <SidebarItem to="/reports" icon={FileText} label={isSidebarOpen ? "Отчеты РТН" : ""} />
           <div className="my-4 border-t border-slate-700"></div>
           <SidebarItem to="/settings" icon={Settings} label={isSidebarOpen ? "Настройки" : ""} />
         </nav>
@@ -84,6 +99,14 @@ const App = () => {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/equipment" element={<EquipmentManagement />} />
+          <Route path="/inspections-list" element={<InspectionsList />} />
+          <Route path="/projects" element={<ProjectsManagement />} />
+          <Route path="/resources" element={<ResourceManagement />} />
+          <Route path="/reports" element={<ReportGeneration />} />
+          <Route path="/regulatory" element={<RegulatoryDocuments />} />
+          <Route path="/competencies" element={<CompetenciesManagement />} />
+          <Route path="/client-portal" element={<ClientPortal />} />
           <Route path="/map" element={<PipelineMap />} />
           <Route path="/inspection" element={<DynamicInspection />} />
           <Route path="/specs" element={<TechSpecs />} />
