@@ -15,6 +15,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=default_db
     volumes:
+      # Mapping the folder where you will put the certificate
       - ./backend/certs:/app/certs
     restart: always
 
