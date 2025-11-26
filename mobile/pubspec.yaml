@@ -32,7 +32,6 @@ dependencies:
   path_provider: ^2.1.2
   
   # Utils
-  shared_preferences: ^2.2.2
   image_picker: ^1.0.7
   file_picker: ^10.3.7
   pdf: ^3.10.7
@@ -41,6 +40,7 @@ dependencies:
   
   # Bluetooth для интеграции с приборами
   flutter_blue_plus: ^1.32.10
+  shared_preferences: 2.2.2
 
 dev_dependencies:
   flutter_test:

@@ -32,7 +32,7 @@ class EquipmentListScreen extends ConsumerWidget {
                   builder: (context) => const AddEquipmentScreen(),
                 ),
               );
-              if (result != null && mounted) {
+              if (result != null) {
                 // Обновляем список оборудования
                 ref.invalidate(equipmentListProvider);
                 // Переходим к диагностике нового оборудования
@@ -89,7 +89,7 @@ class EquipmentListScreen extends ConsumerWidget {
                           builder: (context) => const AddEquipmentScreen(),
                         ),
                       );
-                      if (result != null && mounted) {
+                      if (result != null) {
                         ref.invalidate(equipmentListProvider);
                         Navigator.push(
                           context,

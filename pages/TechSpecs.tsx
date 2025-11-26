@@ -7,7 +7,7 @@ const TechSpecs = () => {
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2">Техническая документация платформы</h1>
-        <p className="text-slate-400">Версия архитектуры: 2.1.0 (2025-Q1)</p>
+        <p className="text-slate-400">Версия архитектуры: 3.0.0 (2025-Q4)</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

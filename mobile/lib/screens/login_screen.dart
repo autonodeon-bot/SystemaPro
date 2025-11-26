@@ -39,10 +39,19 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } catch (e) {
         if (mounted) {
+          String errorMessage = 'Ошибка входа';
+          if (e.toString().contains('401') || e.toString().contains('Incorrect')) {
+            errorMessage = 'Неверный логин или пароль';
+          } else if (e.toString().contains('Connection') || e.toString().contains('Failed')) {
+            errorMessage = 'Нет подключения к серверу';
+          } else if (e.toString().isNotEmpty) {
+            errorMessage = e.toString().replaceAll('Exception: ', '');
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Ошибка входа: $e'),
+              content: Text(errorMessage),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
             ),
           );
         }

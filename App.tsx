@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Map as MapIcon, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, FileBarChart } from 'lucide-react';
+import { LayoutDashboard, Map as MapIcon, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, FileBarChart, Smartphone } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import PipelineMap from './pages/PipelineMap';
 import DynamicInspection from './pages/DynamicInspection';
@@ -15,6 +15,7 @@ import ReportGeneration from './pages/ReportGeneration';
 import InspectionsList from './pages/InspectionsList';
 import ReportsAndExpertise from './pages/ReportsAndExpertise';
 import SpecialistsManagement from './pages/SpecialistsManagement';
+import MobileApp from './pages/MobileApp';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
   const location = useLocation();
@@ -56,6 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Нормативные документы" : ""} />
           <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
           <SidebarItem to="/specialists" icon={Users} label={isSidebarOpen ? "Специалисты НК" : ""} />
+          <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? "Мобильное приложение" : ""} />
           <SidebarItem to="/client-portal" icon={Users} label={isSidebarOpen ? "Клиентский портал" : ""} />
           <SidebarItem to="/map" icon={MapIcon} label={isSidebarOpen ? "Карта ОПО" : ""} />
           <SidebarItem to="/inspection" icon={ClipboardList} label={isSidebarOpen ? "Диагностика" : ""} />
@@ -112,6 +114,7 @@ const App = () => {
           <Route path="/regulatory" element={<RegulatoryDocuments />} />
           <Route path="/competencies" element={<CompetenciesManagement />} />
           <Route path="/specialists" element={<SpecialistsManagement />} />
+          <Route path="/mobile-app" element={<MobileApp />} />
           <Route path="/client-portal" element={<ClientPortal />} />
           <Route path="/map" element={<PipelineMap />} />
           <Route path="/inspection" element={<DynamicInspection />} />

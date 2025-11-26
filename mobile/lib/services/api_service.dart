@@ -255,17 +255,33 @@ class ApiService {
         }
       } else {
         final errorBody = response.body;
-        String errorMessage = 'Ошибка авторизации: ${response.statusCode}';
+        String errorMessage = 'Ошибка авторизации';
         try {
           final errorData = json.decode(errorBody);
           if (errorData['detail'] != null) {
             errorMessage = errorData['detail'];
+          } else if (errorData['message'] != null) {
+            errorMessage = errorData['message'];
           }
-        } catch (_) {}
+        } catch (_) {
+          if (response.statusCode == 401) {
+            errorMessage = 'Неверный логин или пароль';
+          } else if (response.statusCode == 404) {
+            errorMessage = 'Пользователь не найден';
+          } else {
+            errorMessage = 'Ошибка сервера: ${response.statusCode}';
+          }
+        }
         throw Exception(errorMessage);
       }
     } catch (e) {
-      throw Exception('Ошибка авторизации: $e');
+      String errorMsg = e.toString();
+      if (errorMsg.contains('SocketException') || errorMsg.contains('Failed host lookup')) {
+        throw Exception('Нет подключения к серверу. Проверьте интернет-соединение.');
+      } else if (errorMsg.contains('Exception:')) {
+        throw Exception(errorMsg.replaceAll('Exception: ', ''));
+      }
+      throw Exception('Ошибка авторизации: ${errorMsg.replaceAll('Exception: ', '')}');
     }
   }
 

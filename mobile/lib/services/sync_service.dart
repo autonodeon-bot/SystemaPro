@@ -1,17 +1,24 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences';
+import 'package:path_provider/path_provider.dart';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
 import 'api_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
-  static const String _prefsKeyPendingInspections = 'pending_inspections';
-  static const String _prefsKeyLastSync = 'last_sync';
-  static const String _prefsKeyOfflineMode = 'offline_mode';
+  static const String _fileNamePendingInspections = 'pending_inspections.json';
+  static const String _fileNameLastSync = 'last_sync.txt';
+  static const String _fileNameOfflineMode = 'offline_mode.txt';
   
   final ApiService _apiService = ApiService();
+  
+  /// Получить файл для хранения данных
+  Future<File> _getDataFile(String fileName) async {
+    final directory = await getApplicationDocumentsDirectory();
+    return File('${directory.path}/$fileName');
+  }
   
   /// Сохранить диагностику в локальное хранилище для последующей синхронизации
   Future<void> saveInspectionOffline({
@@ -21,8 +28,15 @@ class SyncService {
     required String inspectionDate,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingInspections = prefs.getStringList(_prefsKeyPendingInspections) ?? [];
+      final file = await _getDataFile(_fileNamePendingInspections);
+      List<Map<String, dynamic>> pendingInspections = [];
+      
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          pendingInspections = List<Map<String, dynamic>>.from(json.decode(content));
+        }
+      }
       
       final inspectionData = {
         'equipment_id': equipmentId,
@@ -33,8 +47,8 @@ class SyncService {
         'timestamp': DateTime.now().toIso8601String(),
       };
       
-      pendingInspections.add(json.encode(inspectionData));
-      await prefs.setStringList(_prefsKeyPendingInspections, pendingInspections);
+      pendingInspections.add(inspectionData);
+      await file.writeAsString(json.encode(pendingInspections));
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
     }
@@ -43,12 +57,14 @@ class SyncService {
   /// Получить список ожидающих синхронизации диагностик
   Future<List<Map<String, dynamic>>> getPendingInspections() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingInspections = prefs.getStringList(_prefsKeyPendingInspections) ?? [];
-      
-      return pendingInspections.map((item) {
-        return json.decode(item) as Map<String, dynamic>;
-      }).toList();
+      final file = await _getDataFile(_fileNamePendingInspections);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          return List<Map<String, dynamic>>.from(json.decode(content));
+        }
+      }
+      return [];
     } catch (e) {
       return [];
     }
@@ -73,8 +89,8 @@ class SyncService {
         return result;
       }
       
-      final prefs = await SharedPreferences.getInstance();
-      final failedInspections = <String>[];
+      final file = await _getDataFile(_fileNamePendingInspections);
+      final failedInspections = <Map<String, dynamic>>[];
       
       for (final inspectionData in pendingInspections) {
         try {
@@ -84,21 +100,28 @@ class SyncService {
             equipmentId: inspectionData['equipment_id'] as String,
             checklist: checklist,
             conclusion: inspectionData['conclusion'] as String?,
-            inspectionDate: inspectionData['date_performed'] as String,
+            datePerformed: inspectionData['date_performed'] != null 
+                ? DateTime.parse(inspectionData['date_performed'] as String)
+                : null,
           );
           
           result.syncedCount++;
         } catch (e) {
-          failedInspections.add(json.encode(inspectionData));
+          failedInspections.add(inspectionData);
           result.failedCount++;
         }
       }
       
       // Сохранить неудачные попытки
-      await prefs.setStringList(_prefsKeyPendingInspections, failedInspections);
-      
+      if (failedInspections.isEmpty) {
+        await file.delete();
+      } else {
+        await file.writeAsString(json.encode(failedInspections));
+      }
+    
       // Обновить время последней синхронизации
-      await prefs.setString(_prefsKeyLastSync, DateTime.now().toIso8601String());
+      final lastSyncFile = await _getDataFile(_fileNameLastSync);
+      await lastSyncFile.writeAsString(DateTime.now().toIso8601String());
       
       result.success = true;
       result.message = 'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
@@ -112,10 +135,12 @@ class SyncService {
   /// Получить время последней синхронизации
   Future<DateTime?> getLastSyncTime() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastSyncStr = prefs.getString(_prefsKeyLastSync);
-      if (lastSyncStr != null) {
-        return DateTime.parse(lastSyncStr);
+      final file = await _getDataFile(_fileNameLastSync);
+      if (await file.exists()) {
+        final lastSyncStr = await file.readAsString();
+        if (lastSyncStr.isNotEmpty) {
+          return DateTime.parse(lastSyncStr);
+        }
       }
     } catch (e) {
       // Игнорировать ошибки
@@ -125,20 +150,30 @@ class SyncService {
   
   /// Очистить все ожидающие диагностики
   Future<void> clearPendingInspections() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyPendingInspections);
+    final file = await _getDataFile(_fileNamePendingInspections);
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
   
   /// Установить режим офлайн
   Future<void> setOfflineMode(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsKeyOfflineMode, enabled);
+    final file = await _getDataFile(_fileNameOfflineMode);
+    await file.writeAsString(enabled.toString());
   }
   
   /// Получить режим офлайн
   Future<bool> isOfflineMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_prefsKeyOfflineMode) ?? false;
+    try {
+      final file = await _getDataFile(_fileNameOfflineMode);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        return content == 'true';
+      }
+    } catch (e) {
+      // Игнорировать ошибки
+    }
+    return false;
   }
 }
 
@@ -149,6 +184,3 @@ class SyncResult {
   String? message;
   String? error;
 }
-
-
-
