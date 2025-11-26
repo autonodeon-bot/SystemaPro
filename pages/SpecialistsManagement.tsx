@@ -1,0 +1,400 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Users, Search, Plus, Edit, Trash2, Eye, Download, 
+  Mail, Phone, Award, Briefcase, FileText, Filter,
+  CheckCircle, XCircle, Calendar, MapPin
+} from 'lucide-react';
+
+interface Specialist {
+  id: string;
+  full_name: string;
+  position?: string;
+  email?: string;
+  phone?: string;
+  qualifications?: Record<string, any>;
+  certifications?: any[];
+  equipment_types?: string[];
+  is_active: number;
+  created_at: string;
+}
+
+interface Certification {
+  id: string;
+  engineer_id: string;
+  certification_type: string;
+  number: string;
+  issued_by: string;
+  issue_date?: string;
+  expiry_date?: string;
+  file_path?: string;
+}
+
+const SpecialistsManagement = () => {
+  const [specialists, setSpecialists] = useState<Specialist[]>([]);
+  const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedSpecialist, setSelectedSpecialist] = useState<Specialist | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const API_BASE = 'http://5.129.203.182:8000';
+
+  useEffect(() => {
+    loadSpecialists();
+    loadCertifications();
+  }, []);
+
+  const loadSpecialists = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/engineers`);
+      const data = await response.json();
+      setSpecialists(data.items || []);
+    } catch (error) {
+      console.error('Ошибка загрузки специалистов:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCertifications = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/certifications`);
+      const data = await response.json();
+      setCertifications(data.items || []);
+    } catch (error) {
+      console.error('Ошибка загрузки сертификатов:', error);
+    }
+  };
+
+  const filteredSpecialists = specialists.filter(spec => {
+    const matchesSearch = 
+      spec.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      spec.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      spec.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  const getSpecialistCertifications = (specialistId: string) => {
+    return certifications.filter(cert => cert.engineer_id === specialistId);
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Не указана';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ru-RU');
+    } catch {
+      return dateString;
+    }
+  };
+
+  const isCertificationExpired = (expiryDate?: string) => {
+    if (!expiryDate) return false;
+    try {
+      return new Date(expiryDate) < new Date();
+    } catch {
+      return false;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Заголовок */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Users className="text-accent" size={28} />
+            Специалисты неразрушающего контроля
+          </h1>
+          <p className="text-slate-400 mt-1">
+            Управление специалистами, их квалификациями и сертификатами
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-white font-medium flex items-center gap-2 transition-colors"
+        >
+          <Plus size={20} />
+          Добавить специалиста
+        </button>
+      </div>
+
+      {/* Поиск */}
+      <div className="bg-secondary/50 rounded-lg p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            type="text"
+            placeholder="Поиск по имени, должности, email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+          />
+        </div>
+      </div>
+
+      {/* Список специалистов */}
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+          <p className="text-slate-400 mt-4">Загрузка специалистов...</p>
+        </div>
+      ) : filteredSpecialists.length === 0 ? (
+        <div className="text-center py-12 bg-secondary/50 rounded-lg">
+          <Users className="mx-auto text-slate-400 mb-4" size={48} />
+          <p className="text-slate-400">Специалисты не найдены</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSpecialists.map((specialist) => {
+            const specialistCerts = getSpecialistCertifications(specialist.id);
+            const expiredCerts = specialistCerts.filter(cert => 
+              isCertificationExpired(cert.expiry_date)
+            );
+
+            return (
+              <div
+                key={specialist.id}
+                className="bg-secondary/50 rounded-lg p-6 hover:bg-secondary/70 transition-colors border border-slate-700"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-white font-bold">
+                      {specialist.full_name[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white">{specialist.full_name}</h3>
+                      {specialist.position && (
+                        <p className="text-sm text-slate-400">{specialist.position}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    specialist.is_active 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {specialist.is_active ? 'Активен' : 'Неактивен'}
+                  </span>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  {specialist.email && (
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <Mail size={14} />
+                      <span>{specialist.email}</span>
+                    </div>
+                  )}
+                  {specialist.phone && (
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <Phone size={14} />
+                      <span>{specialist.phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                {specialist.equipment_types && specialist.equipment_types.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-slate-400 mb-2">Специализация:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {specialist.equipment_types.slice(0, 3).map((type, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300"
+                        >
+                          {type}
+                        </span>
+                      ))}
+                      {specialist.equipment_types.length > 3 && (
+                        <span className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300">
+                          +{specialist.equipment_types.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-700">
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1">
+                      <Award size={14} className="text-yellow-400" />
+                      <span className="text-slate-400">
+                        {specialistCerts.length} серт.
+                      </span>
+                    </div>
+                    {expiredCerts.length > 0 && (
+                      <div className="flex items-center gap-1 text-red-400">
+                        <XCircle size={14} />
+                        <span>{expiredCerts.length} просрочено</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedSpecialist(specialist);
+                      setShowDetails(true);
+                    }}
+                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors"
+                  >
+                    <Eye size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Модальное окно с деталями */}
+      {showDetails && selectedSpecialist && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDetails(false)}>
+          <div
+            className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-secondary border-b border-slate-700 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="text-accent" size={24} />
+                {selectedSpecialist.full_name}
+              </h2>
+              <button
+                onClick={() => setShowDetails(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Основная информация */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Должность</label>
+                  <p className="text-white">{selectedSpecialist.position || 'Не указана'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Email</label>
+                  <p className="text-white">{selectedSpecialist.email || 'Не указан'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Телефон</label>
+                  <p className="text-white">{selectedSpecialist.phone || 'Не указан'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Статус</label>
+                  <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                    selectedSpecialist.is_active 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {selectedSpecialist.is_active ? 'Активен' : 'Неактивен'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Специализация */}
+              {selectedSpecialist.equipment_types && selectedSpecialist.equipment_types.length > 0 && (
+                <div>
+                  <label className="text-xs text-slate-400 mb-2 block">Специализация</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSpecialist.equipment_types.map((type, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 bg-slate-700 rounded text-sm text-slate-300"
+                      >
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Квалификации */}
+              {selectedSpecialist.qualifications && Object.keys(selectedSpecialist.qualifications).length > 0 && (
+                <div>
+                  <label className="text-xs text-slate-400 mb-2 block">Квалификации</label>
+                  <div className="space-y-2">
+                    {Object.entries(selectedSpecialist.qualifications).map(([key, value]) => (
+                      <div key={key} className="flex justify-between p-2 bg-slate-700/50 rounded">
+                        <span className="text-sm text-slate-300">{key}</span>
+                        <span className="text-sm text-white">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Сертификаты */}
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block">Сертификаты</label>
+                {getSpecialistCertifications(selectedSpecialist.id).length === 0 ? (
+                  <p className="text-slate-400 text-sm">Сертификаты не найдены</p>
+                ) : (
+                  <div className="space-y-2">
+                    {getSpecialistCertifications(selectedSpecialist.id).map((cert) => {
+                      const isExpired = isCertificationExpired(cert.expiry_date);
+                      return (
+                        <div
+                          key={cert.id}
+                          className={`p-4 rounded-lg border ${
+                            isExpired
+                              ? 'bg-red-500/10 border-red-500/30'
+                              : 'bg-slate-700/50 border-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Award className={isExpired ? 'text-red-400' : 'text-yellow-400'} size={18} />
+                                <h4 className="font-medium text-white">
+                                  {cert.certification_type} №{cert.number}
+                                </h4>
+                                {isExpired && (
+                                  <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
+                                    Просрочен
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-1 text-sm">
+                                <p className="text-slate-400">
+                                  Выдан: {cert.issued_by}
+                                </p>
+                                {cert.issue_date && (
+                                  <p className="text-slate-400">
+                                    Дата выдачи: {formatDate(cert.issue_date)}
+                                  </p>
+                                )}
+                                {cert.expiry_date && (
+                                  <p className={isExpired ? 'text-red-400' : 'text-slate-400'}>
+                                    Действителен до: {formatDate(cert.expiry_date)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {cert.file_path && (
+                              <a
+                                href={`${API_BASE}/api/documents/${cert.id}/download`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 text-accent hover:bg-slate-700 rounded transition-colors"
+                              >
+                                <Download size={20} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SpecialistsManagement;
+

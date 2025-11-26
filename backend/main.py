@@ -1,11 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select, text, func
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import uuid as uuid_lib
 from database import get_db, engine, Base
@@ -15,6 +16,7 @@ from models import (
     Engineer, Certification, Report
 )
 from report_generator import ReportGenerator
+from auth import create_access_token, verify_token, USERS_DB
 from pathlib import Path
 
 app = FastAPI(
@@ -62,38 +64,6 @@ async def root():
         "status": "running"
     }
 
-# Аутентификация
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-@app.post("/api/auth/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Вход в систему"""
-    user = USERS_DB.get(form_data.username)
-    if not user or user["password"] != form_data.password:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=60 * 24)
-    access_token = create_access_token(
-        data={"sub": form_data.username, "role": user["role"]},
-        expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer", "role": user["role"]}
-
-@app.get("/api/auth/me")
-async def get_current_user(username: str = Depends(verify_token)):
-    """Получить информацию о текущем пользователе"""
-    user = USERS_DB.get(username)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "username": username,
-        "role": user["role"],
-        "permissions": user["permissions"]
-    }
-
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
     """Health check endpoint"""
@@ -127,16 +97,39 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer", "role": user["role"]}
 
 @app.get("/api/auth/me")
-async def get_current_user(username: str = Depends(verify_token)):
+async def get_current_user(username: str = Depends(verify_token), db: AsyncSession = Depends(get_db)):
     """Получить информацию о текущем пользователе"""
     user = USERS_DB.get(username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {
+    
+    # Пытаемся найти инженера по username или email
+    result = await db.execute(
+        select(Engineer).where(
+            (Engineer.email == username) | (Engineer.full_name.ilike(f"%{username}%"))
+        )
+    )
+    engineer = result.scalar_one_or_none()
+    
+    response = {
         "username": username,
         "role": user["role"],
         "permissions": user["permissions"]
     }
+    
+    if engineer:
+        response.update({
+            "id": str(engineer.id),
+            "full_name": engineer.full_name,
+            "email": engineer.email,
+            "phone": engineer.phone,
+            "position": engineer.position,
+            "qualifications": engineer.qualifications or {},
+            "certifications": engineer.certifications or [],
+            "equipment_types": engineer.equipment_types or [],
+        })
+    
+    return response
 
 # Pydantic models for request/response
 class EquipmentCreate(BaseModel):
@@ -844,8 +837,8 @@ async def get_certifications(
             except:
                 raise HTTPException(status_code=400, detail="Invalid engineer_id format")
         
-        result = await db.execute(query)
-        certs = result.scalars().all()
+        result = await db.execute(query.order_by(Certification.issue_date.desc() if Certification.issue_date else Certification.created_at.desc()))
+        certifications = result.scalars().all()
         return {
             "items": [
                 {
@@ -854,14 +847,124 @@ async def get_certifications(
                     "certification_type": c.certification_type,
                     "number": c.number,
                     "issued_by": c.issued_by,
-                    "issue_date": str(c.issue_date) if c.issue_date else None,
-                    "expiry_date": str(c.expiry_date) if c.expiry_date else None,
+                    "issue_date": c.issue_date.isoformat() if c.issue_date else None,
+                    "expiry_date": c.expiry_date.isoformat() if c.expiry_date else None,
+                    "file_path": c.file_path,
                 }
-                for c in certs
+                for c in certifications
             ]
         }
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Engineer statistics endpoint
+@app.get("/api/engineers/{engineer_id}/stats")
+async def get_engineer_stats(engineer_id: str, db: AsyncSession = Depends(get_db)):
+    """Get statistics for an engineer"""
+    try:
+        engineer_uuid = uuid_lib.UUID(engineer_id)
+        
+        # Count inspections
+        inspections_result = await db.execute(
+            select(func.count(Inspection.id)).where(Inspection.inspector_id == engineer_uuid)
+        )
+        total_inspections = inspections_result.scalar() or 0
+        
+        # Count reports
+        reports_result = await db.execute(
+            select(func.count(Report.id))
+            .join(Inspection, Report.inspection_id == Inspection.id)
+            .where(Inspection.inspector_id == engineer_uuid)
+        )
+        total_reports = reports_result.scalar() or 0
+        
+        # Count active projects
+        projects_result = await db.execute(
+            select(func.count(Project.id))
+            .where(Project.manager_id == engineer_uuid)
+            .where(Project.status == "IN_PROGRESS")
+        )
+        active_projects = projects_result.scalar() or 0
+        
+        # Count certifications
+        certs_result = await db.execute(
+            select(func.count(Certification.id)).where(Certification.engineer_id == engineer_uuid)
+        )
+        certifications_count = certs_result.scalar() or 0
+        
+        return {
+            "total_inspections": total_inspections,
+            "total_reports": total_reports,
+            "active_projects": active_projects,
+            "certifications_count": certifications_count,
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid engineer_id format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Engineer documents endpoint
+@app.get("/api/engineers/{engineer_id}/documents")
+async def get_engineer_documents(engineer_id: str, db: AsyncSession = Depends(get_db)):
+    """Get documents for an engineer"""
+    try:
+        engineer_uuid = uuid_lib.UUID(engineer_id)
+        
+        # Get certifications
+        certs_result = await db.execute(
+            select(Certification).where(Certification.engineer_id == engineer_uuid)
+        )
+        certifications = certs_result.scalars().all()
+        
+        documents = []
+        for cert in certifications:
+            documents.append({
+                "id": str(cert.id),
+                "name": f"{cert.certification_type} №{cert.number}",
+                "type": "certification",
+                "issued_by": cert.issued_by,
+                "issue_date": cert.issue_date.isoformat() if cert.issue_date else None,
+                "expiry_date": cert.expiry_date.isoformat() if cert.expiry_date else None,
+                "file_path": cert.file_path,
+            })
+        
+        return {"items": documents}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid engineer_id format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Document download endpoint
+@app.get("/api/documents/{document_id}/download")
+async def download_document(document_id: str, db: AsyncSession = Depends(get_db)):
+    """Download a document"""
+    try:
+        doc_uuid = uuid_lib.UUID(document_id)
+        
+        result = await db.execute(
+            select(Certification).where(Certification.id == doc_uuid)
+        )
+        cert = result.scalar_one_or_none()
+        
+        if not cert or not cert.file_path:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        from fastapi.responses import FileResponse
+        import os
+        
+        file_path = Path(cert.file_path)
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        return FileResponse(
+            path=str(file_path),
+            filename=file_path.name,
+            media_type='application/pdf'
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document_id format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

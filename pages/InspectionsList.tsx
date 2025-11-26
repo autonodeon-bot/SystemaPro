@@ -34,8 +34,11 @@ const InspectionsList = () => {
   const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
-    loadInspections();
-    loadEquipment();
+    const init = async () => {
+      await loadEquipment();
+      await loadInspections();
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -69,12 +72,15 @@ const InspectionsList = () => {
         inspectionsList = inspectionsList.filter((insp: Inspection) => insp.status === selectedStatus);
       }
 
-      // Обогащение данными об оборудовании
+      // Обогащение данными об оборудовании (API уже возвращает equipment_name и equipment_location)
+      // Но если их нет, используем локальный кэш
       for (const insp of inspectionsList) {
-        const eq = equipment.find(e => e.id === insp.equipment_id);
-        if (eq) {
-          insp.equipment_name = eq.name;
-          insp.equipment_location = eq.location;
+        if (!insp.equipment_name || !insp.equipment_location) {
+          const eq = equipment.find(e => e.id === insp.equipment_id);
+          if (eq) {
+            insp.equipment_name = eq.name;
+            insp.equipment_location = eq.location;
+          }
         }
       }
 

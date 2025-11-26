@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
 import 'vessel_inspection_screen.dart';
+import 'add_equipment_screen.dart';
 
 final equipmentListProvider = FutureProvider<List<Equipment>>((ref) async {
   final apiService = ApiService();
@@ -21,15 +22,97 @@ class EquipmentListScreen extends ConsumerWidget {
         title: const Text('Выбор оборудования'),
         backgroundColor: const Color(0xFF0f172a),
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddEquipmentScreen(),
+                ),
+              );
+              if (result != null && mounted) {
+                // Обновляем список оборудования
+                ref.invalidate(equipmentListProvider);
+                // Переходим к диагностике нового оборудования
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VesselInspectionScreen(
+                      equipment: result as Equipment,
+                    ),
+                  ),
+                );
+              }
+            },
+            tooltip: 'Добавить оборудование',
+          ),
+        ],
       ),
       backgroundColor: const Color(0xFF0f172a),
       body: equipmentAsync.when(
         data: (equipmentList) {
           if (equipmentList.isEmpty) {
-            return const Center(
-              child: Text(
-                'Оборудование не найдено',
-                style: TextStyle(color: Colors.white70),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 64,
+                    color: Colors.white38,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Оборудование не найдено',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Нажмите + чтобы добавить новое оборудование',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AddEquipmentScreen(),
+                        ),
+                      );
+                      if (result != null && mounted) {
+                        ref.invalidate(equipmentListProvider);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => VesselInspectionScreen(
+                              equipment: result as Equipment,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Добавить оборудование'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3b82f6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             );
           }

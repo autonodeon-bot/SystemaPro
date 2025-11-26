@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'screens/equipment_list_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/dashboard_screen.dart';
+import 'services/auth_service.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -29,7 +31,20 @@ class MyApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const EquipmentListScreen(),
+      home: FutureBuilder(
+        future: AuthService().isAuthenticated(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.data == true) {
+            return const DashboardScreen();
+          }
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }

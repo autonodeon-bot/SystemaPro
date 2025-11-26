@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
-import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
@@ -44,6 +42,66 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     for (var doc in ChecklistConstants.documents) {
       _checklist.documents[doc['number']!] = false;
     }
+  }
+
+  void _showReportCreationDialog(String inspectionId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text(
+          'Создать отчет?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Чек-лист успешно отправлен. Хотите создать отчет или экспертизу на основе этой диагностики?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context, true);
+            },
+            child: const Text('Позже'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                final report = await _apiService.createReport(
+                  inspectionId: inspectionId,
+                  reportType: 'TECHNICAL_REPORT',
+                  title: 'Технический отчет: ${widget.equipment.name}',
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Отчет успешно создан'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  Navigator.pop(context, true);
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Ошибка создания отчета: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              'Создать отчет',
+              style: TextStyle(color: Color(0xFF3b82f6)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickImage(ImageSource source, bool isFactoryPlate) async {
@@ -95,13 +153,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Чек-лист успешно отправлен'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, true);
+          // Показываем диалог с предложением создать отчет
+          final inspectionId = result['id']?.toString();
+          if (inspectionId != null) {
+            _showReportCreationDialog(inspectionId);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Чек-лист успешно отправлен'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.pop(context, true);
+          }
         }
       } catch (e) {
         if (mounted) {
