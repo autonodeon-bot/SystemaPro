@@ -39,11 +39,14 @@ const EquipmentManagement = () => {
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [engineers, setEngineers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showWorkshopForm, setShowWorkshopForm] = useState(false);
   const [showAccessForm, setShowAccessForm] = useState(false);
+  const [showEquipmentAccessForm, setShowEquipmentAccessForm] = useState(false);
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
+  const [selectedEquipmentForAccess, setSelectedEquipmentForAccess] = useState<Equipment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [showInspections, setShowInspections] = useState(false);
@@ -73,6 +76,11 @@ const EquipmentManagement = () => {
     access_type: 'read_write'
   });
 
+  const [equipmentAccessFormData, setEquipmentAccessFormData] = useState({
+    user_id: '',
+    access_type: 'read_write'
+  });
+
   const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
@@ -81,6 +89,7 @@ const EquipmentManagement = () => {
     loadWorkshops();
     loadClients();
     loadEngineers();
+    loadUsers();
   }, []);
 
   useEffect(() => {
@@ -159,6 +168,24 @@ const EquipmentManagement = () => {
       }
     } catch (error) {
       console.error('Ошибка загрузки инженеров:', error);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/users`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        // Фильтруем только инженеров
+        const engineers = (data.items || []).filter((u: any) => u.role === 'engineer');
+        setUsers(engineers);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки пользователей:', error);
     }
   };
 
@@ -283,6 +310,42 @@ const EquipmentManagement = () => {
     } catch (error) {
       console.error('Ошибка предоставления разрешения:', error);
       alert('Ошибка предоставления разрешения');
+    }
+  };
+
+  const handleEquipmentAccessSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEquipmentForAccess) return;
+    
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/users/${equipmentAccessFormData.user_id}/equipment-access`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          equipment_id: selectedEquipmentForAccess.id,
+          access_type: equipmentAccessFormData.access_type
+        })
+      });
+
+      if (response.ok) {
+        setShowEquipmentAccessForm(false);
+        setEquipmentAccessFormData({
+          user_id: '',
+          access_type: 'read_write'
+        });
+        setSelectedEquipmentForAccess(null);
+        alert('Доступ к оборудованию успешно предоставлен');
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось предоставить доступ'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка предоставления доступа:', error);
+      alert('Ошибка предоставления доступа');
     }
   };
 
@@ -536,6 +599,61 @@ const EquipmentManagement = () => {
         </div>
       )}
 
+      {/* Форма назначения доступа к конкретному оборудованию */}
+      {showEquipmentAccessForm && selectedEquipmentForAccess && (
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">
+            Назначить доступ к оборудованию: {selectedEquipmentForAccess.name}
+          </h2>
+          <form onSubmit={handleEquipmentAccessSubmit} className="space-y-3 sm:space-y-4">
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Инженер (пользователь) *</label>
+              <select
+                required
+                value={equipmentAccessFormData.user_id}
+                onChange={(e) => setEquipmentAccessFormData({ ...equipmentAccessFormData, user_id: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              >
+                <option value="">Выберите инженера</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>{user.full_name || user.username}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Тип доступа *</label>
+              <select
+                required
+                value={equipmentAccessFormData.access_type}
+                onChange={(e) => setEquipmentAccessFormData({ ...equipmentAccessFormData, access_type: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              >
+                <option value="read_only">Только просмотр</option>
+                <option value="read_write">Просмотр и редактирование</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="bg-blue-600 px-4 py-2 rounded-lg text-white font-bold hover:bg-blue-700"
+              >
+                Сохранить доступ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEquipmentAccessForm(false);
+                  setSelectedEquipmentForAccess(null);
+                }}
+                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Форма настройки разрешений для цеха */}
       {showAccessForm && selectedWorkshop && (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
@@ -618,6 +736,17 @@ const EquipmentManagement = () => {
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-bold text-white">{eq.name}</h3>
               <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedEquipmentForAccess(eq);
+                    setShowEquipmentAccessForm(true);
+                  }}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Назначить доступ инженеру"
+                >
+                  <Edit size={16} />
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

@@ -2,6 +2,7 @@ class Equipment {
   final String id;
   final String name;
   final String? typeId; // Изменено с int? на String? (UUID)
+  final String? workshopId; // ID цеха
   final String? serialNumber;
   final String? location; // Место расположения
   final Map<String, dynamic>? attributes;
@@ -11,6 +12,7 @@ class Equipment {
     required this.id,
     required this.name,
     this.typeId,
+    this.workshopId,
     this.serialNumber,
     this.location,
     this.attributes,
@@ -40,6 +42,7 @@ class Equipment {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       typeId: parseTypeId(json['type_id']),
+      workshopId: json['workshop_id']?.toString(),
       serialNumber: json['serial_number']?.toString(),
       location: json['location']?.toString(),
       attributes: parseAttributes(json['attributes']),
@@ -52,6 +55,7 @@ class Equipment {
       'id': id,
       'name': name,
       'type_id': typeId,
+      'workshop_id': workshopId,
       'serial_number': serialNumber,
       'location': location,
       'attributes': attributes,
