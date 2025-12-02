@@ -1,19 +1,35 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
 import '../models/user.dart';
+import 'auth_service.dart';
 
 class ApiService {
   // TODO: Заменить на реальный URL сервера
   static const String baseUrl = 'http://5.129.203.182:8000';
 
   // Получить список оборудования
-  Future<List<Equipment>> getEquipmentList() async {
+  Future<List<Equipment>> getEquipmentList({String? token}) async {
     try {
+      final headers = {'Content-Type': 'application/json'};
+      
+      // Автоматически получаем токен из AuthService, если не передан
+      String? authToken = token;
+      if (authToken == null) {
+        final authService = AuthService();
+        authToken = await authService.getToken();
+      }
+      
+      if (authToken != null) {
+        headers['Authorization'] = 'Bearer $authToken';
+      }
+      
       final response = await http.get(
         Uri.parse('$baseUrl/api/equipment'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -149,7 +165,8 @@ class ApiService {
         return Equipment.fromJson(json.decode(response.body));
       } else {
         final errorBody = response.body;
-        String errorMessage = 'Failed to create equipment: ${response.statusCode}';
+        String errorMessage =
+            'Failed to create equipment: ${response.statusCode}';
         try {
           final errorData = json.decode(errorBody);
           if (errorData['detail'] != null) {
@@ -175,7 +192,8 @@ class ApiService {
         final data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data['items'] ?? []);
       } else {
-        throw Exception('Failed to load equipment types: ${response.statusCode}');
+        throw Exception(
+            'Failed to load equipment types: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Error fetching equipment types: $e');
@@ -220,16 +238,28 @@ class ApiService {
   // Авторизация
   Future<User> login(String username, String password) async {
     try {
+      // Правильное кодирование URL для form-urlencoded
+      final body = Uri(
+        queryParameters: {
+          'username': username,
+          'password': password,
+        },
+      ).query;
+      
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'username=$username&password=$password',
+        body: body,
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final token = data['access_token'];
-        
+
+        if (token == null) {
+          throw Exception('Токен не получен от сервера');
+        }
+
         // Получаем информацию о пользователе
         final userResponse = await http.get(
           Uri.parse('$baseUrl/api/auth/me'),
@@ -242,14 +272,18 @@ class ApiService {
         if (userResponse.statusCode == 200) {
           final userData = json.decode(userResponse.body);
           userData['token'] = token;
+          // Убеждаемся, что роль правильно извлекается
+          print('API /auth/me вернул: role=${userData['role']}, username=${userData['username']}');
           return User.fromJson(userData);
         } else {
           // Если нет /api/auth/me, создаем пользователя из токена
+          final role = data['role'] ?? 'engineer';
+          print('Fallback: создаем пользователя с ролью: $role');
           return User(
             id: username,
             username: username,
             fullName: username,
-            role: data['role'] ?? 'engineer',
+            role: role,
             token: token,
           );
         }
@@ -267,21 +301,35 @@ class ApiService {
           if (response.statusCode == 401) {
             errorMessage = 'Неверный логин или пароль';
           } else if (response.statusCode == 404) {
-            errorMessage = 'Пользователь не найден';
+            errorMessage = 'Пользователь не найден. Проверьте логин и пароль.';
+          } else if (response.statusCode == 422) {
+            errorMessage = 'Неверный формат данных. Проверьте логин и пароль.';
           } else {
-            errorMessage = 'Ошибка сервера: ${response.statusCode}';
+            errorMessage =
+                'Ошибка сервера: ${response.statusCode}. ${errorBody.length > 100 ? errorBody.substring(0, 100) : errorBody}';
           }
         }
         throw Exception(errorMessage);
       }
+    } on http.ClientException catch (e) {
+      // Ошибки сети
+      if (e.message.contains('Failed host lookup') ||
+          e.message.contains('SocketException')) {
+        throw Exception(
+            'Нет подключения к серверу. Проверьте интернет-соединение.');
+      }
+      throw Exception('Ошибка сети: ${e.message}');
     } catch (e) {
       String errorMsg = e.toString();
-      if (errorMsg.contains('SocketException') || errorMsg.contains('Failed host lookup')) {
-        throw Exception('Нет подключения к серверу. Проверьте интернет-соединение.');
+      if (errorMsg.contains('SocketException') ||
+          errorMsg.contains('Failed host lookup')) {
+        throw Exception(
+            'Нет подключения к серверу. Проверьте интернет-соединение.');
       } else if (errorMsg.contains('Exception:')) {
         throw Exception(errorMsg.replaceAll('Exception: ', ''));
       }
-      throw Exception('Ошибка авторизации: ${errorMsg.replaceAll('Exception: ', '')}');
+      throw Exception(
+          'Ошибка авторизации: ${errorMsg.replaceAll('Exception: ', '')}');
     }
   }
 
@@ -337,10 +385,31 @@ class ApiService {
   }
 
   // Получить документы специалиста
-  Future<List<Map<String, dynamic>>> getSpecialistDocuments(String engineerId) async {
+  Future<List<Map<String, dynamic>>> getSpecialistDocuments(
+      String engineerId) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/engineers/$engineerId/documents'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['items'] ?? []);
+      } else {
+        return [];
+      }
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Получить сертификаты специалиста
+  Future<List<Map<String, dynamic>>> getSpecialistCertifications(
+      String engineerId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/certifications?engineer_id=$engineerId'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -384,6 +453,69 @@ class ApiService {
       return response.statusCode == 200;
     } catch (e) {
       return false;
+    }
+  }
+
+  // Отправка опросного листа
+  Future<Map<String, dynamic>> submitQuestionnaire(
+    dynamic questionnaire,
+    Map<String, String> photoPaths,
+  ) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/questionnaires');
+      final request = http.MultipartRequest('POST', uri);
+      
+      // Получаем токен из AuthService
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      
+      // Добавляем основные поля
+      request.fields['equipment_id'] = questionnaire.equipmentId ?? '';
+      request.fields['equipment_inventory_number'] = questionnaire.equipmentInventoryNumber ?? '';
+      request.fields['equipment_name'] = questionnaire.equipmentName ?? '';
+      request.fields['inspection_date'] = questionnaire.inspectionDate ?? DateTime.now().toIso8601String();
+      request.fields['inspector_name'] = questionnaire.inspectorName ?? '';
+      request.fields['inspector_position'] = questionnaire.inspectorPosition ?? '';
+      request.fields['questionnaire_data'] = json.encode(questionnaire.toJson());
+      
+      // Добавляем файлы
+      // Метаданные (item-id и item-name) уже включены в имя файла через FileNaming
+      for (final entry in photoPaths.entries) {
+        final file = File(entry.value);
+        if (await file.exists()) {
+          // Используем MultipartFile.fromPath для упрощения
+          final multipartFile = await http.MultipartFile.fromPath(
+            'files',
+            entry.value,
+            filename: file.path.split('/').last,
+            contentType: MediaType('image', 'jpeg'),
+          );
+          
+          request.files.add(multipartFile);
+        }
+      }
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body);
+      } else {
+        final errorBody = response.body;
+        String errorMessage = 'Failed to submit questionnaire: ${response.statusCode}';
+        try {
+          final errorData = json.decode(errorBody);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      throw Exception('Error submitting questionnaire: $e');
     }
   }
 }

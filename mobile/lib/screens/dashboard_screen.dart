@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/sync_service.dart';
 import 'equipment_list_screen.dart';
 import 'profile_screen.dart';
+import 'sync_screen.dart';
 import '../models/user.dart';
 
 final currentUserProvider = FutureProvider<User?>((ref) async {
@@ -17,14 +20,37 @@ final specialistStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async
   if (user == null) return {};
   
   final apiService = ApiService();
-  return await apiService.getSpecialistStats(user.id);
+  final engineerId = user.engineerId ?? user.id;
+  return await apiService.getSpecialistStats(engineerId);
 });
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Обновляем счетчик синхронизации при открытии экрана
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {});
+    });
+  }
+
+  Future<int> _getPendingCount() async {
+    final syncService = SyncService();
+    final inspections = await syncService.getPendingInspections();
+    final reports = await syncService.getPendingReports();
+    final questionnaires = await syncService.getPendingQuestionnaires();
+    return inspections.length + reports.length + questionnaires.length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
     final statsAsync = ref.watch(specialistStatsProvider);
 
@@ -51,6 +77,9 @@ class DashboardScreen extends ConsumerWidget {
           if (user == null) {
             return const Center(child: Text('Пользователь не найден'));
           }
+
+          // Показываем роль пользователя для отладки
+          print('Пользователь: ${user.username}, Роль: ${user.role}');
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -95,7 +124,7 @@ class DashboardScreen extends ConsumerWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Добро пожаловать,',
                                     style: TextStyle(
                                       color: Colors.white70,
@@ -114,11 +143,19 @@ class DashboardScreen extends ConsumerWidget {
                                   if (user.position != null)
                                     Text(
                                       user.position!,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         color: Colors.white60,
                                         fontSize: 14,
                                       ),
                                     ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Роль: ${_getRoleLabel(user.role)}',
+                                    style: const TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -205,6 +242,54 @@ class DashboardScreen extends ConsumerWidget {
                     );
                   },
                 ),
+                const SizedBox(height: 12),
+                FutureBuilder<int>(
+                  future: _getPendingCount(),
+                  builder: (context, snapshot) {
+                    final pendingCount = snapshot.data ?? 0;
+                    return _buildActionCard(
+                      context,
+                      icon: Icons.sync,
+                      title: 'Синхронизация',
+                      subtitle: pendingCount > 0 
+                          ? 'Ожидает: $pendingCount элементов'
+                          : 'Все синхронизировано',
+                      color: pendingCount > 0 
+                          ? Colors.orange 
+                          : Colors.green,
+                      badge: pendingCount > 0 ? pendingCount.toString() : null,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const SyncScreen()),
+                        );
+                      },
+                    );
+                  },
+                ),
+                
+                // Версия приложения
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      final packageInfo = snapshot.data!;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 24, bottom: 16),
+                        child: Center(
+                          child: Text(
+                            'Версия: ${packageInfo.version}',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox();
+                  },
+                ),
               ],
             ),
           );
@@ -228,6 +313,21 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _getRoleLabel(String role) {
+    switch (role) {
+      case 'admin':
+        return 'Администратор';
+      case 'chief_operator':
+        return 'Главный оператор';
+      case 'operator':
+        return 'Оператор';
+      case 'engineer':
+        return 'Инженер';
+      default:
+        return role;
+    }
   }
 
   Widget _buildStatsGrid(Map<String, dynamic> stats) {
@@ -288,7 +388,7 @@ class DashboardScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 12,
               ),
@@ -307,6 +407,7 @@ class DashboardScreen extends ConsumerWidget {
     required String subtitle,
     required Color color,
     required VoidCallback onTap,
+    String? badge,
   }) {
     return Card(
       color: const Color(0xFF1e293b),
@@ -320,9 +421,31 @@ class DashboardScreen extends ConsumerWidget {
           ),
           child: Icon(icon, color: color),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
         subtitle: Text(
           subtitle,
@@ -334,4 +457,6 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 }
+
+
 
