@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/auth_provider.dart';
 import 'vessel_inspection_screen.dart';
 import 'questionnaire_screen.dart';
 import 'add_equipment_screen.dart';
@@ -24,6 +25,7 @@ class EquipmentListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final equipmentAsync = ref.watch(equipmentListProvider);
+    final userAsync = ref.watch(currentUserProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -31,30 +33,40 @@ class EquipmentListScreen extends ConsumerWidget {
         backgroundColor: const Color(0xFF0f172a),
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AddEquipmentScreen(),
-                ),
-              );
-              if (result != null) {
-                // Обновляем список оборудования
-                ref.invalidate(equipmentListProvider);
-                // Переходим к диагностике нового оборудования
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => VesselInspectionScreen(
-                      equipment: result as Equipment,
-                    ),
-                  ),
+          // Кнопка добавления только для операторов и выше
+          userAsync.when(
+            data: (user) {
+              if (user != null && AuthHelper.canManageEquipment(user)) {
+                return IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddEquipmentScreen(),
+                      ),
+                    );
+                    if (result != null) {
+                      // Обновляем список оборудования
+                      ref.invalidate(equipmentListProvider);
+                      // Переходим к диагностике нового оборудования
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => VesselInspectionScreen(
+                            equipment: result as Equipment,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  tooltip: 'Добавить оборудование',
                 );
               }
+              return const SizedBox.shrink();
             },
-            tooltip: 'Добавить оборудование',
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
         ],
       ),

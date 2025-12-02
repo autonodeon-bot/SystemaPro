@@ -3,16 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/auth_provider.dart';
 import '../services/sync_service.dart';
 import 'equipment_list_screen.dart';
 import 'profile_screen.dart';
 import 'sync_screen.dart';
-import '../models/user.dart';
+import 'admin_screen.dart';
+import 'operator_screen.dart';
 
-final currentUserProvider = FutureProvider<User?>((ref) async {
-  final authService = AuthService();
-  return await authService.getCurrentUser();
-});
+// currentUserProvider уже определен в auth_provider.dart
 
 final specialistStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final authService = AuthService();
@@ -181,6 +180,48 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                 const SizedBox(height: 24),
 
+                // Админские функции
+                if (AuthHelper.isAdmin(user) || AuthHelper.hasAnyRole(user, ['chief_operator', 'operator']))
+                  _buildRoleSection(
+                    context,
+                    title: 'Управление',
+                    role: user.role,
+                    children: [
+                      if (AuthHelper.isAdmin(user))
+                        _buildActionCard(
+                          context,
+                          icon: Icons.admin_panel_settings,
+                          title: 'Админ панель',
+                          subtitle: 'Управление пользователями и системой',
+                          color: const Color(0xFFef4444),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AdminScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      if (AuthHelper.canManageEquipment(user))
+                        _buildActionCard(
+                          context,
+                          icon: Icons.settings,
+                          title: 'Управление доступом',
+                          subtitle: 'Назначение доступа к оборудованию',
+                          color: const Color(0xFF8b5cf6),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const OperatorScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+
                 // Быстрые действия
                 const Text(
                   'Быстрые действия',
@@ -195,7 +236,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   context,
                   icon: Icons.inventory_2,
                   title: 'Оборудование',
-                  subtitle: 'Выбрать оборудование для диагностики',
+                  subtitle: AuthHelper.isEngineer(user) 
+                      ? 'Доступное мне оборудование для диагностики'
+                      : 'Выбрать оборудование для диагностики',
                   color: const Color(0xFF3b82f6),
                   onTap: () {
                     Navigator.push(
@@ -206,34 +249,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     );
                   },
                 ),
-                const SizedBox(height: 12),
-                _buildActionCard(
-                  context,
-                  icon: Icons.assignment,
-                  title: 'Мои диагностики',
-                  subtitle: 'Просмотр выполненных диагностик',
-                  color: const Color(0xFF10b981),
-                  onTap: () {
-                    // TODO: Navigate to inspections list
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildActionCard(
-                  context,
-                  icon: Icons.description,
-                  title: 'Отчеты',
-                  subtitle: 'Созданные отчеты и экспертизы',
-                  color: const Color(0xFFf59e0b),
-                  onTap: () {
-                    // TODO: Navigate to reports
-                  },
-                ),
+                // Функции для инженеров
+                if (AuthHelper.isEngineer(user))
+                  _buildActionCard(
+                    context,
+                    icon: Icons.assignment,
+                    title: 'Мои диагностики',
+                    subtitle: 'Просмотр выполненных диагностик',
+                    color: const Color(0xFF10b981),
+                    onTap: () {
+                      // TODO: Navigate to inspections list
+                    },
+                  ),
+                if (AuthHelper.isEngineer(user))
+                  const SizedBox(height: 12),
+                if (AuthHelper.isEngineer(user))
+                  _buildActionCard(
+                    context,
+                    icon: Icons.description,
+                    title: 'Отчеты',
+                    subtitle: 'Созданные отчеты и экспертизы',
+                    color: const Color(0xFFf59e0b),
+                    onTap: () {
+                      // TODO: Navigate to reports
+                    },
+                  ),
                 const SizedBox(height: 12),
                 _buildActionCard(
                   context,
                   icon: Icons.person,
                   title: 'Личный кабинет',
-                  subtitle: 'Профиль, сертификаты, документы',
+                  subtitle: AuthHelper.isEngineer(user)
+                      ? 'Профиль, сертификаты, документы'
+                      : 'Профиль и настройки',
                   color: const Color(0xFF8b5cf6),
                   onTap: () {
                     Navigator.push(
@@ -328,6 +376,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       default:
         return role;
     }
+  }
+
+  Widget _buildRoleSection(
+    BuildContext context, {
+    required String title,
+    required String role,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...children,
+        const SizedBox(height: 12),
+      ],
+    );
   }
 
   Widget _buildStatsGrid(Map<String, dynamic> stats) {
