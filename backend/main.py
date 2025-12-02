@@ -543,14 +543,20 @@ async def get_inspections(
 ):
     """Get inspections"""
     try:
+        from sqlalchemy import desc, nullslast
         query = select(Inspection)
         if equipment_id:
             try:
                 equipment_uuid = uuid_lib.UUID(equipment_id)
                 query = query.where(Inspection.equipment_id == equipment_uuid)
-            except:
+            except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid equipment_id format")
-        query = query.order_by(Inspection.date_performed.desc() if Inspection.date_performed else Inspection.created_at.desc())
+        
+        # Правильная сортировка: сначала по date_performed, потом по created_at
+        query = query.order_by(
+            nullslast(desc(Inspection.date_performed)),
+            desc(Inspection.created_at)
+        )
         query = query.offset(skip).limit(limit)
         
         result = await db.execute(query)
@@ -560,24 +566,27 @@ async def get_inspections(
         equipment_ids = [str(insp.equipment_id) for insp in inspections if insp.equipment_id]
         equipment_map = {}
         if equipment_ids:
-            equipment_result = await db.execute(
-                select(Equipment).where(Equipment.id.in_([uuid_lib.UUID(eid) for eid in equipment_ids]))
-            )
-            for eq in equipment_result.scalars().all():
-                equipment_map[str(eq.id)] = {
-                    "name": eq.name,
-                    "location": eq.location
-                }
+            try:
+                equipment_result = await db.execute(
+                    select(Equipment).where(Equipment.id.in_([uuid_lib.UUID(eid) for eid in equipment_ids]))
+                )
+                for eq in equipment_result.scalars().all():
+                    equipment_map[str(eq.id)] = {
+                        "name": eq.name,
+                        "location": eq.location
+                    }
+            except Exception as e:
+                print(f"Ошибка при загрузке оборудования: {e}")
         
         return {
             "items": [
                 {
                     "id": str(ins.id),
-                    "equipment_id": str(ins.equipment_id),
-                    "equipment_name": equipment_map.get(str(ins.equipment_id), {}).get("name"),
-                    "equipment_location": equipment_map.get(str(ins.equipment_id), {}).get("location"),
+                    "equipment_id": str(ins.equipment_id) if ins.equipment_id else None,
+                    "equipment_name": equipment_map.get(str(ins.equipment_id), {}).get("name") if ins.equipment_id else None,
+                    "equipment_location": equipment_map.get(str(ins.equipment_id), {}).get("location") if ins.equipment_id else None,
                     "date_performed": ins.date_performed.isoformat() if ins.date_performed else None,
-                    "data": ins.data,
+                    "data": ins.data or {},
                     "conclusion": ins.conclusion,
                     "status": ins.status,
                     "created_at": ins.created_at.isoformat() if ins.created_at else None,
@@ -589,7 +598,9 @@ async def get_inspections(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to get inspections: {str(e)}")
 
 @app.post("/api/inspections")
 async def create_inspection(
