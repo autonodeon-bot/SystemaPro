@@ -379,6 +379,175 @@ const EquipmentManagement = () => {
     }
   };
 
+  const buildHierarchy = (): HierarchyNode[] => {
+    const hierarchy: HierarchyNode[] = [];
+    const clientMap = new Map<string, HierarchyNode>();
+    const workshopMap = new Map<string, HierarchyNode>();
+
+    // Группируем оборудование по клиентам и цехам
+    equipment.forEach(eq => {
+      if (!eq.workshop_id) return; // Пропускаем оборудование без цеха
+      
+      const workshop = workshops.find(w => w.id === eq.workshop_id);
+      if (!workshop) return;
+      
+      const clientId = workshop.client_id || 'no-client';
+      const client = clients.find(c => c.id === clientId);
+      
+      // Находим или создаем клиента
+      let clientNode = clientMap.get(clientId);
+      if (!clientNode) {
+        clientNode = {
+          id: `client-${clientId}`,
+          name: client?.name || 'Без предприятия',
+          type: 'client',
+          children: [],
+          data: client
+        };
+        clientMap.set(clientId, clientNode);
+        hierarchy.push(clientNode);
+      }
+
+      // Находим или создаем цех
+      let workshopNode = workshopMap.get(workshop.id);
+      if (!workshopNode) {
+        workshopNode = {
+          id: `workshop-${workshop.id}`,
+          name: workshop.name,
+          type: 'workshop',
+          children: [],
+          data: workshop
+        };
+        workshopMap.set(workshop.id, workshopNode);
+        if (!clientNode.children) clientNode.children = [];
+        clientNode.children.push(workshopNode);
+      }
+
+      // Добавляем оборудование
+      if (!workshopNode.children) workshopNode.children = [];
+      workshopNode.children.push({
+        id: `equipment-${eq.id}`,
+        name: eq.name,
+        type: 'equipment',
+        data: eq
+      });
+    });
+
+    // Добавляем оборудование без цеха в отдельную группу
+    const equipmentWithoutWorkshop = equipment.filter(eq => !eq.workshop_id);
+    if (equipmentWithoutWorkshop.length > 0) {
+      const noWorkshopNode: HierarchyNode = {
+        id: 'no-workshop',
+        name: 'Оборудование без цеха',
+        type: 'workshop',
+        children: equipmentWithoutWorkshop.map(eq => ({
+          id: `equipment-${eq.id}`,
+          name: eq.name,
+          type: 'equipment',
+          data: eq
+        }))
+      };
+      hierarchy.push(noWorkshopNode);
+    }
+
+    return hierarchy;
+  };
+
+  const toggleNode = (nodeId: string) => {
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(nodeId)) {
+      newExpanded.delete(nodeId);
+    } else {
+      newExpanded.add(nodeId);
+    }
+    setExpandedNodes(newExpanded);
+  };
+
+  const renderTreeNode = (node: HierarchyNode, level: number = 0): React.ReactNode => {
+    const isExpanded = expandedNodes.has(node.id);
+    const hasChildren = node.children && node.children.length > 0;
+    const isEquipment = node.type === 'equipment';
+    const equipment = node.data as Equipment | undefined;
+
+    const getIcon = () => {
+      switch (node.type) {
+        case 'client':
+          return <Building2 size={16} className="text-indigo-400" />;
+        case 'workshop':
+          return <Factory size={16} className="text-blue-400" />;
+        case 'equipment':
+          return <Package size={16} className="text-green-400" />;
+        default:
+          return null;
+      }
+    };
+
+    return (
+      <div key={node.id}>
+        <div
+          className={`flex items-center gap-2 py-2 px-3 cursor-pointer transition-colors ${
+            isEquipment
+              ? 'hover:bg-slate-700/50 text-white'
+              : 'hover:bg-slate-700/30 text-slate-300'
+          }`}
+          style={{ paddingLeft: `${level * 20 + 12}px` }}
+          onClick={() => {
+            if (hasChildren) toggleNode(node.id);
+            if (isEquipment && equipment) {
+              setSelectedEquipment(equipment);
+              loadInspections(equipment.id);
+            }
+          }}
+        >
+          {hasChildren && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleNode(node.id);
+              }}
+              className="p-0.5 hover:bg-white/10 rounded"
+            >
+              {isExpanded ? (
+                <ChevronDown size={14} className="text-slate-400" />
+              ) : (
+                <ChevronRight size={14} className="text-slate-400" />
+              )}
+            </button>
+          )}
+          {!hasChildren && <div className="w-5" />}
+          {getIcon()}
+          <span className="flex-1 truncate">{node.name}</span>
+          {isEquipment && equipment && (
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedEquipmentForAccess(equipment);
+                  setShowEquipmentAccessForm(true);
+                }}
+                className="text-blue-400 hover:text-blue-300 p-1"
+                title="Назначить доступ инженеру"
+              >
+                <Edit size={14} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(equipment.id);
+                }}
+                className="text-red-400 hover:text-red-300 p-1"
+                title="Удалить оборудование"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+        {isExpanded && hasChildren && node.children!.map(child => renderTreeNode(child, level + 1))}
+      </div>
+    );
+  };
+
   const filteredEquipment = equipment.filter(eq =>
     eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (eq.location && eq.location.toLowerCase().includes(searchTerm.toLowerCase())) ||

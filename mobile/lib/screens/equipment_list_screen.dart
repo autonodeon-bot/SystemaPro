@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import 'vessel_inspection_screen.dart';
+import 'questionnaire_screen.dart';
 import 'add_equipment_screen.dart';
 
 final equipmentListProvider = FutureProvider<List<Equipment>>((ref) async {
@@ -12,6 +14,12 @@ final equipmentListProvider = FutureProvider<List<Equipment>>((ref) async {
 
 class EquipmentListScreen extends ConsumerWidget {
   const EquipmentListScreen({super.key});
+
+  Future<String> _getUserRole() async {
+    final authService = AuthService();
+    final user = await authService.getCurrentUser();
+    return user?.role ?? 'engineer';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -72,45 +80,66 @@ class EquipmentListScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Нажмите + чтобы добавить новое оборудование',
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddEquipmentScreen(),
-                        ),
-                      );
-                      if (result != null) {
-                        ref.invalidate(equipmentListProvider);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VesselInspectionScreen(
-                              equipment: result as Equipment,
-                            ),
+                  FutureBuilder(
+                    future: _getUserRole(),
+                    builder: (context, snapshot) {
+                      final role = snapshot.data ?? 'engineer';
+                      if (role == 'engineer') {
+                        return const Text(
+                          'Вам не назначен доступ к оборудованию.\nОбратитесь к администратору для получения доступа.',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 14,
                           ),
+                          textAlign: TextAlign.center,
+                        );
+                      } else {
+                        return Column(
+                          children: [
+                            const Text(
+                              'Нажмите + чтобы добавить новое оборудование',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const AddEquipmentScreen(),
+                                  ),
+                                );
+                                if (result != null) {
+                                  ref.invalidate(equipmentListProvider);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => VesselInspectionScreen(
+                                        equipment: result as Equipment,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Добавить оборудование'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3b82f6),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         );
                       }
                     },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Добавить оборудование'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3b82f6),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -184,12 +213,58 @@ class EquipmentListScreen extends ConsumerWidget {
                         ),
                     ],
                   ),
-                  trailing: const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Color(0xFF3b82f6),
-                    size: 20,
+                  trailing: PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Color(0xFF3b82f6),
+                    ),
+                    color: const Color(0xFF1e293b),
+                    onSelected: (value) {
+                      if (value == 'inspection') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => VesselInspectionScreen(
+                              equipment: equipment,
+                            ),
+                          ),
+                        );
+                      } else if (value == 'questionnaire') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QuestionnaireScreen(
+                              equipment: equipment,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'inspection',
+                        child: Row(
+                          children: [
+                            Icon(Icons.checklist, color: Color(0xFF3b82f6)),
+                            SizedBox(width: 8),
+                            Text('Диагностика', style: TextStyle(color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'questionnaire',
+                        child: Row(
+                          children: [
+                            Icon(Icons.description, color: Color(0xFF3b82f6)),
+                            SizedBox(width: 8),
+                            Text('Опросный лист', style: TextStyle(color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   onTap: () {
+                    // По умолчанию открываем диагностику
                     Navigator.push(
                       context,
                       MaterialPageRoute(
