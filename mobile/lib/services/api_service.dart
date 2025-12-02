@@ -273,8 +273,15 @@ class ApiService {
           final userData = json.decode(userResponse.body);
           userData['token'] = token;
           // Убеждаемся, что роль правильно извлекается
-          print('API /auth/me вернул: role=${userData['role']}, username=${userData['username']}');
-          return User.fromJson(userData);
+          final role = userData['role'] ?? 'engineer';
+          print('API /auth/me вернул: role=$role, username=${userData['username']}');
+          // Явно устанавливаем роль, если её нет
+          if (userData['role'] == null) {
+            userData['role'] = role;
+          }
+          final user = User.fromJson(userData);
+          print('Создан User объект: username=${user.username}, role=${user.role}');
+          return user;
         } else {
           // Если нет /api/auth/me, создаем пользователя из токена
           final role = data['role'] ?? 'engineer';

@@ -6,6 +6,7 @@ class User {
   final String? phone;
   final String role;
   final String? position;
+  final String? engineerId;
   final Map<String, dynamic>? qualifications;
   final List<String>? certifications;
   final List<String>? equipmentTypes;
@@ -19,6 +20,7 @@ class User {
     this.phone,
     required this.role,
     this.position,
+    this.engineerId,
     this.qualifications,
     this.certifications,
     this.equipmentTypes,
@@ -26,14 +28,28 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Явно извлекаем роль и проверяем её
+    String role = 'engineer'; // Значение по умолчанию
+    if (json['role'] != null) {
+      role = json['role'].toString().toLowerCase();
+    }
+    // Проверяем, что роль валидна
+    final validRoles = ['admin', 'chief_operator', 'operator', 'engineer'];
+    if (!validRoles.contains(role)) {
+      print('⚠️ Неизвестная роль: $role, устанавливаем engineer');
+      role = 'engineer';
+    }
+    print('User.fromJson: username=${json['username']}, role=$role');
+    
     return User(
       id: json['id']?.toString() ?? '',
       username: json['username'] ?? '',
       fullName: json['full_name'] ?? json['fullName'] ?? '',
       email: json['email'],
       phone: json['phone'],
-      role: json['role'] ?? 'engineer',
+      role: role,
       position: json['position'],
+      engineerId: json['engineer_id']?.toString(),
       qualifications: json['qualifications'] is Map
           ? Map<String, dynamic>.from(json['qualifications'])
           : null,
@@ -56,6 +72,7 @@ class User {
       'phone': phone,
       'role': role,
       'position': position,
+      'engineer_id': engineerId,
       'qualifications': qualifications,
       'certifications': certifications,
       'equipment_types': equipmentTypes,
@@ -63,4 +80,11 @@ class User {
     };
   }
 }
+
+
+
+
+
+
+
 
