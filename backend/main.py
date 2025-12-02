@@ -543,7 +543,7 @@ async def get_inspections(
 ):
     """Get inspections"""
     try:
-        from sqlalchemy import desc, nullslast
+        from sqlalchemy import desc
         query = select(Inspection)
         if equipment_id:
             try:
@@ -552,11 +552,9 @@ async def get_inspections(
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid equipment_id format")
         
-        # Правильная сортировка: сначала по date_performed, потом по created_at
-        query = query.order_by(
-            nullslast(desc(Inspection.date_performed)),
-            desc(Inspection.created_at)
-        )
+        # Сортировка: сначала по date_performed (если есть), потом по created_at
+        # Используем простую сортировку - сначала по created_at, так как date_performed может быть NULL
+        query = query.order_by(desc(Inspection.created_at))
         query = query.offset(skip).limit(limit)
         
         result = await db.execute(query)
