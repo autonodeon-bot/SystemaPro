@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Integer, Date, DateTime, Text, JSON, ForeignKey, Numeric
+from sqlalchemy import Column, String, Integer, Date, DateTime, Text, JSON, ForeignKey, Numeric, Boolean, Table
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 from database import Base
 
@@ -14,17 +15,45 @@ class EquipmentType(Base):
     code = Column(String(50), unique=True)
     is_active = Column(Integer, default=1)
 
+class Workshop(Base):
+    """Цеха/подразделения предприятий"""
+    __tablename__ = "workshops"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)  # Название цеха
+    code = Column(String(50))  # Код цеха
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)  # Предприятие
+    location = Column(String(500))  # Адрес/местоположение
+    description = Column(Text)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class WorkshopEngineerAccess(Base):
+    """Разрешения инженеров на доступ к цехам"""
+    __tablename__ = "workshop_engineer_access"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workshop_id = Column(UUID(as_uuid=True), ForeignKey("workshops.id"), nullable=False)
+    engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=False)
+    access_type = Column(String(50), default="read_write")  # read, read_write, create_equipment
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
+
 class Equipment(Base):
     """Оборудование"""
     __tablename__ = "equipment"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     type_id = Column(UUID(as_uuid=True), ForeignKey("equipment_types.id"))
+    workshop_id = Column(UUID(as_uuid=True), ForeignKey("workshops.id"), nullable=True)  # Цех
     name = Column(String(255), nullable=False)
     serial_number = Column(String(100))
     location = Column(String(500))  # Место расположения (НГДУ, цех, месторождение)
     commissioning_date = Column(Date)
     attributes = Column(JSONB)  # Гибкие атрибуты в формате JSON
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Кто создал
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -48,7 +77,7 @@ class Inspection(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"))
-    inspector_id = Column(UUID(as_uuid=True), nullable=True)
+    inspector_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
     date_performed = Column(DateTime(timezone=True))
     data = Column(JSONB, nullable=False)  # Результаты обследования в формате JSON
@@ -153,6 +182,8 @@ class Certification(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"))
     certification_type = Column(String(100))  # Тип сертификата
+    method = Column(String(100))  # Метод контроля (УЗК, РК, ВИК, ПВК и т.д.)
+    level = Column(String(50))  # Уровень (I, II, III)
     number = Column(String(100))
     issued_by = Column(String(255))
     issue_date = Column(Date)
@@ -174,8 +205,70 @@ class Report(Base):
     file_path = Column(String(500))
     file_size = Column(Integer)
     status = Column(String(50), default="DRAFT")  # DRAFT, SIGNED, APPROVED, SENT
-    signed_by = Column(UUID(as_uuid=True), nullable=True)
+    signed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     signed_at = Column(DateTime(timezone=True), nullable=True)
     sent_to_client_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class User(Base):
+    """Пользователи системы"""
+    __tablename__ = "users"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)  # Хеш пароля (bcrypt)
+    full_name = Column(String(255))
+    role = Column(String(50), nullable=False, default="engineer")  # admin, chief_operator, operator, engineer
+    is_active = Column(Boolean, default=True)
+    engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=True)  # Связь с инженером
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_login = Column(DateTime(timezone=True), nullable=True)
+
+class Questionnaire(Base):
+    """Опросные листы для диагностики оборудования"""
+    __tablename__ = "questionnaires"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False, index=True)
+    equipment_inventory_number = Column(String(100))  # Инвентарный номер
+    equipment_name = Column(String(255))  # Наименование оборудования
+    inspection_date = Column(Date)
+    inspector_name = Column(String(255))  # ФИО инженера
+    inspector_position = Column(String(255))  # Должность инженера
+    questionnaire_data = Column(JSONB)  # Все данные опросного листа в JSON
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+# Таблица связи пользователей с оборудованием (доступ инженеров к оборудованию)
+class UserEquipmentAccess(Base):
+    """Доступ пользователей к оборудованию"""
+    __tablename__ = "user_equipment_access"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False, index=True)
+    access_type = Column(String(50), default="read_write")  # read_only, read_write
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Кто предоставил доступ
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # Дата окончания доступа
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# Таблица связи пользователей с проектами
+class UserProjectAccess(Base):
+    """Доступ пользователей к проектам"""
+    __tablename__ = "user_project_access"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
+    access_type = Column(String(50), default="read_write")  # read_only, read_write, manage
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

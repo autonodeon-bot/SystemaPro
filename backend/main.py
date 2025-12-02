@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, func
@@ -13,10 +13,18 @@ from database import get_db, engine, Base
 from models import (
     Equipment, EquipmentType, PipelineSegment, Inspection,
     Client, Project, EquipmentResource, RegulatoryDocument,
-    Engineer, Certification, Report
+    Engineer, Certification, Report, User as UserModel,
+    UserEquipmentAccess, UserProjectAccess, Questionnaire,
+    Workshop, WorkshopEngineerAccess
 )
 from report_generator import ReportGenerator
-from auth import create_access_token, verify_token, USERS_DB
+from auth import (
+    create_access_token, verify_token, hash_password, verify_password,
+    get_user_by_username, get_user_by_email, get_user_by_id,
+    check_equipment_access, check_project_access,
+    get_user_accessible_equipment_ids, get_user_accessible_project_ids,
+    require_permission, require_role, get_user_permissions
+)
 from pathlib import Path
 
 app = FastAPI(
@@ -80,50 +88,91 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @app.post("/api/auth/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """Вход в систему"""
-    user = USERS_DB.get(form_data.username)
-    if not user or user["password"] != form_data.password:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        # Ищем пользователя по username или email
+        user = await get_user_by_username(db, form_data.username)
+        if not user:
+            user = await get_user_by_email(db, form_data.username)
+        
+        if not user:
+            print(f"❌ Пользователь не найден: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if not user.is_active:
+            print(f"❌ Пользователь неактивен: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Проверяем пароль
+        if not verify_password(form_data.password, user.password_hash):
+            print(f"❌ Неверный пароль для пользователя: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Обновляем время последнего входа
+        user.last_login = datetime.utcnow()
+        await db.commit()
+        
+        access_token_expires = timedelta(minutes=60 * 24)
+        access_token = create_access_token(
+            data={"sub": user.username, "role": user.role, "user_id": str(user.id)},
+            expires_delta=access_token_expires
         )
-    access_token_expires = timedelta(minutes=60 * 24)
-    access_token = create_access_token(
-        data={"sub": form_data.username, "role": user["role"]},
-        expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer", "role": user["role"]}
+        print(f"✅ Успешный вход: {user.username} ({user.role})")
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": user.role,
+            "user_id": str(user.id)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Ошибка при входе: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 @app.get("/api/auth/me")
-async def get_current_user(username: str = Depends(verify_token), db: AsyncSession = Depends(get_db)):
+async def get_current_user(user: UserModel = Depends(verify_token), db: AsyncSession = Depends(get_db)):
     """Получить информацию о текущем пользователе"""
-    user = USERS_DB.get(username)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Пытаемся найти инженера по username или email
-    result = await db.execute(
-        select(Engineer).where(
-            (Engineer.email == username) | (Engineer.full_name.ilike(f"%{username}%"))
+    engineer = None
+    if user.engineer_id:
+        result = await db.execute(
+            select(Engineer).where(Engineer.id == user.engineer_id)
         )
-    )
-    engineer = result.scalar_one_or_none()
+        engineer = result.scalar_one_or_none()
     
     response = {
-        "username": username,
-        "role": user["role"],
-        "permissions": user["permissions"]
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name or user.username,
+        "role": user.role,
+        "permissions": get_user_permissions(user.role),
+        "is_active": user.is_active
     }
     
     if engineer:
         response.update({
-            "id": str(engineer.id),
-            "full_name": engineer.full_name,
-            "email": engineer.email,
-            "phone": engineer.phone,
+            "engineer_id": str(engineer.id),
             "position": engineer.position,
+            "phone": engineer.phone,
             "qualifications": engineer.qualifications or {},
             "certifications": engineer.certifications or [],
             "equipment_types": engineer.equipment_types or [],
@@ -135,6 +184,7 @@ async def get_current_user(username: str = Depends(verify_token), db: AsyncSessi
 class EquipmentCreate(BaseModel):
     name: str
     type_id: Optional[str] = None
+    workshop_id: Optional[str] = None
     serial_number: Optional[str] = None
     location: Optional[str] = None
     commissioning_date: Optional[str] = None
@@ -143,6 +193,7 @@ class EquipmentCreate(BaseModel):
 class EquipmentUpdate(BaseModel):
     name: Optional[str] = None
     type_id: Optional[str] = None
+    workshop_id: Optional[str] = None
     serial_number: Optional[str] = None
     location: Optional[str] = None
     commissioning_date: Optional[str] = None
@@ -153,15 +204,26 @@ class EquipmentUpdate(BaseModel):
 async def get_equipment(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
 ):
-    """Get list of equipment"""
+    """Get list of equipment (filtered by user access)"""
     try:
+        # Получаем доступное оборудование для пользователя
+        accessible_ids = await get_user_accessible_equipment_ids(db, user)
+        
         # Check if table exists
         try:
-            result = await db.execute(
-                select(Equipment).offset(skip).limit(limit)
-            )
+            query = select(Equipment)
+            # Если инженер - фильтруем по доступным ID
+            if user.role == "engineer" and accessible_ids:
+                from uuid import UUID
+                query = query.where(Equipment.id.in_([UUID(eid) for eid in accessible_ids]))
+            elif user.role == "engineer" and not accessible_ids:
+                # Нет доступа ни к одному оборудованию
+                return {"items": [], "total": 0}
+            
+            result = await db.execute(query.offset(skip).limit(limit))
             equipment = result.scalars().all()
         except Exception as table_error:
             # If table doesn't exist, try to create it
@@ -192,6 +254,7 @@ async def get_equipment(
                     "id": str(eq.id),
                     "name": eq.name,
                     "type_id": str(eq.type_id) if eq.type_id else None,
+                    "workshop_id": str(eq.workshop_id) if eq.workshop_id else None,
                     "serial_number": eq.serial_number,
                     "location": eq.location,
                     "attributes": eq.attributes or {},
@@ -217,9 +280,10 @@ async def get_equipment(
 @app.get("/api/equipment/{equipment_id}")
 async def get_equipment_by_id(
     equipment_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
 ):
-    """Get equipment by ID"""
+    """Get equipment by ID (with access check)"""
     try:
         result = await db.execute(
             select(Equipment).where(Equipment.id == equipment_id)
@@ -227,10 +291,17 @@ async def get_equipment_by_id(
         eq = result.scalar_one_or_none()
         if not eq:
             raise HTTPException(status_code=404, detail="Equipment not found")
+        
+        # Проверяем доступ
+        has_access = await check_equipment_access(db, user, equipment_id, "read")
+        if not has_access:
+            raise HTTPException(status_code=403, detail="Access denied to this equipment")
+        
         return {
             "id": str(eq.id),
             "name": eq.name,
             "type_id": str(eq.type_id) if eq.type_id else None,
+            "workshop_id": str(eq.workshop_id) if eq.workshop_id else None,
             "serial_number": eq.serial_number,
             "location": eq.location,
             "attributes": eq.attributes or {},
@@ -245,10 +316,36 @@ async def get_equipment_by_id(
 @app.post("/api/equipment")
 async def create_equipment(
     equipment_data: EquipmentCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
 ):
     """Create new equipment"""
     try:
+        # Проверяем права доступа
+        # Админ, главный оператор и оператор могут создавать везде
+        # Инженер может создавать только в своих цехах
+        if user.role not in ["admin", "chief_operator", "operator"]:
+            # Для инженера проверяем доступ к цеху
+            if user.role == "engineer" and user.engineer_id:
+                if equipment_data.workshop_id:
+                    # Проверяем, есть ли у инженера доступ к этому цеху
+                    from sqlalchemy import select
+                    from models import WorkshopEngineerAccess
+                    result = await db.execute(
+                        select(WorkshopEngineerAccess).where(
+                            WorkshopEngineerAccess.workshop_id == uuid_lib.UUID(equipment_data.workshop_id),
+                            WorkshopEngineerAccess.engineer_id == user.engineer_id,
+                            WorkshopEngineerAccess.is_active == True
+                        )
+                    )
+                    access = result.scalar_one_or_none()
+                    if not access:
+                        raise HTTPException(status_code=403, detail="Access denied to this workshop")
+                else:
+                    raise HTTPException(status_code=400, detail="Engineer must specify workshop_id")
+            else:
+                raise HTTPException(status_code=403, detail="Insufficient permissions")
+        
         # Parse commissioning_date if provided
         commissioning_date = None
         if equipment_data.commissioning_date:
@@ -265,13 +362,23 @@ async def create_equipment(
             except:
                 pass
         
+        # Parse workshop_id if provided
+        workshop_id = None
+        if equipment_data.workshop_id:
+            try:
+                workshop_id = uuid_lib.UUID(equipment_data.workshop_id)
+            except:
+                pass
+        
         new_equipment = Equipment(
             name=equipment_data.name,
             type_id=type_id,
+            workshop_id=workshop_id,
             serial_number=equipment_data.serial_number,
             location=equipment_data.location,
             commissioning_date=commissioning_date,
-            attributes=equipment_data.attributes or {}
+            attributes=equipment_data.attributes or {},
+            created_by=user.id
         )
         db.add(new_equipment)
         await db.commit()
@@ -280,11 +387,14 @@ async def create_equipment(
             "id": str(new_equipment.id),
             "name": new_equipment.name,
             "type_id": str(new_equipment.type_id) if new_equipment.type_id else None,
+            "workshop_id": str(new_equipment.workshop_id) if new_equipment.workshop_id else None,
             "serial_number": new_equipment.serial_number,
             "location": new_equipment.location,
             "attributes": new_equipment.attributes or {},
             "status": "created"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         import traceback
@@ -295,9 +405,10 @@ async def create_equipment(
 async def update_equipment(
     equipment_id: str,
     equipment_data: EquipmentUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
 ):
-    """Update equipment"""
+    """Update equipment (with access check)"""
     try:
         result = await db.execute(
             select(Equipment).where(Equipment.id == equipment_id)
@@ -305,6 +416,11 @@ async def update_equipment(
         eq = result.scalar_one_or_none()
         if not eq:
             raise HTTPException(status_code=404, detail="Equipment not found")
+        
+        # Проверяем доступ (для инженера - только к своему оборудованию)
+        has_access = await check_equipment_access(db, user, equipment_id, "write")
+        if not has_access:
+            raise HTTPException(status_code=403, detail="Access denied to modify this equipment")
         
         # Update fields if provided
         if equipment_data.name is not None:
@@ -332,6 +448,7 @@ async def update_equipment(
             "id": str(eq.id),
             "name": eq.name,
             "type_id": str(eq.type_id) if eq.type_id else None,
+            "workshop_id": str(eq.workshop_id) if eq.workshop_id else None,
             "serial_number": eq.serial_number,
             "location": eq.location,
             "attributes": eq.attributes or {},
@@ -346,9 +463,10 @@ async def update_equipment(
 @app.delete("/api/equipment/{equipment_id}")
 async def delete_equipment(
     equipment_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_permission("delete"))
 ):
-    """Delete equipment"""
+    """Delete equipment (requires delete permission)"""
     try:
         result = await db.execute(
             select(Equipment).where(Equipment.id == equipment_id)
@@ -476,15 +594,21 @@ async def get_inspections(
 @app.post("/api/inspections")
 async def create_inspection(
     inspection_data: dict,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
 ):
-    """Create new inspection"""
+    """Create new inspection (with access check)"""
     try:
         # Parse equipment_id
         equipment_id = None
-        if inspection_data.get("equipment_id"):
+        equipment_id_str = inspection_data.get("equipment_id")
+        if equipment_id_str:
             try:
-                equipment_id = uuid_lib.UUID(inspection_data.get("equipment_id"))
+                equipment_id = uuid_lib.UUID(equipment_id_str)
+                # Проверяем доступ к оборудованию
+                has_access = await check_equipment_access(db, user, equipment_id_str, "write")
+                if not has_access:
+                    raise HTTPException(status_code=403, detail="Access denied to this equipment")
             except:
                 raise HTTPException(status_code=400, detail="Invalid equipment_id format")
         
@@ -498,6 +622,7 @@ async def create_inspection(
         
         new_inspection = Inspection(
             equipment_id=equipment_id,
+            inspector_id=user.id,  # Сохраняем ID пользователя, создавшего инспекцию
             data=inspection_data.get("data", {}),
             conclusion=inspection_data.get("conclusion"),
             status=inspection_data.get("status", "DRAFT"),
@@ -845,6 +970,8 @@ async def get_certifications(
                     "id": str(c.id),
                     "engineer_id": str(c.engineer_id),
                     "certification_type": c.certification_type,
+                    "method": c.method,
+                    "level": c.level,
                     "number": c.number,
                     "issued_by": c.issued_by,
                     "issue_date": c.issue_date.isoformat() if c.issue_date else None,
@@ -858,6 +985,107 @@ async def get_certifications(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/certifications")
+async def create_certification(
+    engineer_id: str = Form(...),
+    certification_type: str = Form(...),
+    method: str = Form(...),
+    level: str = Form(...),
+    number: str = Form(...),
+    issued_by: str = Form(...),
+    issue_date: Optional[str] = Form(None),
+    expiry_date: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
+):
+    """Create certification with optional file upload"""
+    try:
+        engineer_uuid = uuid_lib.UUID(engineer_id)
+        
+        # Проверка существования инженера
+        engineer_result = await db.execute(
+            select(Engineer).where(Engineer.id == engineer_uuid)
+        )
+        engineer = engineer_result.scalar_one_or_none()
+        if not engineer:
+            raise HTTPException(status_code=404, detail="Engineer not found")
+        
+        # Сохранение файла, если загружен
+        file_path = None
+        if file and file.filename:
+            # Создаем директорию для сертификатов
+            certs_dir = Path("/app/certs")
+            certs_dir.mkdir(exist_ok=True)
+            
+            # Генерируем уникальное имя файла
+            file_ext = Path(file.filename).suffix
+            file_name = f"{uuid_lib.uuid4()}{file_ext}"
+            file_path_full = certs_dir / file_name
+            
+            # Сохраняем файл
+            with open(file_path_full, "wb") as f:
+                content = await file.read()
+                f.write(content)
+            
+            file_path = str(file_path_full)
+        
+        # Парсинг дат
+        issue_date_obj = None
+        if issue_date:
+            try:
+                issue_date_obj = datetime.fromisoformat(issue_date.replace('Z', '+00:00')).date()
+            except:
+                pass
+        
+        expiry_date_obj = None
+        if expiry_date:
+            try:
+                expiry_date_obj = datetime.fromisoformat(expiry_date.replace('Z', '+00:00')).date()
+            except:
+                pass
+        
+        # Создание сертификата
+        new_cert = Certification(
+            engineer_id=engineer_uuid,
+            certification_type=certification_type,
+            method=method,
+            level=level,
+            number=number,
+            issued_by=issued_by,
+            issue_date=issue_date_obj,
+            expiry_date=expiry_date_obj,
+            file_path=file_path,
+            is_active=1
+        )
+        
+        db.add(new_cert)
+        await db.commit()
+        await db.refresh(new_cert)
+        
+        return {
+            "id": str(new_cert.id),
+            "engineer_id": str(new_cert.engineer_id),
+            "certification_type": new_cert.certification_type,
+            "method": new_cert.method,
+            "level": new_cert.level,
+            "number": new_cert.number,
+            "issued_by": new_cert.issued_by,
+            "issue_date": new_cert.issue_date.isoformat() if new_cert.issue_date else None,
+            "expiry_date": new_cert.expiry_date.isoformat() if new_cert.expiry_date else None,
+            "file_path": new_cert.file_path,
+            "status": "created"
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid engineer_id format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create certification: {str(e)}")
 
 # Engineer statistics endpoint
 @app.get("/api/engineers/{engineer_id}/stats")
@@ -1164,6 +1392,547 @@ async def download_report(report_id: str, db: AsyncSession = Depends(get_db)):
             media_type='application/pdf',
             filename=os.path.basename(report.file_path)
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# User management endpoints
+@app.get("/api/users")
+async def get_users(
+    skip: int = 0,
+    limit: int = 100,
+    role: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_permission("manage_users"))
+):
+    """Get list of users (admin and chief_operator only)"""
+    try:
+        query = select(UserModel)
+        if role:
+            query = query.where(UserModel.role == role)
+        query = query.offset(skip).limit(limit)
+        
+        result = await db.execute(query)
+        users = result.scalars().all()
+        return {
+            "items": [
+                {
+                    "id": str(u.id),
+                    "username": u.username,
+                    "email": u.email,
+                    "full_name": u.full_name,
+                    "role": u.role,
+                    "is_active": u.is_active,
+                    "engineer_id": str(u.engineer_id) if u.engineer_id else None,
+                    "created_at": u.created_at.isoformat() if u.created_at else None,
+                    "last_login": u.last_login.isoformat() if u.last_login else None,
+                }
+                for u in users
+            ],
+            "total": len(users)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/users")
+async def create_user(
+    user_data: dict,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_permission("manage_users"))
+):
+    """Create new user (admin and chief_operator only)"""
+    try:
+        # Проверяем, что username и email уникальны
+        existing_user = await get_user_by_username(db, user_data.get("username"))
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        
+        existing_email = await get_user_by_email(db, user_data.get("email"))
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        
+        new_user = UserModel(
+            username=user_data.get("username"),
+            email=user_data.get("email"),
+            password_hash=hash_password(user_data.get("password", "changeme123")),
+            full_name=user_data.get("full_name"),
+            role=user_data.get("role", "engineer"),
+            engineer_id=uuid_lib.UUID(user_data.get("engineer_id")) if user_data.get("engineer_id") else None,
+            is_active=user_data.get("is_active", True)
+        )
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        return {"id": str(new_user.id), "status": "created"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Equipment access management
+@app.post("/api/users/{user_id}/equipment-access")
+async def grant_equipment_access(
+    user_id: str,
+    access_data: dict,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_role(["admin", "chief_operator", "operator"]))
+):
+    """Предоставить доступ пользователю к оборудованию"""
+    try:
+        target_user = await get_user_by_id(db, user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Только оператор и выше могут предоставлять доступ
+        if user.role == "operator" and target_user.role not in ["engineer"]:
+            raise HTTPException(status_code=403, detail="Can only grant access to engineers")
+        
+        equipment_id = uuid_lib.UUID(access_data.get("equipment_id"))
+        access_type = access_data.get("access_type", "read_write")
+        
+        # Проверяем, не существует ли уже доступ
+        result = await db.execute(
+            select(UserEquipmentAccess).where(
+                UserEquipmentAccess.user_id == target_user.id,
+                UserEquipmentAccess.equipment_id == equipment_id,
+                UserEquipmentAccess.is_active == True
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            # Обновляем существующий доступ
+            existing.access_type = access_type
+            existing.granted_by = user.id
+            existing.granted_at = datetime.utcnow()
+        else:
+            # Создаем новый доступ
+            new_access = UserEquipmentAccess(
+                user_id=target_user.id,
+                equipment_id=equipment_id,
+                access_type=access_type,
+                granted_by=user.id
+            )
+            db.add(new_access)
+        
+        await db.commit()
+        return {"status": "access_granted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/users/{user_id}/equipment-access/{equipment_id}")
+async def revoke_equipment_access(
+    user_id: str,
+    equipment_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_role(["admin", "chief_operator", "operator"]))
+):
+    """Отозвать доступ пользователя к оборудованию"""
+    try:
+        target_user = await get_user_by_id(db, user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        eq_uuid = uuid_lib.UUID(equipment_id)
+        result = await db.execute(
+            select(UserEquipmentAccess).where(
+                UserEquipmentAccess.user_id == target_user.id,
+                UserEquipmentAccess.equipment_id == eq_uuid
+            )
+        )
+        access = result.scalar_one_or_none()
+        if access:
+            access.is_active = False
+            await db.commit()
+            return {"status": "access_revoked"}
+        else:
+            raise HTTPException(status_code=404, detail="Access not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Questionnaire endpoints
+@app.post("/api/questionnaires")
+async def create_questionnaire(
+    equipment_id: str = Form(...),
+    equipment_inventory_number: str = Form(...),
+    equipment_name: str = Form(...),
+    inspection_date: str = Form(...),
+    inspector_name: str = Form(...),
+    inspector_position: str = Form(...),
+    questionnaire_data: str = Form(...),  # JSON string
+    files: List[UploadFile] = File([]),  # Множественные файлы
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
+):
+    """Создать опросный лист с прикрепленными фотографиями"""
+    try:
+        import json
+        from pathlib import Path
+        
+        equipment_uuid = uuid_lib.UUID(equipment_id)
+        
+        # Проверка существования оборудования
+        result = await db.execute(
+            select(Equipment).where(Equipment.id == equipment_uuid)
+        )
+        equipment = result.scalar_one_or_none()
+        if not equipment:
+            raise HTTPException(status_code=404, detail="Equipment not found")
+        
+        # Парсинг JSON данных опросного листа
+        try:
+            questionnaire_json = json.loads(questionnaire_data)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid questionnaire_data JSON")
+        
+        # Создаем директорию для фотографий опросных листов
+        photos_dir = Path("/app/questionnaires")
+        photos_dir.mkdir(exist_ok=True)
+        
+        # Создаем подпапку по инвентарному номеру
+        inventory_dir = photos_dir / equipment_inventory_number.replace('/', '_')
+        inventory_dir.mkdir(exist_ok=True)
+        
+        # Сохраняем файлы и обновляем пути в questionnaire_data
+        saved_files = {}
+        for file in files:
+            if file.filename:
+                # Имя файла уже содержит всю необходимую информацию в формате:
+                # {инв_номер}_{название}_{код}_{timestamp}.jpg
+                # Если имя файла уже в правильном формате, используем его
+                # Иначе генерируем новое имя
+                file_ext = Path(file.filename).suffix or '.jpg'
+                
+                # Проверяем, соответствует ли имя файла формату
+                # Если да - используем его, если нет - генерируем новое
+                if '_' in file.filename and file.filename.count('_') >= 3:
+                    # Имя файла уже в правильном формате
+                    file_name = file.filename
+                else:
+                    # Генерируем новое имя файла
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    normalized_inv = equipment_inventory_number.replace('/', '_').replace(' ', '_').upper()
+                    # Извлекаем item_id и item_name из оригинального имени или используем дефолтные
+                    item_id = Path(file.filename).stem.split('_')[0] if '_' in file.filename else 'photo'
+                    item_name = 'photo'
+                    normalized_name = item_name.replace('/', '_').replace(' ', '_')[:30]
+                    normalized_id = item_id.replace('/', '_').upper()
+                    file_name = f"{normalized_inv}_{normalized_name}_{normalized_id}_{timestamp}{file_ext}"
+                
+                file_path_full = inventory_dir / file_name
+                
+                # Сохраняем файл
+                with open(file_path_full, "wb") as f:
+                    content = await file.read()
+                    f.write(content)
+                
+                # Сохраняем путь к файлу
+                relative_path = f"/questionnaires/{equipment_inventory_number.replace('/', '_')}/{file_name}"
+                saved_files[file.filename] = relative_path
+        
+        # Обновляем пути к файлам в questionnaire_data
+        def update_photo_paths(data, files_map):
+            """Рекурсивно обновляет пути к фото в данных"""
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if key == 'photos' and isinstance(value, list):
+                        # Обновляем пути к фото
+                        updated_photos = []
+                        for photo in value:
+                            if isinstance(photo, str) and photo in files_map:
+                                updated_photos.append(files_map[photo])
+                            else:
+                                updated_photos.append(photo)
+                        data[key] = updated_photos
+                    else:
+                        update_photo_paths(value, files_map)
+            elif isinstance(data, list):
+                for item in data:
+                    update_photo_paths(item, files_map)
+        
+        update_photo_paths(questionnaire_json, saved_files)
+        
+        # Парсинг даты
+        inspection_date_obj = None
+        if inspection_date:
+            try:
+                inspection_date_obj = datetime.fromisoformat(inspection_date.replace('Z', '+00:00')).date()
+            except:
+                pass
+        
+        # Создание опросного листа
+        new_questionnaire = Questionnaire(
+            equipment_id=equipment_uuid,
+            equipment_inventory_number=equipment_inventory_number,
+            equipment_name=equipment_name,
+            inspection_date=inspection_date_obj,
+            inspector_name=inspector_name,
+            inspector_position=inspector_position,
+            questionnaire_data=questionnaire_json,
+            created_by=user.id
+        )
+        
+        db.add(new_questionnaire)
+        await db.commit()
+        await db.refresh(new_questionnaire)
+        
+        return {
+            "id": str(new_questionnaire.id),
+            "equipment_id": str(new_questionnaire.equipment_id),
+            "equipment_inventory_number": new_questionnaire.equipment_inventory_number,
+            "equipment_name": new_questionnaire.equipment_name,
+            "inspection_date": new_questionnaire.inspection_date.isoformat() if new_questionnaire.inspection_date else None,
+            "inspector_name": new_questionnaire.inspector_name,
+            "inspector_position": new_questionnaire.inspector_position,
+            "files_saved": len(saved_files),
+            "status": "created"
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid equipment_id format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create questionnaire: {str(e)}")
+
+@app.get("/api/questionnaires")
+async def get_questionnaires(
+    equipment_id: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
+):
+    """Получить список опросных листов"""
+    try:
+        query = select(Questionnaire)
+        
+        if equipment_id:
+            equipment_uuid = uuid_lib.UUID(equipment_id)
+            query = query.where(Questionnaire.equipment_id == equipment_uuid)
+        
+        query = query.offset(skip).limit(limit).order_by(Questionnaire.created_at.desc())
+        
+        result = await db.execute(query)
+        questionnaires = result.scalars().all()
+        
+        return {
+            "items": [
+                {
+                    "id": str(q.id),
+                    "equipment_id": str(q.equipment_id),
+                    "equipment_inventory_number": q.equipment_inventory_number,
+                    "equipment_name": q.equipment_name,
+                    "inspection_date": q.inspection_date.isoformat() if q.inspection_date else None,
+                    "inspector_name": q.inspector_name,
+                    "inspector_position": q.inspector_position,
+                    "created_at": q.created_at.isoformat() if q.created_at else None,
+                }
+                for q in questionnaires
+            ],
+            "total": len(questionnaires)
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid equipment_id format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/questionnaires/{questionnaire_id}")
+async def get_questionnaire(
+    questionnaire_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
+):
+    """Получить опросный лист по ID"""
+    try:
+        q_uuid = uuid_lib.UUID(questionnaire_id)
+        result = await db.execute(
+            select(Questionnaire).where(Questionnaire.id == q_uuid)
+        )
+        questionnaire = result.scalar_one_or_none()
+        
+        if not questionnaire:
+            raise HTTPException(status_code=404, detail="Questionnaire not found")
+        
+        return {
+            "id": str(questionnaire.id),
+            "equipment_id": str(questionnaire.equipment_id),
+            "equipment_inventory_number": questionnaire.equipment_inventory_number,
+            "equipment_name": questionnaire.equipment_name,
+            "inspection_date": questionnaire.inspection_date.isoformat() if questionnaire.inspection_date else None,
+            "inspector_name": questionnaire.inspector_name,
+            "inspector_position": questionnaire.inspector_position,
+            "questionnaire_data": questionnaire.questionnaire_data,
+            "created_at": questionnaire.created_at.isoformat() if questionnaire.created_at else None,
+            "updated_at": questionnaire.updated_at.isoformat() if questionnaire.updated_at else None,
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid questionnaire_id format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Workshops endpoints
+@app.get("/api/workshops")
+async def get_workshops(
+    client_id: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
+):
+    """Get list of workshops"""
+    try:
+        query = select(Workshop).where(Workshop.is_active == 1)
+        if client_id:
+            try:
+                client_uuid = uuid_lib.UUID(client_id)
+                query = query.where(Workshop.client_id == client_uuid)
+            except:
+                raise HTTPException(status_code=400, detail="Invalid client_id format")
+        query = query.offset(skip).limit(limit)
+        
+        result = await db.execute(query)
+        workshops = result.scalars().all()
+        return {
+            "items": [
+                {
+                    "id": str(w.id),
+                    "name": w.name,
+                    "code": w.code,
+                    "client_id": str(w.client_id) if w.client_id else None,
+                    "location": w.location,
+                    "description": w.description,
+                }
+                for w in workshops
+            ],
+            "total": len(workshops)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/workshops")
+async def create_workshop(
+    workshop_data: dict,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_role(["admin", "chief_operator", "operator"]))
+):
+    """Create new workshop (only for admin, chief_operator, operator)"""
+    try:
+        client_id = None
+        if workshop_data.get("client_id"):
+            try:
+                client_id = uuid_lib.UUID(workshop_data.get("client_id"))
+            except:
+                pass
+        
+        new_workshop = Workshop(
+            name=workshop_data.get("name"),
+            code=workshop_data.get("code"),
+            client_id=client_id,
+            location=workshop_data.get("location"),
+            description=workshop_data.get("description"),
+            is_active=1
+        )
+        db.add(new_workshop)
+        await db.commit()
+        await db.refresh(new_workshop)
+        return {
+            "id": str(new_workshop.id),
+            "name": new_workshop.name,
+            "code": new_workshop.code,
+            "status": "created"
+        }
+    except Exception as e:
+        await db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create workshop: {str(e)}")
+
+@app.post("/api/workshops/{workshop_id}/engineer-access")
+async def grant_workshop_access(
+    workshop_id: str,
+    access_data: dict,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(require_role(["admin", "chief_operator", "operator"]))
+):
+    """Предоставить доступ инженеру к цеху"""
+    try:
+        workshop_uuid = uuid_lib.UUID(workshop_id)
+        engineer_uuid = uuid_lib.UUID(access_data.get("engineer_id"))
+        access_type = access_data.get("access_type", "read_write")
+        
+        # Проверяем, не существует ли уже доступ
+        result = await db.execute(
+            select(WorkshopEngineerAccess).where(
+                WorkshopEngineerAccess.workshop_id == workshop_uuid,
+                WorkshopEngineerAccess.engineer_id == engineer_uuid,
+                WorkshopEngineerAccess.is_active == True
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            # Обновляем существующий доступ
+            existing.access_type = access_type
+            existing.granted_by = user.id
+            existing.granted_at = datetime.utcnow()
+        else:
+            # Создаем новый доступ
+            new_access = WorkshopEngineerAccess(
+                workshop_id=workshop_uuid,
+                engineer_id=engineer_uuid,
+                access_type=access_type,
+                granted_by=user.id
+            )
+            db.add(new_access)
+        
+        await db.commit()
+        return {"status": "access_granted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/workshops/{workshop_id}/engineer-access")
+async def get_workshop_access(
+    workshop_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(verify_token)
+):
+    """Получить список инженеров с доступом к цеху"""
+    try:
+        workshop_uuid = uuid_lib.UUID(workshop_id)
+        result = await db.execute(
+            select(WorkshopEngineerAccess).where(
+                WorkshopEngineerAccess.workshop_id == workshop_uuid,
+                WorkshopEngineerAccess.is_active == True
+            )
+        )
+        accesses = result.scalars().all()
+        return {
+            "items": [
+                {
+                    "id": str(a.id),
+                    "engineer_id": str(a.engineer_id),
+                    "access_type": a.access_type,
+                    "granted_at": a.granted_at.isoformat() if a.granted_at else None,
+                }
+                for a in accesses
+            ]
+        }
     except HTTPException:
         raise
     except Exception as e:

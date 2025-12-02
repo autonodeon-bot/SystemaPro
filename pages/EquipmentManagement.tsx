@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, MapPin, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Search, Building2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Equipment {
   id: string;
   name: string;
   type_id?: string;
+  workshop_id?: string;
   serial_number?: string;
   location?: string;
   attributes?: any;
@@ -17,11 +19,31 @@ interface EquipmentType {
   code?: string;
 }
 
+interface Workshop {
+  id: string;
+  name: string;
+  code?: string;
+  client_id?: string;
+  location?: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+}
+
 const EquipmentManagement = () => {
+  const { token } = useAuth();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
+  const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showWorkshopForm, setShowWorkshopForm] = useState(false);
+  const [showAccessForm, setShowAccessForm] = useState(false);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [showInspections, setShowInspections] = useState(false);
@@ -31,10 +53,24 @@ const EquipmentManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     type_id: '',
+    workshop_id: '',
     serial_number: '',
     location: '',
     commissioning_date: '',
     attributes: {}
+  });
+
+  const [workshopFormData, setWorkshopFormData] = useState({
+    name: '',
+    code: '',
+    client_id: '',
+    location: '',
+    description: ''
+  });
+
+  const [accessFormData, setAccessFormData] = useState({
+    engineer_id: '',
+    access_type: 'read_write'
   });
 
   const API_BASE = 'http://5.129.203.182:8000';
@@ -42,6 +78,9 @@ const EquipmentManagement = () => {
   useEffect(() => {
     loadEquipment();
     loadEquipmentTypes();
+    loadWorkshops();
+    loadClients();
+    loadEngineers();
   }, []);
 
   useEffect(() => {
@@ -61,13 +100,65 @@ const EquipmentManagement = () => {
 
   const loadEquipment = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/equipment`);
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/equipment`, { headers });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       const data = await response.json();
       setEquipment(data.items || []);
     } catch (error) {
       console.error('Ошибка загрузки оборудования:', error);
+      alert('Ошибка загрузки оборудования. Проверьте авторизацию.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadWorkshops = async () => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/workshops`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setWorkshops(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки цехов:', error);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/clients`);
+      if (response.ok) {
+        const data = await response.json();
+        setClients(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки предприятий:', error);
+    }
+  };
+
+  const loadEngineers = async () => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/engineers`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setEngineers(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки инженеров:', error);
     }
   };
 
@@ -95,9 +186,13 @@ const EquipmentManagement = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const response = await fetch(`${API_BASE}/api/equipment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(formData)
       });
 
@@ -106,6 +201,7 @@ const EquipmentManagement = () => {
         setFormData({
           name: '',
           type_id: '',
+          workshop_id: '',
           serial_number: '',
           location: '',
           commissioning_date: '',
@@ -120,6 +216,73 @@ const EquipmentManagement = () => {
     } catch (error) {
       console.error('Ошибка создания оборудования:', error);
       alert('Ошибка создания оборудования');
+    }
+  };
+
+  const handleWorkshopSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/workshops`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(workshopFormData)
+      });
+
+      if (response.ok) {
+        setShowWorkshopForm(false);
+        setWorkshopFormData({
+          name: '',
+          code: '',
+          client_id: '',
+          location: '',
+          description: ''
+        });
+        loadWorkshops();
+        alert('Цех успешно добавлен');
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось добавить цех'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка создания цеха:', error);
+      alert('Ошибка создания цеха');
+    }
+  };
+
+  const handleAccessSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedWorkshop) return;
+    
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/workshops/${selectedWorkshop.id}/engineer-access`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(accessFormData)
+      });
+
+      if (response.ok) {
+        setShowAccessForm(false);
+        setAccessFormData({
+          engineer_id: '',
+          access_type: 'read_write'
+        });
+        setSelectedWorkshop(null);
+        alert('Разрешение успешно предоставлено');
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось предоставить разрешение'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка предоставления разрешения:', error);
+      alert('Ошибка предоставления разрешения');
     }
   };
 
@@ -154,23 +317,31 @@ const EquipmentManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Управление оборудованием</h1>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
-        >
-          <Plus size={16} /> Добавить оборудование
-        </button>
+    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Управление оборудованием</h1>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowWorkshopForm(true)}
+            className="bg-green-600/20 text-green-400 border border-green-600/30 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 hover:bg-green-600/30 w-full sm:w-auto justify-center"
+          >
+            <Building2 size={16} /> Добавить цех
+          </button>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-accent/10 text-accent border border-accent/20 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 hover:bg-accent/20 w-full sm:w-auto justify-center"
+          >
+            <Plus size={16} /> Добавить оборудование
+          </button>
+        </div>
       </div>
 
       {/* Форма добавления */}
       {showAddForm && (
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600">
-          <h2 className="text-xl font-bold text-white mb-4">Добавить оборудование</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Добавить оборудование</h2>
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="text-sm text-slate-400 block mb-1">Название *</label>
                 <input
@@ -192,6 +363,19 @@ const EquipmentManagement = () => {
                   <option value="">Выберите тип</option>
                   {equipmentTypes.map(type => (
                     <option key={type.id} value={type.id}>{type.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Цех</label>
+                <select
+                  value={formData.workshop_id}
+                  onChange={(e) => setFormData({ ...formData, workshop_id: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                >
+                  <option value="">Выберите цех</option>
+                  {workshops.map(workshop => (
+                    <option key={workshop.id} value={workshop.id}>{workshop.name}</option>
                   ))}
                 </select>
               </div>
@@ -244,6 +428,170 @@ const EquipmentManagement = () => {
         </div>
       )}
 
+      {/* Форма добавления цеха */}
+      {showWorkshopForm && (
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Добавить цех</h2>
+          <form onSubmit={handleWorkshopSubmit} className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Название цеха *</label>
+                <input
+                  type="text"
+                  required
+                  value={workshopFormData.name}
+                  onChange={(e) => setWorkshopFormData({ ...workshopFormData, name: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  placeholder="Например: Цех подготовки нефти №1"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Код цеха</label>
+                <input
+                  type="text"
+                  value={workshopFormData.code}
+                  onChange={(e) => setWorkshopFormData({ ...workshopFormData, code: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  placeholder="Например: CPN-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Предприятие</label>
+                <select
+                  value={workshopFormData.client_id}
+                  onChange={(e) => setWorkshopFormData({ ...workshopFormData, client_id: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                >
+                  <option value="">Выберите предприятие</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Местоположение</label>
+                <input
+                  type="text"
+                  value={workshopFormData.location}
+                  onChange={(e) => setWorkshopFormData({ ...workshopFormData, location: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  placeholder="Площадка, месторождение и т.д."
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm text-slate-400 block mb-1">Описание</label>
+                <textarea
+                  value={workshopFormData.description}
+                  onChange={(e) => setWorkshopFormData({ ...workshopFormData, description: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="bg-green-600 px-4 py-2 rounded-lg text-white font-bold hover:bg-green-700"
+              >
+                Сохранить
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWorkshopForm(false)}
+                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Список цехов с управлением разрешениями */}
+      {workshops.length > 0 && (
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Цеха и разрешения</h2>
+          <div className="space-y-3">
+            {workshops.map(workshop => (
+              <div key={workshop.id} className="bg-slate-900 p-3 rounded-lg border border-slate-700">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-white font-bold">{workshop.name}</h3>
+                    {workshop.code && <p className="text-slate-400 text-sm">Код: {workshop.code}</p>}
+                    {workshop.location && <p className="text-slate-400 text-sm">{workshop.location}</p>}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedWorkshop(workshop);
+                      setShowAccessForm(true);
+                    }}
+                    className="bg-blue-600 px-3 py-1 rounded text-white text-sm hover:bg-blue-700"
+                  >
+                    Настроить доступ
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Форма настройки разрешений для цеха */}
+      {showAccessForm && selectedWorkshop && (
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">
+            Настройка доступа: {selectedWorkshop.name}
+          </h2>
+          <form onSubmit={handleAccessSubmit} className="space-y-3 sm:space-y-4">
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Инженер (специалист) *</label>
+              <select
+                required
+                value={accessFormData.engineer_id}
+                onChange={(e) => setAccessFormData({ ...accessFormData, engineer_id: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              >
+                <option value="">Выберите инженера</option>
+                {engineers.map(engineer => (
+                  <option key={engineer.id} value={engineer.id}>{engineer.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Тип доступа *</label>
+              <select
+                required
+                value={accessFormData.access_type}
+                onChange={(e) => setAccessFormData({ ...accessFormData, access_type: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              >
+                <option value="read">Только просмотр</option>
+                <option value="read_write">Просмотр и редактирование</option>
+                <option value="create_equipment">Создание оборудования</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="bg-blue-600 px-4 py-2 rounded-lg text-white font-bold hover:bg-blue-700"
+              >
+                Сохранить разрешение
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAccessForm(false);
+                  setSelectedWorkshop(null);
+                }}
+                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Поиск */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
@@ -257,11 +605,11 @@ const EquipmentManagement = () => {
       </div>
 
       {/* Список оборудования */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {filteredEquipment.map((eq) => (
           <div
             key={eq.id}
-            className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
+            className="bg-slate-800 p-3 sm:p-4 rounded-xl border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
             onClick={() => {
               setSelectedEquipment(eq);
               loadInspections(eq.id);
@@ -281,6 +629,14 @@ const EquipmentManagement = () => {
                 </button>
               </div>
             </div>
+            {eq.workshop_id && (
+              <div className="flex items-center gap-2 text-blue-400 mb-1">
+                <Building2 size={14} />
+                <span className="text-sm">
+                  {workshops.find(w => w.id === eq.workshop_id)?.name || 'Цех не найден'}
+                </span>
+              </div>
+            )}
             {eq.location && (
               <div className="flex items-center gap-2 text-accent mb-2">
                 <MapPin size={14} />
