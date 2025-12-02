@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, MapPin, Search, Building2 } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Search, Building2, ChevronRight, ChevronDown, Package, Factory } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Equipment {
@@ -32,6 +32,14 @@ interface Client {
   name: string;
 }
 
+interface HierarchyNode {
+  id: string;
+  name: string;
+  type: 'client' | 'workshop' | 'equipment';
+  children?: HierarchyNode[];
+  data?: Client | Workshop | Equipment;
+}
+
 const EquipmentManagement = () => {
   const { token } = useAuth();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -52,6 +60,8 @@ const EquipmentManagement = () => {
   const [showInspections, setShowInspections] = useState(false);
   const [inspections, setInspections] = useState<any[]>([]);
   const [equipmentInspectionsCount, setEquipmentInspectionsCount] = useState<Record<string, number>>({});
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [selectedNode, setSelectedNode] = useState<HierarchyNode | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -616,7 +626,9 @@ const EquipmentManagement = () => {
               >
                 <option value="">Выберите инженера</option>
                 {users.map(user => (
-                  <option key={user.id} value={user.id}>{user.full_name || user.username}</option>
+                  <option key={user.id} value={user.id}>
+                    {user.full_name || user.username} {user.username ? `(${user.username})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -670,9 +682,15 @@ const EquipmentManagement = () => {
                 className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
               >
                 <option value="">Выберите инженера</option>
-                {engineers.map(engineer => (
-                  <option key={engineer.id} value={engineer.id}>{engineer.full_name}</option>
-                ))}
+                {engineers.map(engineer => {
+                  // Находим пользователя, связанного с этим инженером
+                  const user = users.find(u => u.engineer_id === engineer.id);
+                  return (
+                    <option key={engineer.id} value={engineer.id}>
+                      {engineer.full_name} {user?.username ? `(${user.username})` : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>
@@ -722,78 +740,86 @@ const EquipmentManagement = () => {
         />
       </div>
 
-      {/* Список оборудования */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {filteredEquipment.map((eq) => (
-          <div
-            key={eq.id}
-            className="bg-slate-800 p-3 sm:p-4 rounded-xl border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
-            onClick={() => {
-              setSelectedEquipment(eq);
-              loadInspections(eq.id);
-            }}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="text-lg font-bold text-white">{eq.name}</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedEquipmentForAccess(eq);
-                    setShowEquipmentAccessForm(true);
-                  }}
-                  className="text-blue-400 hover:text-blue-300"
-                  title="Назначить доступ инженеру"
-                >
-                  <Edit size={16} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(eq.id);
-                  }}
-                  className="text-red-400 hover:text-red-300"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-            {eq.workshop_id && (
-              <div className="flex items-center gap-2 text-blue-400 mb-1">
-                <Building2 size={14} />
-                <span className="text-sm">
-                  {workshops.find(w => w.id === eq.workshop_id)?.name || 'Цех не найден'}
-                </span>
-              </div>
-            )}
-            {eq.location && (
-              <div className="flex items-center gap-2 text-accent mb-2">
-                <MapPin size={14} />
-                <span className="text-sm">{eq.location}</span>
-              </div>
-            )}
-            {eq.serial_number && (
-              <p className="text-sm text-slate-400 mb-1">№ {eq.serial_number}</p>
-            )}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedEquipment(eq);
-                loadInspections(eq.id);
-              }}
-              className="text-sm text-accent hover:underline mt-2"
-            >
-              Просмотр диагностик ({equipmentInspectionsCount[eq.id] || 0})
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {filteredEquipment.length === 0 && (
-        <div className="text-center text-slate-400 py-20">
-          {searchTerm ? 'Оборудование не найдено' : 'Оборудование не добавлено'}
+      {/* Иерархический список оборудования */}
+      <div className="bg-slate-800 rounded-xl border border-slate-600 overflow-hidden">
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-lg font-bold text-white">Оборудование</h2>
         </div>
-      )}
+        <div className="max-h-[600px] overflow-y-auto">
+          {loading ? (
+            <div className="text-center text-slate-400 py-20">Загрузка...</div>
+          ) : searchTerm ? (
+            // При поиске показываем плоский список
+            <div className="p-4 space-y-2">
+              {filteredEquipment.map((eq) => (
+                <div
+                  key={eq.id}
+                  className="bg-slate-900 p-3 rounded-lg border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setSelectedEquipment(eq);
+                    loadInspections(eq.id);
+                  }}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <Package size={16} className="text-green-400" />
+                      <h3 className="font-bold text-white">{eq.name}</h3>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEquipmentForAccess(eq);
+                          setShowEquipmentAccessForm(true);
+                        }}
+                        className="text-blue-400 hover:text-blue-300"
+                        title="Назначить доступ инженеру"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(eq.id);
+                        }}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  {eq.workshop_id && (
+                    <div className="flex items-center gap-2 text-blue-400 mb-1 text-sm">
+                      <Factory size={14} />
+                      <span>{workshops.find(w => w.id === eq.workshop_id)?.name || 'Цех не найден'}</span>
+                    </div>
+                  )}
+                  {eq.location && (
+                    <div className="flex items-center gap-2 text-accent mb-1 text-sm">
+                      <MapPin size={14} />
+                      <span>{eq.location}</span>
+                    </div>
+                  )}
+                  {eq.serial_number && (
+                    <p className="text-sm text-slate-400">№ {eq.serial_number}</p>
+                  )}
+                </div>
+              ))}
+              {filteredEquipment.length === 0 && (
+                <div className="text-center text-slate-400 py-10">Оборудование не найдено</div>
+              )}
+            </div>
+          ) : (
+            // Иерархическое дерево
+            <div className="p-4">
+              {buildHierarchy().map(node => renderTreeNode(node))}
+              {buildHierarchy().length === 0 && (
+                <div className="text-center text-slate-400 py-20">Оборудование не добавлено</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Модальное окно с диагностиками */}
       {showInspections && selectedEquipment && (
