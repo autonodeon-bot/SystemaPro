@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Search, Plus, Edit, Trash2, Eye, Download, 
   Mail, Phone, Award, Briefcase, FileText, Filter,
-  CheckCircle, XCircle, Calendar, MapPin
+  CheckCircle, XCircle, Calendar, MapPin, Shield
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Specialist {
   id: string;
@@ -22,6 +23,8 @@ interface Certification {
   id: string;
   engineer_id: string;
   certification_type: string;
+  method?: string;
+  level?: string;
   number: string;
   issued_by: string;
   issue_date?: string;
@@ -30,15 +33,31 @@ interface Certification {
 }
 
 const SpecialistsManagement = () => {
+  const { user, hasRole } = useAuth();
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [certifications, setCertifications] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddCertForm, setShowAddCertForm] = useState(false);
   const [selectedSpecialist, setSelectedSpecialist] = useState<Specialist | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [certFormData, setCertFormData] = useState({
+    engineer_id: '',
+    certification_type: '',
+    method: '',
+    level: '',
+    number: '',
+    issued_by: '',
+    issue_date: '',
+    expiry_date: '',
+    file: null as File | null
+  });
 
   const API_BASE = 'http://5.129.203.182:8000';
+  
+  // Проверка доступа: инженеры не могут управлять специалистами
+  const canManageSpecialists = hasRole('admin') || hasRole('chief_operator') || hasRole('operator');
 
   useEffect(() => {
     loadSpecialists();
@@ -98,6 +117,108 @@ const SpecialistsManagement = () => {
     }
   };
 
+  const isCertificationExpiringSoon = (expiryDate?: string, days: number = 90) => {
+    if (!expiryDate) return false;
+    try {
+      const expiry = new Date(expiryDate);
+      const now = new Date();
+      const diffTime = expiry.getTime() - now.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      return diffDays > 0 && diffDays <= days;
+    } catch {
+      return false;
+    }
+  };
+
+  const getExpiringCertifications = () => {
+    const expiring: Array<{ specialist: Specialist; cert: Certification; daysLeft: number }> = [];
+    specialists.forEach(spec => {
+      const certs = getSpecialistCertifications(spec.id);
+      certs.forEach(cert => {
+        if (cert.expiry_date && !isCertificationExpired(cert.expiry_date)) {
+          const expiry = new Date(cert.expiry_date);
+          const now = new Date();
+          const diffTime = expiry.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays > 0 && diffDays <= 90) {
+            expiring.push({ specialist: spec, cert, daysLeft: diffDays });
+          }
+        }
+      });
+    });
+    return expiring.sort((a, b) => a.daysLeft - b.daysLeft);
+  };
+
+  const handleAddCertification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const formData = new FormData();
+      formData.append('engineer_id', certFormData.engineer_id);
+      formData.append('certification_type', certFormData.certification_type);
+      formData.append('method', certFormData.method);
+      formData.append('level', certFormData.level);
+      formData.append('number', certFormData.number);
+      formData.append('issued_by', certFormData.issued_by);
+      if (certFormData.issue_date) {
+        formData.append('issue_date', certFormData.issue_date);
+      }
+      if (certFormData.expiry_date) {
+        formData.append('expiry_date', certFormData.expiry_date);
+      }
+      if (certFormData.file) {
+        formData.append('file', certFormData.file);
+      }
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}/api/certifications`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка при создании сертификата');
+      }
+
+      await loadCertifications();
+      setShowAddCertForm(false);
+      setCertFormData({
+        engineer_id: '',
+        certification_type: '',
+        method: '',
+        level: '',
+        number: '',
+        issued_by: '',
+        issue_date: '',
+        expiry_date: '',
+        file: null
+      });
+      alert('Сертификат успешно добавлен!');
+    } catch (error: any) {
+      console.error('Ошибка при добавлении сертификата:', error);
+      alert(`Ошибка: ${error.message}`);
+    }
+  };
+
+  // Если пользователь - инженер, показываем сообщение о запрете доступа
+  if (!canManageSpecialists) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Shield className="mx-auto text-red-400 mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
+          <p className="text-slate-400">Управление специалистами доступно только администраторам, главным операторам и операторам</p>
+          {user && (
+            <p className="text-slate-500 mt-2">Ваша роль: {user.role}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Заголовок */}
@@ -111,14 +232,59 @@ const SpecialistsManagement = () => {
             Управление специалистами, их квалификациями и сертификатами
           </p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-white font-medium flex items-center gap-2 transition-colors"
-        >
-          <Plus size={20} />
-          Добавить специалиста
-        </button>
+        <div className="flex gap-2">
+          {canManageSpecialists && (
+            <>
+              <button
+                onClick={() => setShowAddCertForm(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-medium flex items-center gap-2 transition-colors"
+              >
+                <Award size={20} />
+                Добавить сертификат
+              </button>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-white font-medium flex items-center gap-2 transition-colors"
+              >
+                <Plus size={20} />
+                Добавить специалиста
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Предупреждение о истекающих аккредитациях */}
+      {getExpiringCertifications().length > 0 && (
+        <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar className="text-yellow-400" size={20} />
+            <h3 className="text-yellow-400 font-semibold">Истекающие аккредитации</h3>
+          </div>
+          <div className="space-y-2">
+            {getExpiringCertifications().slice(0, 5).map((item, idx) => (
+              <div key={idx} className="text-sm text-slate-300">
+                <span className="font-medium text-white">{item.specialist.full_name}</span>
+                {' - '}
+                <span>{item.cert.method || item.cert.certification_type}</span>
+                {' '}
+                <span className="text-yellow-400">(уровень {item.cert.level || 'не указан'})</span>
+                {' - истекает через '}
+                <span className="font-semibold text-yellow-400">{item.daysLeft} дн.</span>
+                {' '}
+                <span className="text-slate-400">
+                  ({formatDate(item.cert.expiry_date)})
+                </span>
+              </div>
+            ))}
+            {getExpiringCertifications().length > 5 && (
+              <p className="text-xs text-slate-400 mt-2">
+                И еще {getExpiringCertifications().length - 5} аккредитаций истекают в ближайшее время
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Поиск */}
       <div className="bg-secondary/50 rounded-lg p-4">
@@ -356,6 +522,16 @@ const SpecialistsManagement = () => {
                                 )}
                               </div>
                               <div className="space-y-1 text-sm">
+                                {cert.method && (
+                                  <p className="text-slate-300">
+                                    <span className="font-medium">Метод:</span> {cert.method}
+                                  </p>
+                                )}
+                                {cert.level && (
+                                  <p className="text-slate-300">
+                                    <span className="font-medium">Уровень:</span> {cert.level}
+                                  </p>
+                                )}
                                 <p className="text-slate-400">
                                   Выдан: {cert.issued_by}
                                 </p>
@@ -392,9 +568,196 @@ const SpecialistsManagement = () => {
           </div>
         </div>
       )}
+
+      {/* Модальное окно добавления сертификата */}
+      {showAddCertForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddCertForm(false)}>
+          <div
+            className="bg-secondary rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-secondary border-b border-slate-700 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Award className="text-accent" size={24} />
+                Добавить сертификат
+              </h2>
+              <button
+                onClick={() => setShowAddCertForm(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleAddCertification} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Специалист <span className="text-red-400">*</span>
+                </label>
+                <select
+                  required
+                  value={certFormData.engineer_id}
+                  onChange={(e) => setCertFormData({ ...certFormData, engineer_id: e.target.value })}
+                  className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                >
+                  <option value="">Выберите специалиста</option>
+                  {specialists.map(spec => (
+                    <option key={spec.id} value={spec.id}>{spec.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Метод контроля <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    required
+                    value={certFormData.method}
+                    onChange={(e) => setCertFormData({ ...certFormData, method: e.target.value })}
+                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                  >
+                    <option value="">Выберите метод</option>
+                    <option value="УЗК">УЗК (Ультразвуковой контроль)</option>
+                    <option value="РК">РК (Радиографический контроль)</option>
+                    <option value="ВИК">ВИК (Визуальный и измерительный контроль)</option>
+                    <option value="ПВК">ПВК (Пневматический контроль)</option>
+                    <option value="МК">МК (Магнитный контроль)</option>
+                    <option value="ПК">ПК (Пенетрантный контроль)</option>
+                    <option value="ТК">ТК (Тепловой контроль)</option>
+                    <option value="АК">АК (Акустико-эмиссионный контроль)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Уровень <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    required
+                    value={certFormData.level}
+                    onChange={(e) => setCertFormData({ ...certFormData, level: e.target.value })}
+                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                  >
+                    <option value="">Выберите уровень</option>
+                    <option value="I">I уровень</option>
+                    <option value="II">II уровень</option>
+                    <option value="III">III уровень</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Тип сертификата <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={certFormData.certification_type}
+                  onChange={(e) => setCertFormData({ ...certFormData, certification_type: e.target.value })}
+                  placeholder="Например: Допуск к диагностике сосудов"
+                  className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Номер сертификата <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={certFormData.number}
+                    onChange={(e) => setCertFormData({ ...certFormData, number: e.target.value })}
+                    placeholder="CERT-2024-001"
+                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Выдан организацией <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={certFormData.issued_by}
+                    onChange={(e) => setCertFormData({ ...certFormData, issued_by: e.target.value })}
+                    placeholder="Ростехнадзор"
+                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Дата выдачи
+                  </label>
+                  <input
+                    type="date"
+                    value={certFormData.issue_date}
+                    onChange={(e) => setCertFormData({ ...certFormData, issue_date: e.target.value })}
+                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Дата окончания <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={certFormData.expiry_date}
+                    onChange={(e) => setCertFormData({ ...certFormData, expiry_date: e.target.value })}
+                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Фото документа
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setCertFormData({ ...certFormData, file: e.target.files?.[0] || null })}
+                  className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-accent/80"
+                />
+                {certFormData.file && (
+                  <p className="text-xs text-slate-400 mt-1">Выбран файл: {certFormData.file.name}</p>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-white font-medium transition-colors"
+                >
+                  Добавить сертификат
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCertForm(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default SpecialistsManagement;
+
+
+
 

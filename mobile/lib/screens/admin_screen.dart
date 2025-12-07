@@ -35,9 +35,9 @@ class AdminScreen extends ConsumerWidget {
                     style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     'Эта страница доступна только администраторам',
-                    style: const TextStyle(color: Colors.white70),
+                    style: TextStyle(color: Colors.white70),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
@@ -54,14 +54,14 @@ class AdminScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               // Приветствие
-              Card(
-                color: const Color(0xFF1e293b),
+              const Card(
+                color: Color(0xFF1e293b),
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Административная панель',
                         style: TextStyle(
                           color: Colors.white,
@@ -69,10 +69,10 @@ class AdminScreen extends ConsumerWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Text(
                         'Управление системой и пользователями',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
                         ),

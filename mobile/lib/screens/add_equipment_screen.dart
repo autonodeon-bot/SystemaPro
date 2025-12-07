@@ -132,7 +132,7 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
             // Тип оборудования
             if (_equipmentTypes.isNotEmpty)
               DropdownButtonFormField<String>(
-                value: _selectedTypeId,
+                initialValue: _selectedTypeId,
                 decoration: const InputDecoration(
                   labelText: 'Тип оборудования',
                   labelStyle: TextStyle(color: Colors.white70),
@@ -227,7 +227,7 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
 
             // Выбор существующего местоположения
             DropdownButtonFormField<String>(
-              value: _selectedLocation,
+              initialValue: _selectedLocation,
               decoration: const InputDecoration(
                 labelText: 'Выберите местоположение',
                 labelStyle: TextStyle(color: Colors.white70),

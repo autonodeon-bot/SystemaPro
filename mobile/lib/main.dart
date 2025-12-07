@@ -39,9 +39,9 @@ class MyApp extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()),
             );
           }
-          if (snapshot.data == true) {
-            return const DashboardScreen();
-          }
+          // ВАЖНО: Всегда показываем экран логина при запуске
+          // Автоматический вход отключен для безопасности
+          // Пользователь должен явно ввести логин и пароль
           return const LoginScreen();
         },
       ),

@@ -15,18 +15,18 @@ class ApiService {
   Future<List<Equipment>> getEquipmentList({String? token}) async {
     try {
       final headers = {'Content-Type': 'application/json'};
-      
+
       // Автоматически получаем токен из AuthService, если не передан
       String? authToken = token;
       if (authToken == null) {
         final authService = AuthService();
         authToken = await authService.getToken();
       }
-      
+
       if (authToken != null) {
         headers['Authorization'] = 'Bearer $authToken';
       }
-      
+
       final response = await http.get(
         Uri.parse('$baseUrl/api/equipment'),
         headers: headers,
@@ -104,6 +104,16 @@ class ApiService {
         final errorBody = response.body;
         String errorMessage =
             'Failed to submit inspection: ${response.statusCode}';
+
+        // Обработка ошибки авторизации
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          errorMessage =
+              'Ошибка авторизации. Пожалуйста, войдите в систему заново.';
+          // Очищаем токен при ошибке авторизации
+          final authService = AuthService();
+          await authService.logout();
+        }
+
         try {
           final errorData = json.decode(errorBody);
           if (errorData['detail'] != null) {
@@ -245,7 +255,7 @@ class ApiService {
           'password': password,
         },
       ).query;
-      
+
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -260,7 +270,8 @@ class ApiService {
           throw Exception('Токен не получен от сервера');
         }
 
-        // Получаем информацию о пользователе
+        // ОБЯЗАТЕЛЬНО получаем информацию о пользователе из /api/auth/me
+        // Это единственный надежный источник роли пользователя
         final userResponse = await http.get(
           Uri.parse('$baseUrl/api/auth/me'),
           headers: {
@@ -272,27 +283,71 @@ class ApiService {
         if (userResponse.statusCode == 200) {
           final userData = json.decode(userResponse.body);
           userData['token'] = token;
-          // Убеждаемся, что роль правильно извлекается
-          final role = userData['role'] ?? 'engineer';
-          print('API /auth/me вернул: role=$role, username=${userData['username']}');
-          // Явно устанавливаем роль, если её нет
-          if (userData['role'] == null) {
+
+          // Проверяем, что роль присутствует и валидна
+          if (userData['role'] == null || userData['role'].toString().isEmpty) {
+            print(
+                '⚠️ ВНИМАНИЕ: роль не получена от сервера, устанавливаем engineer по умолчанию');
+            userData['role'] = 'engineer';
+          }
+
+          final role = userData['role'].toString().toLowerCase().trim();
+          print(
+              'API /auth/me вернул: role=$role, username=${userData['username']}');
+
+          // Убеждаемся, что роль валидна
+          final validRoles = [
+            'admin',
+            'chief_operator',
+            'operator',
+            'engineer'
+          ];
+          if (!validRoles.contains(role)) {
+            print(
+                '⚠️ ВНИМАНИЕ: получена невалидная роль "$role", устанавливаем engineer');
+            userData['role'] = 'engineer';
+          } else {
             userData['role'] = role;
           }
+
           final user = User.fromJson(userData);
-          print('Создан User объект: username=${user.username}, role=${user.role}');
+          print(
+              'Создан User объект: username=${user.username}, role=${user.role}');
+
+          // Финальная проверка роли
+          if (user.role != 'admin' &&
+              user.role != 'chief_operator' &&
+              user.role != 'operator' &&
+              user.role != 'engineer') {
+            print(
+                '⚠️ КРИТИЧЕСКАЯ ОШИБКА: роль "${user.role}" невалидна, принудительно устанавливаем engineer');
+            // Создаем нового пользователя с правильной ролью
+            return User(
+              id: user.id,
+              username: user.username,
+              fullName: user.fullName,
+              email: user.email,
+              phone: user.phone,
+              role: 'engineer', // Принудительно engineer
+              position: user.position,
+              engineerId: user.engineerId,
+              qualifications: user.qualifications,
+              certifications: user.certifications,
+              equipmentTypes: user.equipmentTypes,
+              token: user.token,
+            );
+          }
+
           return user;
         } else {
-          // Если нет /api/auth/me, создаем пользователя из токена
-          final role = data['role'] ?? 'engineer';
-          print('Fallback: создаем пользователя с ролью: $role');
-          return User(
-            id: username,
-            username: username,
-            fullName: username,
-            role: role,
-            token: token,
-          );
+          // Если /api/auth/me не работает - это критическая ошибка
+          final errorBody = userResponse.body;
+          print(
+              '❌ КРИТИЧЕСКАЯ ОШИБКА: /api/auth/me вернул ${userResponse.statusCode}');
+          print('Ответ сервера: $errorBody');
+          throw Exception('Не удалось получить информацию о пользователе. '
+              'Код ошибки: ${userResponse.statusCode}. '
+              'Пожалуйста, попробуйте войти снова.');
         }
       } else {
         final errorBody = response.body;
@@ -431,6 +486,99 @@ class ApiService {
     }
   }
 
+  // Обновить профиль пользователя
+  Future<User?> updateUserProfile({
+    required String userId,
+    String? phone,
+    String? email,
+    String? fullName,
+    File? photo,
+    required String token,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/users/$userId');
+      final request = http.MultipartRequest('PUT', uri);
+
+      request.headers['Authorization'] = 'Bearer $token';
+
+      // Добавляем поля
+      if (phone != null) request.fields['phone'] = phone;
+      if (email != null) request.fields['email'] = email;
+      if (fullName != null) request.fields['full_name'] = fullName;
+
+      // Добавляем фото, если есть
+      if (photo != null && await photo.exists()) {
+        final multipartFile = await http.MultipartFile.fromPath(
+          'photo',
+          photo.path,
+          filename: photo.path.split('/').last,
+        );
+        request.files.add(multipartFile);
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        data['token'] = token;
+        return User.fromJson(data);
+      } else {
+        throw Exception('Failed to update profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error updating profile: $e');
+    }
+  }
+
+  // Загрузить документ по НК
+  Future<void> uploadNDTDocument({
+    required String userId,
+    required File file,
+    required String fileName,
+    required String documentType,
+  }) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token == null) {
+        throw Exception('Токен авторизации не найден');
+      }
+
+      final uri = Uri.parse('$baseUrl/api/users/$userId/ndt-documents');
+      final request = http.MultipartRequest('POST', uri);
+
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['document_type'] = documentType;
+      request.fields['name'] = fileName;
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'file',
+        file.path,
+        filename: fileName,
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        final errorBody = response.body;
+        String errorMessage =
+            'Failed to upload document: ${response.statusCode}';
+        try {
+          final errorData = json.decode(errorBody);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      throw Exception('Error uploading NDT document: $e');
+    }
+  }
+
   // Скачать документ
   Future<String> downloadDocument(String documentId) async {
     try {
@@ -463,6 +611,12 @@ class ApiService {
     }
   }
 
+  // Получить токен из AuthService
+  Future<String?> getToken() async {
+    final authService = AuthService();
+    return await authService.getToken();
+  }
+
   // Отправка опросного листа
   Future<Map<String, dynamic>> submitQuestionnaire(
     dynamic questionnaire,
@@ -471,23 +625,29 @@ class ApiService {
     try {
       final uri = Uri.parse('$baseUrl/api/questionnaires');
       final request = http.MultipartRequest('POST', uri);
-      
+
       // Получаем токен из AuthService
       final authService = AuthService();
       final token = await authService.getToken();
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
+      if (token == null || token.isEmpty) {
+        throw Exception(
+            'Токен авторизации не найден. Пожалуйста, войдите в систему заново.');
       }
-      
+      request.headers['Authorization'] = 'Bearer $token';
+
       // Добавляем основные поля
       request.fields['equipment_id'] = questionnaire.equipmentId ?? '';
-      request.fields['equipment_inventory_number'] = questionnaire.equipmentInventoryNumber ?? '';
+      request.fields['equipment_inventory_number'] =
+          questionnaire.equipmentInventoryNumber ?? '';
       request.fields['equipment_name'] = questionnaire.equipmentName ?? '';
-      request.fields['inspection_date'] = questionnaire.inspectionDate ?? DateTime.now().toIso8601String();
+      request.fields['inspection_date'] =
+          questionnaire.inspectionDate ?? DateTime.now().toIso8601String();
       request.fields['inspector_name'] = questionnaire.inspectorName ?? '';
-      request.fields['inspector_position'] = questionnaire.inspectorPosition ?? '';
-      request.fields['questionnaire_data'] = json.encode(questionnaire.toJson());
-      
+      request.fields['inspector_position'] =
+          questionnaire.inspectorPosition ?? '';
+      request.fields['questionnaire_data'] =
+          json.encode(questionnaire.toJson());
+
       // Добавляем файлы
       // Метаданные (item-id и item-name) уже включены в имя файла через FileNaming
       for (final entry in photoPaths.entries) {
@@ -500,19 +660,30 @@ class ApiService {
             filename: file.path.split('/').last,
             contentType: MediaType('image', 'jpeg'),
           );
-          
+
           request.files.add(multipartFile);
         }
       }
-      
+
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json.decode(response.body);
       } else {
         final errorBody = response.body;
-        String errorMessage = 'Failed to submit questionnaire: ${response.statusCode}';
+        String errorMessage =
+            'Failed to submit questionnaire: ${response.statusCode}';
+
+        // Обработка ошибки авторизации
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          errorMessage =
+              'Ошибка авторизации. Пожалуйста, войдите в систему заново.';
+          // Очищаем токен при ошибке авторизации
+          final authService = AuthService();
+          await authService.logout();
+        }
+
         try {
           final errorData = json.decode(errorBody);
           if (errorData['detail'] != null) {

@@ -10,7 +10,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import os
 import io
 
@@ -76,7 +76,7 @@ class ReportGenerator:
             fontName='Helvetica-Bold'
         ))
     
-    def generate_technical_report(self, inspection_data: Dict[str, Any], equipment_data: Dict[str, Any], 
+    def generate_technical_report(self, inspections_data: List[Dict[str, Any]], equipment_data: Dict[str, Any], 
                                   output_path: str) -> str:
         """Генерация технического отчета"""
         doc = SimpleDocTemplate(
@@ -129,49 +129,106 @@ class ReportGenerator:
         story.append(table)
         story.append(Spacer(1, 0.5*cm))
         
-        # Информация о диагностике
+        # Информация о диагностиках (может быть несколько)
         story.append(Paragraph("2. РЕЗУЛЬТАТЫ ДИАГНОСТИКИ", self.styles['SectionTitle']))
         
-        inspection_info = [
-            ['Дата проведения диагностики:', inspection_data.get('date_performed', 'Не указана')],
-            ['Статус:', inspection_data.get('status', 'DRAFT')],
-        ]
-        
-        if inspection_data.get('data'):
-            data = inspection_data['data']
-            if isinstance(data, dict):
-                # Добавляем основные данные из диагностики
-                if data.get('executors'):
-                    inspection_info.append(['Исполнители:', data['executors']])
-                if data.get('organization'):
-                    inspection_info.append(['Организация:', data['organization']])
-        
-        table2 = Table(inspection_info, colWidths=[6*cm, 12*cm])
-        table2.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f1f5f9')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#334155')),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-        ]))
-        story.append(table2)
-        story.append(Spacer(1, 0.5*cm))
-        
-        # Детальные данные диагностики
-        if inspection_data.get('data'):
-            story.append(Paragraph("3. ДЕТАЛЬНЫЕ РЕЗУЛЬТАТЫ ОБСЛЕДОВАНИЯ", self.styles['SectionTitle']))
-            data = inspection_data['data']
-            if isinstance(data, dict):
-                # Добавляем данные из чек-листа
-                self._add_checklist_data(story, data)
-        
-        # Заключение
-        if inspection_data.get('conclusion'):
-            story.append(Paragraph("4. ЗАКЛЮЧЕНИЕ", self.styles['SectionTitle']))
-            story.append(Paragraph(inspection_data['conclusion'], self.styles['Conclusion']))
+        # Если одно обследование, обрабатываем как раньше
+        if len(inspections_data) == 1:
+            inspection_data = inspections_data[0]
+            inspection_info = [
+                ['Дата проведения диагностики:', inspection_data.get('date_performed', 'Не указана')],
+                ['Статус:', inspection_data.get('status', 'DRAFT')],
+            ]
+            
+            if inspection_data.get('data'):
+                data = inspection_data['data']
+                if isinstance(data, dict):
+                    if data.get('executors'):
+                        inspection_info.append(['Исполнители:', data['executors']])
+                    if data.get('organization'):
+                        inspection_info.append(['Организация:', data['organization']])
+            
+            table2 = Table(inspection_info, colWidths=[6*cm, 12*cm])
+            table2.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f1f5f9')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#334155')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ]))
+            story.append(table2)
+            story.append(Spacer(1, 0.5*cm))
+            
+            # Детальные данные диагностики
+            if inspection_data.get('data'):
+                story.append(Paragraph("3. ДЕТАЛЬНЫЕ РЕЗУЛЬТАТЫ ОБСЛЕДОВАНИЯ", self.styles['SectionTitle']))
+                data = inspection_data['data']
+                if isinstance(data, dict):
+                    self._add_checklist_data(story, data)
+            
+            # Заключение
+            if inspection_data.get('conclusion'):
+                story.append(Paragraph("4. ЗАКЛЮЧЕНИЕ", self.styles['SectionTitle']))
+                story.append(Paragraph(inspection_data['conclusion'], self.styles['Conclusion']))
+        else:
+            # Несколько обследований - объединяем в один отчет
+            story.append(Paragraph(f"Проведено обследований: {len(inspections_data)}", self.styles['BodyText']))
+            story.append(Spacer(1, 0.3*cm))
+            
+            # Обрабатываем каждое обследование
+            for idx, inspection_data in enumerate(inspections_data, 1):
+                story.append(Paragraph(f"3.{idx}. ОБСЛЕДОВАНИЕ №{idx}", self.styles['SectionTitle']))
+                
+                inspection_info = [
+                    ['Дата проведения:', inspection_data.get('date_performed', 'Не указана')],
+                    ['Статус:', inspection_data.get('status', 'DRAFT')],
+                ]
+                
+                if inspection_data.get('data'):
+                    data = inspection_data['data']
+                    if isinstance(data, dict):
+                        if data.get('executors'):
+                            inspection_info.append(['Исполнители:', data['executors']])
+                        if data.get('organization'):
+                            inspection_info.append(['Организация:', data['organization']])
+                
+                table2 = Table(inspection_info, colWidths=[6*cm, 12*cm])
+                table2.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f1f5f9')),
+                    ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#334155')),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                ]))
+                story.append(table2)
+                story.append(Spacer(1, 0.3*cm))
+                
+                # Детальные данные
+                if inspection_data.get('data'):
+                    data = inspection_data['data']
+                    if isinstance(data, dict):
+                        self._add_checklist_data(story, data)
+                
+                # Заключение по обследованию
+                if inspection_data.get('conclusion'):
+                    story.append(Paragraph(f"Заключение по обследованию №{idx}:", self.styles['BodyText']))
+                    story.append(Paragraph(inspection_data['conclusion'], self.styles['BodyText']))
+                    story.append(Spacer(1, 0.3*cm))
+                
+                if idx < len(inspections_data):
+                    story.append(PageBreak())
+            
+            # Общее заключение
+            story.append(Paragraph("4. ОБЩЕЕ ЗАКЛЮЧЕНИЕ", self.styles['SectionTitle']))
+            conclusions = [insp.get('conclusion') for insp in inspections_data if insp.get('conclusion')]
+            if conclusions:
+                story.append(Paragraph("\n".join(conclusions), self.styles['Conclusion']))
         
         # Подпись
         story.append(PageBreak())

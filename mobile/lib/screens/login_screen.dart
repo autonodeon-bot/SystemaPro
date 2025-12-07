@@ -28,7 +28,16 @@ class _LoginScreenState extends State<LoginScreen> {
         final username = formData['username'];
         final password = formData['password'];
 
+        // ВАЖНО: Проверяем, не пытается ли пользователь войти под другим логином
+        final currentUser = await _authService.getCurrentUser();
+        if (currentUser != null && currentUser.username != username) {
+          // Если логин отличается - сначала выходим из старой сессии
+          print('⚠️ Обнаружен другой логин. Выходим из старой сессии...');
+          await _authService.logout();
+        }
+
         final user = await _apiService.login(username, password);
+        // Сохраняем нового пользователя (старый уже удален выше, если был другой)
         await _authService.saveUser(user);
 
         if (mounted) {
@@ -217,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Подсказка
                   const Text(
-                    'Тестовые учетные записи:\nadmin / admin123\nengineer / engineer123',
+                    'Тестовые учетные записи:\nadmin / admin123\nchief_operator / chief123\noperator / operator123\nengineer1 / engineer123',
                     style: TextStyle(
                       color: Colors.white38,
                       fontSize: 12,

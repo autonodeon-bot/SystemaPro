@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Копирование requirements и установка зависимостей
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование кода приложения
-COPY . .
+COPY backend/ /app/
 
 # Создание необходимых директорий
 RUN mkdir -p /app/reports /app/certs

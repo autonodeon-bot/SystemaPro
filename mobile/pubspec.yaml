@@ -1,10 +1,10 @@
 name: es_td_ngo_mobile
 description: Мобильное приложение инженера диагностики (ЕС ТД НГО)
 publish_to: 'none'
-version: 1.0.0+1
+version: 3.2.1+5
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -13,23 +13,25 @@ dependencies:
     sdk: flutter
   
   # State & Routing
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ^3.0.3
   go_router: ^17.0.0
   
   # Forms & UI
   flutter_form_builder: ^10.2.0
   form_builder_validators: ^11.2.0
   form_builder_image_picker: ^4.3.1
-  cupertino_icons: ^1.0.6
+  cupertino_icons: ^1.0.8
   
   # HTTP & API
   http: ^1.2.0
   dio: ^5.4.0
+  http_parser: ^4.0.2
   
-  # Database (Offline-first) - временно отключено
-  # isar: ^3.1.0
-  # isar_flutter_libs: ^3.1.0
-  path_provider: ^2.1.2
+  # Database (Offline-first)
+  drift: ^2.30.0
+  sqlite3_flutter_libs: ^0.5.18
+  path_provider: ^2.1.4
+  path: ^1.8.3
   
   # Utils
   image_picker: ^1.0.7
@@ -39,15 +41,23 @@ dependencies:
   url_launcher: ^6.2.5
   
   # Bluetooth для интеграции с приборами
-  flutter_blue_plus: ^1.32.10
-  shared_preferences: 2.2.2
+  flutter_blue_plus: ^2.0.2
+  shared_preferences: ^2.3.2
+  package_info_plus: ^9.0.0
+  flutter_secure_storage: ^10.0.0-beta.5
+  local_auth: ^3.0.0
+  flutter_jailbreak_detection: ^1.10.0
+  crypto: ^3.0.3
+  pointycastle: ^4.0.0
+  uuid: ^4.5.1
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  # isar_generator: ^3.1.0
-  build_runner: ^2.4.8
+  drift_dev: ^2.30.0
+  build_runner: ^2.10.4
 
 flutter:
   uses-material-design: true

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, MapPin, Search, Building2, ChevronRight, ChevronDown, Package, Factory } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Search, Building2, ChevronRight, ChevronDown, Package, Factory, UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Equipment {
@@ -24,6 +24,7 @@ interface Workshop {
   name: string;
   code?: string;
   client_id?: string;
+  branch_id?: string;
   location?: string;
 }
 
@@ -32,12 +33,21 @@ interface Client {
   name: string;
 }
 
+interface Branch {
+  id: string;
+  name: string;
+  code?: string;
+  client_id: string;
+  location?: string;
+  description?: string;
+}
+
 interface HierarchyNode {
   id: string;
   name: string;
-  type: 'client' | 'workshop' | 'equipment';
+  type: 'client' | 'branch' | 'workshop' | 'equipment_type' | 'equipment';
   children?: HierarchyNode[];
-  data?: Client | Workshop | Equipment;
+  data?: Client | Branch | Workshop | EquipmentType | Equipment;
 }
 
 const EquipmentManagement = () => {
@@ -45,16 +55,22 @@ const EquipmentManagement = () => {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [engineers, setEngineers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showWorkshopForm, setShowWorkshopForm] = useState(false);
+  const [showBranchForm, setShowBranchForm] = useState(false);
   const [showAccessForm, setShowAccessForm] = useState(false);
   const [showEquipmentAccessForm, setShowEquipmentAccessForm] = useState(false);
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<EquipmentType | null>(null);
   const [selectedEquipmentForAccess, setSelectedEquipmentForAccess] = useState<Equipment | null>(null);
+  const [selectedNodeForAccess, setSelectedNodeForAccess] = useState<HierarchyNode | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [showInspections, setShowInspections] = useState(false);
@@ -74,6 +90,15 @@ const EquipmentManagement = () => {
   });
 
   const [workshopFormData, setWorkshopFormData] = useState({
+    name: '',
+    code: '',
+    client_id: '',
+    branch_id: '',
+    location: '',
+    description: ''
+  });
+
+  const [branchFormData, setBranchFormData] = useState({
     name: '',
     code: '',
     client_id: '',
@@ -97,6 +122,7 @@ const EquipmentManagement = () => {
     loadEquipment();
     loadEquipmentTypes();
     loadWorkshops();
+    loadBranches();
     loadClients();
     loadEngineers();
     loadUsers();
@@ -150,6 +176,22 @@ const EquipmentManagement = () => {
       }
     } catch (error) {
       console.error('Ошибка загрузки цехов:', error);
+    }
+  };
+
+  const loadBranches = async () => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/branches`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки филиалов:', error);
     }
   };
 
@@ -256,6 +298,39 @@ const EquipmentManagement = () => {
     }
   };
 
+  const handleBranchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/branches`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(branchFormData)
+      });
+      if (response.ok) {
+        setShowBranchForm(false);
+        setBranchFormData({
+          name: '',
+          code: '',
+          client_id: '',
+          location: '',
+          description: ''
+        });
+        loadBranches();
+        alert('Филиал успешно добавлен');
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось добавить филиал'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка создания филиала:', error);
+      alert('Ошибка создания филиала');
+    }
+  };
+
   const handleWorkshopSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -275,6 +350,7 @@ const EquipmentManagement = () => {
           name: '',
           code: '',
           client_id: '',
+          branch_id: '',
           location: '',
           description: ''
         });
@@ -382,16 +458,30 @@ const EquipmentManagement = () => {
   const buildHierarchy = (): HierarchyNode[] => {
     const hierarchy: HierarchyNode[] = [];
     const clientMap = new Map<string, HierarchyNode>();
+    const branchMap = new Map<string, HierarchyNode>();
     const workshopMap = new Map<string, HierarchyNode>();
+    const equipmentTypeMap = new Map<string, HierarchyNode>();
 
-    // Группируем оборудование по клиентам и цехам
+    // Группируем оборудование по иерархии: Client -> Branch -> Workshop -> EquipmentType -> Equipment
     equipment.forEach(eq => {
       if (!eq.workshop_id) return; // Пропускаем оборудование без цеха
       
       const workshop = workshops.find(w => w.id === eq.workshop_id);
       if (!workshop) return;
       
-      const clientId = workshop.client_id || 'no-client';
+      // Определяем клиента (через branch или напрямую через workshop)
+      let clientId = 'no-client';
+      let branch: Branch | undefined;
+      
+      if (workshop.branch_id) {
+        branch = branches.find(b => b.id === workshop.branch_id);
+        if (branch) {
+          clientId = branch.client_id;
+        }
+      } else if (workshop.client_id) {
+        clientId = workshop.client_id;
+      }
+      
       const client = clients.find(c => c.id === clientId);
       
       // Находим или создаем клиента
@@ -408,7 +498,26 @@ const EquipmentManagement = () => {
         hierarchy.push(clientNode);
       }
 
+      // Находим или создаем филиал (если есть)
+      let branchNode: HierarchyNode | null = null;
+      if (branch) {
+        branchNode = branchMap.get(branch.id) || null;
+        if (!branchNode) {
+          branchNode = {
+            id: `branch-${branch.id}`,
+            name: branch.name,
+            type: 'branch',
+            children: [],
+            data: branch
+          };
+          branchMap.set(branch.id, branchNode);
+          if (!clientNode.children) clientNode.children = [];
+          clientNode.children.push(branchNode);
+        }
+      }
+
       // Находим или создаем цех
+      const parentNode = branchNode || clientNode;
       let workshopNode = workshopMap.get(workshop.id);
       if (!workshopNode) {
         workshopNode = {
@@ -419,13 +528,31 @@ const EquipmentManagement = () => {
           data: workshop
         };
         workshopMap.set(workshop.id, workshopNode);
-        if (!clientNode.children) clientNode.children = [];
-        clientNode.children.push(workshopNode);
+        if (!parentNode.children) parentNode.children = [];
+        parentNode.children.push(workshopNode);
+      }
+
+      // Группируем по типам оборудования
+      const typeId = eq.type_id || 'no-type';
+      const equipmentType = equipmentTypes.find(et => et.id === typeId);
+      
+      let typeNode = equipmentTypeMap.get(`${workshop.id}-${typeId}`);
+      if (!typeNode) {
+        typeNode = {
+          id: `equipment-type-${workshop.id}-${typeId}`,
+          name: equipmentType?.name || 'Без типа',
+          type: 'equipment_type',
+          children: [],
+          data: equipmentType
+        };
+        equipmentTypeMap.set(`${workshop.id}-${typeId}`, typeNode);
+        if (!workshopNode.children) workshopNode.children = [];
+        workshopNode.children.push(typeNode);
       }
 
       // Добавляем оборудование
-      if (!workshopNode.children) workshopNode.children = [];
-      workshopNode.children.push({
+      if (!typeNode.children) typeNode.children = [];
+      typeNode.children.push({
         id: `equipment-${eq.id}`,
         name: eq.name,
         type: 'equipment',
@@ -473,8 +600,12 @@ const EquipmentManagement = () => {
       switch (node.type) {
         case 'client':
           return <Building2 size={16} className="text-indigo-400" />;
+        case 'branch':
+          return <MapPin size={16} className="text-purple-400" />;
         case 'workshop':
           return <Factory size={16} className="text-blue-400" />;
+        case 'equipment_type':
+          return <Package size={16} className="text-yellow-400" />;
         case 'equipment':
           return <Package size={16} className="text-green-400" />;
         default:
@@ -517,31 +648,74 @@ const EquipmentManagement = () => {
           {!hasChildren && <div className="w-5" />}
           {getIcon()}
           <span className="flex-1 truncate">{node.name}</span>
-          {isEquipment && equipment && (
-            <div className="flex gap-2 items-center">
+          <div className="flex gap-1 items-center">
+            {/* Кнопка назначения доступа для всех уровней кроме equipment */}
+            {node.type !== 'equipment' && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedEquipmentForAccess(equipment);
-                  setShowEquipmentAccessForm(true);
+                  setSelectedNodeForAccess(node);
+                  // Определяем тип узла и устанавливаем соответствующий selected объект
+                  if (node.type === 'client') {
+                    setSelectedClient(node.data as Client);
+                    setSelectedBranch(null);
+                    setSelectedWorkshop(null);
+                    setSelectedEquipmentType(null);
+                  } else if (node.type === 'branch') {
+                    setSelectedBranch(node.data as Branch);
+                    setSelectedClient(null);
+                    setSelectedWorkshop(null);
+                    setSelectedEquipmentType(null);
+                  } else if (node.type === 'workshop') {
+                    setSelectedWorkshop(node.data as Workshop);
+                    setSelectedClient(null);
+                    setSelectedBranch(null);
+                    setSelectedEquipmentType(null);
+                  } else if (node.type === 'equipment_type') {
+                    setSelectedEquipmentType(node.data as EquipmentType);
+                    setSelectedClient(null);
+                    setSelectedBranch(null);
+                    setSelectedWorkshop(null);
+                  }
+                  setShowAccessForm(true);
                 }}
                 className="text-blue-400 hover:text-blue-300 p-1"
                 title="Назначить доступ инженеру"
               >
-                <Edit size={14} />
+                <UserPlus size={14} />
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(equipment.id);
-                }}
-                className="text-red-400 hover:text-red-300 p-1"
-                title="Удалить оборудование"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          )}
+            )}
+            {isEquipment && equipment && (
+              <>
+                {equipmentInspectionsCount[equipment.id] > 0 && (
+                  <span className="text-xs text-slate-400">
+                    {equipmentInspectionsCount[equipment.id]} диаг.
+                  </span>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedEquipmentForAccess(equipment);
+                    setShowEquipmentAccessForm(true);
+                  }}
+                  className="text-blue-400 hover:text-blue-300 p-1"
+                  title="Назначить доступ инженеру"
+                >
+                  <Edit size={14} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(equipment.id);
+                  }}
+                  className="text-red-400 hover:text-red-300 p-1"
+                  title="Удалить оборудование"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
         {isExpanded && hasChildren && node.children!.map(child => renderTreeNode(child, level + 1))}
       </div>
@@ -563,6 +737,12 @@ const EquipmentManagement = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
         <h1 className="text-xl sm:text-2xl font-bold text-white">Управление оборудованием</h1>
         <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowBranchForm(true)}
+            className="bg-purple-600/20 text-purple-400 border border-purple-600/30 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 hover:bg-purple-600/30 w-full sm:w-auto justify-center"
+          >
+            <MapPin size={16} /> Добавить филиал
+          </button>
           <button
             onClick={() => setShowWorkshopForm(true)}
             className="bg-green-600/20 text-green-400 border border-green-600/30 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 hover:bg-green-600/30 w-full sm:w-auto justify-center"
@@ -661,6 +841,87 @@ const EquipmentManagement = () => {
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
+                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Форма добавления филиала */}
+      {showBranchForm && (
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Добавить филиал</h2>
+          <form onSubmit={handleBranchSubmit} className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Название филиала *</label>
+                <input
+                  type="text"
+                  required
+                  value={branchFormData.name}
+                  onChange={(e) => setBranchFormData({ ...branchFormData, name: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  placeholder="Например: Сургутский ЗСК"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Код филиала</label>
+                <input
+                  type="text"
+                  value={branchFormData.code}
+                  onChange={(e) => setBranchFormData({ ...branchFormData, code: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  placeholder="Например: BR-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Предприятие *</label>
+                <select
+                  required
+                  value={branchFormData.client_id}
+                  onChange={(e) => setBranchFormData({ ...branchFormData, client_id: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                >
+                  <option value="">Выберите предприятие</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-slate-400 block mb-1">Местоположение</label>
+                <input
+                  type="text"
+                  value={branchFormData.location}
+                  onChange={(e) => setBranchFormData({ ...branchFormData, location: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  placeholder="Адрес филиала"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm text-slate-400 block mb-1">Описание</label>
+                <textarea
+                  value={branchFormData.description}
+                  onChange={(e) => setBranchFormData({ ...branchFormData, description: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  rows={3}
+                  placeholder="Дополнительная информация о филиале"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="bg-purple-600 px-4 py-2 rounded-lg text-white font-bold hover:bg-purple-700"
+              >
+                Сохранить
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBranchForm(false)}
                 className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
               >
                 Отмена
@@ -835,11 +1096,15 @@ const EquipmentManagement = () => {
         </div>
       )}
 
-      {/* Форма настройки разрешений для цеха */}
-      {showAccessForm && selectedWorkshop && (
+      {/* Форма настройки разрешений для всех уровней иерархии */}
+      {showAccessForm && selectedNodeForAccess && (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-600">
           <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">
-            Настройка доступа: {selectedWorkshop.name}
+            Настройка доступа: {selectedNodeForAccess.name}
+            {selectedNodeForAccess.type === 'client' && ' (Предприятие)'}
+            {selectedNodeForAccess.type === 'branch' && ' (Филиал)'}
+            {selectedNodeForAccess.type === 'workshop' && ' (Цех)'}
+            {selectedNodeForAccess.type === 'equipment_type' && ' (Тип оборудования)'}
           </h2>
           <form onSubmit={handleAccessSubmit} className="space-y-3 sm:space-y-4">
             <div>

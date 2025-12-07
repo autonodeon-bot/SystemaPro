@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
+import '../services/auth_service.dart';
 import '../data/checklist_constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 
 class VesselInspectionScreen extends StatefulWidget {
   final Equipment equipment;
@@ -26,12 +30,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   final _scrollController = ScrollController();
   final ApiService _apiService = ApiService();
   final SyncService _syncService = SyncService();
+  final AuthService _authService = AuthService();
   bool _isSubmitting = false;
-  final bool _isOfflineMode = false;
+  bool _isOffline = false;
+  bool _autoSync = true; // Автоматическая отправка по умолчанию
 
   final VesselChecklist _checklist = VesselChecklist();
   File? _factoryPlatePhoto;
   File? _controlSchemeImage;
+
+  // Хранилище документов: ключ - номер документа, значение - путь к файлу
+  final Map<String, String> _documentPaths = {};
+  // Хранилище точек контроля на чертеже: ключ - pointId, значение - данные измерения
+  final Map<String, Map<String, dynamic>> _controlPoints = {};
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -42,9 +53,107 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     for (var doc in ChecklistConstants.documents) {
       _checklist.documents[doc['number']!] = false;
     }
+    _loadAutoSyncSetting();
+    _loadEquipmentData();
+    _checkConnection();
   }
 
-  void _showReportCreationDialog(String inspectionId) {
+  // Загрузка настройки автоматической синхронизации
+  Future<void> _loadAutoSyncSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _autoSync = prefs.getBool('auto_sync') ?? true;
+    });
+  }
+
+  // Сохранение настройки автоматической синхронизации
+  Future<void> _saveAutoSyncSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_sync', value);
+    setState(() {
+      _autoSync = value;
+    });
+  }
+
+  // Автозаполнение данных из оборудования
+  void _loadEquipmentData() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_formKey.currentState != null) {
+        final formData = _formKey.currentState!.value;
+
+        // Автозаполнение наименования сосуда
+        if (widget.equipment.name.isNotEmpty &&
+            (formData['vessel_name'] == null ||
+                formData['vessel_name'].toString().isEmpty)) {
+          _formKey.currentState!.fields['vessel_name']
+              ?.didChange(widget.equipment.name);
+          _checklist.vesselName = widget.equipment.name;
+        }
+
+        // Автозаполнение места установки
+        if (widget.equipment.location != null &&
+            (formData['organization'] == null ||
+                formData['organization'].toString().isEmpty)) {
+          _formKey.currentState!.fields['organization']
+              ?.didChange(widget.equipment.location);
+          _checklist.organization = widget.equipment.location;
+        }
+
+        // Автозаполнение заводского номера
+        if (widget.equipment.serialNumber != null &&
+            (formData['serial_number'] == null ||
+                formData['serial_number'].toString().isEmpty)) {
+          _formKey.currentState!.fields['serial_number']
+              ?.didChange(widget.equipment.serialNumber);
+          _checklist.serialNumber = widget.equipment.serialNumber;
+        }
+
+        // Автозаполнение из attributes
+        if (widget.equipment.attributes != null) {
+          final attrs = widget.equipment.attributes!;
+
+          // Диаметр
+          if (attrs['diameter'] != null &&
+              (formData['diameter'] == null ||
+                  formData['diameter'].toString().isEmpty)) {
+            _formKey.currentState!.fields['diameter']
+                ?.didChange(attrs['diameter'].toString());
+            _checklist.diameter = attrs['diameter'].toString();
+          }
+
+          // Толщина стенки
+          if (attrs['wall_thickness'] != null &&
+              (formData['wall_thickness'] == null ||
+                  formData['wall_thickness'].toString().isEmpty)) {
+            _formKey.currentState!.fields['wall_thickness']
+                ?.didChange(attrs['wall_thickness'].toString());
+            _checklist.wallThickness = attrs['wall_thickness'].toString();
+          }
+
+          // Рабочее давление
+          if (attrs['operating_pressure'] != null &&
+              (formData['working_pressure'] == null ||
+                  formData['working_pressure'].toString().isEmpty)) {
+            _formKey.currentState!.fields['working_pressure']
+                ?.didChange(attrs['operating_pressure'].toString());
+            _checklist.workingPressure = attrs['operating_pressure'].toString();
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _checkConnection() async {
+    final isConnected = await _apiService.checkConnection();
+    setState(() {
+      _isOffline = !isConnected;
+    });
+  }
+
+  void _showReportCreationDialog(String inspectionId) async {
+    // Проверяем подключение к интернету
+    final isConnected = await _apiService.checkConnection();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -53,9 +162,37 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           'Создать отчет?',
           style: TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'Чек-лист успешно отправлен. Хотите создать отчет или экспертизу на основе этой диагностики?',
-          style: TextStyle(color: Colors.white70),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Чек-лист успешно отправлен. Хотите создать отчет или экспертизу на основе этой диагностики?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            if (!isConnected) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.wifi_off, color: Colors.orange, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Нет подключения к интернету. Отчет будет сохранен локально и отправлен при появлении связи.',
+                        style: TextStyle(color: Colors.orange, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -69,28 +206,68 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                final report = await _apiService.createReport(
-                  inspectionId: inspectionId,
-                  reportType: 'TECHNICAL_REPORT',
-                  title: 'Технический отчет: ${widget.equipment.name}',
-                );
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Отчет успешно создан'),
-                      backgroundColor: Colors.green,
-                    ),
+                if (isConnected) {
+                  // Пытаемся создать отчет онлайн
+                  final report = await _apiService.createReport(
+                    inspectionId: inspectionId,
+                    reportType: 'TECHNICAL_REPORT',
+                    title: 'Технический отчет: ${widget.equipment.name}',
                   );
-                  Navigator.pop(context, true);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Отчет успешно создан и отправлен'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    Navigator.pop(context, true);
+                  }
+                } else {
+                  // Сохраняем отчет локально для последующей синхронизации
+                  await _syncService.saveReportOffline(
+                    inspectionId: inspectionId,
+                    reportType: 'TECHNICAL_REPORT',
+                    title: 'Технический отчет: ${widget.equipment.name}',
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Отчет сохранен локально. Будет отправлен при появлении интернета.'),
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 4),
+                      ),
+                    );
+                    Navigator.pop(context, true);
+                  }
                 }
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Ошибка создания отчета: $e'),
-                      backgroundColor: Colors.red,
-                    ),
+                // Если ошибка при создании онлайн, сохраняем локально
+                try {
+                  await _syncService.saveReportOffline(
+                    inspectionId: inspectionId,
+                    reportType: 'TECHNICAL_REPORT',
+                    title: 'Технический отчет: ${widget.equipment.name}',
                   );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            'Ошибка отправки. Отчет сохранен локально: $e'),
+                        backgroundColor: Colors.orange,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                } catch (offlineError) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Ошибка создания отчета: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
               }
             },
@@ -145,37 +322,131 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           datePerformed = DateTime.now();
         }
 
-        final result = await _apiService.submitInspection(
-          equipmentId: widget.equipment.id,
-          checklist: _checklist,
-          conclusion: _checklist.conclusion,
-          datePerformed: datePerformed,
-        );
+        // Проверяем токен перед отправкой
+        final token = await _authService.getToken();
+        if (token == null || token.isEmpty) {
+          throw Exception(
+              'Токен авторизации не найден. Пожалуйста, войдите в систему заново.');
+        }
 
-        if (mounted) {
-          // Показываем диалог с предложением создать отчет
-          final inspectionId = result['id']?.toString();
-          if (inspectionId != null) {
-            _showReportCreationDialog(inspectionId);
-          } else {
+        // Проверяем подключение
+        final isConnected = await _apiService.checkConnection();
+
+        // Если автосинхронизация выключена или нет подключения - сохраняем локально
+        if (!_autoSync || !isConnected) {
+          await _syncService.saveInspectionOffline(
+            equipmentId: widget.equipment.id,
+            checklist: _checklist,
+            conclusion: _checklist.conclusion,
+            inspectionDate:
+                _checklist.inspectionDate ?? DateTime.now().toIso8601String(),
+          );
+
+          if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Чек-лист успешно отправлен'),
-                backgroundColor: Colors.green,
+              SnackBar(
+                content: Text(_autoSync
+                    ? 'Чек-лист сохранен локально. Будет отправлен при появлении интернета.'
+                    : 'Чек-лист сохранен локально. Отправьте через синхронизацию.'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 4),
               ),
             );
             Navigator.pop(context, true);
           }
+          return;
+        }
+
+        // Отправляем на сервер
+        try {
+          final result = await _apiService.submitInspection(
+            equipmentId: widget.equipment.id,
+            checklist: _checklist,
+            conclusion: _checklist.conclusion,
+            datePerformed: datePerformed,
+          );
+
+          if (mounted) {
+            // Показываем диалог с предложением создать отчет
+            final inspectionId = result['id']?.toString();
+            if (inspectionId != null) {
+              _showReportCreationDialog(inspectionId);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Чек-лист успешно отправлен'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              Navigator.pop(context, true);
+            }
+          }
+        } catch (e) {
+          // При ошибке сохраняем локально
+          await _syncService.saveInspectionOffline(
+            equipmentId: widget.equipment.id,
+            checklist: _checklist,
+            conclusion: _checklist.conclusion,
+            inspectionDate:
+                _checklist.inspectionDate ?? DateTime.now().toIso8601String(),
+          );
+
+          if (mounted) {
+            final errorMsg = e.toString();
+            final isAuthError = errorMsg.contains('авторизации') ||
+                errorMsg.contains('401') ||
+                errorMsg.contains('403') ||
+                errorMsg.contains('not authenticated');
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(isAuthError
+                    ? 'Ошибка авторизации. Данные сохранены локально. Войдите в систему заново.'
+                    : 'Ошибка отправки. Данные сохранены локально: ${errorMsg.replaceAll("Exception: ", "")}'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+
+            // Если ошибка авторизации - предлагаем перелогиниться
+            if (isAuthError) {
+              await _authService.logout();
+              if (mounted) {
+                Navigator.popUntil(context, (route) => route.isFirst);
+              }
+            }
+          }
         }
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Ошибка отправки: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
+        // При любой ошибке сохраняем локально
+        try {
+          await _syncService.saveInspectionOffline(
+            equipmentId: widget.equipment.id,
+            checklist: _checklist,
+            conclusion: _checklist.conclusion,
+            inspectionDate:
+                _checklist.inspectionDate ?? DateTime.now().toIso8601String(),
           );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    'Ошибка. Данные сохранены локально: ${e.toString().replaceAll("Exception: ", "")}'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        } catch (offlineError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    'Ошибка сохранения: ${e.toString().replaceAll("Exception: ", "")}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } finally {
         if (mounted) {
@@ -355,10 +626,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('10. УЗТ (Ультразвуковая толщинометрия)'),
-            _buildPhotoSection('Схема контроля', _controlSchemeImage, false),
-            _buildAddItemButton('Добавить точку замера', () {
-              // TODO: Открыть диалог добавления точки
-            }),
+            _buildInteractiveControlScheme(),
             const SizedBox(height: 24),
             _buildSectionHeader('11. Дефекты'),
             _buildYesNoField(
@@ -590,23 +858,585 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   }
 
   Widget _buildDocumentCheckbox(Map<String, String> doc) {
+    final hasDocument = _checklist.documents[doc['number']] ?? false;
+    final hasFile = _documentPaths.containsKey(doc['number']);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
         color: const Color(0xFF1e293b),
-        child: CheckboxListTile(
-          title: Text(
-            '${doc['number']}. ${doc['name']}',
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
-          value: _checklist.documents[doc['number']] ?? false,
-          onChanged: (value) {
-            setState(() {
-              _checklist.documents[doc['number']!] = value ?? false;
-            });
-          },
-          activeColor: const Color(0xFF3b82f6),
+        child: Column(
+          children: [
+            CheckboxListTile(
+              title: Text(
+                '${doc['number']}. ${doc['name']}',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              value: hasDocument,
+              onChanged: (value) {
+                setState(() {
+                  _checklist.documents[doc['number']!] = value ?? false;
+                });
+              },
+              activeColor: const Color(0xFF3b82f6),
+            ),
+            // Кнопка загрузки документа (активна только если документ есть)
+            if (hasDocument)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            _pickDocument(doc['number']!, doc['name']!),
+                        icon: Icon(
+                            hasFile ? Icons.check_circle : Icons.upload_file),
+                        label: Text(hasFile
+                            ? 'Документ загружен'
+                            : 'Загрузить документ'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: hasFile
+                              ? Colors.green.withOpacity(0.2)
+                              : const Color(0xFF3b82f6),
+                          foregroundColor:
+                              hasFile ? Colors.green : Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    if (hasFile)
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            _documentPaths.remove(doc['number']);
+                          });
+                        },
+                        tooltip: 'Удалить документ',
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ),
+      ),
+    );
+  }
+
+  // Загрузка документа (фото или PDF)
+  Future<void> _pickDocument(String docNumber, String docName) async {
+    try {
+      final source = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1e293b),
+          title: const Text(
+            'Выберите тип файла',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF3b82f6)),
+                title:
+                    const Text('Фото', style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(context, 'photo'),
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.picture_as_pdf, color: Color(0xFF3b82f6)),
+                title: const Text('PDF документ',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(context, 'pdf'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      String? filePath;
+
+      if (source == 'photo') {
+        // Выбор фото
+        final sourceType = await showDialog<ImageSource>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1e293b),
+            title: const Text('Выберите источник',
+                style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading:
+                      const Icon(Icons.camera_alt, color: Color(0xFF3b82f6)),
+                  title: const Text('Камера',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.photo_library, color: Color(0xFF3b82f6)),
+                  title: const Text('Галерея',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        if (sourceType == null) return;
+
+        final XFile? image = await _imagePicker.pickImage(source: sourceType);
+        if (image != null) {
+          final appDir = await getApplicationDocumentsDirectory();
+          final docDir = Directory('${appDir.path}/documents');
+          if (!await docDir.exists()) {
+            await docDir.create(recursive: true);
+          }
+
+          final fileName =
+              'doc_${docNumber}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final file = File('${docDir.path}/$fileName');
+          await File(image.path).copy(file.path);
+          filePath = file.path;
+        }
+      } else {
+        // Выбор PDF
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+        );
+
+        if (result != null && result.files.single.path != null) {
+          final appDir = await getApplicationDocumentsDirectory();
+          final docDir = Directory('${appDir.path}/documents');
+          if (!await docDir.exists()) {
+            await docDir.create(recursive: true);
+          }
+
+          final fileName =
+              'doc_${docNumber}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          final file = File('${docDir.path}/$fileName');
+          await File(result.files.single.path!).copy(file.path);
+          filePath = file.path;
+        }
+      }
+
+      if (filePath != null) {
+        setState(() {
+          _documentPaths[docNumber] = filePath!;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('Документ загружен: $docName'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка загрузки документа: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Интерактивный чертеж для выбора точек контроля
+  Widget _buildInteractiveControlScheme() {
+    if (_controlSchemeImage == null) {
+      return Card(
+        color: const Color(0xFF1e293b),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              const Text(
+                'Схема контроля',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final source = await showDialog<ImageSource>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: const Color(0xFF1e293b),
+                      title: const Text('Выберите источник',
+                          style: TextStyle(color: Colors.white)),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.camera_alt,
+                                color: Color(0xFF3b82f6)),
+                            title: const Text('Камера',
+                                style: TextStyle(color: Colors.white)),
+                            onTap: () =>
+                                Navigator.pop(context, ImageSource.camera),
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.photo_library,
+                                color: Color(0xFF3b82f6)),
+                            title: const Text('Галерея',
+                                style: TextStyle(color: Colors.white)),
+                            onTap: () =>
+                                Navigator.pop(context, ImageSource.gallery),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                  if (source != null) {
+                    await _pickImage(source, false);
+                  }
+                },
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text('Загрузить схему контроля'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3b82f6),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      color: const Color(0xFF1e293b),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Схема контроля',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Color(0xFF3b82f6)),
+                      onPressed: () async {
+                        final source = await showDialog<ImageSource>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: const Color(0xFF1e293b),
+                            title: const Text('Выберите источник',
+                                style: TextStyle(color: Colors.white)),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.camera_alt,
+                                      color: Color(0xFF3b82f6)),
+                                  title: const Text('Камера',
+                                      style: TextStyle(color: Colors.white)),
+                                  onTap: () => Navigator.pop(
+                                      context, ImageSource.camera),
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.photo_library,
+                                      color: Color(0xFF3b82f6)),
+                                  title: const Text('Галерея',
+                                      style: TextStyle(color: Colors.white)),
+                                  onTap: () => Navigator.pop(
+                                      context, ImageSource.gallery),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                        if (source != null) {
+                          await _pickImage(source, false);
+                        }
+                      },
+                      tooltip: 'Изменить схему',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _controlSchemeImage = null;
+                          _checklist.controlSchemeImage = null;
+                          _controlPoints.clear();
+                        });
+                      },
+                      tooltip: 'Удалить схему',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Интерактивная область для выбора точек
+          GestureDetector(
+            onTapDown: (details) => _addControlPoint(details.localPosition),
+            child: Container(
+              height: 300,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                border: Border.all(color: const Color(0xFF3b82f6), width: 2),
+              ),
+              child: Stack(
+                children: [
+                  // Изображение схемы
+                  if (_controlSchemeImage != null)
+                    Image.file(
+                      _controlSchemeImage!,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                  // Отмеченные точки контроля
+                  ..._controlPoints.entries.map((entry) {
+                    final point = entry.value;
+                    return Positioned(
+                      left: (point['x'] as double?) ?? 0.0,
+                      top: (point['y'] as double?) ?? 0.0,
+                      child: GestureDetector(
+                        onTap: () => _editControlPoint(entry.key, point),
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                                BorderSide(color: Colors.white, width: 2)),
+                          ),
+                          child: Center(
+                            child: Text(
+                              point['number']?.toString() ?? '',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          // Список точек контроля
+          if (_controlPoints.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Точки контроля:',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._controlPoints.entries.map((entry) {
+                    final point = entry.value;
+                    return Card(
+                      color: const Color(0xFF0f172a),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.red,
+                          child: Text(
+                            point['number']?.toString() ?? '',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                        title: Text(
+                          'Точка ${point['number']}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          'Толщина: ${point['thickness'] ?? 'не указана'} мм',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit,
+                                  color: Color(0xFF3b82f6)),
+                              onPressed: () =>
+                                  _editControlPoint(entry.key, point),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                setState(() {
+                                  _controlPoints.remove(entry.key);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  ElevatedButton.icon(
+                    onPressed: () => _addControlPointManually(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Добавить точку вручную'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3b82f6),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Добавление точки контроля при клике на чертеж
+  void _addControlPoint(Offset position) {
+    final pointId = DateTime.now().millisecondsSinceEpoch.toString();
+    final pointNumber = _controlPoints.length + 1;
+
+    setState(() {
+      _controlPoints[pointId] = {
+        'x': position.dx,
+        'y': position.dy,
+        'number': pointNumber,
+        'thickness': null,
+        'comment': null,
+      };
+    });
+
+    // Сразу открываем диалог для ввода данных
+    _editControlPoint(pointId, _controlPoints[pointId]!);
+  }
+
+  // Добавление точки контроля вручную
+  void _addControlPointManually() {
+    final pointId = DateTime.now().millisecondsSinceEpoch.toString();
+    final pointNumber = _controlPoints.length + 1;
+
+    setState(() {
+      _controlPoints[pointId] = {
+        'x': 0.0,
+        'y': 0.0,
+        'number': pointNumber,
+        'thickness': null,
+        'comment': null,
+      };
+    });
+
+    _editControlPoint(pointId, _controlPoints[pointId]!);
+  }
+
+  // Редактирование точки контроля
+  void _editControlPoint(String pointId, Map<String, dynamic> point) {
+    final thicknessController =
+        TextEditingController(text: point['thickness']?.toString() ?? '');
+    final commentController =
+        TextEditingController(text: point['comment']?.toString() ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: Text(
+          'Точка контроля ${point['number']}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: thicknessController,
+              decoration: const InputDecoration(
+                labelText: 'Толщина, мм',
+                labelStyle: TextStyle(color: Colors.white70),
+                filled: true,
+                fillColor: Color(0xFF0f172a),
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(color: Colors.white),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: commentController,
+              decoration: const InputDecoration(
+                labelText: 'Комментарий',
+                labelStyle: TextStyle(color: Colors.white70),
+                filled: true,
+                fillColor: Color(0xFF0f172a),
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(color: Colors.white),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                const Text('Отмена', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _controlPoints[pointId] = {
+                  ...point,
+                  'thickness': thicknessController.text.isNotEmpty
+                      ? double.tryParse(thicknessController.text)
+                      : null,
+                  'comment': commentController.text.isNotEmpty
+                      ? commentController.text
+                      : null,
+                };
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3b82f6),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Сохранить'),
+          ),
+        ],
       ),
     );
   }

@@ -3,33 +3,33 @@ import { Smartphone, Download, QrCode } from 'lucide-react';
 
 const MobileApp: React.FC = () => {
   return (
-    <div className="space-y-6">
-      <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-        <div className="flex items-center gap-3 mb-4">
-          <Smartphone className="text-accent" size={24} />
-          <h1 className="text-2xl font-bold text-white">Мобильное приложение</h1>
+    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+      <div className="bg-secondary/50 rounded-lg p-4 sm:p-6 border border-slate-700">
+        <div className="flex items-center gap-3 mb-3 sm:mb-4">
+          <Smartphone className="text-accent flex-shrink-0" size={24} />
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Мобильное приложение</h1>
         </div>
-        <p className="text-slate-300 mb-6">
+        <p className="text-sm sm:text-base text-slate-300 mb-4 sm:mb-6">
           Скачайте мобильное приложение для работы с системой диагностики оборудования прямо на ваше Android устройство.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* QR код */}
-        <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-          <div className="flex items-center gap-3 mb-4">
-            <QrCode className="text-accent" size={24} />
-            <h2 className="text-xl font-semibold text-white">Сканируйте QR-код</h2>
+        <div className="bg-secondary/50 rounded-lg p-4 sm:p-6 border border-slate-700">
+          <div className="flex items-center gap-3 mb-3 sm:mb-4">
+            <QrCode className="text-accent flex-shrink-0" size={24} />
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Сканируйте QR-код</h2>
           </div>
-          <p className="text-slate-400 mb-4 text-sm">
+          <p className="text-slate-400 mb-3 sm:mb-4 text-xs sm:text-sm">
             Отсканируйте QR-код камерой вашего Android устройства для скачивания приложения
           </p>
-          <div className="flex justify-center items-center bg-white p-4 rounded-lg">
+          <div className="flex justify-center items-center bg-white p-3 sm:p-4 rounded-lg">
             <img 
               src="/QR/mobile.jpg" 
               alt="QR код для скачивания мобильного приложения"
-              className="max-w-full h-auto"
-              style={{ maxHeight: '400px' }}
+              className="max-w-full h-auto w-full sm:w-auto"
+              style={{ maxHeight: '300px', maxWidth: '100%' }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
@@ -43,12 +43,12 @@ const MobileApp: React.FC = () => {
         </div>
 
         {/* Инструкция */}
-        <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-          <div className="flex items-center gap-3 mb-4">
-            <Download className="text-accent" size={24} />
-            <h2 className="text-xl font-semibold text-white">Инструкция по установке</h2>
+        <div className="bg-secondary/50 rounded-lg p-4 sm:p-6 border border-slate-700">
+          <div className="flex items-center gap-3 mb-3 sm:mb-4">
+            <Download className="text-accent flex-shrink-0" size={24} />
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Инструкция по установке</h2>
           </div>
-          <div className="space-y-4 text-slate-300">
+          <div className="space-y-3 sm:space-y-4 text-sm sm:text-base text-slate-300">
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-8 h-8 bg-accent/20 rounded-full flex items-center justify-center text-accent font-bold">
                 1
@@ -92,9 +92,9 @@ const MobileApp: React.FC = () => {
       </div>
 
       {/* Возможности приложения */}
-      <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-        <h2 className="text-xl font-semibold text-white mb-4">Возможности мобильного приложения</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="bg-secondary/50 rounded-lg p-4 sm:p-6 border border-slate-700">
+        <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Возможности мобильного приложения</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 bg-accent/20 rounded flex items-center justify-center">
               <div className="w-2 h-2 bg-accent rounded-full"></div>
@@ -156,4 +156,6 @@ const MobileApp: React.FC = () => {
 };
 
 export default MobileApp;
+
+
 

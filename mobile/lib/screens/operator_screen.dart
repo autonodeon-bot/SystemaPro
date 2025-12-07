@@ -24,18 +24,18 @@ class OperatorScreen extends ConsumerWidget {
 
           // Проверка доступа
           if (!AuthHelper.canManageAccess(user)) {
-            return Center(
+            return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock, color: Colors.red, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
+                  Icon(Icons.lock, color: Colors.red, size: 64),
+                  SizedBox(height: 16),
+                  Text(
                     'Доступ запрещен',
                     style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
+                  SizedBox(height: 8),
+                  Text(
                     'Эта функция доступна только операторам и администраторам',
                     style: TextStyle(color: Colors.white70),
                     textAlign: TextAlign.center,
@@ -49,14 +49,14 @@ class OperatorScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               // Информация
-              Card(
-                color: const Color(0xFF1e293b),
+              const Card(
+                color: Color(0xFF1e293b),
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Управление доступом',
                         style: TextStyle(
                           color: Colors.white,
@@ -64,8 +64,8 @@ class OperatorScreen extends ConsumerWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
+                      SizedBox(height: 8),
+                      Text(
                         'Назначение доступа инженерам к цехам и оборудованию',
                         style: TextStyle(
                           color: Colors.white70,
@@ -79,27 +79,27 @@ class OperatorScreen extends ConsumerWidget {
               const SizedBox(height: 24),
 
               // Информационное сообщение
-              Card(
-                color: const Color(0xFF1e293b),
+              const Card(
+                color: Color(0xFF1e293b),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, color: Color(0xFF3b82f6)),
-                      const SizedBox(width: 12),
+                      Icon(Icons.info_outline, color: Color(0xFF3b82f6)),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Используйте веб-интерфейс',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            const Text(
+                            SizedBox(height: 4),
+                            Text(
                               'Для назначения доступа к цехам и оборудованию используйте веб-интерфейс системы',
                               style: TextStyle(
                                 color: Colors.white70,

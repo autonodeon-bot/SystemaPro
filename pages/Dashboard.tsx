@@ -42,19 +42,19 @@ const RiskBadge = ({ level }: { level: RiskLevel }) => {
 
 const Dashboard = () => {
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard title="Всего объектов" value="1,248" sub="+12 новых за месяц" icon={Activity} color="text-blue-500" />
         <StatCard title="Критические дефекты" value="3" sub="Требуют немедленного внимания" icon={AlertTriangle} color="text-red-500" />
         <StatCard title="Проверено (мес)" value="86" sub="98% выполнение плана" icon={CheckCircle} color="text-green-500" />
         <StatCard title="В работе" value="14" sub="Текущие инспекции" icon={Clock} color="text-yellow-500" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Main Chart */}
-        <div className="lg:col-span-2 bg-secondary rounded-xl p-6 border border-slate-700">
-          <h3 className="text-lg font-bold text-white mb-6">Динамика выявления дефектов</h3>
-          <div className="h-80 w-full">
+        <div className="lg:col-span-2 bg-secondary rounded-xl p-4 sm:p-6 border border-slate-700 overflow-hidden">
+          <h3 className="text-base sm:text-lg font-bold text-white mb-4 sm:mb-6">Динамика выявления дефектов</h3>
+          <div className="h-64 sm:h-80 w-full overflow-x-auto">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -71,8 +71,8 @@ const Dashboard = () => {
         </div>
 
         {/* Task List */}
-        <div className="bg-secondary rounded-xl p-6 border border-slate-700 flex flex-col">
-           <h3 className="text-lg font-bold text-white mb-4">Ближайшие инспекции</h3>
+        <div className="bg-secondary rounded-xl p-4 sm:p-6 border border-slate-700 flex flex-col">
+           <h3 className="text-base sm:text-lg font-bold text-white mb-4">Ближайшие инспекции</h3>
            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
              {INSPECTION_TASKS.map(task => (
                <div key={task.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-slate-500 transition">

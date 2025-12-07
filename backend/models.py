@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Date, DateTime, Text, JSON, ForeignKey, Numeric, Boolean, Table
+from sqlalchemy import Column, String, Integer, Date, DateTime, Text, JSON, ForeignKey, Numeric, Boolean, Table, ARRAY
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -15,6 +15,20 @@ class EquipmentType(Base):
     code = Column(String(50), unique=True)
     is_active = Column(Integer, default=1)
 
+class Branch(Base):
+    """Филиалы предприятий"""
+    __tablename__ = "branches"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)  # Название филиала
+    code = Column(String(50))  # Код филиала
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)  # Предприятие
+    location = Column(String(500))  # Адрес/местоположение
+    description = Column(Text)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 class Workshop(Base):
     """Цеха/подразделения предприятий"""
     __tablename__ = "workshops"
@@ -22,12 +36,37 @@ class Workshop(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)  # Название цеха
     code = Column(String(50))  # Код цеха
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)  # Предприятие
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)  # Предприятие (для обратной совместимости)
+    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True)  # Филиал
     location = Column(String(500))  # Адрес/местоположение
     description = Column(Text)
     is_active = Column(Integer, default=1)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class ClientEngineerAccess(Base):
+    """Разрешения инженеров на доступ к предприятиям"""
+    __tablename__ = "client_engineer_access"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=False)
+    access_type = Column(String(50), default="read_write")  # read, read_write
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
+
+class BranchEngineerAccess(Base):
+    """Разрешения инженеров на доступ к филиалам"""
+    __tablename__ = "branch_engineer_access"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False)
+    engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=False)
+    access_type = Column(String(50), default="read_write")  # read, read_write
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
 
 class WorkshopEngineerAccess(Base):
     """Разрешения инженеров на доступ к цехам"""
@@ -37,6 +76,18 @@ class WorkshopEngineerAccess(Base):
     workshop_id = Column(UUID(as_uuid=True), ForeignKey("workshops.id"), nullable=False)
     engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=False)
     access_type = Column(String(50), default="read_write")  # read, read_write, create_equipment
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
+
+class EquipmentTypeEngineerAccess(Base):
+    """Разрешения инженеров на доступ к типам оборудования"""
+    __tablename__ = "equipment_type_engineer_access"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    equipment_type_id = Column(UUID(as_uuid=True), ForeignKey("equipment_types.id"), nullable=False)
+    engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=False)
+    access_type = Column(String(50), default="read_write")  # read, read_write
     granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     granted_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
@@ -84,6 +135,11 @@ class Inspection(Base):
     conclusion = Column(Text)
     next_inspection_date = Column(Date)
     status = Column(String(50), default="DRAFT")  # DRAFT, SIGNED, APPROVED
+    # Offline-first поля
+    client_id = Column(UUID(as_uuid=True), nullable=True)  # Локальный UUID с мобильного устройства (для конфликтов)
+    is_synced = Column(Boolean, default=False)  # Синхронизировано ли с сервером
+    synced_at = Column(DateTime(timezone=True), nullable=True)  # Время синхронизации
+    offline_task_id = Column(UUID(as_uuid=True), ForeignKey("offline_tasks.id"), nullable=True)  # Ссылка на задание
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -223,6 +279,7 @@ class User(Base):
     role = Column(String(50), nullable=False, default="engineer")  # admin, chief_operator, operator, engineer
     is_active = Column(Boolean, default=True)
     engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=True)  # Связь с инженером
+    offline_pin_hash = Column(String(64), nullable=True)  # Хеш офлайн-PIN для проверки при синхронизации
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
@@ -272,3 +329,32 @@ class UserProjectAccess(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class OfflineTask(Base):
+    """Офлайн-задания для инженеров в командировках"""
+    __tablename__ = "offline_tasks"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    name = Column(String(255), nullable=False)  # Название задания
+    equipment_ids = Column(JSONB)  # Список UUID оборудования (только с доступом)
+    downloaded_at = Column(DateTime(timezone=True), nullable=True)  # Когда скачан пакет
+    expires_at = Column(DateTime(timezone=True), server_default=func.text("NOW() + INTERVAL '95 days'"))  # Срок действия (95 дней)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class SyncHistory(Base):
+    """История синхронизаций инспекций инженерами"""
+    __tablename__ = "sync_history"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)  # Инженер, который синхронизировал
+    inspection_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=False)  # Список синхронизированных инспекций
+    synced_count = Column(Integer, nullable=False)  # Количество успешно синхронизированных
+    failed_count = Column(Integer, default=0)  # Количество неудачных
+    sync_type = Column(String(50), default="offline")  # Тип синхронизации: offline, manual, auto
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Связь с пользователем для удобных запросов
+    user = relationship("User", backref="sync_history")

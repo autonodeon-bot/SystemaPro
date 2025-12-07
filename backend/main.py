@@ -12,10 +12,11 @@ import uuid as uuid_lib
 from database import get_db, engine, Base
 from models import (
     Equipment, EquipmentType, PipelineSegment, Inspection,
-    Client, Project, EquipmentResource, RegulatoryDocument,
+    Client, Branch, Project, EquipmentResource, RegulatoryDocument,
     Engineer, Certification, Report, User as UserModel,
     UserEquipmentAccess, UserProjectAccess, Questionnaire,
-    Workshop, WorkshopEngineerAccess
+    Workshop, WorkshopEngineerAccess, ClientEngineerAccess,
+    BranchEngineerAccess, EquipmentTypeEngineerAccess, OfflineTask, SyncHistory
 )
 from report_generator import ReportGenerator
 from auth import (
@@ -1261,27 +1262,48 @@ async def get_reports(
 
 @app.post("/api/reports/generate")
 async def generate_report(report_data: dict, db: AsyncSession = Depends(get_db)):
-    """Generate technical report or expertise"""
+    """Generate technical report or expertise. Can combine multiple inspections into one report."""
     try:
-        inspection_id = None
-        if report_data.get("inspection_id"):
+        inspection_ids = []
+        
+        # Поддержка одного или нескольких обследований
+        if report_data.get("inspection_ids"):
+            # Массив обследований
+            for insp_id in report_data.get("inspection_ids", []):
+                try:
+                    inspection_ids.append(uuid_lib.UUID(insp_id))
+                except:
+                    raise HTTPException(status_code=400, detail=f"Invalid inspection_id format: {insp_id}")
+        elif report_data.get("inspection_id"):
+            # Одно обследование (для обратной совместимости)
             try:
-                inspection_id = uuid_lib.UUID(report_data.get("inspection_id"))
+                inspection_ids.append(uuid_lib.UUID(report_data.get("inspection_id")))
             except:
                 raise HTTPException(status_code=400, detail="Invalid inspection_id format")
         
-        # Get inspection data
-        if inspection_id:
+        if not inspection_ids:
+            raise HTTPException(status_code=400, detail="inspection_id or inspection_ids is required")
+        
+        # Get inspections data
+        if inspection_ids:
+            # Получаем все обследования
             result = await db.execute(
-                select(Inspection).where(Inspection.id == inspection_id)
+                select(Inspection).where(Inspection.id.in_(inspection_ids))
             )
-            inspection = result.scalar_one_or_none()
-            if not inspection:
-                raise HTTPException(status_code=404, detail="Inspection not found")
+            inspections = result.scalars().all()
             
-            # Get equipment data
+            if not inspections:
+                raise HTTPException(status_code=404, detail="Inspections not found")
+            
+            # Проверяем, что все обследования относятся к одному оборудованию
+            equipment_ids = set([str(insp.equipment_id) for insp in inspections if insp.equipment_id])
+            if len(equipment_ids) > 1:
+                raise HTTPException(status_code=400, detail="All inspections must be for the same equipment")
+            
+            # Get equipment data (берем из первого обследования)
+            equipment_id = inspections[0].equipment_id
             eq_result = await db.execute(
-                select(Equipment).where(Equipment.id == inspection.equipment_id)
+                select(Equipment).where(Equipment.id == equipment_id)
             )
             equipment = eq_result.scalar_one_or_none()
             if not equipment:
@@ -1303,23 +1325,29 @@ async def generate_report(report_data: dict, db: AsyncSession = Depends(get_db))
                         "extension_date": str(resource.extension_date) if resource.extension_date else None,
                     }
             
+            # Prepare inspections data for report
+            inspections_data_list = []
+            for inspection in inspections:
+                inspections_data_list.append({
+                    "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
+                    "data": inspection.data,
+                    "conclusion": inspection.conclusion,
+                    "status": inspection.status,
+                })
+            
             # Generate report
             generator = ReportGenerator()
             reports_dir = Path("/app/reports")
             reports_dir.mkdir(exist_ok=True)
             
             report_type = report_data.get("report_type", "TECHNICAL_REPORT")
-            filename = f"{report_type}_{inspection.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            filename = f"{report_type}_{equipment.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             file_path = reports_dir / filename
             
             if report_type == "EXPERTISE":
+                # Для экспертизы пока используем только первое обследование (можно расширить)
                 generator.generate_expertise_report(
-                    {
-                        "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                        "data": inspection.data,
-                        "conclusion": inspection.conclusion,
-                        "status": inspection.status,
-                    },
+                    inspections_data_list[0] if inspections_data_list else {},
                     {
                         "id": str(equipment.id),
                         "name": equipment.name,
@@ -1333,12 +1361,7 @@ async def generate_report(report_data: dict, db: AsyncSession = Depends(get_db))
                 )
             else:
                 generator.generate_technical_report(
-                    {
-                        "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                        "data": inspection.data,
-                        "conclusion": inspection.conclusion,
-                        "status": inspection.status,
-                    },
+                    inspections_data_list,
                     {
                         "id": str(equipment.id),
                         "name": equipment.name,
@@ -1351,15 +1374,17 @@ async def generate_report(report_data: dict, db: AsyncSession = Depends(get_db))
                 )
             
             # Save report record
+            inspection_ids_json = [str(insp.id) for insp in inspections]
             new_report = Report(
-                inspection_id=inspection_id,
+                inspection_id=inspections[0].id if len(inspections) == 1 else None,  # Для обратной совместимости
                 equipment_id=equipment.id,
-                project_id=inspection.project_id,
+                project_id=inspections[0].project_id if inspections else None,
                 report_type=report_type,
                 title=report_data.get("title", f"{report_type} для {equipment.name}"),
                 file_path=str(file_path),
                 file_size=file_path.stat().st_size if file_path.exists() else 0,
-                status="DRAFT"
+                status="DRAFT",
+                inspection_ids=inspection_ids_json  # Сохраняем массив ID обследований
             )
             db.add(new_report)
             await db.commit()
@@ -1371,8 +1396,7 @@ async def generate_report(report_data: dict, db: AsyncSession = Depends(get_db))
                 "file_size": new_report.file_size,
                 "status": "generated"
             }
-        else:
-            raise HTTPException(status_code=400, detail="inspection_id is required")
+        # Если дошли сюда, значит inspections_ids не пустой
     except HTTPException:
         raise
     except Exception as e:
@@ -1795,6 +1819,7 @@ async def get_questionnaire(
 @app.get("/api/workshops")
 async def get_workshops(
     client_id: Optional[str] = None,
+    branch_id: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
@@ -1809,6 +1834,12 @@ async def get_workshops(
                 query = query.where(Workshop.client_id == client_uuid)
             except:
                 raise HTTPException(status_code=400, detail="Invalid client_id format")
+        if branch_id:
+            try:
+                branch_uuid = uuid_lib.UUID(branch_id)
+                query = query.where(Workshop.branch_id == branch_uuid)
+            except:
+                raise HTTPException(status_code=400, detail="Invalid branch_id format")
         query = query.offset(skip).limit(limit)
         
         result = await db.execute(query)
@@ -1820,6 +1851,7 @@ async def get_workshops(
                     "name": w.name,
                     "code": w.code,
                     "client_id": str(w.client_id) if w.client_id else None,
+                    "branch_id": str(w.branch_id) if w.branch_id else None,
                     "location": w.location,
                     "description": w.description,
                 }
@@ -1847,10 +1879,18 @@ async def create_workshop(
             except:
                 pass
         
+        branch_id = None
+        if workshop_data.get("branch_id"):
+            try:
+                branch_id = uuid_lib.UUID(workshop_data.get("branch_id"))
+            except:
+                pass
+        
         new_workshop = Workshop(
             name=workshop_data.get("name"),
             code=workshop_data.get("code"),
             client_id=client_id,
+            branch_id=branch_id,
             location=workshop_data.get("location"),
             description=workshop_data.get("description"),
             is_active=1
@@ -1862,6 +1902,8 @@ async def create_workshop(
             "id": str(new_workshop.id),
             "name": new_workshop.name,
             "code": new_workshop.code,
+            "client_id": str(new_workshop.client_id) if new_workshop.client_id else None,
+            "branch_id": str(new_workshop.branch_id) if new_workshop.branch_id else None,
             "status": "created"
         }
     except Exception as e:
@@ -1946,6 +1988,14 @@ async def get_workshop_access(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Подключаем offline эндпоинты
+from offline_endpoints import router as offline_router
+app.include_router(offline_router)
+
+# Подключаем эндпоинт истории синхронизаций
+from get_sync_history_endpoint import router as sync_history_router
+app.include_router(sync_history_router)
 
 if __name__ == "__main__":
     import uvicorn

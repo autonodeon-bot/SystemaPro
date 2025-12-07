@@ -29,18 +29,37 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     // Явно извлекаем роль и проверяем её
-    String role = 'engineer'; // Значение по умолчанию
+    String role = 'engineer'; // Значение по умолчанию - НИКОГДА не admin!
+
     if (json['role'] != null) {
-      role = json['role'].toString().toLowerCase();
-    }
-    // Проверяем, что роль валидна
-    final validRoles = ['admin', 'chief_operator', 'operator', 'engineer'];
-    if (!validRoles.contains(role)) {
-      print('⚠️ Неизвестная роль: $role, устанавливаем engineer');
+      final rawRole = json['role'].toString().toLowerCase().trim();
+      // Проверяем, что роль валидна
+      final validRoles = ['admin', 'chief_operator', 'operator', 'engineer'];
+      if (validRoles.contains(rawRole)) {
+        role = rawRole;
+      } else {
+        print('⚠️ Неизвестная роль: "$rawRole", устанавливаем engineer');
+        role = 'engineer';
+      }
+    } else {
+      print('⚠️ Роль не указана в JSON, устанавливаем engineer по умолчанию');
       role = 'engineer';
     }
-    print('User.fromJson: username=${json['username']}, role=$role');
-    
+
+    // ДОПОЛНИТЕЛЬНАЯ ЗАЩИТА: если роль все еще пустая или невалидна - принудительно engineer
+    if (role.isEmpty ||
+        (role != 'admin' &&
+            role != 'chief_operator' &&
+            role != 'operator' &&
+            role != 'engineer')) {
+      print(
+          '⚠️ КРИТИЧЕСКАЯ ЗАЩИТА: принудительно устанавливаем engineer вместо "$role"');
+      role = 'engineer';
+    }
+
+    print(
+        'User.fromJson: username=${json['username']}, role=$role (финальная)');
+
     return User(
       id: json['id']?.toString() ?? '',
       username: json['username'] ?? '',
@@ -79,12 +98,19 @@ class User {
       'token': token,
     };
   }
+
+  String getRoleLabel() {
+    switch (role) {
+      case 'admin':
+        return 'Администратор';
+      case 'chief_operator':
+        return 'Главный оператор';
+      case 'operator':
+        return 'Оператор';
+      case 'engineer':
+        return 'Инженер';
+      default:
+        return 'Неизвестная роль';
+    }
+  }
 }
-
-
-
-
-
-
-
-
