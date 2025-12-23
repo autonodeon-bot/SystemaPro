@@ -6,6 +6,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
+    # Шрифты с поддержкой кириллицы для PDF (ReportLab)
+    fonts-dejavu-core \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # Копирование requirements и установка зависимостей
@@ -16,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/
 
 # Создание необходимых директорий
-RUN mkdir -p /app/reports /app/certs
+RUN mkdir -p /app/reports /app/certs /app/uploads/certification_scans
 
 # Открытие порта
 EXPOSE 8000

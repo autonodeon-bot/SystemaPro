@@ -1,302 +1,288 @@
 import React from 'react';
-import { Calendar, CheckCircle, Code, Database, Smartphone, Users, Shield, FileText } from 'lucide-react';
+import { Sparkles, CheckCircle, AlertCircle, Plus, Bug, Settings } from 'lucide-react';
 
-interface ChangelogEntry {
+interface Version {
   version: string;
   date: string;
+  type: 'major' | 'minor' | 'patch';
   changes: {
-    type: 'feature' | 'fix' | 'improvement' | 'security';
-    category: string;
+    type: 'added' | 'fixed' | 'changed' | 'improved';
     description: string;
-    icon?: React.ReactNode;
   }[];
 }
 
-const CHANGELOG: ChangelogEntry[] = [
-  {
-    version: '3.2.1',
-    date: '07.12.2025',
-    changes: [
-      {
-        type: 'fix',
-        category: 'Мобильное приложение',
-        description: 'КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Исправлена обработка ролей при логине - роль теперь всегда берется из /api/auth/me',
-        icon: <Shield className="text-red-400" size={20} />,
-      },
-      {
-        type: 'fix',
-        category: 'Безопасность',
-        description: 'Добавлена защита от неправильных ролей - по умолчанию устанавливается engineer, а не admin',
-        icon: <Shield className="text-yellow-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Offline-first режим',
-        description: 'Добавлена зависимость cryptography для шифрования offline-пакетов',
-        icon: <Code className="text-blue-400" size={20} />,
-      },
-      {
-        type: 'improvement',
-        category: 'Backend',
-        description: 'Реализованы функции для справочников и схем в offline-пакетах',
-        icon: <Database className="text-green-400" size={20} />,
-      },
-      {
-        type: 'improvement',
-        category: 'Миграции БД',
-        description: 'Выполнены все миграции для offline-first режима - создана таблица offline_tasks',
-        icon: <Database className="text-purple-400" size={20} />,
-      },
-    ],
-  },
-  {
-    version: '3.2.0',
-    date: '04.12.2025',
-    changes: [
-      {
-        type: 'feature',
-        category: 'Иерархическая система доступа',
-        description: 'Добавлена полная иерархическая структура: Enterprise → Branch → Workshop → EquipmentType → Equipment с возможностью назначения доступа на любом уровне',
-        icon: <Shield className="text-blue-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Управление филиалами',
-        description: 'Добавлено создание и управление филиалами (Branch) между предприятиями и цехами',
-        icon: <FileText className="text-green-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Объединение обследований',
-        description: 'Реализована возможность объединения нескольких обследований в один технический отчет',
-        icon: <FileText className="text-purple-400" size={20} />,
-      },
-      {
-        type: 'improvement',
-        category: 'Интерфейс оборудования',
-        description: 'Обновлен интерфейс управления оборудованием с древовидной структурой и визуальными иконками для каждого уровня',
-        icon: <Code className="text-cyan-400" size={20} />,
-      },
-      {
-        type: 'security',
-        category: 'Система доступа',
-        description: 'Улучшена система проверки доступа с учетом всех уровней иерархии (предприятие, филиал, цех, тип оборудования, оборудование)',
-        icon: <Shield className="text-yellow-400" size={20} />,
-      },
-    ],
-  },
-  {
-    version: '3.1.1',
-    date: '02.12.2025',
-    changes: [
-      {
-        type: 'feature',
-        category: 'Опросные листы',
-        description: 'Добавлен функционал заполнения опросных листов по объектам с возможностью прикрепления фото к каждому пункту',
-        icon: <FileText className="text-blue-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Мобильное приложение',
-        description: 'Реализован экран QuestionnaireScreen с 10 разделами опросного листа для диагностики сосудов',
-        icon: <Smartphone className="text-green-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Генерация имен файлов',
-        description: 'Автоматическая генерация имен фотофайлов в формате: {инв_номер}_{название_пункта}_{код}_{timestamp}.jpg',
-        icon: <Code className="text-purple-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Offline режим',
-        description: 'Опросные листы сохраняются локально при отсутствии интернета и автоматически синхронизируются при появлении связи',
-        icon: <Smartphone className="text-orange-400" size={20} />,
-      },
-      {
-        type: 'improvement',
-        category: 'Роли и доступ',
-        description: 'Исправлена проверка ролей - инженеры больше не видят админ панель, доступ корректно распределен по ролям',
-        icon: <Shield className="text-yellow-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Панель инженера',
-        description: 'Создана страница EngineerPanel для управления сертификатами НК инженерами',
-        icon: <Users className="text-cyan-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'База данных',
-        description: 'Добавлена таблица questionnaires для хранения опросных листов с поддержкой JSON данных',
-        icon: <Database className="text-green-400" size={20} />,
-      },
-    ],
-  },
-  {
-    version: '3.1.0',
-    date: '26.11.2025',
-    changes: [
-      {
-        type: 'feature',
-        category: 'Авторизация',
-        description: 'Реализована система авторизации и распределения ролей на веб-сайте',
-        icon: <Shield className="text-blue-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Админ панель',
-        description: 'Создана расширенная админ панель для управления пользователями, инженерами, сертификатами и отчетами',
-        icon: <Shield className="text-purple-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Специалисты НК',
-        description: 'Доработан раздел управления специалистами неразрушающего контроля с добавлением полей: метод контроля, уровень, дата окончания, фото документа',
-        icon: <Users className="text-green-400" size={20} />,
-      },
-      {
-        type: 'feature',
-        category: 'Мобильное приложение',
-        description: 'Добавлен экран просмотра сертификатов специалиста в мобильном приложении',
-        icon: <Smartphone className="text-cyan-400" size={20} />,
-      },
-      {
-        type: 'improvement',
-        category: 'Offline режим',
-        description: 'Улучшен offline режим в мобильном приложении - отчеты сохраняются локально и синхронизируются при появлении интернета',
-        icon: <Smartphone className="text-orange-400" size={20} />,
-      },
-    ],
-  },
-];
-
 const Changelog = () => {
-  const getTypeColor = (type: string) => {
+  const versions: Version[] = [
+    {
+      version: '3.6.2',
+      date: new Date().toLocaleDateString('ru-RU'),
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Система аннотирования изображений для всех методов НК: возможность фотографировать чертежи и обводить дефекты стилусом/пальцем' },
+        { type: 'added', description: 'Специальный экран для дефектов сварных швов: выбор типа дефекта (пористость, трещина, включение, подрез и т.д.) с характеристиками' },
+        { type: 'added', description: 'Аннотированные изображения включаются в отчеты: все схемы с обведенными дефектами автоматически добавляются в раздел "Фотоматериалы и аннотированные схемы"' },
+        { type: 'improved', description: 'Генерация отчетов: улучшено отображение документов специалистов с полной информацией (тип, номер, организация, даты выдачи и окончания)' },
+        { type: 'improved', description: 'Генерация отчетов: детальная информация об используемом оборудовании (производитель, модель, дата поверки, срок поверки)' },
+        { type: 'improved', description: 'Чек-листы: улучшено отображение всех приложенных документов с размерами файлов и прямыми ссылками на просмотр' },
+        { type: 'fixed', description: 'Календарь поверок: исправлена ошибка отображения (добавлены недостающие импорты)' },
+      ],
+    },
+    {
+      version: '3.6.0',
+      date: '23.12.2025',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Система управления поверками оборудования: полный цикл управления оборудованием для поверок' },
+        { type: 'added', description: 'Календарь поверок: визуализация сроков поверок с цветовой индикацией (просрочено, истекает ≤7 дней, ≤30 дней)' },
+        { type: 'added', description: 'Уведомления о сроках поверок на главной странице (Dashboard) с предупреждениями за 30, 14 и 7 дней' },
+        { type: 'added', description: 'Мобильное приложение: выбор поверенного оборудования перед началом работ с валидацией' },
+        { type: 'added', description: 'Мобильное приложение: автоматическое включение информации об используемом оборудовании в отчеты' },
+        { type: 'added', description: 'Отчеты: автоматическое добавление раздела "Оборудование, использованное при диагностировании" с приложенными сканами поверок' },
+        { type: 'added', description: 'История поверок: просмотр полной истории поверок для каждого оборудования' },
+        { type: 'added', description: 'Экспорт списка оборудования для поверок в CSV с фильтрацией по срокам и типам' },
+        { type: 'added', description: 'Статистика использования оборудования: анализ частоты использования оборудования в обследованиях' },
+        { type: 'added', description: 'Категории оборудования: автоподстановка типов оборудования (ВИК, УЗК, ПВК, РК, МК, ВК, ТК)' },
+        { type: 'improved', description: 'Валидация: нельзя начать обследование без выбора поверенного оборудования в мобильном приложении' },
+        { type: 'improved', description: 'Интеграция: оборудование для поверок автоматически привязывается к обследованиям и включается в отчеты' },
+      ],
+    },
+    {
+      version: '3.5.1',
+      date: '16.12.2025',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Задания: обзор назначений по объектам (предприятие/филиал/цех/оборудование) + прогресс-бар выполнено/всего' },
+        { type: 'added', description: 'Чек-листы: названия документов в “Перечень рассмотренных документов” как в мобильном приложении' },
+        { type: 'added', description: 'Чек-листы: просмотр прикрепленных файлов (сканы/фото) прямо в браузере (inline view)' },
+        { type: 'added', description: 'Чек-листы: отображение всех “прочих вложений” (помимо стандартных документов и системных фото)' },
+        { type: 'added', description: 'Отчеты/чек-листы: удаление (RBAC) — admin/operator могут удалять любые, инженер только свои' },
+        { type: 'added', description: 'Очистка: массовое удаление старых отчетов и чек-листов по сроку хранения' },
+        { type: 'fixed', description: 'DOCX/PDF генерация: исправлены ошибки формирования и корректные MIME/имя файла для DOCX' },
+        { type: 'fixed', description: 'PDF: исправлено отображение кириллицы (шрифты с поддержкой русского языка)' },
+        { type: 'improved', description: 'Генератор отчетов: структура как у реальных отчетов (общая часть, акты НК, заключение, приложения)' },
+        { type: 'improved', description: 'Отчеты: подтягиваются данные из мобильного (точки замера, фото таблички, карта обследования, арматура, фото/вложения методов НК)' },
+        { type: 'improved', description: 'Мобильное: синхронизация заданий + обработка 401 (автовыход и повторная авторизация)' },
+        { type: 'improved', description: 'Мобильное: автозаполнение карты обследования из базы оборудования и сохранение изменений обратно в оборудование' },
+        { type: 'added', description: 'Мобильное: расширены методы НК (ЗРА, СППК, овальность, прогиб, твердость по точкам, ПВК/МК/УЗК сварных соединений)' },
+        { type: 'added', description: 'API: утверждение отчетов/чек-листов (APPROVED) — после утверждения отображаются в карточке оборудования и в списках' },
+      ],
+    },
+    {
+      version: '3.5.0',
+      date: '12.12.2025',
+      type: 'major',
+      changes: [
+        { type: 'added', description: 'Мобильное приложение обновлено до 3.5.0 (release APK)' },
+        { type: 'fixed', description: 'Ссылка на APK приведена к единому формату /mobile/* (исключены “старые”/битые ссылки)' },
+        { type: 'added', description: 'Компетенции: прикрепление скана сертификата (фото/PDF) к карточке инженера' },
+        { type: 'added', description: 'Оборудование: переход в карточку оборудования по клику (страница с полной информацией, как в Диагностике)' },
+        { type: 'improved', description: 'Генерация отчетов: улучшена поддержка данных из мобильного (в т.ч. толщинометрия)' },
+      ],
+    },
+    {
+      version: '3.3.0',
+      date: '11.12.2025',
+      type: 'major',
+      changes: [
+        { type: 'added', description: 'Единая база оборудования с уникальными кодами (equipment_code)' },
+        { type: 'added', description: 'Система заданий на диагностику/экспертизу (assignments)' },
+        { type: 'added', description: 'История обследований оборудования (inspection_history)' },
+        { type: 'added', description: 'Журнал ремонта оборудования (repair_journal)' },
+        { type: 'added', description: 'Операторы могут создавать задания и назначать инженеров' },
+        { type: 'added', description: 'Инженеры видят только назначенные им задания в мобильном приложении' },
+        { type: 'added', description: 'Офлайн-режим: синхронизация скачивает назначенное оборудование' },
+        { type: 'added', description: 'Работа с заданиями в мобильном приложении без интернета' },
+        { type: 'added', description: 'Автоматическое обновление статуса задания при выполнении' },
+        { type: 'improved', description: 'Все обследования привязаны к оборудованию по уникальному коду' },
+        { type: 'improved', description: 'Полная история обследований и ремонтов для каждого оборудования' },
+      ],
+    },
+    {
+      version: '3.2.9',
+      date: '11.12.2025',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Добавлена кнопка выхода из системы в веб-приложении' },
+        { type: 'added', description: 'Создан раздел "Что нового?" для отслеживания изменений версий' },
+        { type: 'added', description: 'Добавлено отображение версии системы в интерфейсе (3.2.9 (10))' },
+        { type: 'added', description: 'Реализовано автоматическое увеличение версии при загрузке мобильного приложения' },
+        { type: 'added', description: 'Добавлено отображение версии приложения в мобильном приложении (профиль)' },
+        { type: 'fixed', description: 'Исправлена ошибка загрузки списка пользователей (500 Internal Server Error)' },
+        { type: 'fixed', description: 'Исправлена ошибка сравнения типа is_active в таблице users' },
+        { type: 'fixed', description: 'Исправлена ошибка создания экспертизы (equipment_resources.resource_type)' },
+        { type: 'fixed', description: 'Исправлена ошибка создания технического отчета (NDTMethod.inspection_id)' },
+        { type: 'fixed', description: 'Исправлена проблема с пустым экраном оборудования в мобильном приложении' },
+        { type: 'fixed', description: 'Исправлена ошибка загрузки leaflet.css (integrity attribute)' },
+        { type: 'improved', description: 'Улучшена работа с назначением инженеров на оборудование' },
+        { type: 'improved', description: 'Обновлен интерфейс управления доступом к оборудованию' },
+        { type: 'improved', description: 'Обновлена версия мобильного приложения до 3.2.9 (build 10)' },
+        { type: 'improved', description: 'Улучшена система версионирования APK файлов (автоматическое переименование)' },
+        { type: 'improved', description: 'Оптимизирован фронтенд для работы с мобильных устройств' },
+      ],
+    },
+    {
+      version: '3.2.8',
+      date: '10.12.2025',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Добавлена иерархическая структура оборудования (Предприятия → Филиалы → Цеха → Оборудование)' },
+        { type: 'added', description: 'Реализовано назначение инженеров на уровни иерархии оборудования' },
+        { type: 'added', description: 'Добавлена офлайн-синхронизация оборудования в мобильном приложении' },
+        { type: 'added', description: 'Реализована фильтрация оборудования по назначенным инженерам' },
+        { type: 'improved', description: 'Улучшена работа мобильного приложения в офлайн-режиме' },
+      ],
+    },
+    {
+      version: '3.2.7',
+      date: '09.12.2025',
+      type: 'patch',
+      changes: [
+        { type: 'fixed', description: 'Исправлена ошибка генерации отчетов в формате DOCX' },
+        { type: 'fixed', description: 'Исправлена проблема с отображением русских символов в PDF отчетах' },
+        { type: 'added', description: 'Добавлен предпросмотр данных перед генерацией технического отчета' },
+        { type: 'improved', description: 'Улучшена генерация отчетов с поддержкой всех методов НК' },
+      ],
+    },
+    {
+      version: '3.2.6',
+      date: '08.12.2025',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Добавлена генерация отчетов в формате Word (DOCX)' },
+        { type: 'added', description: 'Реализована система управления доступом к оборудованию (RBAC)' },
+        { type: 'added', description: 'Добавлено отображение ФИО инженера в карточках отчетов и чек-листов' },
+        { type: 'improved', description: 'Улучшено отображение названий документов в чек-листах' },
+        { type: 'improved', description: 'Добавлено хранение отчетов о толщинометрии и других методов НК' },
+      ],
+    },
+    {
+      version: '3.2.5',
+      date: '07.12.2025',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Восстановлена функция толщинометрии с указанием точек на схеме' },
+        { type: 'added', description: 'Добавлена фильтрация оборудования по предприятиям и цехам в мобильном приложении' },
+        { type: 'fixed', description: 'Исправлена ошибка отправки отчетов (project_id не существует)' },
+        { type: 'improved', description: 'Восстановлен полный функционал мобильного приложения' },
+      ],
+    },
+  ];
+
+  const getChangeIcon = (type: string) => {
     switch (type) {
-      case 'feature':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
-      case 'fix':
-        return 'bg-red-500/20 text-red-400 border-red-500/50';
-      case 'improvement':
-        return 'bg-green-500/20 text-green-400 border-green-500/50';
-      case 'security':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+      case 'added':
+        return <Plus className="text-green-400" size={16} />;
+      case 'fixed':
+        return <Bug className="text-red-400" size={16} />;
+      case 'changed':
+        return <Settings className="text-blue-400" size={16} />;
+      case 'improved':
+        return <CheckCircle className="text-yellow-400" size={16} />;
       default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/50';
+        return <CheckCircle className="text-slate-400" size={16} />;
     }
   };
 
-  const getTypeLabel = (type: string) => {
+  const getChangeLabel = (type: string) => {
     switch (type) {
-      case 'feature':
-        return 'Новая функция';
-      case 'fix':
-        return 'Исправление';
-      case 'improvement':
-        return 'Улучшение';
-      case 'security':
-        return 'Безопасность';
+      case 'added':
+        return 'Добавлено';
+      case 'fixed':
+        return 'Исправлено';
+      case 'changed':
+        return 'Изменено';
+      case 'improved':
+        return 'Улучшено';
       default:
-        return type;
+        return 'Изменение';
+    }
+  };
+
+  const getVersionBadgeColor = (type: string) => {
+    switch (type) {
+      case 'major':
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'minor':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'patch':
+        return 'bg-green-500/20 text-green-400 border-green-500/30';
+      default:
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-          <FileText className="text-accent" size={32} />
-          История изменений
-        </h1>
-        <p className="text-slate-400">Версия системы: 3.2.1 (2025-Q4)</p>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <Sparkles className="text-accent" size={32} />
+        <h1 className="text-3xl font-bold text-white">Что нового?</h1>
       </div>
 
-      <div className="space-y-8">
-        {CHANGELOG.map((entry, index) => (
-          <div
-            key={entry.version}
-            className="bg-secondary rounded-xl overflow-hidden border border-slate-700 shadow-lg"
-          >
-            {/* Заголовок версии */}
-            <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-accent/20 rounded-lg">
-                    <CheckCircle className="text-accent" size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Версия {entry.version}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="text-slate-400" size={14} />
-                      <p className="text-sm text-slate-400">{entry.date}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+        <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
+          <h2 className="text-xl font-bold text-white mb-2">Версия системы</h2>
+          <p className="text-2xl font-bold text-accent">3.6.0 (1)</p>
+          <p className="text-sm text-slate-400 mt-1">Текущая версия платформы</p>
+        </div>
+        <p className="text-slate-300 mb-6">
+          Здесь вы можете увидеть все изменения и обновления системы. Версии отсортированы от новых к старым.
+        </p>
 
-            {/* Список изменений */}
-            <div className="p-6 space-y-4">
-              {entry.changes.map((change, changeIndex) => (
-                <div
-                  key={changeIndex}
-                  className="bg-primary/50 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors"
-                >
-                  <div className="flex items-start gap-4">
-                    {change.icon && (
-                      <div className="mt-1 flex-shrink-0">{change.icon}</div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-semibold border ${getTypeColor(
-                            change.type
-                          )}`}
-                        >
-                          {getTypeLabel(change.type)}
-                        </span>
-                        <span className="text-sm font-medium text-slate-300">
-                          {change.category}
+        <div className="space-y-8">
+          {versions.map((version, index) => (
+            <div
+              key={index}
+              className="bg-slate-900 rounded-lg border border-slate-700 p-6 hover:border-accent/50 transition-colors"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-bold text-white">Версия {version.version}</h2>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${getVersionBadgeColor(
+                      version.type
+                    )}`}
+                  >
+                    {version.type === 'major'
+                      ? 'Крупное обновление'
+                      : version.type === 'minor'
+                      ? 'Обновление'
+                      : 'Исправление'}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-sm">{version.date}</span>
+              </div>
+
+              <div className="space-y-2">
+                {version.changes.map((change, changeIndex) => (
+                  <div
+                    key={changeIndex}
+                    className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="mt-0.5">{getChangeIcon(change.type)}</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold text-slate-400">
+                          {getChangeLabel(change.type)}
                         </span>
                       </div>
-                      <p className="text-slate-200 leading-relaxed">{change.description}</p>
+                      <p className="text-slate-300 text-sm">{change.description}</p>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Легенда */}
-      <div className="mt-8 bg-secondary rounded-lg p-6 border border-slate-700">
-        <h3 className="text-lg font-bold text-white mb-4">Легенда</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded text-xs font-semibold border bg-blue-500/20 text-blue-400 border-blue-500/50">
-              Новая функция
-            </span>
-            <span className="text-sm text-slate-400">Добавлен новый функционал</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded text-xs font-semibold border bg-red-500/20 text-red-400 border-red-500/50">
-              Исправление
-            </span>
-            <span className="text-sm text-slate-400">Исправлены ошибки</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded text-xs font-semibold border bg-green-500/20 text-green-400 border-green-500/50">
-              Улучшение
-            </span>
-            <span className="text-sm text-slate-400">Улучшена существующая функция</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded text-xs font-semibold border bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
-              Безопасность
-            </span>
-            <span className="text-sm text-slate-400">Улучшения безопасности</span>
+        <div className="mt-8 pt-6 border-t border-slate-700">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-yellow-400 mt-0.5" size={20} />
+            <div>
+              <h3 className="text-yellow-400 font-bold mb-2">Обратная связь</h3>
+              <p className="text-sm text-slate-300">
+                Если вы заметили ошибку или у вас есть предложения по улучшению системы, пожалуйста, свяжитесь с администратором.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -305,6 +291,3 @@ const Changelog = () => {
 };
 
 export default Changelog;
-
-
-

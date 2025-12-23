@@ -27,6 +27,12 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.es_td_ngo.mobile"
     compileSdkVersion 36
@@ -51,11 +57,46 @@ android {
         targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        multiDexEnabled true
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                def keystorePath = keystoreProperties['storeFile']
+                if (keystorePath) {
+                    def keystoreFile = file(keystorePath)
+                    if (keystoreFile.exists()) {
+                        keyAlias keystoreProperties['keyAlias']
+                        keyPassword keystoreProperties['keyPassword']
+                        storeFile keystoreFile
+                        storePassword keystoreProperties['storePassword']
+                    }
+                }
+            }
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            if (keystorePropertiesFile.exists()) {
+                def keystorePath = keystoreProperties['storeFile']
+                if (keystorePath && file(keystorePath).exists()) {
+                    signingConfig signingConfigs.release
+                } else {
+                    signingConfig signingConfigs.debug
+                }
+            } else {
+                signingConfig signingConfigs.debug
+            }
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

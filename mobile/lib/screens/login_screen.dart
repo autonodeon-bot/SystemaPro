@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_form_builder/flutter_form_builder.dart';
-import 'package:form_builder_validators/form_builder_validators.dart';
-import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../models/user.dart';
 import 'dashboard_screen.dart';
+import '../services/sync_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,63 +13,156 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormBuilderState>();
-  final ApiService _apiService = ApiService();
-  final AuthService _authService = AuthService();
+  final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _authService = AuthService();
+  final _apiService = ApiService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _hasOfflineSession = false;
+  String? _offlineUserName;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOfflineAvailability();
+  }
+
+  Future<void> _checkOfflineAvailability() async {
+    final user = await _authService.getCurrentUser();
+    final offlineEquipment = await SyncService().getOfflineEquipment();
+    if (!mounted) return;
+    setState(() {
+      _hasOfflineSession = user != null && offlineEquipment.isNotEmpty;
+      _offlineUserName = user?.fullName ?? user?.username;
+    });
+  }
 
   Future<void> _login() async {
-    if (_formKey.currentState?.saveAndValidate() ?? false) {
-      setState(() => _isLoading = true);
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
 
       try {
-        final formData = _formKey.currentState!.value;
-        final username = formData['username'];
-        final password = formData['password'];
+        final response = await _apiService.login(
+          _usernameController.text,
+          _passwordController.text,
+        );
 
-        // ВАЖНО: Проверяем, не пытается ли пользователь войти под другим логином
-        final currentUser = await _authService.getCurrentUser();
-        if (currentUser != null && currentUser.username != username) {
-          // Если логин отличается - сначала выходим из старой сессии
-          print('⚠️ Обнаружен другой логин. Выходим из старой сессии...');
-          await _authService.logout();
-        }
-
-        final user = await _apiService.login(username, password);
-        // Сохраняем нового пользователя (старый уже удален выше, если был другой)
-        await _authService.saveUser(user);
-
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        if (response != null && response['access_token'] != null) {
+          final user = User(
+            id: response['user_id']?.toString() ?? _usernameController.text,
+            username: _usernameController.text,
+            email: response['email'],
+            fullName: response['full_name'],
+            role: response['role'],
+            token: response['access_token'],
           );
+
+          // Сохраняем пользователя с хешем пароля для офлайн-авторизации
+          await _authService.saveUser(user, passwordHash: response['password_hash']);
+
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Неверный логин или пароль'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } catch (e) {
         if (mounted) {
-          String errorMessage = 'Ошибка входа';
-          if (e.toString().contains('401') || e.toString().contains('Incorrect')) {
-            errorMessage = 'Неверный логин или пароль';
-          } else if (e.toString().contains('Connection') || e.toString().contains('Failed')) {
-            errorMessage = 'Нет подключения к серверу';
-          } else if (e.toString().isNotEmpty) {
-            errorMessage = e.toString().replaceAll('Exception: ', '');
-          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(errorMessage),
+              content: Text('Ошибка входа: $e'),
               backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
             ),
           );
         }
       } finally {
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
     }
+  }
+
+  Future<void> _loginOffline() async {
+    // Проверяем наличие сохраненного пользователя и хеша пароля
+    final savedUser = await _authService.getCurrentUser();
+    final savedHash = await _authService.getPasswordHash();
+    final savedUsername = await _authService.getOfflineUsername();
+    
+    if (savedUser == null || savedHash == null || savedUsername == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Офлайн-вход недоступен: сначала выполните вход с интернетом.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Проверяем пароль локально
+    if (_passwordController.text.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите пароль для офлайн-входа'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Проверяем пароль (упрощенная проверка - в продакшене использовать bcrypt)
+    final passwordValid = await _authService.verifyPasswordOffline(_passwordController.text);
+    if (!passwordValid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Неверный пароль'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    // Проверяем, что имя пользователя совпадает
+    if (_usernameController.text != savedUsername) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Неверное имя пользователя'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const DashboardScreen()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -79,62 +172,45 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: FormBuilder(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Логотип
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3b82f6),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'ES',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                  const Icon(
+                    Icons.account_circle,
+                    size: 100,
+                    color: Color(0xFF3b82f6),
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Заголовок
+                  const SizedBox(height: 32),
                   const Text(
                     'ЕС ТД НГО',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
                     textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Вход в систему',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
+                    'Мобильное приложение инженера',
                     textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                    ),
                   ),
                   const SizedBox(height: 48),
-
-                  // Поле логина
-                  FormBuilderTextField(
-                    name: 'username',
+                  TextFormField(
+                    controller: _usernameController,
                     decoration: InputDecoration(
                       labelText: 'Логин',
                       labelStyle: const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(Icons.person, color: Colors.white70),
+                      prefixIcon:
+                          const Icon(Icons.person, color: Colors.white70),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -150,15 +226,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       fillColor: const Color(0xFF1e293b),
                     ),
                     style: const TextStyle(color: Colors.white),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Введите логин',
-                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Введите логин';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
-
-                  // Поле пароля
-                  FormBuilderTextField(
-                    name: 'password',
+                  TextFormField(
+                    controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: 'Пароль',
@@ -166,11 +243,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: const Icon(Icons.lock, color: Colors.white70),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                          _obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                           color: Colors.white70,
                         ),
                         onPressed: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
                         },
                       ),
                       border: OutlineInputBorder(
@@ -188,13 +269,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       fillColor: const Color(0xFF1e293b),
                     ),
                     style: const TextStyle(color: Colors.white),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Введите пароль',
-                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Введите пароль';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 32),
-
-                  // Кнопка входа
                   ElevatedButton(
                     onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
@@ -211,28 +293,37 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
                         : const Text(
                             'Войти',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                                fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Подсказка
-                  const Text(
-                    'Тестовые учетные записи:\nadmin / admin123\nchief_operator / chief123\noperator / operator123\nengineer1 / engineer123',
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 12,
+                  if (_hasOfflineSession) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _loginOffline,
+                      icon:
+                          const Icon(Icons.offline_bolt, color: Colors.white70),
+                      label: Text(
+                        _offlineUserName != null
+                            ? 'Войти офлайн ($_offlineUserName)'
+                            : 'Войти офлайн',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -242,4 +333,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

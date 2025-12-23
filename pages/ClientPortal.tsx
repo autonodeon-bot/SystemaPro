@@ -43,18 +43,24 @@ const ClientPortal = () => {
 
   const loadData = async () => {
     try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       // Загрузка оборудования
-      const eqResponse = await fetch(`${API_BASE}/api/equipment`);
+      const eqResponse = await fetch(`${API_BASE}/api/equipment`, { headers });
       const eqData = await eqResponse.json();
       setEquipment(eqData.items || []);
 
       // Загрузка диагностик
-      const inspResponse = await fetch(`${API_BASE}/api/inspections`);
+      const inspResponse = await fetch(`${API_BASE}/api/inspections`, { headers });
       const inspData = await inspResponse.json();
       setInspections(inspData.items || []);
 
       // Загрузка отчетов
-      const repResponse = await fetch(`${API_BASE}/api/reports`);
+      const repResponse = await fetch(`${API_BASE}/api/reports`, { headers });
       const repData = await repResponse.json();
       setReports(repData.items || []);
     } catch (error) {

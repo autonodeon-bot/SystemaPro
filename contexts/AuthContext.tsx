@@ -23,6 +23,7 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   loading: boolean;
+  getToken: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -131,8 +132,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     setUser(null);
     setToken(null);
+    // Чистим все возможные ключи (на всякий случай, после миграций/версий)
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('current_user');
+    try {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('current_user');
+    } catch {
+      // ignore
+    }
   };
 
   const hasPermission = (permission: string): boolean => {
@@ -155,6 +167,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     hasPermission,
     hasRole,
     loading,
+    getToken: () => token || localStorage.getItem('token'),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -167,6 +180,12 @@ export const useAuth = () => {
   }
   return context;
 };
+
+
+
+
+
+
 
 
 

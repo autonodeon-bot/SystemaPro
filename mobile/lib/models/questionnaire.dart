@@ -253,6 +253,79 @@ class Section7InternalDevices {
   };
 }
 
+// Модель метода неразрушающего контроля
+class NDTMethod {
+  String id; // Уникальный ID метода
+  String methodCode; // Код метода (ВИК, УЗК, РК, МПД, КПД, ПВК, АК, ТК, УЗТ и т.д.)
+  String methodName; // Название метода
+  bool isPerformed; // Проведен ли метод
+  String? standard; // Нормативный документ (ГОСТ, РД и т.д.)
+  String? equipment; // Используемое оборудование
+  String? inspectorName; // ФИО инженера, проводившего контроль
+  String? inspectorLevel; // Уровень инженера (I, II, III)
+  String? results; // Результаты контроля
+  String? defects; // Обнаруженные дефекты
+  String? conclusion; // Заключение
+  List<String> photos = []; // Фото результатов
+  Map<String, dynamic>? additionalData; // Дополнительные данные (JSON)
+  DateTime? performedDate; // Дата проведения
+  
+  NDTMethod({
+    required this.id,
+    required this.methodCode,
+    required this.methodName,
+    this.isPerformed = false,
+    this.standard,
+    this.equipment,
+    this.inspectorName,
+    this.inspectorLevel,
+    this.results,
+    this.defects,
+    this.conclusion,
+    List<String>? photos,
+    this.additionalData,
+    this.performedDate,
+  }) : photos = photos ?? [];
+  
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'method_code': methodCode,
+    'method_name': methodName,
+    'is_performed': isPerformed,
+    'standard': standard,
+    'equipment': equipment,
+    'inspector_name': inspectorName,
+    'inspector_level': inspectorLevel,
+    'results': results,
+    'defects': defects,
+    'conclusion': conclusion,
+    'photos': photos,
+    'additional_data': additionalData,
+    'performed_date': performedDate?.toIso8601String(),
+  };
+  
+  factory NDTMethod.fromJson(Map<String, dynamic> json) {
+    return NDTMethod(
+      id: json['id'] ?? '',
+      methodCode: json['method_code'] ?? '',
+      methodName: json['method_name'] ?? '',
+      isPerformed: json['is_performed'] ?? false,
+      standard: json['standard'],
+      equipment: json['equipment'],
+      inspectorName: json['inspector_name'],
+      inspectorLevel: json['inspector_level'],
+      results: json['results'],
+      defects: json['defects'],
+      conclusion: json['conclusion'],
+      photos: (json['photos'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      additionalData: json['additional_data'] as Map<String, dynamic>?,
+      performedDate: json['performed_date'] != null 
+        ? DateTime.tryParse(json['performed_date']) 
+        : null,
+    );
+  }
+}
+
 // Раздел 8: Результаты неразрушающего контроля
 class Section8NDT {
   QuestionnaireItem? hasVisualInspection; // Проведен ВИК
@@ -267,6 +340,9 @@ class Section8NDT {
   QuestionnaireItem? hardnessTestResults; // Результаты контроля твердости
   List<QuestionnaireItem> ndtPhotos = []; // Фото НК
   
+  // Список всех методов НК
+  List<NDTMethod> ndtMethods = [];
+  
   Map<String, dynamic> toJson() => {
     'has_visual_inspection': hasVisualInspection?.toJson(),
     'visual_inspection_results': visualInspectionResults?.toJson(),
@@ -279,7 +355,18 @@ class Section8NDT {
     'has_hardness_test': hasHardnessTest?.toJson(),
     'hardness_test_results': hardnessTestResults?.toJson(),
     'ndt_photos': ndtPhotos.map((p) => p.toJson()).toList(),
+    'ndt_methods': ndtMethods.map((m) => m.toJson()).toList(),
   };
+  
+  factory Section8NDT.fromJson(Map<String, dynamic> json) {
+    final section = Section8NDT();
+    if (json['ndt_methods'] != null) {
+      section.ndtMethods = (json['ndt_methods'] as List<dynamic>)
+        .map((e) => NDTMethod.fromJson(e as Map<String, dynamic>))
+        .toList();
+    }
+    return section;
+  }
 }
 
 // Раздел 9: Заключение о техническом состоянии

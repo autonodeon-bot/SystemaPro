@@ -49,10 +49,13 @@ echo.
 echo Файл доступен по адресу:
 echo   http://5.129.203.182/mobile/app-release.apk
 echo.
-echo Теперь можно создать QR код для скачивания
-echo.
 pause
 endlocal
+
+
+
+
+
 
 
 

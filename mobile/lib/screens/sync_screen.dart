@@ -1,52 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/sync_service.dart';
-import '../services/auth_service.dart';
+import '../screens/equipment_list_screen.dart';
 import 'package:intl/intl.dart';
 
-class SyncScreen extends StatefulWidget {
+class SyncScreen extends ConsumerStatefulWidget {
   const SyncScreen({super.key});
 
   @override
-  State<SyncScreen> createState() => _SyncScreenState();
+  ConsumerState<SyncScreen> createState() => _SyncScreenState();
 }
 
-class _SyncScreenState extends State<SyncScreen> {
+class _SyncScreenState extends ConsumerState<SyncScreen> {
   final SyncService _syncService = SyncService();
-  final AuthService _authService = AuthService();
   bool _isSyncing = false;
   DateTime? _lastSyncTime;
   int _pendingCount = 0;
-  bool _isEngineer = false;
 
   @override
   void initState() {
     super.initState();
-    _checkUserRole();
     _loadData();
   }
 
-  Future<void> _checkUserRole() async {
-    final user = await _authService.getCurrentUser();
-    setState(() {
-      _isEngineer = user?.role == 'engineer';
-    });
-  }
-
-  int _pendingInspections = 0;
-  int _pendingReports = 0;
-  int _pendingQuestionnaires = 0;
-
   Future<void> _loadData() async {
-    final pendingInspections = await _syncService.getPendingInspections();
-    final pendingReports = await _syncService.getPendingReports();
-    final pendingQuestionnaires = await _syncService.getPendingQuestionnaires();
+    final pending = await _syncService.getPendingInspections();
     final lastSync = await _syncService.getLastSyncTime();
     
     setState(() {
-      _pendingInspections = pendingInspections.length;
-      _pendingReports = pendingReports.length;
-      _pendingQuestionnaires = pendingQuestionnaires.length;
-      _pendingCount = _pendingInspections + _pendingReports + _pendingQuestionnaires;
+      _pendingCount = pending.length;
       _lastSyncTime = lastSync;
     });
   }
@@ -55,46 +37,20 @@ class _SyncScreenState extends State<SyncScreen> {
     setState(() => _isSyncing = true);
     
     try {
-      int totalSynced = 0;
-      int totalFailed = 0;
-      List<String> messages = [];
-      
-      // Синхронизация диагностик
-      if (_pendingInspections > 0) {
-        final result = await _syncService.syncPendingInspections();
-        totalSynced += result.syncedCount;
-        totalFailed += result.failedCount;
-        if (result.message != null) messages.add('Диагностики: ${result.message}');
-      }
-      
-      // Синхронизация отчетов
-      if (_pendingReports > 0) {
-        final result = await _syncService.syncPendingReports();
-        totalSynced += result.syncedCount;
-        totalFailed += result.failedCount;
-        if (result.message != null) messages.add('Отчеты: ${result.message}');
-      }
-      
-      // Синхронизация опросных листов
-      if (_pendingQuestionnaires > 0) {
-        final result = await _syncService.syncPendingQuestionnaires();
-        totalSynced += result.syncedCount;
-        totalFailed += result.failedCount;
-        if (result.message != null) messages.add('Опросные листы: ${result.message}');
-      }
+      final result = await _syncService.syncPendingInspections();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              totalSynced > 0 || totalFailed > 0
-                  ? 'Синхронизация завершена: $totalSynced успешно, $totalFailed ошибок'
-                  : 'Нет данных для синхронизации',
-            ),
-            backgroundColor: totalFailed == 0 ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 4),
+            content: Text(result.message ?? result.error ?? 'Синхронизация завершена'),
+            backgroundColor: result.success ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
+        
+        // Обновляем список оборудования в экране оборудования
+        // Инвалидируем провайдер для перезагрузки данных
+        ref.invalidate(equipmentListProvider);
       }
       
       await _loadData();
@@ -116,48 +72,6 @@ class _SyncScreenState extends State<SyncScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Проверка: только инженеры могут синхронизировать
-    if (!_isEngineer) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Синхронизация данных'),
-          backgroundColor: const Color(0xFF0f172a),
-          foregroundColor: Colors.white,
-        ),
-        backgroundColor: const Color(0xFF0f172a),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.lock_outline,
-                size: 64,
-                color: Colors.red,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Доступ запрещен',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Синхронизация доступна только инженерам',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Синхронизация данных'),
@@ -232,7 +146,7 @@ class _SyncScreenState extends State<SyncScreen> {
             
             // Кнопка синхронизации
             ElevatedButton(
-              onPressed: _isSyncing || _pendingCount == 0 ? null : _syncNow,
+              onPressed: _isSyncing ? null : _syncNow,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF3b82f6),
                 foregroundColor: Colors.white,
@@ -270,7 +184,7 @@ class _SyncScreenState extends State<SyncScreen> {
               const Padding(
                 padding: EdgeInsets.only(top: 16),
                 child: Text(
-                  'Нет данных для синхронизации',
+                  'Нет данных для отправки на сервер. Нажмите "Синхронизировать сейчас" для обновления списка оборудования.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white70),
                 ),

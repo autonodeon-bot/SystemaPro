@@ -1,6 +1,6 @@
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
 import ssl
 
@@ -49,22 +49,13 @@ engine = create_async_engine(
 )
 
 # Create session factory
-# Для SQLAlchemy 1.4 используем sessionmaker
-try:
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-    AsyncSessionLocal = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-except ImportError:
-    # Fallback для старых версий SQLAlchemy
-    from sqlalchemy.orm import sessionmaker
-    AsyncSessionLocal = sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
 
 # Base class for models
 Base = declarative_base()

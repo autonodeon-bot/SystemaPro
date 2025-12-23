@@ -98,3 +98,19 @@ plink -batch -ssh -pw ydR9+CL3?S@dgH root@5.129.203.182 "cd /opt/es-td-ngo && do
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
-import { AlertTriangle, CheckCircle, Clock, Activity } from 'lucide-react';
-import { INSPECTION_TASKS } from '../constants';
+import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2 } from 'lucide-react';
+import { INSPECTION_TASKS, API_BASE } from '../constants';
 import { RiskLevel } from '../types';
 
 const data = [
@@ -41,8 +41,83 @@ const RiskBadge = ({ level }: { level: RiskLevel }) => {
 };
 
 const Dashboard = () => {
+  const [verificationAlerts, setVerificationAlerts] = useState<{
+    expired: number;
+    warning7: number;
+    warning30: number;
+  }>({ expired: 0, warning7: 0, warning30: 0 });
+
+  useEffect(() => {
+    loadVerificationAlerts();
+  }, []);
+
+  const loadVerificationAlerts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // Загружаем просроченное
+      const expiredRes = await fetch(`${API_BASE}/api/verification-equipment?is_active=true`, { headers });
+      if (expiredRes.ok) {
+        const expired = await expiredRes.json();
+        const expiredCount = expired.filter((e: any) => e.is_expired).length;
+        const warning7Count = expired.filter((e: any) => !e.is_expired && e.days_until_expiry !== null && e.days_until_expiry <= 7 && e.days_until_expiry > 0).length;
+        const warning30Count = expired.filter((e: any) => !e.is_expired && e.days_until_expiry !== null && e.days_until_expiry <= 30 && e.days_until_expiry > 7).length;
+        setVerificationAlerts({ expired: expiredCount, warning7: warning7Count, warning30: warning30Count });
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки предупреждений о поверках:', error);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Предупреждения о поверках */}
+      {(verificationAlerts.expired > 0 || verificationAlerts.warning7 > 0 || verificationAlerts.warning30 > 0) && (
+        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle2 className="text-blue-400" size={20} />
+            <h3 className="text-white font-semibold">Предупреждения о поверках оборудования</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {verificationAlerts.expired > 0 && (
+              <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
+                <div className="text-red-400 text-sm flex items-center gap-1">
+                  <AlertTriangle size={16} />
+                  Просрочено
+                </div>
+                <div className="text-xl font-bold text-red-400 mt-1">{verificationAlerts.expired}</div>
+              </div>
+            )}
+            {verificationAlerts.warning7 > 0 && (
+              <div className="bg-orange-500/10 rounded-lg p-3 border border-orange-500/20">
+                <div className="text-orange-400 text-sm flex items-center gap-1">
+                  <AlertTriangle size={16} />
+                  Истекает ≤7 дней
+                </div>
+                <div className="text-xl font-bold text-orange-400 mt-1">{verificationAlerts.warning7}</div>
+              </div>
+            )}
+            {verificationAlerts.warning30 > 0 && (
+              <div className="bg-yellow-500/10 rounded-lg p-3 border border-yellow-500/20">
+                <div className="text-yellow-400 text-sm flex items-center gap-1">
+                  <Clock size={16} />
+                  Истекает ≤30 дней
+                </div>
+                <div className="text-xl font-bold text-yellow-400 mt-1">{verificationAlerts.warning30}</div>
+              </div>
+            )}
+          </div>
+          <a
+            href="#/verifications"
+            className="mt-3 inline-block text-sm text-blue-400 hover:text-blue-300"
+          >
+            Перейти к управлению поверками →
+          </a>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard title="Всего объектов" value="1,248" sub="+12 новых за месяц" icon={Activity} color="text-blue-500" />
         <StatCard title="Критические дефекты" value="3" sub="Требуют немедленного внимания" icon={AlertTriangle} color="text-red-500" />

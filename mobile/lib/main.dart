@@ -8,8 +8,31 @@ void main() {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final _authService = AuthService();
+  bool _isLoading = true;
+  bool _isAuthenticated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final authenticated = await _authService.isAuthenticated();
+    setState(() {
+      _isAuthenticated = authenticated;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,20 +54,16 @@ class MyApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: FutureBuilder(
-        future: AuthService().isAuthenticated(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          // ВАЖНО: Всегда показываем экран логина при запуске
-          // Автоматический вход отключен для безопасности
-          // Пользователь должен явно ввести логин и пароль
-          return const LoginScreen();
-        },
-      ),
+      home: _isLoading
+          ? const Scaffold(
+              backgroundColor: Color(0xFF0f172a),
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          : _isAuthenticated
+              ? const DashboardScreen()
+              : const LoginScreen(),
     );
   }
 }

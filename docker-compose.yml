@@ -15,11 +15,15 @@ services:
       - DB_NAME=default_db
       - DB_SSLMODE=require
       - DB_SSLCERT=/app/certs/root.crt
+      # Фиксируем JWT секрет, чтобы токены не "ломались" после пересборок контейнера
+      - JWT_SECRET_KEY=es-td-ngo-jwt-secret-2025-12
     volumes:
       # Монтируем папку с сертификатами внутрь контейнера
       - ./backend/certs:/app/certs
       # Монтируем папку для отчетов
       - ./backend/reports:/app/reports
+      # Монтируем папку для загрузок (сканы сертификатов, вложения и т.п.)
+      - ./backend/uploads:/app/uploads
     restart: always
 
   frontend:
@@ -31,4 +35,7 @@ services:
       - "80:80"
     depends_on:
       - backend
+    volumes:
+      # Монтируем директорию для мобильных APK файлов
+      - ./mobile-apk:/usr/share/nginx/html/mobile
     restart: always

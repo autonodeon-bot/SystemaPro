@@ -1,80 +1,106 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path/path.dart' as Path;
 import '../models/vessel_checklist.dart';
+import '../models/equipment.dart';
+import '../models/assignment.dart';
 import 'api_service.dart';
-import 'auth_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
-  static const String _fileNamePendingInspections = 'pending_inspections.json';
-  static const String _fileNamePendingReports = 'pending_reports.json';
-  static const String _fileNameLastSync = 'last_sync.txt';
-  static const String _fileNameOfflineMode = 'offline_mode.txt';
-  
+  static const String _prefsKeyPendingInspections = 'pending_inspections';
+  static const String _prefsKeyLastSync = 'last_sync';
+  static const String _prefsKeyOfflineMode = 'offline_mode';
+  static const String _prefsKeyOfflineEquipment = 'offline_equipment';
+  static const String _prefsKeyOfflineAssignments = 'offline_assignments'; // Версия 3.3.0
+
   final ApiService _apiService = ApiService();
-  
-  /// Получить файл для хранения данных
-  Future<File> _getDataFile(String fileName) async {
-    final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/$fileName');
-  }
-  
+
   /// Сохранить диагностику в локальное хранилище для последующей синхронизации
   Future<void> saveInspectionOffline({
     required String equipmentId,
     required VesselChecklist checklist,
     String? conclusion,
     required String inspectionDate,
+    Map<String, String>? documentFiles,
+    String? assignmentId, // ID задания (версия 3.3.0)
+    List<String>? verificationEquipmentIds, // ID выбранного оборудования для поверок
   }) async {
     try {
-      final file = await _getDataFile(_fileNamePendingInspections);
-      List<Map<String, dynamic>> pendingInspections = [];
-      
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          pendingInspections = List<Map<String, dynamic>>.from(json.decode(content));
+      final prefs = await SharedPreferences.getInstance();
+      final pendingInspections =
+          prefs.getStringList(_prefsKeyPendingInspections) ?? [];
+
+      final checklistJson = checklist.toJson();
+      // Добавляем информацию о файлах документов (единый формат: docNumber -> {file_path, file_name})
+      // Важно: этот формат должен совпадать с тем, как он читается в syncPendingInspections().
+      final structuredDocumentFiles = <String, Map<String, dynamic>>{};
+
+      // Также сохраняем системные вложения чек-листа (фото таблички / схема контроля),
+      // чтобы они загрузились на сервер при синхронизации и были доступны в вебе/отчетах.
+      // Эти ключи НЕ относятся к перечню документов 1..17.
+      void addAttachmentIfPresent(String key) {
+        final v = checklistJson[key];
+        if (v is String && v.trim().isNotEmpty) {
+          structuredDocumentFiles[key] = {
+            'file_path': v,
+            'file_name': Path.basename(v),
+          };
         }
       }
-      
+      addAttachmentIfPresent('factory_plate_photo');
+      addAttachmentIfPresent('control_scheme_image');
+      if (documentFiles != null && documentFiles.isNotEmpty) {
+        for (final entry in documentFiles.entries) {
+          structuredDocumentFiles[entry.key] = {
+            'file_path': entry.value,
+            'file_name': Path.basename(entry.value),
+          };
+        }
+        // Дублируем в data: иногда полезно для предпросмотра/отладки
+        checklistJson['document_files'] = structuredDocumentFiles;
+      }
+
       final inspectionData = {
         'equipment_id': equipmentId,
-        'data': checklist.toJson(),
+        'data': checklistJson,
         'conclusion': conclusion,
         'date_performed': inspectionDate,
         'status': 'DRAFT',
         'timestamp': DateTime.now().toIso8601String(),
+        // Сохраняем структурированный формат, чтобы синхронизация корректно загрузила файлы
+        'document_files': structuredDocumentFiles,
+        'assignment_id': assignmentId, // ID задания (версия 3.3.0)
+        'verification_equipment_ids': verificationEquipmentIds ?? [], // ID выбранного оборудования для поверок
       };
-      
-      pendingInspections.add(inspectionData);
-      await file.writeAsString(json.encode(pendingInspections));
+
+      pendingInspections.add(json.encode(inspectionData));
+      await prefs.setStringList(
+          _prefsKeyPendingInspections, pendingInspections);
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
     }
   }
-  
+
   /// Получить список ожидающих синхронизации диагностик
   Future<List<Map<String, dynamic>>> getPendingInspections() async {
     try {
-      final file = await _getDataFile(_fileNamePendingInspections);
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          return List<Map<String, dynamic>>.from(json.decode(content));
-        }
-      }
-      return [];
+      final prefs = await SharedPreferences.getInstance();
+      final pendingInspections =
+          prefs.getStringList(_prefsKeyPendingInspections) ?? [];
+
+      return pendingInspections.map((item) {
+        return json.decode(item) as Map<String, dynamic>;
+      }).toList();
     } catch (e) {
       return [];
     }
   }
-  
-  /// Синхронизировать все ожидающие диагностики
-  /// ВАЖНО: Только для инженеров!
+
+  /// Синхронизировать все ожидающие диагностики и загрузить оборудование
   Future<SyncResult> syncPendingInspections() async {
     final result = SyncResult();
-    
+
     try {
       // Проверка подключения
       final isConnected = await _apiService.checkConnection();
@@ -82,345 +108,281 @@ class SyncService {
         result.error = 'Нет подключения к серверу';
         return result;
       }
-      
-      // Проверка роли - только инженеры могут синхронизировать
-      final authService = AuthService();
-      final currentUser = await authService.getCurrentUser();
-      if (currentUser == null) {
-        result.error = 'Пользователь не авторизован. Требуется вход в систему.';
-        return result;
+
+      // Загружаем список оборудования с сервера и сохраняем локально
+      try {
+        final equipmentList = await _apiService.getEquipmentList();
+        // Сохраняем оборудование локально для офлайн-режима
+        await saveEquipmentOffline(equipmentList);
+        result.message = 'Список оборудования обновлен и сохранен локально';
+      } catch (e) {
+        result.error = 'Ошибка загрузки оборудования: $e';
+        // Продолжаем синхронизацию диагностик даже если не удалось загрузить оборудование
       }
-      
-      if (currentUser.role != 'engineer') {
-        result.error = 'Синхронизация доступна только инженерам. Ваша роль: ${currentUser.role}';
-        return result;
+
+      // Загружаем задания инженера и сохраняем локально (для офлайн-режима)
+      try {
+        final assignments = await _apiService.getAssignments();
+        await saveAssignmentsOffline(assignments);
+
+        // Также подтягиваем оборудование по заданиям (MERGE внутри saveEquipmentOffline)
+        for (final a in assignments) {
+          try {
+            final equipment = await _apiService.getAssignmentEquipment(a.id);
+            await saveEquipmentOffline([equipment]);
+          } catch (_) {
+            // Игнорируем ошибки по одному объекту, не роняем всю синхронизацию
+          }
+        }
+      } catch (_) {
+        // Игнорируем: задания синхронизируются дополнительно к основному потоку
       }
-      
+
       final pendingInspections = await getPendingInspections();
       if (pendingInspections.isEmpty) {
         result.success = true;
-        result.message = 'Нет данных для синхронизации';
+        if (result.message == null) {
+          result.message =
+              'Синхронизация завершена. Нет данных для отправки на сервер';
+        }
         return result;
       }
-      
-      final file = await _getDataFile(_fileNamePendingInspections);
-      final failedInspections = <Map<String, dynamic>>[];
-      
+
+      final prefs = await SharedPreferences.getInstance();
+      final failedInspections = <String>[];
+
       for (final inspectionData in pendingInspections) {
         try {
-          final checklist = VesselChecklist.fromJson(inspectionData['data'] as Map<String, dynamic>);
-          
-          await _apiService.submitInspection(
+          final checklist = VesselChecklist.fromJson(
+              inspectionData['data'] as Map<String, dynamic>);
+
+          DateTime? datePerformed;
+          if (inspectionData['date_performed'] != null) {
+            try {
+              datePerformed =
+                  DateTime.parse(inspectionData['date_performed'] as String);
+            } catch (e) {
+              datePerformed = DateTime.now();
+            }
+          }
+
+          // Отправляем inspection на сервер
+          final submitResult = await _apiService.submitInspection(
             equipmentId: inspectionData['equipment_id'] as String,
             checklist: checklist,
             conclusion: inspectionData['conclusion'] as String?,
-            datePerformed: inspectionData['date_performed'] != null 
-                ? DateTime.parse(inspectionData['date_performed'] as String)
-                : null,
+            datePerformed: datePerformed,
+            assignmentId: inspectionData['assignment_id'] as String?, // Версия 3.3.0
           );
+
+          // После отправки (при наличии связи) — обновляем карточку оборудования данными,
+          // которые инженер заполнил/дополнил в "Карте обследования".
+          try {
+            await _apiService.updateEquipmentFromChecklist(
+              equipmentId: inspectionData['equipment_id'] as String,
+              checklist: checklist,
+            );
+          } catch (e) {
+            // Не блокируем синхронизацию из-за обновления оборудования
+            print('Ошибка обновления данных оборудования: $e');
+          }
           
+          // Добавляем используемое оборудование для поверок, если оно было выбрано
+          final inspectionId = submitResult['id'] as String?;
+          final verificationEquipmentIds = inspectionData['verification_equipment_ids'] as List<dynamic>?;
+          if (inspectionId != null && verificationEquipmentIds != null && verificationEquipmentIds.isNotEmpty) {
+            try {
+              final equipmentIds = verificationEquipmentIds
+                  .map((id) => id.toString())
+                  .where((id) => id.isNotEmpty)
+                  .toList();
+              if (equipmentIds.isNotEmpty) {
+                await _apiService.addEquipmentToInspection(
+                  inspectionId,
+                  equipmentIds,
+                );
+              }
+            } catch (e) {
+              // Не блокируем синхронизацию из-за ошибки добавления оборудования
+              print('Ошибка добавления оборудования для поверок: $e');
+            }
+          }
+
+          // Если есть questionnaire_id, загружаем файлы документов
+          String? questionnaireId;
+          if (submitResult.containsKey('questionnaire_id') && 
+              submitResult['questionnaire_id'] != null) {
+            questionnaireId = submitResult['questionnaire_id'] as String;
+          }
+
+          // Загружаем файлы документов, если они есть
+          final documentFiles =
+              inspectionData['document_files'] as Map<String, dynamic>?;
+          if (questionnaireId != null && documentFiles != null && documentFiles.isNotEmpty) {
+            for (var entry in documentFiles.entries) {
+              try {
+                String? filePath;
+                String? fileName;
+
+                // Поддерживаем оба формата (старый: docNumber -> "path", новый: docNumber -> {file_path, file_name})
+                final value = entry.value;
+                if (value is String) {
+                  filePath = value;
+                  fileName = Path.basename(value);
+                } else if (value is Map<String, dynamic>) {
+                  filePath = value['file_path'] as String?;
+                  fileName = value['file_name'] as String?;
+                } else if (value is Map) {
+                  // На случай, если декодер дал Map<dynamic,dynamic>
+                  final m = Map<String, dynamic>.from(value);
+                  filePath = m['file_path'] as String?;
+                  fileName = m['file_name'] as String?;
+                }
+                
+                if (filePath != null && fileName != null) {
+                  await _apiService.uploadDocumentFile(
+                    questionnaireId: questionnaireId,
+                    documentNumber: entry.key,
+                    filePath: filePath,
+                    fileName: fileName,
+                  );
+                }
+              } catch (e) {
+                // Логируем ошибку, но не прерываем синхронизацию
+                print('Ошибка загрузки файла документа ${entry.key}: $e');
+              }
+            }
+          }
+
           result.syncedCount++;
         } catch (e) {
-          failedInspections.add(inspectionData);
+          failedInspections.add(json.encode(inspectionData));
           result.failedCount++;
         }
       }
-      
+
       // Сохранить неудачные попытки
-      if (failedInspections.isEmpty) {
-        await file.delete();
-      } else {
-        await file.writeAsString(json.encode(failedInspections));
-      }
-    
+      await prefs.setStringList(_prefsKeyPendingInspections, failedInspections);
+
       // Обновить время последней синхронизации
-      final lastSyncFile = await _getDataFile(_fileNameLastSync);
-      await lastSyncFile.writeAsString(DateTime.now().toIso8601String());
-      
+      await prefs.setString(
+          _prefsKeyLastSync, DateTime.now().toIso8601String());
+
       result.success = true;
-      result.message = 'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
+      result.message =
+          'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
     } catch (e) {
       result.error = 'Ошибка синхронизации: $e';
     }
-    
+
     return result;
   }
-  
+
   /// Получить время последней синхронизации
   Future<DateTime?> getLastSyncTime() async {
     try {
-      final file = await _getDataFile(_fileNameLastSync);
-      if (await file.exists()) {
-        final lastSyncStr = await file.readAsString();
-        if (lastSyncStr.isNotEmpty) {
-          return DateTime.parse(lastSyncStr);
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final lastSyncStr = prefs.getString(_prefsKeyLastSync);
+      if (lastSyncStr != null) {
+        return DateTime.parse(lastSyncStr);
       }
     } catch (e) {
       // Игнорировать ошибки
     }
     return null;
   }
-  
+
   /// Очистить все ожидающие диагностики
   Future<void> clearPendingInspections() async {
-    final file = await _getDataFile(_fileNamePendingInspections);
-    if (await file.exists()) {
-      await file.delete();
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKeyPendingInspections);
   }
-  
+
   /// Установить режим офлайн
   Future<void> setOfflineMode(bool enabled) async {
-    final file = await _getDataFile(_fileNameOfflineMode);
-    await file.writeAsString(enabled.toString());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsKeyOfflineMode, enabled);
   }
-  
+
   /// Получить режим офлайн
   Future<bool> isOfflineMode() async {
-    try {
-      final file = await _getDataFile(_fileNameOfflineMode);
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        return content == 'true';
-      }
-    } catch (e) {
-      // Игнорировать ошибки
-    }
-    return false;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefsKeyOfflineMode) ?? false;
   }
 
-  /// Сохранить отчет в локальное хранилище для последующей синхронизации
-  Future<void> saveReportOffline({
-    required String inspectionId,
-    required String reportType,
-    String? title,
-  }) async {
+  /// Сохранить список оборудования локально для офлайн-режима
+  Future<void> saveEquipmentOffline(List<Equipment> equipmentList) async {
     try {
-      final file = await _getDataFile(_fileNamePendingReports);
-      List<Map<String, dynamic>> pendingReports = [];
-      
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          pendingReports = List<Map<String, dynamic>>.from(json.decode(content));
-        }
+      final prefs = await SharedPreferences.getInstance();
+      // MERGE: не перетираем список (иначе при синхронизации по заданиям останется только последний объект)
+      final existing = await getOfflineEquipment();
+      final merged = <String, Equipment>{};
+      for (final e in existing) {
+        merged[e.id] = e;
       }
-      
-      final reportData = {
-        'inspection_id': inspectionId,
-        'report_type': reportType,
-        'title': title ?? 'Отчет по диагностике',
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      
-      pendingReports.add(reportData);
-      await file.writeAsString(json.encode(pendingReports));
+      for (final e in equipmentList) {
+        merged[e.id] = e;
+      }
+
+      final equipmentJsonList =
+          merged.values.map((eq) => json.encode(eq.toJson())).toList();
+      await prefs.setStringList(_prefsKeyOfflineEquipment, equipmentJsonList);
     } catch (e) {
-      throw Exception('Ошибка сохранения отчета в офлайн-режиме: $e');
+      throw Exception('Ошибка сохранения оборудования локально: $e');
     }
   }
 
-  /// Получить список ожидающих синхронизации отчетов
-  Future<List<Map<String, dynamic>>> getPendingReports() async {
+  /// Очистить офлайн-данные (при выходе/смене пользователя)
+  Future<void> clearOfflineCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKeyPendingInspections);
+    await prefs.remove(_prefsKeyOfflineEquipment);
+    await prefs.remove(_prefsKeyOfflineAssignments);
+    await prefs.remove(_prefsKeyLastSync);
+    await prefs.remove(_prefsKeyOfflineMode);
+  }
+
+  /// Получить список оборудования из локального хранилища
+  Future<List<Equipment>> getOfflineEquipment() async {
     try {
-      final file = await _getDataFile(_fileNamePendingReports);
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          return List<Map<String, dynamic>>.from(json.decode(content));
-        }
-      }
-      return [];
+      final prefs = await SharedPreferences.getInstance();
+      final equipmentJsonList =
+          prefs.getStringList(_prefsKeyOfflineEquipment) ?? [];
+
+      return equipmentJsonList.map((item) {
+        final jsonData = json.decode(item) as Map<String, dynamic>;
+        return Equipment.fromJson(jsonData);
+      }).toList();
     } catch (e) {
       return [];
     }
   }
 
-  /// Синхронизировать все ожидающие отчеты
-  Future<SyncResult> syncPendingReports() async {
-    final result = SyncResult();
-    
+  /// Сохранить список заданий локально для офлайн-режима (версия 3.3.0)
+  Future<void> saveAssignmentsOffline(List<Assignment> assignments) async {
     try {
-      // Проверка подключения
-      final isConnected = await _apiService.checkConnection();
-      if (!isConnected) {
-        result.error = 'Нет подключения к серверу';
-        return result;
-      }
-      
-      final pendingReports = await getPendingReports();
-      if (pendingReports.isEmpty) {
-        result.success = true;
-        result.message = 'Нет отчетов для синхронизации';
-        return result;
-      }
-      
-      final file = await _getDataFile(_fileNamePendingReports);
-      final failedReports = <Map<String, dynamic>>[];
-      
-      for (final reportData in pendingReports) {
-        try {
-          await _apiService.createReport(
-            inspectionId: reportData['inspection_id'] as String,
-            reportType: reportData['report_type'] as String,
-            title: reportData['title'] as String?,
-          );
-          
-          result.syncedCount++;
-        } catch (e) {
-          failedReports.add(reportData);
-          result.failedCount++;
-        }
-      }
-      
-      // Сохранить неудачные попытки
-      if (failedReports.isEmpty) {
-        await file.delete();
-      } else {
-        await file.writeAsString(json.encode(failedReports));
-      }
-    
-      // Обновить время последней синхронизации
-      final lastSyncFile = await _getDataFile(_fileNameLastSync);
-      await lastSyncFile.writeAsString(DateTime.now().toIso8601String());
-      
-      result.success = true;
-      result.message = 'Синхронизация отчетов завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
+      final prefs = await SharedPreferences.getInstance();
+      final assignmentsJsonList =
+          assignments.map((a) => json.encode(a.toJson())).toList();
+      await prefs.setStringList(_prefsKeyOfflineAssignments, assignmentsJsonList);
     } catch (e) {
-      result.error = 'Ошибка синхронизации отчетов: $e';
-    }
-    
-    return result;
-  }
-
-  /// Очистить все ожидающие отчеты
-  Future<void> clearPendingReports() async {
-    final file = await _getDataFile(_fileNamePendingReports);
-    if (await file.exists()) {
-      await file.delete();
+      throw Exception('Ошибка сохранения заданий локально: $e');
     }
   }
 
-  static const String _fileNamePendingQuestionnaires = 'pending_questionnaires.json';
-
-  /// Сохранить опросный лист в локальное хранилище для последующей синхронизации
-  Future<void> saveQuestionnaireOffline(
-    dynamic questionnaire,
-    Map<String, String> photoPaths,
-  ) async {
+  /// Получить список заданий из локального хранилища (версия 3.3.0)
+  Future<List<Assignment>> getOfflineAssignments() async {
     try {
-      final file = await _getDataFile(_fileNamePendingQuestionnaires);
-      List<Map<String, dynamic>> pendingQuestionnaires = [];
-      
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          pendingQuestionnaires = List<Map<String, dynamic>>.from(json.decode(content));
-        }
-      }
-      
-      final questionnaireData = {
-        'equipment_id': questionnaire.equipmentId,
-        'equipment_inventory_number': questionnaire.equipmentInventoryNumber,
-        'equipment_name': questionnaire.equipmentName,
-        'inspection_date': questionnaire.inspectionDate,
-        'inspector_name': questionnaire.inspectorName,
-        'inspector_position': questionnaire.inspectorPosition,
-        'questionnaire_data': questionnaire.toJson(),
-        'photo_paths': photoPaths,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      
-      pendingQuestionnaires.add(questionnaireData);
-      await file.writeAsString(json.encode(pendingQuestionnaires));
-    } catch (e) {
-      throw Exception('Ошибка сохранения опросного листа в офлайн-режиме: $e');
-    }
-  }
+      final prefs = await SharedPreferences.getInstance();
+      final assignmentsJsonList =
+          prefs.getStringList(_prefsKeyOfflineAssignments) ?? [];
 
-  /// Получить список ожидающих синхронизации опросных листов
-  Future<List<Map<String, dynamic>>> getPendingQuestionnaires() async {
-    try {
-      final file = await _getDataFile(_fileNamePendingQuestionnaires);
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          return List<Map<String, dynamic>>.from(json.decode(content));
-        }
-      }
-      return [];
+      return assignmentsJsonList.map((item) {
+        final jsonData = json.decode(item) as Map<String, dynamic>;
+        return Assignment.fromJson(jsonData);
+      }).toList();
     } catch (e) {
       return [];
-    }
-  }
-
-  /// Синхронизировать все ожидающие опросные листы
-  Future<SyncResult> syncPendingQuestionnaires() async {
-    final result = SyncResult();
-    
-    try {
-      // Проверка подключения
-      final isConnected = await _apiService.checkConnection();
-      if (!isConnected) {
-        result.error = 'Нет подключения к серверу';
-        return result;
-      }
-      
-      final pendingQuestionnaires = await getPendingQuestionnaires();
-      if (pendingQuestionnaires.isEmpty) {
-        result.success = true;
-        result.message = 'Нет опросных листов для синхронизации';
-        return result;
-      }
-      
-      final file = await _getDataFile(_fileNamePendingQuestionnaires);
-      final failedQuestionnaires = <Map<String, dynamic>>[];
-      
-      for (final questionnaireData in pendingQuestionnaires) {
-        try {
-          // Восстанавливаем объект Questionnaire из JSON
-          // Здесь нужно будет создать метод fromJson в модели Questionnaire
-          final photoPaths = Map<String, String>.from(questionnaireData['photo_paths'] ?? {});
-          
-          // Отправляем на сервер
-          await _apiService.submitQuestionnaire(
-            questionnaireData,
-            photoPaths,
-          );
-          
-          result.syncedCount++;
-        } catch (e) {
-          failedQuestionnaires.add(questionnaireData);
-          result.failedCount++;
-        }
-      }
-      
-      // Сохранить неудачные попытки
-      if (failedQuestionnaires.isEmpty) {
-        await file.delete();
-      } else {
-        await file.writeAsString(json.encode(failedQuestionnaires));
-      }
-    
-      // Обновить время последней синхронизации
-      final lastSyncFile = await _getDataFile(_fileNameLastSync);
-      await lastSyncFile.writeAsString(DateTime.now().toIso8601String());
-      
-      result.success = true;
-      result.message = 'Синхронизация опросных листов завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
-    } catch (e) {
-      result.error = 'Ошибка синхронизации опросных листов: $e';
-    }
-    
-    return result;
-  }
-
-  /// Очистить все ожидающие опросные листы
-  Future<void> clearPendingQuestionnaires() async {
-    final file = await _getDataFile(_fileNamePendingQuestionnaires);
-    if (await file.exists()) {
-      await file.delete();
     }
   }
 }

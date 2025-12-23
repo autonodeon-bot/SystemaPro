@@ -18,9 +18,8 @@ class InstrumentService {
         throw Exception('Bluetooth не поддерживается на этом устройстве');
       }
       
-      // Проверка включенности Bluetooth (новый API в 2.0)
-      final adapterState = await FlutterBluePlus.adapterState.first;
-      if (adapterState != BluetoothAdapterState.on) {
+      // Проверка включенности Bluetooth
+      if (await FlutterBluePlus.isOn == false) {
         throw Exception('Bluetooth выключен. Пожалуйста, включите Bluetooth');
       }
       
@@ -48,14 +47,7 @@ class InstrumentService {
   /// Подключиться к прибору
   Future<void> connectToDevice(BluetoothDevice device) async {
     try {
-      // В flutter_blue_plus 2.0 требуется параметр license для Android
-      // ВАЖНО: Для production нужно получить лицензию от разработчика flutter_blue_plus
-      // Временно используем первое доступное значение enum
-      // Для получения лицензии: https://pub.dev/packages/flutter_blue_plus
-      await device.connect(
-        timeout: const Duration(seconds: 15),
-        license: License.values.first, // Временно используем первое значение
-      );
+      await device.connect(timeout: const Duration(seconds: 15));
       _connectedDevice = device;
       
       // Найти сервис и характеристику
@@ -97,15 +89,15 @@ class InstrumentService {
   }
   
   /// Читать данные с прибора
-  Future<Stream<List<int>>> readData() async {
+  Stream<List<int>> readData() {
     if (_characteristic == null) {
       throw Exception('Не подключено к устройству');
     }
     
     // Подписаться на уведомления
-    await _characteristic!.setNotifyValue(true);
+    _characteristic!.setNotifyValue(true);
     
-    return _characteristic!.lastValueStream;
+    return _characteristic!.value;
   }
   
   /// Парсить данные толщиномера (пример для ультразвукового толщиномера)
@@ -154,8 +146,8 @@ class InstrumentService {
   }
   
   /// Получить имя подключенного устройства
-  Future<String?> getConnectedDeviceName() async {
-    return await _connectedDevice?.platformName;
+  String? getConnectedDeviceName() {
+    return _connectedDevice?.name;
   }
 }
 

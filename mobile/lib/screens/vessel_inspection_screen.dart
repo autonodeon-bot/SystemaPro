@@ -4,21 +4,25 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:path/path.dart' as Path;
+import 'package:path_provider/path_provider.dart';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
-import '../services/auth_service.dart';
 import '../data/checklist_constants.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import 'thickness_measurement_screen.dart';
+import 'verification_equipment_selection_screen.dart';
 
 class VesselInspectionScreen extends StatefulWidget {
   final Equipment equipment;
+  final String? assignmentId; // ID задания (версия 3.3.0)
 
   const VesselInspectionScreen({
     super.key,
     required this.equipment,
+    this.assignmentId,
   });
 
   @override
@@ -30,19 +34,18 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   final _scrollController = ScrollController();
   final ApiService _apiService = ApiService();
   final SyncService _syncService = SyncService();
-  final AuthService _authService = AuthService();
   bool _isSubmitting = false;
-  bool _isOffline = false;
-  bool _autoSync = true; // Автоматическая отправка по умолчанию
 
   final VesselChecklist _checklist = VesselChecklist();
   File? _factoryPlatePhoto;
   File? _controlSchemeImage;
-
-  // Хранилище документов: ключ - номер документа, значение - путь к файлу
-  final Map<String, String> _documentPaths = {};
-  // Хранилище точек контроля на чертеже: ключ - pointId, значение - данные измерения
-  final Map<String, Map<String, dynamic>> _controlPoints = {};
+  
+  // Храним загруженные файлы документов: document_number -> file_path
+  Map<String, String> _documentFiles = {};
+  // Храним questionnaire_id после создания
+  String? _questionnaireId;
+  // Выбранное оборудование для поверок
+  List<String> _selectedEquipmentIds = [];
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -53,232 +56,30 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     for (var doc in ChecklistConstants.documents) {
       _checklist.documents[doc['number']!] = false;
     }
-    _loadAutoSyncSetting();
-    _loadEquipmentData();
-    _checkConnection();
+    _prefillFromEquipment();
   }
 
-  // Загрузка настройки автоматической синхронизации
-  Future<void> _loadAutoSyncSetting() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _autoSync = prefs.getBool('auto_sync') ?? true;
-    });
-  }
+  void _prefillFromEquipment() {
+    final attrs = widget.equipment.attributes ?? {};
+    String? getAttr(String key) {
+      final v = attrs[key];
+      if (v == null) return null;
+      final s = v.toString();
+      return s.trim().isEmpty ? null : s.trim();
+    }
 
-  // Сохранение настройки автоматической синхронизации
-  Future<void> _saveAutoSyncSetting(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('auto_sync', value);
-    setState(() {
-      _autoSync = value;
-    });
-  }
+    // Карта обследования — тянем из базы оборудования (attributes + стандартные поля)
+    _checklist.vesselName = getAttr('vessel_name') ?? widget.equipment.name;
+    _checklist.serialNumber = getAttr('serial_number') ?? widget.equipment.serialNumber;
+    _checklist.regNumber = getAttr('reg_number');
+    _checklist.manufacturer = getAttr('manufacturer');
+    _checklist.manufactureYear = getAttr('manufacture_year');
+    _checklist.diameter = getAttr('diameter');
+    _checklist.workingPressure = getAttr('working_pressure');
+    _checklist.wallThickness = getAttr('wall_thickness');
 
-  // Автозаполнение данных из оборудования
-  void _loadEquipmentData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_formKey.currentState != null) {
-        final formData = _formKey.currentState!.value;
-
-        // Автозаполнение наименования сосуда
-        if (widget.equipment.name.isNotEmpty &&
-            (formData['vessel_name'] == null ||
-                formData['vessel_name'].toString().isEmpty)) {
-          _formKey.currentState!.fields['vessel_name']
-              ?.didChange(widget.equipment.name);
-          _checklist.vesselName = widget.equipment.name;
-        }
-
-        // Автозаполнение места установки
-        if (widget.equipment.location != null &&
-            (formData['organization'] == null ||
-                formData['organization'].toString().isEmpty)) {
-          _formKey.currentState!.fields['organization']
-              ?.didChange(widget.equipment.location);
-          _checklist.organization = widget.equipment.location;
-        }
-
-        // Автозаполнение заводского номера
-        if (widget.equipment.serialNumber != null &&
-            (formData['serial_number'] == null ||
-                formData['serial_number'].toString().isEmpty)) {
-          _formKey.currentState!.fields['serial_number']
-              ?.didChange(widget.equipment.serialNumber);
-          _checklist.serialNumber = widget.equipment.serialNumber;
-        }
-
-        // Автозаполнение из attributes
-        if (widget.equipment.attributes != null) {
-          final attrs = widget.equipment.attributes!;
-
-          // Диаметр
-          if (attrs['diameter'] != null &&
-              (formData['diameter'] == null ||
-                  formData['diameter'].toString().isEmpty)) {
-            _formKey.currentState!.fields['diameter']
-                ?.didChange(attrs['diameter'].toString());
-            _checklist.diameter = attrs['diameter'].toString();
-          }
-
-          // Толщина стенки
-          if (attrs['wall_thickness'] != null &&
-              (formData['wall_thickness'] == null ||
-                  formData['wall_thickness'].toString().isEmpty)) {
-            _formKey.currentState!.fields['wall_thickness']
-                ?.didChange(attrs['wall_thickness'].toString());
-            _checklist.wallThickness = attrs['wall_thickness'].toString();
-          }
-
-          // Рабочее давление
-          if (attrs['operating_pressure'] != null &&
-              (formData['working_pressure'] == null ||
-                  formData['working_pressure'].toString().isEmpty)) {
-            _formKey.currentState!.fields['working_pressure']
-                ?.didChange(attrs['operating_pressure'].toString());
-            _checklist.workingPressure = attrs['operating_pressure'].toString();
-          }
-        }
-      }
-    });
-  }
-
-  Future<void> _checkConnection() async {
-    final isConnected = await _apiService.checkConnection();
-    setState(() {
-      _isOffline = !isConnected;
-    });
-  }
-
-  void _showReportCreationDialog(String inspectionId) async {
-    // Проверяем подключение к интернету
-    final isConnected = await _apiService.checkConnection();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1e293b),
-        title: const Text(
-          'Создать отчет?',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Чек-лист успешно отправлен. Хотите создать отчет или экспертизу на основе этой диагностики?',
-              style: TextStyle(color: Colors.white70),
-            ),
-            if (!isConnected) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.wifi_off, color: Colors.orange, size: 16),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Нет подключения к интернету. Отчет будет сохранен локально и отправлен при появлении связи.',
-                        style: TextStyle(color: Colors.orange, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context, true);
-            },
-            child: const Text('Позже'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                if (isConnected) {
-                  // Пытаемся создать отчет онлайн
-                  final report = await _apiService.createReport(
-                    inspectionId: inspectionId,
-                    reportType: 'TECHNICAL_REPORT',
-                    title: 'Технический отчет: ${widget.equipment.name}',
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Отчет успешно создан и отправлен'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    Navigator.pop(context, true);
-                  }
-                } else {
-                  // Сохраняем отчет локально для последующей синхронизации
-                  await _syncService.saveReportOffline(
-                    inspectionId: inspectionId,
-                    reportType: 'TECHNICAL_REPORT',
-                    title: 'Технический отчет: ${widget.equipment.name}',
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Отчет сохранен локально. Будет отправлен при появлении интернета.'),
-                        backgroundColor: Colors.orange,
-                        duration: Duration(seconds: 4),
-                      ),
-                    );
-                    Navigator.pop(context, true);
-                  }
-                }
-              } catch (e) {
-                // Если ошибка при создании онлайн, сохраняем локально
-                try {
-                  await _syncService.saveReportOffline(
-                    inspectionId: inspectionId,
-                    reportType: 'TECHNICAL_REPORT',
-                    title: 'Технический отчет: ${widget.equipment.name}',
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            'Ошибка отправки. Отчет сохранен локально: $e'),
-                        backgroundColor: Colors.orange,
-                        duration: const Duration(seconds: 4),
-                      ),
-                    );
-                  }
-                } catch (offlineError) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Ошибка создания отчета: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            child: const Text(
-              'Создать отчет',
-              style: TextStyle(color: Color(0xFF3b82f6)),
-            ),
-          ),
-        ],
-      ),
-    );
+    // Организация/место — если в атрибутах есть
+    _checklist.organization = _checklist.organization ?? getAttr('organization');
   }
 
   Future<void> _pickImage(ImageSource source, bool isFactoryPlate) async {
@@ -309,144 +110,79 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
       try {
         // Парсим дату обследования
         DateTime? datePerformed;
+        String inspectionDateStr;
         if (_checklist.inspectionDate != null &&
             _checklist.inspectionDate!.isNotEmpty) {
           try {
             datePerformed = DateTime.parse(_checklist.inspectionDate!);
+            inspectionDateStr = _checklist.inspectionDate!;
           } catch (e) {
             // Если не удалось распарсить, используем текущую дату
             datePerformed = DateTime.now();
+            inspectionDateStr = datePerformed.toIso8601String();
           }
         } else {
           // Если дата не указана, используем текущую дату
           datePerformed = DateTime.now();
+          inspectionDateStr = datePerformed.toIso8601String();
         }
 
-        // Проверяем токен перед отправкой
-        final token = await _authService.getToken();
-        if (token == null || token.isEmpty) {
-          throw Exception(
-              'Токен авторизации не найден. Пожалуйста, войдите в систему заново.');
-        }
-
-        // Проверяем подключение
-        final isConnected = await _apiService.checkConnection();
-
-        // Если автосинхронизация выключена или нет подключения - сохраняем локально
-        if (!_autoSync || !isConnected) {
-          await _syncService.saveInspectionOffline(
-            equipmentId: widget.equipment.id,
-            checklist: _checklist,
-            conclusion: _checklist.conclusion,
-            inspectionDate:
-                _checklist.inspectionDate ?? DateTime.now().toIso8601String(),
+        // Валидация: проверяем, что выбрано оборудование для поверок
+        if (_selectedEquipmentIds.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Необходимо выбрать оборудование для поверок перед сохранением!'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
           );
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_autoSync
-                    ? 'Чек-лист сохранен локально. Будет отправлен при появлении интернета.'
-                    : 'Чек-лист сохранен локально. Отправьте через синхронизацию.'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 4),
-              ),
-            );
-            Navigator.pop(context, true);
-          }
+          setState(() => _isSubmitting = false);
           return;
         }
 
-        // Отправляем на сервер
-        try {
-          final result = await _apiService.submitInspection(
-            equipmentId: widget.equipment.id,
-            checklist: _checklist,
-            conclusion: _checklist.conclusion,
-            datePerformed: datePerformed,
-          );
+        // Сохраняем локально вместо отправки на сервер
+        await _syncService.saveInspectionOffline(
+          equipmentId: widget.equipment.id,
+          checklist: _checklist,
+          conclusion: _checklist.conclusion,
+          inspectionDate: inspectionDateStr,
+          documentFiles: _documentFiles,
+          assignmentId: widget.assignmentId, // Добавляем ID задания (версия 3.3.0)
+          verificationEquipmentIds: _selectedEquipmentIds, // Добавляем выбранное оборудование
+        );
 
-          if (mounted) {
-            // Показываем диалог с предложением создать отчет
-            final inspectionId = result['id']?.toString();
-            if (inspectionId != null) {
-              _showReportCreationDialog(inspectionId);
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Чек-лист успешно отправлен'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              Navigator.pop(context, true);
-            }
-          }
-        } catch (e) {
-          // При ошибке сохраняем локально
-          await _syncService.saveInspectionOffline(
-            equipmentId: widget.equipment.id,
-            checklist: _checklist,
-            conclusion: _checklist.conclusion,
-            inspectionDate:
-                _checklist.inspectionDate ?? DateTime.now().toIso8601String(),
-          );
-
-          if (mounted) {
-            final errorMsg = e.toString();
-            final isAuthError = errorMsg.contains('авторизации') ||
-                errorMsg.contains('401') ||
-                errorMsg.contains('403') ||
-                errorMsg.contains('not authenticated');
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(isAuthError
-                    ? 'Ошибка авторизации. Данные сохранены локально. Войдите в систему заново.'
-                    : 'Ошибка отправки. Данные сохранены локально: ${errorMsg.replaceAll("Exception: ", "")}'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 5),
-              ),
+        // Если есть assignmentId, обновляем статус задания на "Завершено" (версия 3.3.0)
+        if (widget.assignmentId != null) {
+          try {
+            await _apiService.updateAssignmentStatus(
+              widget.assignmentId!,
+              'COMPLETED',
             );
-
-            // Если ошибка авторизации - предлагаем перелогиниться
-            if (isAuthError) {
-              await _authService.logout();
-              if (mounted) {
-                Navigator.popUntil(context, (route) => route.isFirst);
-              }
-            }
+          } catch (e) {
+            // Игнорируем ошибки обновления статуса задания
+            print('Ошибка обновления статуса задания: $e');
           }
         }
-      } catch (e) {
-        // При любой ошибке сохраняем локально
-        try {
-          await _syncService.saveInspectionOffline(
-            equipmentId: widget.equipment.id,
-            checklist: _checklist,
-            conclusion: _checklist.conclusion,
-            inspectionDate:
-                _checklist.inspectionDate ?? DateTime.now().toIso8601String(),
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Чек-лист сохранен локально. Отправка на сервер при синхронизации.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
           );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'Ошибка. Данные сохранены локально: ${e.toString().replaceAll("Exception: ", "")}'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          }
-        } catch (offlineError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'Ошибка сохранения: ${e.toString().replaceAll("Exception: ", "")}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ошибка сохранения: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
         }
       } finally {
         if (mounted) {
@@ -465,6 +201,28 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final initialValues = <String, dynamic>{
+      'executors': _checklist.executors,
+      'organization': _checklist.organization,
+
+      // Карта обследования
+      'vessel_name': _checklist.vesselName,
+      'serial_number': _checklist.serialNumber,
+      'reg_number': _checklist.regNumber,
+      'manufacturer': _checklist.manufacturer,
+      'manufacture_year': _checklist.manufactureYear,
+      'diameter': _checklist.diameter,
+      'working_pressure': _checklist.workingPressure,
+      'wall_thickness': _checklist.wallThickness,
+    };
+
+    // Дата (если уже есть строка ISO)
+    if (_checklist.inspectionDate != null && _checklist.inspectionDate!.isNotEmpty) {
+      try {
+        initialValues['inspection_date'] = DateTime.parse(_checklist.inspectionDate!);
+      } catch (_) {}
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Обследование: ${widget.equipment.name}'),
@@ -487,18 +245,86 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
             IconButton(
               icon: const Icon(Icons.save),
               onPressed: _submitForm,
-              tooltip: 'Сохранить и отправить',
+              tooltip: 'Сохранить локально (отправка при синхронизации)',
             ),
         ],
       ),
       backgroundColor: const Color(0xFF0f172a),
       body: FormBuilder(
         key: _formKey,
+        initialValue: initialValues,
         child: ListView(
           controller: _scrollController,
           padding: const EdgeInsets.all(16),
           children: [
             _buildSectionHeader('1. Основная информация'),
+            // Кнопка выбора оборудования для поверок
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final selected = await Navigator.push<List<String>>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          VerificationEquipmentSelectionScreen(
+                        preselectedIds: _selectedEquipmentIds,
+                      ),
+                    ),
+                  );
+                  if (selected != null) {
+                    setState(() {
+                      _selectedEquipmentIds = selected;
+                    });
+                  }
+                },
+                icon: Icon(
+                  _selectedEquipmentIds.isEmpty ? Icons.warning : Icons.check_circle,
+                  color: _selectedEquipmentIds.isEmpty ? Colors.orange : Colors.green,
+                ),
+                label: Text(
+                  _selectedEquipmentIds.isEmpty
+                      ? 'Выбрать оборудование для поверок *'
+                      : 'Выбрано оборудования: ${_selectedEquipmentIds.length}',
+                  style: TextStyle(
+                    color: _selectedEquipmentIds.isEmpty ? Colors.orange : Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _selectedEquipmentIds.isEmpty
+                      ? Colors.orange.withOpacity(0.2)
+                      : Colors.green.withOpacity(0.2),
+                  padding: const EdgeInsets.all(16),
+                  side: BorderSide(
+                    color: _selectedEquipmentIds.isEmpty ? Colors.orange : Colors.green,
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
+            if (_selectedEquipmentIds.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Внимание! Необходимо выбрать поверенное оборудование перед началом работ.',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             _buildDateField('inspection_date', 'Дата обследования', (date) {
               _checklist.inspectionDate = date?.toIso8601String();
             }),
@@ -597,36 +423,141 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
             const SizedBox(height: 24),
             _buildSectionHeader('5. ЗРА (Запорно-регулирующая арматура)'),
             _buildAddItemButton('Добавить ЗРА', () {
-              // TODO: Открыть диалог добавления ЗРА
+              _showZraDialog();
+            }),
+            ..._checklist.zraItems.asMap().entries.map((e) {
+              final idx = e.key;
+              final item = e.value;
+              return _buildListItemCard(
+                title: 'ЗРА №${idx + 1}',
+                subtitle: [
+                  if (item.typeSize != null && item.typeSize!.isNotEmpty) 'Тип/размер: ${item.typeSize}',
+                  if (item.serialNumber != null && item.serialNumber!.isNotEmpty) 'Зав.№: ${item.serialNumber}',
+                  if (item.locationOnScheme != null && item.locationOnScheme!.isNotEmpty) 'Место: ${item.locationOnScheme}',
+                ].join(' • '),
+                onDelete: () {
+                  setState(() {
+                    _checklist.zraItems.removeAt(idx);
+                  });
+                },
+              );
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('6. СППК (Система предохранительных клапанов)'),
             _buildAddItemButton('Добавить СППК', () {
-              // TODO: Открыть диалог добавления СППК
+              _showSppkDialog();
+            }),
+            ..._checklist.sppkItems.asMap().entries.map((e) {
+              final idx = e.key;
+              final item = e.value;
+              return _buildListItemCard(
+                title: 'СППК №${idx + 1}',
+                subtitle: [
+                  if (item.typeSize != null && item.typeSize!.isNotEmpty) 'Тип/размер: ${item.typeSize}',
+                  if (item.serialNumber != null && item.serialNumber!.isNotEmpty) 'Зав.№: ${item.serialNumber}',
+                  if (item.locationOnScheme != null && item.locationOnScheme!.isNotEmpty) 'Место: ${item.locationOnScheme}',
+                ].join(' • '),
+                onDelete: () {
+                  setState(() {
+                    _checklist.sppkItems.removeAt(idx);
+                  });
+                },
+              );
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('7. Измерительный контроль'),
             _buildSubsectionHeader('Овальность'),
             _buildAddItemButton('Добавить измерение овальности', () {
-              // TODO: Открыть диалог добавления измерения
+              _showOvalityDialog();
+            }),
+            ..._checklist.ovalityMeasurements.asMap().entries.map((e) {
+              final idx = e.key;
+              final m = e.value;
+              return _buildListItemCard(
+                title: 'Овальность, участок ${m.sectionNumber}',
+                subtitle: [
+                  if (m.maxDiameter != null) 'Dmax=${m.maxDiameter}',
+                  if (m.minDiameter != null) 'Dmin=${m.minDiameter}',
+                  if (m.deviationPercent != null) 'Δ%=${m.deviationPercent}',
+                ].join(' • '),
+                onDelete: () => setState(() => _checklist.ovalityMeasurements.removeAt(idx)),
+              );
             }),
             _buildSubsectionHeader('Прогиб'),
             _buildAddItemButton('Добавить измерение прогиба', () {
-              // TODO: Открыть диалог добавления измерения
+              _showDeflectionDialog();
+            }),
+            ..._checklist.deflectionMeasurements.asMap().entries.map((e) {
+              final idx = e.key;
+              final m = e.value;
+              return _buildListItemCard(
+                title: 'Прогиб, участок ${m.sectionNumber}',
+                subtitle: [
+                  if (m.deflectionMm != null) 'мм=${m.deflectionMm}',
+                  if (m.deflectionPercent != null) '%=${m.deflectionPercent}',
+                ].join(' • '),
+                onDelete: () => setState(() => _checklist.deflectionMeasurements.removeAt(idx)),
+              );
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('8. Результаты контроля твердости'),
             _buildAddItemButton('Добавить измерение твердости', () {
-              // TODO: Открыть диалог добавления измерения
+              _showHardnessDialog();
+            }),
+            ..._checklist.hardnessTests.asMap().entries.map((e) {
+              final idx = e.key;
+              final t = e.value;
+              return _buildListItemCard(
+                title: 'Твердость, шов ${t.weldNumber}',
+                subtitle: [
+                  if (t.areaNumber != null && t.areaNumber!.isNotEmpty) 'Участок: ${t.areaNumber}',
+                  if (t.hardnessBase != null && t.hardnessBase!.isNotEmpty) 'Осн: ${t.hardnessBase}',
+                  if (t.hardnessWeld != null && t.hardnessWeld!.isNotEmpty) 'Шов: ${t.hardnessWeld}',
+                  if (t.hardnessHaz != null && t.hardnessHaz!.isNotEmpty) 'ЗТВ: ${t.hardnessHaz}',
+                ].join(' • '),
+                onDelete: () => setState(() => _checklist.hardnessTests.removeAt(idx)),
+              );
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('9. Результаты ПВК (МК) и УЗК'),
             _buildAddItemButton('Добавить сварное соединение', () {
-              // TODO: Открыть диалог добавления соединения
+              _showWeldInspectionDialog();
+            }),
+            ..._checklist.weldInspections.asMap().entries.map((e) {
+              final idx = e.key;
+              final w = e.value;
+              return _buildListItemCard(
+                title: 'Сварное соединение ${w.weldNumber}',
+                subtitle: [
+                  if (w.pvkDefect != null && w.pvkDefect!.isNotEmpty) 'ПВК/МК: ${w.pvkDefect}',
+                  if (w.uzkDefect != null && w.uzkDefect!.isNotEmpty) 'УЗК: ${w.uzkDefect}',
+                  if (w.conclusion != null && w.conclusion!.isNotEmpty) 'Заключение: ${w.conclusion}',
+                ].join(' • '),
+                onDelete: () => setState(() => _checklist.weldInspections.removeAt(idx)),
+              );
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('10. УЗТ (Ультразвуковая толщинометрия)'),
-            _buildInteractiveControlScheme(),
+            _buildPhotoSection('Схема контроля', _controlSchemeImage, false),
+            _buildAddItemButton('Открыть карту замеров', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ThicknessMeasurementScreen(
+                    schemeImage: _controlSchemeImage,
+                    existingMeasurements: _checklist.thicknessMeasurements,
+                    onSave: (measurements, image) {
+                      setState(() {
+                        _checklist.thicknessMeasurements = measurements;
+                        if (image != null) {
+                          _controlSchemeImage = image;
+                        }
+                      });
+                    },
+                  ),
+                ),
+              );
+            }),
             const SizedBox(height: 24),
             _buildSectionHeader('11. Дефекты'),
             _buildYesNoField(
@@ -671,6 +602,346 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           color: Color(0xFF3b82f6),
           fontSize: 18,
           fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListItemCard({
+    required String title,
+    required String subtitle,
+    required VoidCallback onDelete,
+  }) {
+    return Card(
+      color: const Color(0xFF1e293b),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  if (subtitle.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete, color: Colors.redAccent),
+              tooltip: 'Удалить',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showZraDialog() async {
+    final qty = TextEditingController();
+    final typeSize = TextEditingController();
+    final tech = TextEditingController();
+    final serial = TextEditingController();
+    final loc = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Добавить ЗРА', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _dialogTextField(qty, 'Кол-во'),
+              _dialogTextField(typeSize, 'Тип/размер'),
+              _dialogTextField(tech, 'Тех. №'),
+              _dialogTextField(serial, 'Зав. №'),
+              _dialogTextField(loc, 'Место на схеме'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      setState(() {
+        final item = ZraItem();
+        item.quantity = qty.text.trim().isEmpty ? null : qty.text.trim();
+        item.typeSize = typeSize.text.trim().isEmpty ? null : typeSize.text.trim();
+        item.techNumber = tech.text.trim().isEmpty ? null : tech.text.trim();
+        item.serialNumber = serial.text.trim().isEmpty ? null : serial.text.trim();
+        item.locationOnScheme = loc.text.trim().isEmpty ? null : loc.text.trim();
+        _checklist.zraItems.add(item);
+      });
+    }
+  }
+
+  Future<void> _showSppkDialog() async {
+    final qty = TextEditingController();
+    final typeSize = TextEditingController();
+    final tech = TextEditingController();
+    final serial = TextEditingController();
+    final loc = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Добавить СППК', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _dialogTextField(qty, 'Кол-во'),
+              _dialogTextField(typeSize, 'Тип/размер'),
+              _dialogTextField(tech, 'Тех. №'),
+              _dialogTextField(serial, 'Зав. №'),
+              _dialogTextField(loc, 'Место на схеме'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      setState(() {
+        final item = SppkItem();
+        item.quantity = qty.text.trim().isEmpty ? null : qty.text.trim();
+        item.typeSize = typeSize.text.trim().isEmpty ? null : typeSize.text.trim();
+        item.techNumber = tech.text.trim().isEmpty ? null : tech.text.trim();
+        item.serialNumber = serial.text.trim().isEmpty ? null : serial.text.trim();
+        item.locationOnScheme = loc.text.trim().isEmpty ? null : loc.text.trim();
+        _checklist.sppkItems.add(item);
+      });
+    }
+  }
+
+  Future<void> _showOvalityDialog() async {
+    final section = TextEditingController(text: '${_checklist.ovalityMeasurements.length + 1}');
+    final maxD = TextEditingController();
+    final minD = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Овальность', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _dialogTextField(section, 'Номер участка'),
+              _dialogTextField(maxD, 'Макс. диаметр (мм)', keyboard: TextInputType.number),
+              _dialogTextField(minD, 'Мин. диаметр (мм)', keyboard: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      final maxVal = double.tryParse(maxD.text.replaceAll(',', '.'));
+      final minVal = double.tryParse(minD.text.replaceAll(',', '.'));
+      double? dev;
+      if (maxVal != null && minVal != null && maxVal != 0) {
+        dev = ((maxVal - minVal) / maxVal) * 100.0;
+      }
+      setState(() {
+        _checklist.ovalityMeasurements.add(
+          OvalityMeasurement(
+            sectionNumber: section.text.trim().isEmpty ? '${_checklist.ovalityMeasurements.length + 1}' : section.text.trim(),
+            maxDiameter: maxVal,
+            minDiameter: minVal,
+            deviationPercent: dev,
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _showDeflectionDialog() async {
+    final section = TextEditingController(text: '${_checklist.deflectionMeasurements.length + 1}');
+    final mm = TextEditingController();
+    final pct = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Прогиб', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _dialogTextField(section, 'Номер участка'),
+              _dialogTextField(mm, 'Прогиб (мм)', keyboard: TextInputType.number),
+              _dialogTextField(pct, 'Прогиб (%)', keyboard: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      setState(() {
+        _checklist.deflectionMeasurements.add(
+          DeflectionMeasurement(
+            sectionNumber: section.text.trim().isEmpty ? '${_checklist.deflectionMeasurements.length + 1}' : section.text.trim(),
+            deflectionMm: double.tryParse(mm.text.replaceAll(',', '.')),
+            deflectionPercent: double.tryParse(pct.text.replaceAll(',', '.')),
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _showHardnessDialog() async {
+    final weld = TextEditingController();
+    final area = TextEditingController();
+    final allowedBase = TextEditingController();
+    final allowedWeld = TextEditingController();
+    final base = TextEditingController();
+    final w = TextEditingController();
+    final haz = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Твердость', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _dialogTextField(weld, 'Номер шва *'),
+              _dialogTextField(area, 'Номер участка'),
+              _dialogTextField(allowedBase, 'Допустимая твердость (осн.)'),
+              _dialogTextField(allowedWeld, 'Допустимая твердость (шов)'),
+              _dialogTextField(base, 'Твердость (осн.)'),
+              _dialogTextField(w, 'Твердость (шов)'),
+              _dialogTextField(haz, 'Твердость (ЗТВ)'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+
+    if (ok == true && weld.text.trim().isNotEmpty) {
+      setState(() {
+        final t = HardnessTest(weldNumber: weld.text.trim());
+        t.areaNumber = area.text.trim().isEmpty ? null : area.text.trim();
+        t.allowedHardnessBase = allowedBase.text.trim().isEmpty ? null : allowedBase.text.trim();
+        t.allowedHardnessWeld = allowedWeld.text.trim().isEmpty ? null : allowedWeld.text.trim();
+        t.hardnessBase = base.text.trim().isEmpty ? null : base.text.trim();
+        t.hardnessWeld = w.text.trim().isEmpty ? null : w.text.trim();
+        t.hardnessHaz = haz.text.trim().isEmpty ? null : haz.text.trim();
+        _checklist.hardnessTests.add(t);
+      });
+    }
+  }
+
+  Future<void> _showWeldInspectionDialog() async {
+    final weld = TextEditingController();
+    final loc = TextEditingController();
+    final pvk = TextEditingController();
+    final uzk = TextEditingController();
+    String conclusion = ChecklistConstants.weldConclusions.first;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Сварное соединение', style: TextStyle(color: Colors.white)),
+        content: StatefulBuilder(
+          builder: (context, setInner) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dialogTextField(weld, 'Номер шва *'),
+                _dialogTextField(loc, 'Место на карте контроля'),
+                _dialogTextField(pvk, 'Дефект (ПВК/МК)'),
+                _dialogTextField(uzk, 'Дефект (УЗК)'),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: conclusion,
+                  decoration: const InputDecoration(
+                    labelText: 'Заключение',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+                  ),
+                  dropdownColor: const Color(0xFF1e293b),
+                  items: ChecklistConstants.weldConclusions
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(color: Colors.white))))
+                      .toList(),
+                  onChanged: (v) => setInner(() => conclusion = v ?? conclusion),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Добавить')),
+        ],
+      ),
+    );
+
+    if (ok == true && weld.text.trim().isNotEmpty) {
+      setState(() {
+        final w = WeldInspection(weldNumber: weld.text.trim());
+        w.locationOnControlMap = loc.text.trim().isEmpty ? null : loc.text.trim();
+        w.pvkDefect = pvk.text.trim().isEmpty ? null : pvk.text.trim();
+        w.uzkDefect = uzk.text.trim().isEmpty ? null : uzk.text.trim();
+        w.conclusion = conclusion;
+        _checklist.weldInspections.add(w);
+      });
+    }
+  }
+
+  Widget _dialogTextField(
+    TextEditingController controller,
+    String label, {
+    TextInputType keyboard = TextInputType.text,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboard,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white70),
+          enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
         ),
       ),
     );
@@ -857,9 +1128,194 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     );
   }
 
+  Future<void> _pickDocumentFile(String documentNumber) async {
+    try {
+      // Показываем диалог выбора типа файла
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1e293b),
+          title: const Text(
+            'Выберите файл',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo, color: Colors.blue),
+                title: const Text('Фото', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await _imagePicker.pickImage(source: ImageSource.camera);
+                  if (image != null) {
+                    _handleDocumentFile(documentNumber, image.path, image.name);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.image, color: Colors.green),
+                title: const Text('Из галереи', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+                  if (image != null) {
+                    _handleDocumentFile(documentNumber, image.path, image.name);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                title: const Text('PDF файл', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['pdf'],
+                    withData: true, // чтобы поддержать случаи, когда path == null
+                  );
+                  if (result != null) {
+                    final picked = result.files.single;
+                    String? pickedPath = picked.path;
+                    if (pickedPath == null && picked.bytes != null) {
+                      pickedPath = await _persistPickedBytes(
+                        fileName: picked.name,
+                        bytes: picked.bytes!,
+                        documentNumber: documentNumber,
+                      );
+                    }
+                    if (pickedPath != null) {
+                      _handleDocumentFile(
+                        documentNumber,
+                        pickedPath,
+                        picked.name,
+                      );
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Не удалось получить путь к файлу PDF'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка выбора файла: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String> _persistPickedBytes({
+    required String fileName,
+    required Uint8List bytes,
+    required String documentNumber,
+  }) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final storageDir = Directory(Path.join(dir.path, 'offline_documents'));
+    if (!await storageDir.exists()) {
+      await storageDir.create(recursive: true);
+    }
+    final safeName = fileName.isNotEmpty ? fileName : 'document_$documentNumber.pdf';
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final targetPath = Path.join(
+      storageDir.path,
+      '${documentNumber}_$ts\_$safeName',
+    );
+    final f = File(targetPath);
+    await f.writeAsBytes(bytes, flush: true);
+    return f.path;
+  }
+
+  Future<String> _persistPickedFile({
+    required String sourcePath,
+    required String fileName,
+    required String documentNumber,
+  }) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final storageDir = Directory(Path.join(dir.path, 'offline_documents'));
+    if (!await storageDir.exists()) {
+      await storageDir.create(recursive: true);
+    }
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final targetPath = Path.join(storageDir.path, '${documentNumber}_$ts\_$fileName');
+    final targetFile = File(targetPath);
+    await targetFile.writeAsBytes(await File(sourcePath).readAsBytes(), flush: true);
+    return targetFile.path;
+  }
+
+  Future<void> _handleDocumentFile(String documentNumber, String filePath, String fileName) async {
+    // Копируем файл в директорию приложения, чтобы он гарантированно был доступен при последующей синхронизации
+    String persistedPath = filePath;
+    try {
+      if (await File(filePath).exists()) {
+        persistedPath = await _persistPickedFile(
+          sourcePath: filePath,
+          fileName: fileName,
+          documentNumber: documentNumber,
+        );
+      }
+    } catch (_) {
+      // Если не удалось скопировать, оставляем исходный путь
+    }
+
+    setState(() {
+      _documentFiles[documentNumber] = persistedPath;
+    });
+
+    // Если questionnaire_id уже есть, загружаем файл сразу
+    if (_questionnaireId != null) {
+      try {
+        await _apiService.uploadDocumentFile(
+          questionnaireId: _questionnaireId!,
+          documentNumber: documentNumber,
+          filePath: persistedPath,
+          fileName: fileName,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Файл успешно загружен'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ошибка загрузки файла: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildDocumentCheckbox(Map<String, String> doc) {
-    final hasDocument = _checklist.documents[doc['number']] ?? false;
-    final hasFile = _documentPaths.containsKey(doc['number']);
+    final documentNumber = doc['number']!;
+    final hasFile = _documentFiles.containsKey(documentNumber);
+    final isChecked = _checklist.documents[documentNumber] ?? false;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -872,571 +1328,71 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
                 '${doc['number']}. ${doc['name']}',
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
-              value: hasDocument,
+              value: isChecked,
               onChanged: (value) {
                 setState(() {
-                  _checklist.documents[doc['number']!] = value ?? false;
+                  _checklist.documents[documentNumber] = value ?? false;
+                  // Если снимаем галочку, удаляем файл
+                  if (value == false && hasFile) {
+                    _documentFiles.remove(documentNumber);
+                    // Удаляем файл с сервера, если questionnaire_id есть
+                    if (_questionnaireId != null) {
+                      _apiService.deleteDocumentFile(
+                        questionnaireId: _questionnaireId!,
+                        documentNumber: documentNumber,
+                      ).catchError((e) {
+                        // Игнорируем ошибки при удалении
+                      });
+                    }
+                  }
                 });
               },
               activeColor: const Color(0xFF3b82f6),
+              secondary: hasFile
+                  ? const Icon(Icons.attach_file, color: Colors.green, size: 20)
+                  : null,
             ),
-            // Кнопка загрузки документа (активна только если документ есть)
-            if (hasDocument)
+            if (isChecked)
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () =>
-                            _pickDocument(doc['number']!, doc['name']!),
-                        icon: Icon(
-                            hasFile ? Icons.check_circle : Icons.upload_file),
-                        label: Text(hasFile
-                            ? 'Документ загружен'
-                            : 'Загрузить документ'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: hasFile
-                              ? Colors.green.withOpacity(0.2)
-                              : const Color(0xFF3b82f6),
-                          foregroundColor:
-                              hasFile ? Colors.green : Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickDocumentFile(documentNumber),
+                        icon: Icon(hasFile ? Icons.edit : Icons.attach_file),
+                        label: Text(hasFile ? 'Изменить файл' : 'Прикрепить файл'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          side: const BorderSide(color: Colors.blue),
                         ),
                       ),
                     ),
-                    if (hasFile)
+                    if (hasFile) ...[
+                      const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () {
                           setState(() {
-                            _documentPaths.remove(doc['number']);
+                            _documentFiles.remove(documentNumber);
                           });
+                          if (_questionnaireId != null) {
+                            _apiService.deleteDocumentFile(
+                              questionnaireId: _questionnaireId!,
+                              documentNumber: documentNumber,
+                            ).catchError((e) {
+                              // Игнорируем ошибки
+                            });
+                          }
                         },
-                        tooltip: 'Удалить документ',
+                        tooltip: 'Удалить файл',
                       ),
+                    ],
                   ],
                 ),
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  // Загрузка документа (фото или PDF)
-  Future<void> _pickDocument(String docNumber, String docName) async {
-    try {
-      final source = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1e293b),
-          title: const Text(
-            'Выберите тип файла',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: Color(0xFF3b82f6)),
-                title:
-                    const Text('Фото', style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context, 'photo'),
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.picture_as_pdf, color: Color(0xFF3b82f6)),
-                title: const Text('PDF документ',
-                    style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context, 'pdf'),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      if (source == null) return;
-
-      String? filePath;
-
-      if (source == 'photo') {
-        // Выбор фото
-        final sourceType = await showDialog<ImageSource>(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1e293b),
-            title: const Text('Выберите источник',
-                style: TextStyle(color: Colors.white)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading:
-                      const Icon(Icons.camera_alt, color: Color(0xFF3b82f6)),
-                  title: const Text('Камера',
-                      style: TextStyle(color: Colors.white)),
-                  onTap: () => Navigator.pop(context, ImageSource.camera),
-                ),
-                ListTile(
-                  leading:
-                      const Icon(Icons.photo_library, color: Color(0xFF3b82f6)),
-                  title: const Text('Галерея',
-                      style: TextStyle(color: Colors.white)),
-                  onTap: () => Navigator.pop(context, ImageSource.gallery),
-                ),
-              ],
-            ),
-          ),
-        );
-
-        if (sourceType == null) return;
-
-        final XFile? image = await _imagePicker.pickImage(source: sourceType);
-        if (image != null) {
-          final appDir = await getApplicationDocumentsDirectory();
-          final docDir = Directory('${appDir.path}/documents');
-          if (!await docDir.exists()) {
-            await docDir.create(recursive: true);
-          }
-
-          final fileName =
-              'doc_${docNumber}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          final file = File('${docDir.path}/$fileName');
-          await File(image.path).copy(file.path);
-          filePath = file.path;
-        }
-      } else {
-        // Выбор PDF
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['pdf'],
-        );
-
-        if (result != null && result.files.single.path != null) {
-          final appDir = await getApplicationDocumentsDirectory();
-          final docDir = Directory('${appDir.path}/documents');
-          if (!await docDir.exists()) {
-            await docDir.create(recursive: true);
-          }
-
-          final fileName =
-              'doc_${docNumber}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-          final file = File('${docDir.path}/$fileName');
-          await File(result.files.single.path!).copy(file.path);
-          filePath = file.path;
-        }
-      }
-
-      if (filePath != null) {
-        setState(() {
-          _documentPaths[docNumber] = filePath!;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text('Документ загружен: $docName'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка загрузки документа: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Интерактивный чертеж для выбора точек контроля
-  Widget _buildInteractiveControlScheme() {
-    if (_controlSchemeImage == null) {
-      return Card(
-        color: const Color(0xFF1e293b),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              const Text(
-                'Схема контроля',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final source = await showDialog<ImageSource>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF1e293b),
-                      title: const Text('Выберите источник',
-                          style: TextStyle(color: Colors.white)),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.camera_alt,
-                                color: Color(0xFF3b82f6)),
-                            title: const Text('Камера',
-                                style: TextStyle(color: Colors.white)),
-                            onTap: () =>
-                                Navigator.pop(context, ImageSource.camera),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.photo_library,
-                                color: Color(0xFF3b82f6)),
-                            title: const Text('Галерея',
-                                style: TextStyle(color: Colors.white)),
-                            onTap: () =>
-                                Navigator.pop(context, ImageSource.gallery),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                  if (source != null) {
-                    await _pickImage(source, false);
-                  }
-                },
-                icon: const Icon(Icons.add_photo_alternate),
-                label: const Text('Загрузить схему контроля'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3b82f6),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      color: const Color(0xFF1e293b),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Схема контроля',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Color(0xFF3b82f6)),
-                      onPressed: () async {
-                        final source = await showDialog<ImageSource>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: const Color(0xFF1e293b),
-                            title: const Text('Выберите источник',
-                                style: TextStyle(color: Colors.white)),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ListTile(
-                                  leading: const Icon(Icons.camera_alt,
-                                      color: Color(0xFF3b82f6)),
-                                  title: const Text('Камера',
-                                      style: TextStyle(color: Colors.white)),
-                                  onTap: () => Navigator.pop(
-                                      context, ImageSource.camera),
-                                ),
-                                ListTile(
-                                  leading: const Icon(Icons.photo_library,
-                                      color: Color(0xFF3b82f6)),
-                                  title: const Text('Галерея',
-                                      style: TextStyle(color: Colors.white)),
-                                  onTap: () => Navigator.pop(
-                                      context, ImageSource.gallery),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                        if (source != null) {
-                          await _pickImage(source, false);
-                        }
-                      },
-                      tooltip: 'Изменить схему',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        setState(() {
-                          _controlSchemeImage = null;
-                          _checklist.controlSchemeImage = null;
-                          _controlPoints.clear();
-                        });
-                      },
-                      tooltip: 'Удалить схему',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Интерактивная область для выбора точек
-          GestureDetector(
-            onTapDown: (details) => _addControlPoint(details.localPosition),
-            child: Container(
-              height: 300,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                border: Border.all(color: const Color(0xFF3b82f6), width: 2),
-              ),
-              child: Stack(
-                children: [
-                  // Изображение схемы
-                  if (_controlSchemeImage != null)
-                    Image.file(
-                      _controlSchemeImage!,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      height: double.infinity,
-                    ),
-                  // Отмеченные точки контроля
-                  ..._controlPoints.entries.map((entry) {
-                    final point = entry.value;
-                    return Positioned(
-                      left: (point['x'] as double?) ?? 0.0,
-                      top: (point['y'] as double?) ?? 0.0,
-                      child: GestureDetector(
-                        onTap: () => _editControlPoint(entry.key, point),
-                        child: Container(
-                          width: 20,
-                          height: 20,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.fromBorderSide(
-                                BorderSide(color: Colors.white, width: 2)),
-                          ),
-                          child: Center(
-                            child: Text(
-                              point['number']?.toString() ?? '',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-          // Список точек контроля
-          if (_controlPoints.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Точки контроля:',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ..._controlPoints.entries.map((entry) {
-                    final point = entry.value;
-                    return Card(
-                      color: const Color(0xFF0f172a),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.red,
-                          child: Text(
-                            point['number']?.toString() ?? '',
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 12),
-                          ),
-                        ),
-                        title: Text(
-                          'Точка ${point['number']}',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          'Толщина: ${point['thickness'] ?? 'не указана'} мм',
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit,
-                                  color: Color(0xFF3b82f6)),
-                              onPressed: () =>
-                                  _editControlPoint(entry.key, point),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                setState(() {
-                                  _controlPoints.remove(entry.key);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  ElevatedButton.icon(
-                    onPressed: () => _addControlPointManually(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Добавить точку вручную'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3b82f6),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // Добавление точки контроля при клике на чертеж
-  void _addControlPoint(Offset position) {
-    final pointId = DateTime.now().millisecondsSinceEpoch.toString();
-    final pointNumber = _controlPoints.length + 1;
-
-    setState(() {
-      _controlPoints[pointId] = {
-        'x': position.dx,
-        'y': position.dy,
-        'number': pointNumber,
-        'thickness': null,
-        'comment': null,
-      };
-    });
-
-    // Сразу открываем диалог для ввода данных
-    _editControlPoint(pointId, _controlPoints[pointId]!);
-  }
-
-  // Добавление точки контроля вручную
-  void _addControlPointManually() {
-    final pointId = DateTime.now().millisecondsSinceEpoch.toString();
-    final pointNumber = _controlPoints.length + 1;
-
-    setState(() {
-      _controlPoints[pointId] = {
-        'x': 0.0,
-        'y': 0.0,
-        'number': pointNumber,
-        'thickness': null,
-        'comment': null,
-      };
-    });
-
-    _editControlPoint(pointId, _controlPoints[pointId]!);
-  }
-
-  // Редактирование точки контроля
-  void _editControlPoint(String pointId, Map<String, dynamic> point) {
-    final thicknessController =
-        TextEditingController(text: point['thickness']?.toString() ?? '');
-    final commentController =
-        TextEditingController(text: point['comment']?.toString() ?? '');
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1e293b),
-        title: Text(
-          'Точка контроля ${point['number']}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: thicknessController,
-              decoration: const InputDecoration(
-                labelText: 'Толщина, мм',
-                labelStyle: TextStyle(color: Colors.white70),
-                filled: true,
-                fillColor: Color(0xFF0f172a),
-                border: OutlineInputBorder(),
-              ),
-              style: const TextStyle(color: Colors.white),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: commentController,
-              decoration: const InputDecoration(
-                labelText: 'Комментарий',
-                labelStyle: TextStyle(color: Colors.white70),
-                filled: true,
-                fillColor: Color(0xFF0f172a),
-                border: OutlineInputBorder(),
-              ),
-              style: const TextStyle(color: Colors.white),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child:
-                const Text('Отмена', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _controlPoints[pointId] = {
-                  ...point,
-                  'thickness': thicknessController.text.isNotEmpty
-                      ? double.tryParse(thicknessController.text)
-                      : null,
-                  'comment': commentController.text.isNotEmpty
-                      ? commentController.text
-                      : null,
-                };
-              });
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3b82f6),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Сохранить'),
-          ),
-        ],
       ),
     );
   }
@@ -1553,7 +1509,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
                 ),
               )
             : const Text(
-                'Отправить отчет',
+                'Сохранить локально',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,

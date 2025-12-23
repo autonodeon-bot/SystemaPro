@@ -265,6 +265,8 @@ export const MOCK_CADASTRAL: CadastralParcel[] = [
   }
 ];
 
+export const API_BASE = 'http://5.129.203.182:8000';
+
 export const INSPECTION_TASKS: InspectionTask[] = [
   { id: 'T-001', equipmentId: 'V-501', equipmentName: 'Сепаратор С-1', type: EquipmentType.VESSEL, status: 'OVERDUE', date: '2024-12-01', assignee: 'Иванов И.И.', riskLevel: RiskLevel.CRITICAL },
   { id: 'T-002', equipmentId: 'P-101', equipmentName: 'Трубопровод Т-1', type: EquipmentType.PIPELINE, status: 'IN_PROGRESS', date: '2025-01-15', assignee: 'Петров П.П.', riskLevel: RiskLevel.HIGH },

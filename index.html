@@ -3,88 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>ЕС ТД НГО | Платформа Диагностики</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRS9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <!-- ADDED LEAFLET JS SCRIPT -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#0f172a',
-              secondary: '#1e293b',
-              accent: '#3b82f6',
-              danger: '#ef4444',
-              success: '#22c55e',
-              warning: '#f59e0b',
-            }
-          }
-        }
-      }
-    </script>
-    <style>
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1e293b; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #475569; 
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
-      }
-      .leaflet-container {
-        background: #0f172a;
-        font-family: inherit;
-      }
-      /* Map Popup Styles */
-      .leaflet-popup-content-wrapper {
-        background: #1e293b;
-        color: #fff;
-        border: 1px solid #334155;
-        border-radius: 0.5rem;
-      }
-      .leaflet-popup-tip {
-        background: #334155;
-      }
-      .leaflet-popup-close-button {
-        color: #fff !important;
-      }
-      /* Mobile optimizations */
-      @media (max-width: 640px) {
-        body {
-          font-size: 14px;
-        }
-        .text-3xl {
-          font-size: 1.5rem;
-        }
-        .text-2xl {
-          font-size: 1.25rem;
-        }
-        .text-xl {
-          font-size: 1.125rem;
-        }
-      }
-      /* Tablet optimizations */
-      @media (min-width: 641px) and (max-width: 1024px) {
-        body {
-          font-size: 15px;
-        }
-      }
-      /* Prevent text selection on mobile for better UX */
-      @media (max-width: 1024px) {
-        button, a {
-          -webkit-tap-highlight-color: transparent;
-        }
-      }
-    </style>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
   <body class="bg-primary text-slate-200 antialiased overflow-hidden">
     <div id="root"></div>

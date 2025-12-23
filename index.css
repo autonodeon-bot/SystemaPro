@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: #0f172a;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.leaflet-container {
+  background: #0f172a;
+  font-family: inherit;
+}
+
+/* Map Popup Styles */
+.leaflet-popup-content-wrapper {
+  background: #1e293b;
+  color: #fff;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+}
+.leaflet-popup-tip {
+  background: #334155;
+}
+.leaflet-popup-close-button {
+  color: #fff !important;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+  .text-3xl {
+    font-size: 1.5rem;
+  }
+  .text-2xl {
+    font-size: 1.25rem;
+  }
+  .text-xl {
+    font-size: 1.125rem;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 641px) and (max-width: 1024px) {
+  body {
+    font-size: 15px;
+  }
+}
+
+/* Prevent text selection on mobile for better UX */
+@media (max-width: 1024px) {
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+
