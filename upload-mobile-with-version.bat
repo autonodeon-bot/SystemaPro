@@ -51,7 +51,7 @@ for /f "tokens=1,2 delims=+" %%a in ("%NEW_VERSION%") do (
 )
 
 REM Р—Р°РјРµРЅСЏРµРј С‚РѕС‡РєРё РЅР° РґРµС„РёСЃС‹ РґР»СЏ РёРјРµРЅРё С„Р°Р№Р»Р°
-set VERSION_FILE=%VERSION_PART:.-=-%
+set VERSION_FILE=%VERSION_PART:.=-%
 set APK_FILENAME=es-td-ngo-mobile-%VERSION_FILE%-%BUILD_PART%.apk
 
 echo РРјСЏ С„Р°Р№Р»Р°: %APK_FILENAME%
@@ -89,11 +89,8 @@ set CURRENT_DATE=%datetime:~6,2%.%datetime:~4,2%.%datetime:~0,4%
 
 echo РћР±РЅРѕРІР»РµРЅРёРµ РІРµСЂСЃРёРё РЅР° СЃР°Р№С‚Рµ: %VERSION_PART% (build %BUILD_PART%) РѕС‚ %CURRENT_DATE%
 
-REM РћР±РЅРѕРІР»СЏРµРј СЃС‚СЂР°РЅРёС†Сѓ MobileApp.tsx
-powershell -Command "$content = Get-Content 'pages\MobileApp.tsx' -Raw -Encoding UTF8; $pattern = 'Р’РµСЂСЃРёСЏ: [0-9.]+ \\(build [0-9]+\\) РѕС‚ [0-9.]+'; $replacement = 'Р’РµСЂСЃРёСЏ: %VERSION_PART% (build %BUILD_PART%) РѕС‚ %CURRENT_DATE%'; $content = $content -replace $pattern, $replacement; $downloadUrlPattern = 'const downloadUrl = ''http://5.129.203.182/mobile/[^'']+'''; $downloadUrlReplacement = 'const downloadUrl = ''http://5.129.203.182/mobile/%APK_FILENAME%'''; $content = $content -replace $downloadUrlPattern, $downloadUrlReplacement; $downloadAttrPattern = 'download=\"[^\"]+\"'; $downloadAttrReplacement = 'download=\"%APK_FILENAME%\"'; $content = $content -replace $downloadAttrPattern, $downloadAttrReplacement; $buttonTextPattern = 'РЎРєР°С‡Р°С‚СЊ РїСЂРёР»РѕР¶РµРЅРёРµ v[0-9.]+'; $buttonTextReplacement = 'РЎРєР°С‡Р°С‚СЊ РїСЂРёР»РѕР¶РµРЅРёРµ v%VERSION_PART%'; $content = $content -replace $buttonTextPattern, $buttonTextReplacement; Set-Content 'pages\MobileApp.tsx' -Value $content -Encoding UTF8"
-
-REM РћР±РЅРѕРІР»СЏРµРј РІРµСЂСЃРёСЋ СЃРёСЃС‚РµРјС‹ РІ App.tsx
-powershell -Command "$content = Get-Content 'App.tsx' -Raw -Encoding UTF8; $pattern = 'v[0-9.]+\([0-9]+\)'; $replacement = 'v%VERSION_PART%(%BUILD_PART%)'; $content = $content -replace $pattern, $replacement; Set-Content 'App.tsx' -Value $content -Encoding UTF8"
+REM Обновляем версию в коде через отдельный PowerShell-скрипт (устойчиво к кодировкам)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\update_mobile_release.ps1 -VersionPart "%VERSION_PART%" -BuildPart "%BUILD_PART%" -ApkFilename "%APK_FILENAME%" -ServerIp "5.129.203.182"
 
 echo.
 echo [вњ“] РњРѕР±РёР»СЊРЅРѕРµ РїСЂРёР»РѕР¶РµРЅРёРµ СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅРѕ!
