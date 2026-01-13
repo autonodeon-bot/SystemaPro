@@ -838,6 +838,78 @@ async def update_opo(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/opos/{opo_id}/survey")
+async def get_opo_survey(
+    opo_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Получить опросный лист ОПО (доступно инженеру/оператору/админу)"""
+    try:
+        try:
+            opo_uuid = uuid_lib.UUID(opo_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid opo_id format")
+
+        # Любой авторизованный пользователь может читать (для автоподтягивания)
+        result = await db.execute(select(Opo).where(Opo.id == opo_uuid))
+        opo = result.scalar_one_or_none()
+        if not opo:
+            raise HTTPException(status_code=404, detail="OPO not found")
+
+        return {
+            "opo_id": str(opo.id),
+            "survey_data": opo.survey_data or {},
+            "updated_at": str(opo.updated_at) if opo.updated_at else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/opos/{opo_id}/survey")
+async def update_opo_survey(
+    opo_id: str,
+    payload: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить опросный лист ОПО (инженер может менять только survey_data)"""
+    try:
+        try:
+            opo_uuid = uuid_lib.UUID(opo_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid opo_id format")
+
+        user_result = await db.execute(select(User).where(User.username == username))
+        user = user_result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Инженеру разрешаем только survey_data
+        allowed_roles = {"admin", "chief_operator", "operator", "engineer"}
+        if user.role not in allowed_roles:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        result = await db.execute(select(Opo).where(Opo.id == opo_uuid))
+        opo = result.scalar_one_or_none()
+        if not opo:
+            raise HTTPException(status_code=404, detail="OPO not found")
+
+        if "survey_data" not in payload:
+            raise HTTPException(status_code=400, detail="survey_data is required")
+
+        opo.survey_data = payload.get("survey_data") or {}
+        await db.commit()
+        return {"opo_id": str(opo.id), "status": "updated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/opos/{opo_id}")
 async def get_opo(
     opo_id: str,

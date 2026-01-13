@@ -785,6 +785,86 @@ class ApiService {
     }
   }
 
+  // Получить опросный лист ОПО
+  Future<Map<String, dynamic>> getOpoSurvey(String opoId) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token == null) {
+        throw Exception('Токен авторизации не найден');
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/opos/$opoId/survey'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('AUTH_INVALID');
+      }
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+
+      String errorMessage = 'Failed to load OPO survey: ${response.statusCode}';
+      try {
+        final errorData = json.decode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          errorMessage = errorData['detail'].toString();
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    } catch (e) {
+      throw Exception('Error fetching OPO survey: $e');
+    }
+  }
+
+  // Обновить опросный лист ОПО
+  Future<void> updateOpoSurvey({
+    required String opoId,
+    required Map<String, dynamic> surveyData,
+  }) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token == null) {
+        throw Exception('Токен авторизации не найден');
+      }
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/opos/$opoId/survey'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'survey_data': surveyData}),
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('AUTH_INVALID');
+      }
+
+      if (response.statusCode == 200) {
+        return;
+      }
+
+      String errorMessage = 'Failed to update OPO survey: ${response.statusCode}';
+      try {
+        final errorData = json.decode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          errorMessage = errorData['detail'].toString();
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    } catch (e) {
+      throw Exception('Error updating OPO survey: $e');
+    }
+  }
+
   // Проверить обновление мобильного приложения
   Future<Map<String, dynamic>?> checkAppUpdate() async {
     try {

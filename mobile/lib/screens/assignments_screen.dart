@@ -5,6 +5,7 @@ import '../services/sync_service.dart';
 import 'vessel_inspection_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'opo_survey_screen.dart';
 
 // Вспомогательный класс для группировки заданий
 class AssignmentGroup {
@@ -725,6 +726,28 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                     ),
                   ),
                 ),
+                if ((group.opoName ?? '').isNotEmpty &&
+                    (group.assignments.isNotEmpty) &&
+                    ((group.assignments.first.opoId ?? '').isNotEmpty))
+                  IconButton(
+                    tooltip: 'Заполнить ОПО',
+                    onPressed: () async {
+                      final first = group.assignments.first;
+                      final ok = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OpoSurveyScreen(
+                            opoId: first.opoId!,
+                            opoName: group.opoName!,
+                          ),
+                        ),
+                      );
+                      if (ok == true) {
+                        await _loadAssignments();
+                      }
+                    },
+                    icon: const Icon(Icons.assignment_turned_in, color: Colors.green),
+                  ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(

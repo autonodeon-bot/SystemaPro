@@ -10,6 +10,7 @@ import 'api_service.dart';
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
   static const String _prefsKeyPendingInspections = 'pending_inspections';
+  static const String _prefsKeyPendingOpoSurveys = 'pending_opo_surveys';
   static const String _prefsKeyLastSync = 'last_sync';
   static const String _prefsKeyOfflineMode = 'offline_mode';
   static const String _prefsKeyOfflineEquipment = 'offline_equipment';
@@ -197,6 +198,13 @@ class SyncService {
         return result;
       }
 
+      // 0) Сначала синхронизируем ОПО (они нужны для автоподтягивания пунктов 1-9)
+      try {
+        await _syncPendingOpoSurveys(result);
+      } catch (e) {
+        result.error = 'Ошибка синхронизации ОПО: $e';
+      }
+
       // Загружаем список оборудования с сервера и сохраняем локально
       try {
         final equipmentList = await _apiService.getEquipmentList();
@@ -379,6 +387,76 @@ class SyncService {
     }
 
     return result;
+  }
+
+  /// Сохранить опросный лист ОПО локально (для последующей синхронизации)
+  Future<void> saveOpoSurveyOffline({
+    required String opoId,
+    required Map<String, dynamic> surveyData,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pending = prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
+
+      // Перезаписываем по opo_id
+      final filtered = <String>[];
+      for (final item in pending) {
+        try {
+          final decoded = json.decode(item) as Map<String, dynamic>;
+          if (decoded['opo_id']?.toString() == opoId) continue;
+          filtered.add(item);
+        } catch (_) {
+          filtered.add(item);
+        }
+      }
+
+      filtered.add(json.encode({
+        'opo_id': opoId,
+        'survey_data': surveyData,
+        'timestamp': DateTime.now().toIso8601String(),
+      }));
+
+      await prefs.setStringList(_prefsKeyPendingOpoSurveys, filtered);
+    } catch (e) {
+      throw Exception('Ошибка сохранения ОПО локально: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingOpoSurveys() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pending = prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
+      return pending.map((s) => json.decode(s) as Map<String, dynamic>).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Синхронизировать ожидающие опросные листы ОПО
+  Future<void> _syncPendingOpoSurveys(SyncResult result) async {
+    final prefs = await SharedPreferences.getInstance();
+    final pending = await getPendingOpoSurveys();
+    if (pending.isEmpty) return;
+
+    final failed = <String>[];
+    for (final item in pending) {
+      try {
+        final opoId = item['opo_id']?.toString();
+        final data = item['survey_data'];
+        if (opoId == null || opoId.isEmpty || data is! Map) {
+          continue;
+        }
+        await _apiService.updateOpoSurvey(
+          opoId: opoId,
+          surveyData: Map<String, dynamic>.from(data),
+        );
+      } catch (e) {
+        failed.add(json.encode(item));
+        result.error = e.toString();
+      }
+    }
+
+    await prefs.setStringList(_prefsKeyPendingOpoSurveys, failed);
   }
 
   /// Получить время последней синхронизации
