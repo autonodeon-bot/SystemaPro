@@ -64,23 +64,24 @@ echo [вњ“] Backend С„Р°Р№Р»С‹ СЃРєРѕРїРёСЂРѕРІ�
 echo.
 
 echo [5/8] РљРѕРїРёСЂРѕРІР°РЅРёРµ frontend С„Р°Р№Р»РѕРІ...
+REM ВАЖНО: копируем директории целиком (не pages\*), иначе структура ломается и на сервере остаются старые файлы в pages/
 if exist "src" (
-    pscp -batch -pw %SERVER_PASS% -r src\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
+    pscp -batch -pw %SERVER_PASS% -r src %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 )
 if exist "pages" (
-    pscp -batch -pw %SERVER_PASS% -r pages\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
+    pscp -batch -pw %SERVER_PASS% -r pages %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 )
 if exist "components" (
-    pscp -batch -pw %SERVER_PASS% -r components\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
+    pscp -batch -pw %SERVER_PASS% -r components %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 )
 if exist "contexts" (
-    pscp -batch -pw %SERVER_PASS% -r contexts\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
+    pscp -batch -pw %SERVER_PASS% -r contexts %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 )
 if exist "styles" (
-    pscp -batch -pw %SERVER_PASS% -r styles\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
+    pscp -batch -pw %SERVER_PASS% -r styles %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 )
 if exist "public" (
-    pscp -batch -pw %SERVER_PASS% -r public\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
+    pscp -batch -pw %SERVER_PASS% -r public %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 )
 if exist "App.tsx" (
     pscp -batch -pw %SERVER_PASS% App.tsx %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
