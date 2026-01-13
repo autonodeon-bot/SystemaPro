@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
+﻿from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -54,8 +54,8 @@ app.include_router(equipment_history_router)  # Новый роутер для �
 
 # Версия мобильного приложения
 MOBILE_APP_VERSION = "3.7.0"
-MOBILE_APP_BUILD = "1"
-MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/es-td-ngo-mobile-3.7.0-1.apk"
+MOBILE_APP_BUILD = "2"
+MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/es-td-ngo-mobile-3.7.0-2.apk"
 
 # Endpoint для проверки версии мобильного приложения
 @app.get("/api/mobile/version")
@@ -4737,3 +4737,4 @@ async def export_verification_equipment(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

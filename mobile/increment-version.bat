@@ -38,8 +38,8 @@ set NEW_VERSION=%VERSION_PART%+%NEW_BUILD%
 
 echo РќРѕРІР°СЏ РІРµСЂСЃРёСЏ: %NEW_VERSION%
 
-REM Р—Р°РјРµРЅСЏРµРј РІРµСЂСЃРёСЋ РІ С„Р°Р№Р»Рµ
-powershell -NoProfile -Command "$c = Get-Content -Path '%PUBSPEC_FILE%' -Raw -Encoding UTF8; $c = $c -replace 'version:\s*%CURRENT_VERSION%', 'version: %NEW_VERSION%'; Set-Content -Path '%PUBSPEC_FILE%' -Value $c -Encoding UTF8"
+REM Обновляем строку version: в pubspec.yaml (без regex-ошибок из-за символа '+')
+powershell -NoProfile -Command "$c = Get-Content -Path '%PUBSPEC_FILE%' -Raw -Encoding UTF8; $c = [regex]::Replace($c, '(?m)^version:\s*.*$', 'version: %NEW_VERSION%'); Set-Content -Path '%PUBSPEC_FILE%' -Value $c -Encoding UTF8"
 
 echo.
 echo [вњ“] Р’РµСЂСЃРёСЏ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅР°!
