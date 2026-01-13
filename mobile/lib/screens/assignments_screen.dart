@@ -11,23 +11,28 @@ class AssignmentGroup {
   final String? enterpriseName;
   final String? branchName;
   final String? workshopName;
+  final String? opoName;
   final List<Assignment> assignments;
   
   AssignmentGroup({
     this.enterpriseName,
     this.branchName,
     this.workshopName,
+    this.opoName,
     required this.assignments,
   });
   
   String get key {
-    return '${enterpriseName ?? 'Без предприятия'}_${branchName ?? ''}_${workshopName ?? ''}';
+    return '${enterpriseName ?? 'Без предприятия'}_${branchName ?? ''}_${workshopName ?? ''}_${opoName ?? ''}';
   }
   
   String get displayName {
     if (enterpriseName != null && enterpriseName!.isNotEmpty) {
       if (branchName != null && branchName!.isNotEmpty) {
         if (workshopName != null && workshopName!.isNotEmpty) {
+          if (opoName != null && opoName!.isNotEmpty) {
+            return '$enterpriseName → $branchName → $workshopName → $opoName';
+          }
           return '$enterpriseName → $branchName → $workshopName';
         }
         return '$enterpriseName → $branchName';
@@ -36,12 +41,21 @@ class AssignmentGroup {
     }
     if (branchName != null && branchName!.isNotEmpty) {
       if (workshopName != null && workshopName!.isNotEmpty) {
+        if (opoName != null && opoName!.isNotEmpty) {
+          return '[Филиал] $branchName → $workshopName → $opoName';
+        }
         return '[Филиал] $branchName → $workshopName';
       }
       return '[Филиал] $branchName';
     }
     if (workshopName != null && workshopName!.isNotEmpty) {
+      if (opoName != null && opoName!.isNotEmpty) {
+        return '[Цех] $workshopName → $opoName';
+      }
       return '[Цех] $workshopName';
+    }
+    if (opoName != null && opoName!.isNotEmpty) {
+      return '[ОПО] $opoName';
     }
     return 'Без привязки';
   }
@@ -283,7 +297,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     final Map<String, List<Assignment>> groups = {};
     
     for (final assignment in assignments) {
-      final key = '${assignment.enterpriseName ?? 'Без предприятия'}_${assignment.branchName ?? ''}_${assignment.workshopName ?? ''}';
+      final key =
+          '${assignment.enterpriseName ?? 'Без предприятия'}_${assignment.branchName ?? ''}_${assignment.workshopName ?? ''}_${assignment.opoName ?? ''}';
       if (!groups.containsKey(key)) {
         groups[key] = [];
       }
@@ -296,6 +311,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         enterpriseName: firstAssignment.enterpriseName,
         branchName: firstAssignment.branchName,
         workshopName: firstAssignment.workshopName,
+        opoName: firstAssignment.opoName,
         assignments: entry.value,
       );
     }).toList()
@@ -318,7 +334,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                a.equipmentName.toLowerCase().contains(query) ||
                (a.enterpriseName?.toLowerCase().contains(query) ?? false) ||
                (a.branchName?.toLowerCase().contains(query) ?? false) ||
-               (a.workshopName?.toLowerCase().contains(query) ?? false);
+               (a.workshopName?.toLowerCase().contains(query) ?? false) ||
+               (a.opoName?.toLowerCase().contains(query) ?? false);
       }).toList();
     }
     

@@ -66,15 +66,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     super.initState();
     try {
       // Создаем чек-лист в зависимости от типа оборудования
-      _checklist = _isCompressor 
-          ? CompressorChecklist() 
-          : VesselChecklist();
-      
+      _checklist = _isCompressor ? CompressorChecklist() : VesselChecklist();
+
       // Инициализация документов
       for (var doc in ChecklistConstants.documents) {
         _checklist.documents[doc['number']!] = false;
       }
+
+      // Базовое автозаполнение из карточки оборудования
       _prefillFromEquipment();
+
+      // Затем пытаемся подтянуть локально сохраненный черновик/подписанный чек-лист
+      // (иначе при повторном открытии инженеру показывается пустая форма).
+      Future.microtask(_loadLocalPendingIfExists);
     } catch (e) {
       // Если ошибка при инициализации, создаем базовый чек-лист
       _checklist = VesselChecklist();
@@ -82,6 +86,140 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
         _checklist.documents[doc['number']!] = false;
       }
       print('Ошибка инициализации чек-листа: $e');
+    }
+  }
+
+  Future<void> _loadLocalPendingIfExists() async {
+    try {
+      final pending = await _syncService.getLatestPendingInspection(
+        equipmentId: widget.equipment.id,
+        assignmentId: widget.assignmentId,
+      );
+      if (pending == null) return;
+
+      final data = (pending['data'] as Map?)?.cast<String, dynamic>();
+      if (data == null) return;
+
+      // Определяем тип по equipment_type в data (для компрессора)
+      final equipmentType = data['equipment_type']?.toString();
+      final isCompressor = equipmentType != null && equipmentType.toUpperCase().contains('COMPRESSOR');
+
+      final loadedChecklist = isCompressor
+          ? CompressorChecklist.fromJson(data)
+          : VesselChecklist.fromJson(data);
+
+      // Восстанавливаем выбор поверенного оборудования
+      final ve = pending['verification_equipment_ids'];
+      if (ve is List) {
+        _selectedEquipmentIds = ve.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+      }
+
+      // Восстанавливаем пути к вложениям документов
+      final docs = pending['document_files'];
+      if (docs is Map) {
+        _documentFiles.clear();
+        for (final entry in docs.entries) {
+          final key = entry.key.toString();
+          final val = entry.value;
+          if (val is String) {
+            _documentFiles[key] = val;
+          } else if (val is Map) {
+            final m = Map<String, dynamic>.from(val);
+            final fp = m['file_path']?.toString();
+            if (fp != null && fp.isNotEmpty) {
+              _documentFiles[key] = fp;
+            }
+          }
+        }
+      }
+
+      // Подменяем текущий чек-лист данными из локального сохранения
+      setState(() {
+        // копируем поля в существующий объект (потому что _checklist late final)
+        final j = loadedChecklist.toJson();
+        final merged = isCompressor
+            ? CompressorChecklist.fromJson(j)
+            : VesselChecklist.fromJson(j);
+
+        // переносим значения
+        _checklist.inspectionDate = merged.inspectionDate;
+        _checklist.executors = merged.executors;
+        _checklist.organization = merged.organization;
+        _checklist.documents = merged.documents;
+        _checklist.vesselName = merged.vesselName;
+        _checklist.serialNumber = merged.serialNumber;
+        _checklist.regNumber = merged.regNumber;
+        _checklist.manufacturer = merged.manufacturer;
+        _checklist.manufactureYear = merged.manufactureYear;
+        _checklist.diameter = merged.diameter;
+        _checklist.workingPressure = merged.workingPressure;
+        _checklist.wallThickness = merged.wallThickness;
+        _checklist.factoryPlatePhoto = merged.factoryPlatePhoto;
+        _checklist.controlSchemeImage = merged.controlSchemeImage;
+        _checklist.matchesDrawing = merged.matchesDrawing;
+        _checklist.hasThermalInsulation = merged.hasThermalInsulation;
+        _checklist.anticorrosionCoatingState = merged.anticorrosionCoatingState;
+        _checklist.supportState = merged.supportState;
+        _checklist.fastenersState = merged.fastenersState;
+        _checklist.hasFlangeMisalignment = merged.hasFlangeMisalignment;
+        _checklist.hasNozzleMisalignment = merged.hasNozzleMisalignment;
+        _checklist.hasVesselRepairs = merged.hasVesselRepairs;
+        _checklist.hasTpaRepairs = merged.hasTpaRepairs;
+        _checklist.internalDevicesState = merged.internalDevicesState;
+        _checklist.zraItems = merged.zraItems;
+        _checklist.sppkItems = merged.sppkItems;
+        _checklist.switchingDevice = merged.switchingDevice;
+        _checklist.gauge = merged.gauge;
+        _checklist.levelSensor = merged.levelSensor;
+        _checklist.levelAlarm = merged.levelAlarm;
+        _checklist.valveInspections = merged.valveInspections;
+        _checklist.ovalityMeasurements = merged.ovalityMeasurements;
+        _checklist.deflectionMeasurements = merged.deflectionMeasurements;
+        _checklist.hasLocalDeformations = merged.hasLocalDeformations;
+        _checklist.hasExternalDefects = merged.hasExternalDefects;
+        _checklist.hasInternalDefects = merged.hasInternalDefects;
+        _checklist.hasArmatureDefects = merged.hasArmatureDefects;
+        _checklist.hardnessTests = merged.hardnessTests;
+        _checklist.weldInspections = merged.weldInspections;
+        _checklist.thicknessMeasurements = merged.thicknessMeasurements;
+        _checklist.conclusion = merged.conclusion;
+
+        // Компрессор-специфичные поля
+        if (_checklist is CompressorChecklist && merged is CompressorChecklist) {
+          final cur = _checklist as CompressorChecklist;
+          cur.compressorType = merged.compressorType;
+          cur.powerRating = merged.powerRating;
+          cur.pressureRatio = merged.pressureRatio;
+          cur.flowRate = merged.flowRate;
+          cur.rotationSpeed = merged.rotationSpeed;
+          cur.numberOfStages = merged.numberOfStages;
+          cur.coolingSystem = merged.coolingSystem;
+          cur.lubricationSystem = merged.lubricationSystem;
+          cur.cylinderState = merged.cylinderState;
+          cur.pistonState = merged.pistonState;
+          cur.valvesState = merged.valvesState;
+          cur.crankshaftState = merged.crankshaftState;
+          cur.bearingsState = merged.bearingsState;
+          cur.sealsState = merged.sealsState;
+          cur.vibrationMeasurements = merged.vibrationMeasurements;
+          cur.temperatureMeasurements = merged.temperatureMeasurements;
+          cur.oilLevel = merged.oilLevel;
+          cur.oilCondition = merged.oilCondition;
+          cur.oilFilterState = merged.oilFilterState;
+          cur.airFilterState = merged.airFilterState;
+        }
+
+        // файлы-объекты для UI (если путь сохранен)
+        if ((_checklist.factoryPlatePhoto ?? '').isNotEmpty) {
+          _factoryPlatePhoto = File(_checklist.factoryPlatePhoto!);
+        }
+        if ((_checklist.controlSchemeImage ?? '').isNotEmpty) {
+          _controlSchemeImage = File(_checklist.controlSchemeImage!);
+        }
+      });
+    } catch (e) {
+      // Не роняем экран
+      print('Ошибка загрузки локальных данных: $e');
     }
   }
 
@@ -450,7 +588,43 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
             }),
             const SizedBox(height: 24),
             _buildSectionHeader('2. Перечень рассмотренных документов'),
+
+            // Галочка: включать ли пункты 1-9 (ОПО) в этот чек-лист
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.25)),
+              ),
+              child: SwitchListTile.adaptive(
+                value: _checklist.includeOpoData,
+                onChanged: (v) {
+                  setState(() {
+                    _checklist.includeOpoData = v;
+                  });
+                },
+                title: const Text(
+                  'Данные по ОПО (пункты 1–9)',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  _checklist.includeOpoData
+                      ? 'Включено: заполните весь опросный лист'
+                      : 'Выключено: чек-лист только по оборудованию (начиная с пункта 10)',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                activeColor: Colors.green,
+              ),
+            ),
+
             ...ChecklistConstants.documents
+                .where((doc) {
+                  final n = int.tryParse(doc['number'] ?? '0') ?? 0;
+                  if (_checklist.includeOpoData) return true;
+                  return n >= 10; // без ОПО показываем только 10-17
+                })
                 .map((doc) => _buildDocumentCheckbox(doc)),
             const SizedBox(height: 24),
             _buildSectionHeader('3. Карта обследования'),

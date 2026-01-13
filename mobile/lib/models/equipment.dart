@@ -17,6 +17,9 @@ class Equipment {
   final String? enterpriseId; // ID предприятия
   final String? enterpriseName; // Название предприятия
   final String? enterpriseCode; // Код предприятия
+  final String? opoId; // ID ОПО
+  final String? opoName; // Название ОПО
+  final String? opoCode; // Код ОПО
 
   Equipment({
     required this.id,
@@ -37,6 +40,9 @@ class Equipment {
     this.enterpriseId,
     this.enterpriseName,
     this.enterpriseCode,
+    this.opoId,
+    this.opoName,
+    this.opoCode,
   });
 
   factory Equipment.fromJson(Map<String, dynamic> json) {
@@ -77,6 +83,9 @@ class Equipment {
       enterpriseId: json['enterprise_id']?.toString(),
       enterpriseName: json['enterprise_name']?.toString(),
       enterpriseCode: json['enterprise_code']?.toString(),
+      opoId: json['opo_id']?.toString(),
+      opoName: json['opo_name']?.toString(),
+      opoCode: json['opo_code']?.toString(),
     );
   }
 
@@ -100,6 +109,9 @@ class Equipment {
       'enterprise_id': enterpriseId,
       'enterprise_name': enterpriseName,
       'enterprise_code': enterpriseCode,
+      'opo_id': opoId,
+      'opo_name': opoName,
+      'opo_code': opoCode,
     };
   }
 }

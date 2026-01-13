@@ -24,6 +24,7 @@ from models import (
     Branch,
     Workshop,
     EquipmentType,
+    Opo,
 )
 from auth import verify_token
 
@@ -63,6 +64,15 @@ class AssignmentResponse(BaseModel):
     created_at: str
     updated_at: Optional[str]
     completed_at: Optional[str]
+    enterprise_id: Optional[str] = None
+    enterprise_name: Optional[str] = None
+    branch_id: Optional[str] = None
+    branch_name: Optional[str] = None
+    workshop_id: Optional[str] = None
+    workshop_name: Optional[str] = None
+    opo_id: Optional[str] = None
+    opo_name: Optional[str] = None
+    opo_code: Optional[str] = None
 
 class ObjectEngineerProgress(BaseModel):
     user_id: str
@@ -216,6 +226,9 @@ async def get_assignments(
             enterprise_id = None
             branch_id = None
             workshop_id = None
+            opo_id = None
+            opo_name = None
+            opo_code = None
             
             if equipment:
                 # Проверяем workshop_id у оборудования
@@ -255,6 +268,18 @@ async def get_assignments(
                 else:
                     # Если у оборудования нет workshop_id, логируем для отладки
                     print(f"⚠️ Equipment {equipment.id} ({equipment.equipment_code}) has no workshop_id")
+
+                # ОПО (если привязано к оборудованию)
+                if getattr(equipment, "opo_id", None):
+                    try:
+                        opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
+                        opo = opo_result.scalar_one_or_none()
+                        if opo:
+                            opo_id = str(opo.id)
+                            opo_name = opo.name
+                            opo_code = opo.code
+                    except Exception as e:
+                        print(f"⚠️ Error loading OPO for assignment {assignment.id}: {e}")
             
             assignments_list.append({
                 "id": str(assignment.id),
@@ -278,6 +303,9 @@ async def get_assignments(
                 "branch_name": branch_name,
                 "workshop_id": workshop_id,
                 "workshop_name": workshop_name,
+                "opo_id": opo_id,
+                "opo_name": opo_name,
+                "opo_code": opo_code,
             })
         
         return assignments_list

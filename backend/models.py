@@ -52,6 +52,21 @@ class Workshop(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+class Opo(Base):
+    """Опасные производственные объекты (ОПО)"""
+    __tablename__ = "opos"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workshop_id = Column(UUID(as_uuid=True), ForeignKey("workshops.id"), nullable=True, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(100), nullable=True, index=True)  # внутренний код/обозначение ОПО
+    description = Column(Text)
+    # Опросный лист по ОПО (пункты 1-9, а также общие поля организации/исполнителей и т.п.)
+    survey_data = Column(JSONB, nullable=True)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 class Equipment(Base):
     """Оборудование - единая база с уникальными кодами (версия 3.3.0)"""
     __tablename__ = "equipment"
@@ -60,6 +75,7 @@ class Equipment(Base):
     equipment_code = Column(String(100), unique=True, nullable=False, index=True)  # Уникальный код оборудования
     type_id = Column(UUID(as_uuid=True), ForeignKey("equipment_types.id"))
     workshop_id = Column(UUID(as_uuid=True), ForeignKey("workshops.id"), nullable=True, index=True)  # Связь с цехом
+    opo_id = Column(UUID(as_uuid=True), ForeignKey("opos.id"), nullable=True, index=True)  # Связь с ОПО
     name = Column(String(255), nullable=False)
     serial_number = Column(String(100))
     location = Column(String(500))  # Место расположения (НГДУ, цех, месторождение) - для обратной совместимости

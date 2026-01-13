@@ -8,6 +8,9 @@ class VesselChecklist {
   
   // Перечень документов (17 пунктов)
   Map<String, bool> documents = {}; // Ключ - номер документа, значение - наличие
+
+  // Данные по ОПО (пункты 1-9). Если false — показываем/заполняем только документы 10-17.
+  bool includeOpoData = true;
   
   // Карта обследования
   String? vesselName; // Наименование сосуда
@@ -83,6 +86,22 @@ class VesselChecklist {
   String? conclusion;
   
   VesselChecklist();
+
+  static bool? _asBool(dynamic v) {
+    if (v == null) return null;
+    if (v is bool) return v;
+    final s = v.toString().toLowerCase().trim();
+    if (s == 'true' || s == '1' || s == 'yes') return true;
+    if (s == 'false' || s == '0' || s == 'no') return false;
+    return null;
+  }
+
+  static double? _asDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    final s = v.toString().replaceAll(',', '.').trim();
+    return double.tryParse(s);
+  }
   
   Map<String, dynamic> toJson() {
     return {
@@ -90,6 +109,7 @@ class VesselChecklist {
       'executors': executors,
       'organization': organization,
       'documents': documents,
+      'include_opo_data': includeOpoData,
       'vessel_name': vesselName,
       'serial_number': serialNumber,
       'reg_number': regNumber,
@@ -132,10 +152,21 @@ class VesselChecklist {
   
   factory VesselChecklist.fromJson(Map<String, dynamic> json) {
     final checklist = VesselChecklist();
+
     checklist.inspectionDate = json['inspection_date'] as String?;
     checklist.executors = json['executors'] as String?;
     checklist.organization = json['organization'] as String?;
-    checklist.documents = Map<String, bool>.from(json['documents'] ?? {});
+
+    checklist.includeOpoData = _asBool(json['include_opo_data']) ?? true;
+
+    final docsRaw = json['documents'];
+    if (docsRaw is Map) {
+      final m = Map<String, dynamic>.from(docsRaw);
+      checklist.documents = m.map((k, v) => MapEntry(k.toString(), (_asBool(v) ?? false)));
+    } else {
+      checklist.documents = {};
+    }
+
     checklist.vesselName = json['vessel_name'] as String?;
     checklist.serialNumber = json['serial_number'] as String?;
     checklist.regNumber = json['reg_number'] as String?;
@@ -144,7 +175,114 @@ class VesselChecklist {
     checklist.diameter = json['diameter'] as String?;
     checklist.workingPressure = json['working_pressure'] as String?;
     checklist.wallThickness = json['wall_thickness'] as String?;
-    // ... остальные поля
+
+    checklist.factoryPlatePhoto = json['factory_plate_photo'] as String?;
+    checklist.controlSchemeImage = json['control_scheme_image'] as String?;
+
+    checklist.matchesDrawing = _asBool(json['matches_drawing']);
+    checklist.hasThermalInsulation = _asBool(json['has_thermal_insulation']);
+    checklist.anticorrosionCoatingState = json['anticorrosion_coating_state'] as String?;
+    checklist.supportState = json['support_state'] as String?;
+    checklist.fastenersState = json['fasteners_state'] as String?;
+    checklist.hasFlangeMisalignment = _asBool(json['has_flange_misalignment']);
+    checklist.hasNozzleMisalignment = _asBool(json['has_nozzle_misalignment']);
+    checklist.hasVesselRepairs = _asBool(json['has_vessel_repairs']);
+    checklist.hasTpaRepairs = _asBool(json['has_tpa_repairs']);
+    checklist.internalDevicesState = json['internal_devices_state'] as String?;
+
+    // ЗРА
+    final zraRaw = json['zra_items'];
+    if (zraRaw is List) {
+      checklist.zraItems = zraRaw
+          .whereType<Map>()
+          .map((e) => ZraItem.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    // СППК
+    final sppkRaw = json['sppk_items'];
+    if (sppkRaw is List) {
+      checklist.sppkItems = sppkRaw
+          .whereType<Map>()
+          .map((e) => SppkItem.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final swRaw = json['switching_device'];
+    if (swRaw is Map) {
+      checklist.switchingDevice = SwitchingDevice.fromJson(Map<String, dynamic>.from(swRaw));
+    }
+
+    final gaugeRaw = json['gauge'];
+    if (gaugeRaw is Map) {
+      checklist.gauge = Gauge.fromJson(Map<String, dynamic>.from(gaugeRaw));
+    }
+
+    final lsRaw = json['level_sensor'];
+    if (lsRaw is Map) {
+      checklist.levelSensor = LevelSensor.fromJson(Map<String, dynamic>.from(lsRaw));
+    }
+
+    final laRaw = json['level_alarm'];
+    if (laRaw is Map) {
+      checklist.levelAlarm = LevelAlarm.fromJson(Map<String, dynamic>.from(laRaw));
+    }
+
+    final viRaw = json['valve_inspections'];
+    if (viRaw is List) {
+      checklist.valveInspections = viRaw
+          .whereType<Map>()
+          .map((e) => ValveInspection.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final ovRaw = json['ovality_measurements'];
+    if (ovRaw is List) {
+      checklist.ovalityMeasurements = ovRaw
+          .whereType<Map>()
+          .map((e) => OvalityMeasurement.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final defRaw = json['deflection_measurements'];
+    if (defRaw is List) {
+      checklist.deflectionMeasurements = defRaw
+          .whereType<Map>()
+          .map((e) => DeflectionMeasurement.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    checklist.hasLocalDeformations = _asBool(json['has_local_deformations']);
+    checklist.hasExternalDefects = _asBool(json['has_external_defects']);
+    checklist.hasInternalDefects = _asBool(json['has_internal_defects']);
+    checklist.hasArmatureDefects = _asBool(json['has_armature_defects']);
+
+    final htRaw = json['hardness_tests'];
+    if (htRaw is List) {
+      checklist.hardnessTests = htRaw
+          .whereType<Map>()
+          .map((e) => HardnessTest.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final wiRaw = json['weld_inspections'];
+    if (wiRaw is List) {
+      checklist.weldInspections = wiRaw
+          .whereType<Map>()
+          .map((e) => WeldInspection.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final tmRaw = json['thickness_measurements'];
+    if (tmRaw is List) {
+      checklist.thicknessMeasurements = tmRaw
+          .whereType<Map>()
+          .map((e) => ThicknessMeasurement.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    checklist.conclusion = json['conclusion'] as String?;
+
     return checklist;
   }
 }
@@ -155,6 +293,8 @@ class ZraItem {
   String? techNumber;
   String? serialNumber;
   String? locationOnScheme;
+
+  ZraItem();
   
   Map<String, dynamic> toJson() => {
     'quantity': quantity,
@@ -163,6 +303,16 @@ class ZraItem {
     'serial_number': serialNumber,
     'location_on_scheme': locationOnScheme,
   };
+
+  factory ZraItem.fromJson(Map<String, dynamic> json) {
+    final item = ZraItem();
+    item.quantity = json['quantity']?.toString();
+    item.typeSize = json['type_size']?.toString();
+    item.techNumber = json['tech_number']?.toString();
+    item.serialNumber = json['serial_number']?.toString();
+    item.locationOnScheme = json['location_on_scheme']?.toString();
+    return item;
+  }
 }
 
 class SppkItem {
@@ -171,6 +321,8 @@ class SppkItem {
   String? techNumber;
   String? serialNumber;
   String? locationOnScheme;
+
+  SppkItem();
   
   Map<String, dynamic> toJson() => {
     'quantity': quantity,
@@ -179,6 +331,16 @@ class SppkItem {
     'serial_number': serialNumber,
     'location_on_scheme': locationOnScheme,
   };
+
+  factory SppkItem.fromJson(Map<String, dynamic> json) {
+    final item = SppkItem();
+    item.quantity = json['quantity']?.toString();
+    item.typeSize = json['type_size']?.toString();
+    item.techNumber = json['tech_number']?.toString();
+    item.serialNumber = json['serial_number']?.toString();
+    item.locationOnScheme = json['location_on_scheme']?.toString();
+    return item;
+  }
 }
 
 class SwitchingDevice {
@@ -188,6 +350,8 @@ class SwitchingDevice {
   String? serialNumber;
   bool? hasVik;
   bool? hasUzt;
+
+  SwitchingDevice();
   
   Map<String, dynamic> toJson() => {
     'quantity': quantity,
@@ -197,42 +361,84 @@ class SwitchingDevice {
     'has_vik': hasVik,
     'has_uzt': hasUzt,
   };
+
+  factory SwitchingDevice.fromJson(Map<String, dynamic> json) {
+    final d = SwitchingDevice();
+    d.quantity = json['quantity']?.toString();
+    d.typeSize = json['type_size']?.toString();
+    d.techNumber = json['tech_number']?.toString();
+    d.serialNumber = json['serial_number']?.toString();
+    d.hasVik = VesselChecklist._asBool(json['has_vik']);
+    d.hasUzt = VesselChecklist._asBool(json['has_uzt']);
+    return d;
+  }
 }
 
 class Gauge {
   bool? hasMetrologicalVerification;
   String? verificationDate;
   String? serialNumber;
+
+  Gauge();
   
   Map<String, dynamic> toJson() => {
     'has_metrological_verification': hasMetrologicalVerification,
     'verification_date': verificationDate,
     'serial_number': serialNumber,
   };
+
+  factory Gauge.fromJson(Map<String, dynamic> json) {
+    final g = Gauge();
+    g.hasMetrologicalVerification =
+        VesselChecklist._asBool(json['has_metrological_verification']);
+    g.verificationDate = json['verification_date']?.toString();
+    g.serialNumber = json['serial_number']?.toString();
+    return g;
+  }
 }
 
 class LevelSensor {
   String? type;
   String? serialNumber;
   String? location;
+
+  LevelSensor();
   
   Map<String, dynamic> toJson() => {
     'type': type,
     'serial_number': serialNumber,
     'location': location,
   };
+
+  factory LevelSensor.fromJson(Map<String, dynamic> json) {
+    final s = LevelSensor();
+    s.type = json['type']?.toString();
+    s.serialNumber = json['serial_number']?.toString();
+    s.location = json['location']?.toString();
+    return s;
+  }
 }
 
 class LevelAlarm {
   String? type;
   String? serialNumber;
   String? location;
+
+  LevelAlarm();
   
   Map<String, dynamic> toJson() => {
     'type': type,
     'serial_number': serialNumber,
     'location': location,
   };
+
+  factory LevelAlarm.fromJson(Map<String, dynamic> json) {
+    final a = LevelAlarm();
+    a.type = json['type']?.toString();
+    a.serialNumber = json['serial_number']?.toString();
+    a.location = json['location']?.toString();
+    return a;
+  }
 }
 
 class ValveInspection {
@@ -254,6 +460,15 @@ class ValveInspection {
     'technical_state': technicalState,
     'has_uzt': hasUzt,
   };
+
+  factory ValveInspection.fromJson(Map<String, dynamic> json) {
+    return ValveInspection(
+      elementName: (json['element_name'] ?? '').toString(),
+      locationOnScheme: (json['location_on_scheme'] ?? '').toString(),
+      technicalState: json['technical_state']?.toString(),
+      hasUzt: VesselChecklist._asBool(json['has_uzt']),
+    );
+  }
 }
 
 class OvalityMeasurement {
@@ -275,6 +490,15 @@ class OvalityMeasurement {
     'min_diameter': minDiameter,
     'deviation_percent': deviationPercent,
   };
+
+  factory OvalityMeasurement.fromJson(Map<String, dynamic> json) {
+    return OvalityMeasurement(
+      sectionNumber: (json['section_number'] ?? '').toString(),
+      maxDiameter: VesselChecklist._asDouble(json['max_diameter']),
+      minDiameter: VesselChecklist._asDouble(json['min_diameter']),
+      deviationPercent: VesselChecklist._asDouble(json['deviation_percent']),
+    );
+  }
 }
 
 class DeflectionMeasurement {
@@ -293,6 +517,14 @@ class DeflectionMeasurement {
     'deflection_mm': deflectionMm,
     'deflection_percent': deflectionPercent,
   };
+
+  factory DeflectionMeasurement.fromJson(Map<String, dynamic> json) {
+    return DeflectionMeasurement(
+      sectionNumber: (json['section_number'] ?? '').toString(),
+      deflectionMm: VesselChecklist._asDouble(json['deflection_mm']),
+      deflectionPercent: VesselChecklist._asDouble(json['deflection_percent']),
+    );
+  }
 }
 
 class HardnessTest {
@@ -315,6 +547,17 @@ class HardnessTest {
     'hardness_weld': hardnessWeld,
     'hardness_haz': hardnessHaz,
   };
+
+  factory HardnessTest.fromJson(Map<String, dynamic> json) {
+    final t = HardnessTest(weldNumber: (json['weld_number'] ?? '').toString());
+    t.areaNumber = json['area_number']?.toString();
+    t.allowedHardnessBase = json['allowed_hardness_base']?.toString();
+    t.allowedHardnessWeld = json['allowed_hardness_weld']?.toString();
+    t.hardnessBase = json['hardness_base']?.toString();
+    t.hardnessWeld = json['hardness_weld']?.toString();
+    t.hardnessHaz = json['hardness_haz']?.toString();
+    return t;
+  }
 }
 
 class WeldInspection {
@@ -333,6 +576,15 @@ class WeldInspection {
     'uzk_defect': uzkDefect,
     'conclusion': conclusion,
   };
+
+  factory WeldInspection.fromJson(Map<String, dynamic> json) {
+    final w = WeldInspection(weldNumber: (json['weld_number'] ?? '').toString());
+    w.locationOnControlMap = json['location_on_control_map']?.toString();
+    w.pvkDefect = json['pvk_defect']?.toString();
+    w.uzkDefect = json['uzk_defect']?.toString();
+    w.conclusion = json['conclusion']?.toString();
+    return w;
+  }
 }
 
 class ThicknessMeasurement {
@@ -358,6 +610,19 @@ class ThicknessMeasurement {
     'x_percent': xPercent,
     'y_percent': yPercent,
   };
+
+  factory ThicknessMeasurement.fromJson(Map<String, dynamic> json) {
+    final t = ThicknessMeasurement(
+      location: (json['location'] ?? '').toString(),
+      sectionNumber: (json['section_number'] ?? '').toString(),
+    );
+    t.thickness = VesselChecklist._asDouble(json['thickness']);
+    t.minAllowedThickness = VesselChecklist._asDouble(json['min_allowed_thickness']);
+    t.comment = json['comment']?.toString();
+    t.xPercent = VesselChecklist._asDouble(json['x_percent']);
+    t.yPercent = VesselChecklist._asDouble(json['y_percent']);
+    return t;
+  }
 }
 
 

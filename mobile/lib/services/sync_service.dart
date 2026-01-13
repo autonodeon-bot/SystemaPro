@@ -79,11 +79,60 @@ class SyncService {
         'verification_equipment_ids': verificationEquipmentIds ?? [], // ID выбранного оборудования для поверок
       };
 
-      pendingInspections.add(json.encode(inspectionData));
-      await prefs.setStringList(
-          _prefsKeyPendingInspections, pendingInspections);
+      // Перезаписываем предыдущую локальную версию для того же оборудования/задания,
+      // чтобы при повторном открытии формы подтягивались заполненные данные,
+      // и чтобы не было десятков дубликатов в очереди синхронизации.
+      final filtered = <String>[];
+      for (final item in pendingInspections) {
+        try {
+          final decoded = json.decode(item) as Map<String, dynamic>;
+          final sameEquipment = decoded['equipment_id']?.toString() == equipmentId;
+          final sameAssignment =
+              (decoded['assignment_id']?.toString() ?? '') == (assignmentId ?? '');
+          if (sameEquipment && sameAssignment) {
+            continue;
+          }
+          filtered.add(item);
+        } catch (_) {
+          filtered.add(item);
+        }
+      }
+
+      filtered.add(json.encode(inspectionData));
+      await prefs.setStringList(_prefsKeyPendingInspections, filtered);
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
+    }
+  }
+
+  /// Получить последнюю локально сохраненную диагностику для оборудования/задания
+  Future<Map<String, dynamic>?> getLatestPendingInspection({
+    required String equipmentId,
+    String? assignmentId,
+  }) async {
+    try {
+      final pending = await getPendingInspections();
+      Map<String, dynamic>? best;
+      DateTime bestTs = DateTime.fromMillisecondsSinceEpoch(0);
+
+      for (final item in pending) {
+        final sameEquipment = item['equipment_id']?.toString() == equipmentId;
+        final sameAssignment =
+            (item['assignment_id']?.toString() ?? '') == (assignmentId ?? '');
+        if (!sameEquipment || !sameAssignment) continue;
+
+        final tsStr = item['timestamp']?.toString();
+        final ts = tsStr != null
+            ? (DateTime.tryParse(tsStr) ?? DateTime.now())
+            : DateTime.now();
+        if (ts.isAfter(bestTs)) {
+          bestTs = ts;
+          best = item;
+        }
+      }
+      return best;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -189,7 +238,7 @@ class SyncService {
 
       for (final inspectionData in pendingInspections) {
         try {
-          final data = inspectionData['data'] as Map<String, dynamic>;
+          final data = Map<String, dynamic>.from(inspectionData['data'] as Map);
           
           // Определяем тип чек-листа на основе equipment_type
           VesselChecklist checklist;
@@ -307,6 +356,8 @@ class SyncService {
         } catch (e) {
           failedInspections.add(json.encode(inspectionData));
           result.failedCount++;
+          // Сохраняем последнюю ошибку, чтобы пользователь видел причину
+          result.error = e.toString();
         }
       }
 
@@ -317,9 +368,12 @@ class SyncService {
       await prefs.setString(
           _prefsKeyLastSync, DateTime.now().toIso8601String());
 
-      result.success = true;
+      result.success = result.failedCount == 0;
       result.message =
           'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
+      if (result.failedCount > 0 && (result.error?.isNotEmpty ?? false)) {
+        result.message = '${result.message}\nПоследняя ошибка: ${result.error}';
+      }
     } catch (e) {
       result.error = 'Ошибка синхронизации: $e';
     }

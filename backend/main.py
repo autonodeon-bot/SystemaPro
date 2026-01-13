@@ -17,7 +17,7 @@ from models import (
     Engineer, Certification, Report, Questionnaire, NDTMethod, User,
     Enterprise, Branch, Workshop, HierarchyEngineerAssignment,
     QuestionnaireDocumentFile, InspectionHistory, Assignment, RepairJournal,
-    VerificationEquipment, VerificationHistory, InspectionEquipment
+    VerificationEquipment, VerificationHistory, InspectionEquipment, Opo
 )
 from report_generator import ReportGenerator
 from auth import USERS_DB, create_access_token, verify_token, verify_token_optional, verify_password, hash_password
@@ -149,6 +149,19 @@ async def startup():
                         "ADD COLUMN IF NOT EXISTS resource_type VARCHAR(50)"
                     )
                 )
+
+                # equipment.opo_id + индекс (ОПО, версия 3.7.x)
+                await conn.execute(
+                    text(
+                        "ALTER TABLE equipment "
+                        "ADD COLUMN IF NOT EXISTS opo_id UUID"
+                    )
+                )
+                await conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS idx_equipment_opo_id ON equipment(opo_id)"
+                    )
+                )
             print("✅ DB migration: ensured equipment_resources.resource_type")
         except Exception as e:
             print(f"⚠️  Warning: DB migration equipment_resources.resource_type failed: {e}")
@@ -273,6 +286,7 @@ class EquipmentCreate(BaseModel):
     serial_number: Optional[str] = None
     location: Optional[str] = None
     workshop_id: Optional[str] = None
+    opo_id: Optional[str] = None
     commissioning_date: Optional[str] = None
     attributes: Optional[dict] = None
 
@@ -281,6 +295,7 @@ class EquipmentUpdate(BaseModel):
     type_id: Optional[str] = None
     serial_number: Optional[str] = None
     location: Optional[str] = None
+    opo_id: Optional[str] = None
     commissioning_date: Optional[str] = None
     attributes: Optional[dict] = None
 
@@ -434,6 +449,7 @@ async def get_equipment(
                 "commissioning_date": str(eq.commissioning_date) if eq.commissioning_date else None,
                 "created_at": str(eq.created_at) if eq.created_at else None,
                 "workshop_id": str(eq.workshop_id) if eq.workshop_id else None,
+                "opo_id": str(eq.opo_id) if getattr(eq, "opo_id", None) else None,
             }
             
             # Получаем информацию о цехе, филиале и предприятии
@@ -475,6 +491,16 @@ async def get_equipment(
                 if equipment_type:
                     item["type_name"] = equipment_type.name
                     item["type_code"] = equipment_type.code
+
+            # ОПО (если задано)
+            if getattr(eq, "opo_id", None):
+                opo_result = await db.execute(
+                    select(Opo).where(Opo.id == eq.opo_id)
+                )
+                opo = opo_result.scalar_one_or_none()
+                if opo:
+                    item["opo_name"] = opo.name
+                    item["opo_code"] = opo.code
             
             equipment_items.append(item)
         
@@ -516,6 +542,7 @@ async def get_equipment_by_id(
             "attributes": eq.attributes or {},
             "commissioning_date": str(eq.commissioning_date) if eq.commissioning_date else None,
             "created_at": str(eq.created_at) if eq.created_at else None,
+            "opo_id": str(eq.opo_id) if getattr(eq, "opo_id", None) else None,
         }
     except HTTPException:
         raise
@@ -553,12 +580,21 @@ async def create_equipment(
             except:
                 pass
         
+        # Parse opo_id if provided
+        opo_id_uuid = None
+        if equipment_data.opo_id:
+            try:
+                opo_id_uuid = uuid_lib.UUID(equipment_data.opo_id)
+            except:
+                pass
+
         new_equipment = Equipment(
             name=equipment_data.name,
             type_id=type_id,
             serial_number=equipment_data.serial_number,
             location=equipment_data.location,
             workshop_id=workshop_id_uuid,
+            opo_id=opo_id_uuid,
             commissioning_date=commissioning_date,
             attributes=equipment_data.attributes or {}
         )
@@ -572,6 +608,7 @@ async def create_equipment(
             "serial_number": new_equipment.serial_number,
             "location": new_equipment.location,
             "attributes": new_equipment.attributes or {},
+            "opo_id": str(new_equipment.opo_id) if getattr(new_equipment, "opo_id", None) else None,
             "status": "created"
         }
     except Exception as e:
@@ -602,6 +639,11 @@ async def update_equipment(
             eq.serial_number = equipment_data.serial_number
         if equipment_data.location is not None:
             eq.location = equipment_data.location
+        if equipment_data.opo_id is not None:
+            try:
+                eq.opo_id = uuid_lib.UUID(equipment_data.opo_id) if equipment_data.opo_id else None
+            except:
+                pass
         if equipment_data.attributes is not None:
             eq.attributes = equipment_data.attributes
         if equipment_data.commissioning_date is not None:
@@ -624,6 +666,7 @@ async def update_equipment(
             "serial_number": eq.serial_number,
             "location": eq.location,
             "attributes": eq.attributes or {},
+            "opo_id": str(eq.opo_id) if getattr(eq, "opo_id", None) else None,
             "status": "updated"
         }
     except HTTPException:
@@ -654,6 +697,180 @@ async def delete_equipment(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete equipment: {str(e)}")
+
+
+# -----------------------------
+# ОПО (Опасные производственные объекты)
+# -----------------------------
+
+@app.get("/api/opos")
+async def list_opos(
+    workshop_id: Optional[str] = None,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Список ОПО"""
+    try:
+        query = select(Opo).where(Opo.is_active == 1)
+        if workshop_id:
+            try:
+                query = query.where(Opo.workshop_id == uuid_lib.UUID(workshop_id))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid workshop_id format")
+
+        result = await db.execute(query.order_by(Opo.name))
+        items = result.scalars().all()
+        return {
+            "items": [
+                {
+                    "id": str(o.id),
+                    "workshop_id": str(o.workshop_id) if o.workshop_id else None,
+                    "name": o.name,
+                    "code": o.code,
+                    "description": o.description,
+                    "survey_data": o.survey_data or None,
+                    "is_active": o.is_active,
+                    "created_at": str(o.created_at) if o.created_at else None,
+                    "updated_at": str(o.updated_at) if o.updated_at else None,
+                }
+                for o in items
+            ]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/opos")
+async def create_opo(
+    payload: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Создать ОПО (admin/operator/chief_operator)"""
+    try:
+        # Ограничиваем доступ
+        user_result = await db.execute(select(User).where(User.username == username))
+        user = user_result.scalar_one_or_none()
+        if not user or user.role not in {"admin", "chief_operator", "operator"}:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        name = (payload.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="name is required")
+
+        workshop_id = None
+        if payload.get("workshop_id"):
+            try:
+                workshop_id = uuid_lib.UUID(payload.get("workshop_id"))
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid workshop_id")
+
+        opo = Opo(
+            name=name,
+            code=(payload.get("code") or None),
+            description=(payload.get("description") or None),
+            workshop_id=workshop_id,
+            survey_data=payload.get("survey_data"),
+            is_active=1,
+        )
+        db.add(opo)
+        await db.commit()
+        await db.refresh(opo)
+        return {"id": str(opo.id), "status": "created"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/opos/{opo_id}")
+async def update_opo(
+    opo_id: str,
+    payload: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить ОПО (admin/operator/chief_operator)"""
+    try:
+        user_result = await db.execute(select(User).where(User.username == username))
+        user = user_result.scalar_one_or_none()
+        if not user or user.role not in {"admin", "chief_operator", "operator"}:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        try:
+            opo_uuid = uuid_lib.UUID(opo_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid opo_id format")
+
+        result = await db.execute(select(Opo).where(Opo.id == opo_uuid))
+        opo = result.scalar_one_or_none()
+        if not opo:
+            raise HTTPException(status_code=404, detail="OPO not found")
+
+        if "name" in payload and payload["name"] is not None:
+            opo.name = str(payload["name"]).strip()
+        if "code" in payload:
+            opo.code = payload.get("code")
+        if "description" in payload:
+            opo.description = payload.get("description")
+        if "survey_data" in payload:
+            opo.survey_data = payload.get("survey_data")
+        if "is_active" in payload and payload["is_active"] is not None:
+            opo.is_active = int(payload["is_active"])
+        if "workshop_id" in payload:
+            if payload.get("workshop_id"):
+                try:
+                    opo.workshop_id = uuid_lib.UUID(payload.get("workshop_id"))
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Invalid workshop_id")
+            else:
+                opo.workshop_id = None
+
+        await db.commit()
+        return {"id": str(opo.id), "status": "updated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/opos/{opo_id}")
+async def get_opo(
+    opo_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Получить ОПО по ID"""
+    try:
+        try:
+            opo_uuid = uuid_lib.UUID(opo_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid opo_id format")
+
+        result = await db.execute(select(Opo).where(Opo.id == opo_uuid))
+        opo = result.scalar_one_or_none()
+        if not opo:
+            raise HTTPException(status_code=404, detail="OPO not found")
+
+        return {
+            "id": str(opo.id),
+            "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
+            "name": opo.name,
+            "code": opo.code,
+            "description": opo.description,
+            "survey_data": opo.survey_data or None,
+            "is_active": opo.is_active,
+            "created_at": str(opo.created_at) if opo.created_at else None,
+            "updated_at": str(opo.updated_at) if opo.updated_at else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Equipment types endpoints
 @app.get("/api/equipment-types")
@@ -886,6 +1103,49 @@ async def create_inspection(
                 project_id = uuid_lib.UUID(inspection_data.get("project_id"))
             except:
                 pass
+
+        # Если в data указано include_opo_data=false, а у оборудования есть opo_id —
+        # подтягиваем сохранённые данные ОПО и сливаем документы 1..9.
+        try:
+            inspection_data_dict = inspection_data.get("data", {}) or {}
+            if isinstance(inspection_data_dict, dict):
+                include_opo_data = inspection_data_dict.get("include_opo_data", True)
+                if include_opo_data is False and equipment_id:
+                    eq_result = await db.execute(select(Equipment).where(Equipment.id == equipment_id))
+                    equipment = eq_result.scalar_one_or_none()
+                    opo_id = getattr(equipment, "opo_id", None) if equipment else None
+                    if opo_id:
+                        opo_result = await db.execute(select(Opo).where(Opo.id == opo_id))
+                        opo = opo_result.scalar_one_or_none()
+                        survey = (opo.survey_data or {}) if opo else {}
+
+                        # Мерджим documents[1..9] из survey в текущий documents
+                        docs_current = inspection_data_dict.get("documents") or {}
+                        if isinstance(docs_current, dict) and isinstance(survey, dict) and isinstance(survey.get("documents"), dict):
+                            merged_docs = dict(docs_current)
+                            for k, v in survey.get("documents").items():
+                                try:
+                                    n = int(str(k))
+                                except Exception:
+                                    continue
+                                if 1 <= n <= 9:
+                                    merged_docs[str(k)] = v
+                            inspection_data_dict["documents"] = merged_docs
+
+                        # Подтягиваем organization/executors, если не заполнены в чек-листе оборудования
+                        if isinstance(survey, dict):
+                            if not inspection_data_dict.get("organization") and survey.get("organization"):
+                                inspection_data_dict["organization"] = survey.get("organization")
+                            if not inspection_data_dict.get("executors") and survey.get("executors"):
+                                inspection_data_dict["executors"] = survey.get("executors")
+
+                            # Сохраняем survey отдельным блоком (для отчетов/просмотра)
+                            inspection_data_dict["opo_survey"] = survey
+
+                        inspection_data["data"] = inspection_data_dict
+        except Exception:
+            # Не блокируем создание инспекции из-за мерджа ОПО
+            pass
         
         new_inspection = Inspection(
             equipment_id=equipment_id,

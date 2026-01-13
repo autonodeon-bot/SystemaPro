@@ -20,6 +20,9 @@ class Assignment {
   final String? branchName;
   final String? workshopId;
   final String? workshopName;
+  final String? opoId;
+  final String? opoName;
+  final String? opoCode;
 
   Assignment({
     required this.id,
@@ -43,6 +46,9 @@ class Assignment {
     this.branchName,
     this.workshopId,
     this.workshopName,
+    this.opoId,
+    this.opoName,
+    this.opoCode,
   });
 
   factory Assignment.fromJson(Map<String, dynamic> json) {
@@ -74,6 +80,9 @@ class Assignment {
       branchName: json['branch_name'] as String?,
       workshopId: json['workshop_id'] as String?,
       workshopName: json['workshop_name'] as String?,
+      opoId: json['opo_id'] as String?,
+      opoName: json['opo_name'] as String?,
+      opoCode: json['opo_code'] as String?,
     );
   }
 
@@ -100,6 +109,9 @@ class Assignment {
       'branch_name': branchName,
       'workshop_id': workshopId,
       'workshop_name': workshopName,
+      'opo_id': opoId,
+      'opo_name': opoName,
+      'opo_code': opoCode,
     };
   }
 

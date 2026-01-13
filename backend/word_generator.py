@@ -866,6 +866,7 @@ class WordGenerator:
             ("Эксплуатирующая организация:", str(org)),
             ("Местонахождение объекта:", str(location)),
         ]
+        if is_on("title"):
             for i, (k, v) in enumerate(rows):
                 obj_tbl.rows[i].cells[0].text = k
                 obj_tbl.rows[i].cells[1].text = v
@@ -907,6 +908,10 @@ class WordGenerator:
             doc.add_page_break()
 
         # --------------- РАЗДЕЛЫ 1..15 ---------------
+        # Эти переменные используются и в разделах, и в приложениях ниже
+        performed = [m for m in (ndt_methods or []) if m.get("is_performed")]
+        docs = g("documents", default={})
+
         if is_on("sections_1_15"):
             doc.add_heading("1. Основания для проведения работ", level=1)
             doc.add_paragraph(str(g("basis", "work_basis", default="—")))
@@ -915,138 +920,61 @@ class WordGenerator:
             doc.add_paragraph(str(g("work_period", default=f"Дата проведения: {date_perf_ru}")))
 
             doc.add_heading("3. Перечень нормативных и правовых актов, устанавливающих требования к объекту диагностирования", level=1)
-        # Минимальный дефолт (можно расширять через будущий редактор шаблонов)
-        doc.add_paragraph(str(g("normative_base", default="Приказ Ростехнадзора от 15.12.2020 №536.")))
+            # Минимальный дефолт (можно расширять через будущий редактор шаблонов)
+            doc.add_paragraph(str(g("normative_base", default="Приказ Ростехнадзора от 15.12.2020 №536.")))
 
             doc.add_heading("4. Сведения о Заказчике", level=1)
-        t = doc.add_table(rows=2, cols=2)
-        t.style = "Table Grid"
-        t.rows[0].cells[0].text = "Полное наименование организации"
-        t.rows[0].cells[1].text = str(org)
-        t.rows[1].cells[0].text = "Адрес местонахождения"
-        t.rows[1].cells[1].text = str(location)
+            doc.add_paragraph(f"Эксплуатирующая организация: {org}")
+            doc.add_paragraph(f"Местонахождение объекта: {location}")
 
             doc.add_heading("5. Сведения об организации, проводившей техническое диагностирование", level=1)
-        t = doc.add_table(rows=3, cols=2)
-        t.style = "Table Grid"
-        t.rows[0].cells[0].text = "Наименование организации"
-        t.rows[0].cells[1].text = str(contractor)
-        t.rows[1].cells[0].text = "Юридический адрес"
-        t.rows[1].cells[1].text = str(g("contractor_address", default="—"))
-        t.rows[2].cells[0].text = "Лицензия/аттестация"
-        t.rows[2].cells[1].text = str(g("contractor_license", default="—"))
+            doc.add_paragraph(str(contractor))
+            doc.add_paragraph(str(g("contractor_address", default="—")))
+            doc.add_paragraph(str(g("contractor_license", default="—")))
 
             doc.add_heading("6. Сведения об эксперте и специалисте, проводивших диагностирование", level=1)
-        inspectors = []
-        for m in (ndt_methods or []):
-            name = (m.get("inspector_name") or "").strip()
-            if name and name not in inspectors:
-                inspectors.append(name)
-        if inspectors:
-            for i, name in enumerate(inspectors, 1):
-                doc.add_paragraph(f"{i}. {name}")
-        else:
-            doc.add_paragraph("—")
+            inspectors = []
+            for m in (ndt_methods or []):
+                name = (m.get("inspector_name") or "").strip()
+                if name and name not in inspectors:
+                    inspectors.append(name)
+            if inspectors:
+                for i, name in enumerate(inspectors, 1):
+                    doc.add_paragraph(f"{i}. {name}")
+            else:
+                doc.add_paragraph("—")
 
             doc.add_heading("7. Перечень приборов и оборудования", level=1)
-        if verification_equipment and isinstance(verification_equipment, list) and verification_equipment:
-            t = doc.add_table(rows=1, cols=5)
-            t.style = "Table Grid"
-            hdr = ["№", "Наименование прибора", "Заводской номер", "Свидетельство о поверке", "Действительна до"]
-            for i, h in enumerate(hdr):
-                t.rows[0].cells[i].text = h
-            for i, eq in enumerate(verification_equipment, 1):
-                row = t.add_row().cells
-                row[0].text = str(i)
-                row[1].text = str(eq.get("name") or "")
-                row[2].text = str(eq.get("serial_number") or "")
-                row[3].text = str(eq.get("verification_certificate_number") or "")
-                row[4].text = self._fmt_date_ru(eq.get("next_verification_date")) or str(eq.get("next_verification_date") or "")
-        else:
-            doc.add_paragraph("—")
+            if verification_equipment and isinstance(verification_equipment, list) and verification_equipment:
+                for i, eq in enumerate(verification_equipment, 1):
+                    doc.add_paragraph(
+                        f"{i}. {eq.get('name') or '—'} (зав.№ {eq.get('serial_number') or '—'}, "
+                        f"поверка до {self._fmt_date_ru(eq.get('next_verification_date')) or '—'})"
+                    )
+            else:
+                doc.add_paragraph("—")
 
             doc.add_heading("8. Объект технического диагностирования", level=1)
-        t = doc.add_table(rows=4, cols=2)
-        t.style = "Table Grid"
-        t.rows[0].cells[0].text = "Объект диагностирования"
-        t.rows[0].cells[1].text = str(object_name)
-        t.rows[1].cells[0].text = "Заводской №"
-        t.rows[1].cells[1].text = str(serial)
-        t.rows[2].cells[0].text = "Место установки"
-        t.rows[2].cells[1].text = str(g("installation_place", default="—"))
-        t.rows[3].cells[0].text = "Местонахождение (адрес)"
-        t.rows[3].cells[1].text = str(location)
+            doc.add_paragraph(f"Объект: {object_name}")
+            doc.add_paragraph(f"Техническое устройство: {device_name}")
+            doc.add_paragraph(f"Заводской номер: {serial}")
 
             doc.add_heading("9. Краткая техническая характеристика и назначение объекта технического освидетельствования", level=1)
-            # Таблица характеристик (ориентир на reciver.md)
-            t = doc.add_table(rows=12, cols=2)
-            t.style = "Table Grid"
-            def row(i, k, v):
-                t.rows[i].cells[0].text = k
-                t.rows[i].cells[1].text = str(v if v is not None else "—")
-            row(0, "Наименование объекта", object_name)
-            row(1, "Назначение", g("purpose", "appointment", default=g("tech_description", default="—")))
-            row(2, "Завод-изготовитель", g("manufacturer", default="—"))
-            row(3, "Год изготовления", g("manufacture_year", "year_of_manufacture", default="—"))
-            row(4, "Год ввода в эксплуатацию", g("commissioning_year", "year_of_commissioning", default="—"))
-            row(5, "Рабочее давление", g("working_pressure", default="—"))
-            row(6, "Расчетное давление", g("design_pressure", default="—"))
-            row(7, "Пробное давление (гидроиспытания)", g("test_pressure", default="—"))
-            row(8, "Допустимая рабочая температура стенки", g("allowable_temp", "working_temp", default="—"))
-            row(9, "Расчетная температура стенки", g("design_temp", default="—"))
-            row(10, "Рабочая среда", g("working_medium", "medium", default="—"))
-            row(11, "Вместимость", g("capacity_liters", "capacity", "volume", default="—"))
+            doc.add_paragraph(str(g("tech_description", "purpose", "appointment", default="—")))
 
             doc.add_heading("10. Перечень работ, выполненных в процессе технического освидетельствования", level=1)
-        performed = [m for m in (ndt_methods or []) if m.get("is_performed")]
-        if performed:
-            for i, m in enumerate(performed, 1):
-                doc.add_paragraph(f"{i}. {m.get('method_name') or m.get('method_code') or 'Метод НК'}")
-        else:
-            doc.add_paragraph("—")
+            if performed:
+                for i, m in enumerate(performed, 1):
+                    doc.add_paragraph(f"{i}. {m.get('method_name') or m.get('method_code') or 'Метод НК'}")
+            else:
+                doc.add_paragraph("—")
 
             doc.add_heading("11. Сведения о рассмотренных в процессе технического освидетельствования документах", level=1)
-        docs = g("documents", default={})
-        if isinstance(docs, dict) and docs:
-            # В отчете (как в примере) обычно таблица: № / Наименование / Идентификационный номер / объем листов
-            t = doc.add_table(rows=1, cols=4)
-            t.style = "Table Grid"
-            for i, h in enumerate(["№", "Наименование документа", "Идентификационный номер", "Объём, листов"]):
-                t.rows[0].cells[i].text = h
-            # названия документов — те же, что в генераторе опросника
-            document_names = {
-                '1': 'Лицензия на осуществление деятельности по эксплуатации ...',
-                '2': 'Свидетельство о регистрации в государственном реестре ОПО ...',
-                '3': 'Технологический регламент ...',
-                '4': 'План мероприятий по локализации и ликвидации последствий аварий ...',
-                '5': 'Положение о производственном контроле ...',
-                '6': 'Журнал учета аварий и инцидентов на ОПО',
-                '7': 'Страховой полис ...',
-                '8': 'Приказ о назначении ответственного лица ...',
-                '9': 'Приказ о назначении ответственного лица ...',
-                '10': 'Паспорт сосуда заводской ...',
-                '11': 'Инструкция по монтажу и эксплуатации',
-                '12': 'Паспорта на предохранительные клапаны',
-                '13': 'Паспорта на запорную арматуру',
-                '14': 'Документация на контрольно-измерительные приборы',
-                '15': 'Ремонтная (исполнительная) документация',
-                '16': 'Заключение экспертизы промышленной безопасности',
-                '17': 'Акты проведения УЗТ',
-            }
-            idx = 1
-            for num, has_doc in sorted(docs.items(), key=lambda x: int(str(x[0]))):
-                if not has_doc:
-                    continue
-                row = t.add_row().cells
-                row[0].text = str(idx)
-                row[1].text = document_names.get(str(num), f"Документ {num}")
-                row[2].text = str(g("documents_id_number", default="—"))
-                row[3].text = str(g("documents_pages", default="—"))
-                idx += 1
-            if idx == 1:
-                doc.add_paragraph("Документы не отмечены.")
-        else:
-            doc.add_paragraph("—")
+            if isinstance(docs, dict) and docs:
+                present = [str(k) for k, v in docs.items() if v]
+                doc.add_paragraph("Отмечены документы: " + (", ".join(sorted(present, key=lambda x: int(x))) if present else "—"))
+            else:
+                doc.add_paragraph("—")
 
             doc.add_heading("12. Анализ результатов предыдущих обследований", level=1)
             doc.add_paragraph(str(g("previous_inspections", default="—")))
