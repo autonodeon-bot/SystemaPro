@@ -70,8 +70,44 @@ if exist "src" (
 if exist "pages" (
     pscp -batch -pw %SERVER_PASS% -r pages\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
 )
+if exist "components" (
+    pscp -batch -pw %SERVER_PASS% -r components\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "contexts" (
+    pscp -batch -pw %SERVER_PASS% -r contexts\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "styles" (
+    pscp -batch -pw %SERVER_PASS% -r styles\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "public" (
+    pscp -batch -pw %SERVER_PASS% -r public\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "App.tsx" (
+    pscp -batch -pw %SERVER_PASS% App.tsx %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "index.tsx" (
+    pscp -batch -pw %SERVER_PASS% index.tsx %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "index.css" (
+    pscp -batch -pw %SERVER_PASS% index.css %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "constants.ts" (
+    pscp -batch -pw %SERVER_PASS% constants.ts %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "types.ts" (
+    pscp -batch -pw %SERVER_PASS% types.ts %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
 if exist "package.json" (
     pscp -batch -pw %SERVER_PASS% package.json %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "package-lock.json" (
+    pscp -batch -pw %SERVER_PASS% package-lock.json %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "postcss.config.js" (
+    pscp -batch -pw %SERVER_PASS% postcss.config.js %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
+)
+if exist "tailwind.config.js" (
+    pscp -batch -pw %SERVER_PASS% tailwind.config.js %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
 )
 if exist "vite.config.ts" (
     pscp -batch -pw %SERVER_PASS% vite.config.ts %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
