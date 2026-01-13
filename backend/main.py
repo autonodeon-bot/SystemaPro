@@ -33,7 +33,7 @@ import json as _json
 app = FastAPI(
     title="ES TD NGO Platform API",
     description="API для системы учета оборудования и диагностирования",
-    version="3.6.2"
+    version="3.7.0"
 )
 
 # CORS configuration
@@ -53,9 +53,9 @@ app.include_router(report_templates_router)  # Шаблоны отчетов (MV
 app.include_router(equipment_history_router)  # Новый роутер для истории (версия 3.3.0)
 
 # Версия мобильного приложения
-MOBILE_APP_VERSION = "3.6.2"
-MOBILE_APP_BUILD = "6"
-MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/es-td-ngo-mobile-3.6.2-6.apk"
+MOBILE_APP_VERSION = "3.7.0"
+MOBILE_APP_BUILD = "1"
+MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/es-td-ngo-mobile-3.7.0-1.apk"
 
 # Endpoint для проверки версии мобильного приложения
 @app.get("/api/mobile/version")

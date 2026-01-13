@@ -100,7 +100,7 @@ const Login: React.FC = () => {
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-400">
-            <p>Версия системы: v3.5.0(1)</p>
+            <p>Версия системы: v3.7.0</p>
           </div>
         </div>
       </div>

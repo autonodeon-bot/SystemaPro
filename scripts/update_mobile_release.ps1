@@ -42,7 +42,7 @@ Replace-TextFile -Path 'pages\\MobileApp.tsx' -Transform {
   $c = $c -replace "Версия:\s*\d+\.\d+\.\d+\s*\(build\s*\d+\)", ("Версия: $VersionPart (build $BuildPart)")
 
   # download attribute
-  $c = $c -replace "download=\"es-td-ngo-mobile-[^\"]+\"", ("download=\"$ApkFilename\"")
+  $c = $c -replace 'download="es-td-ngo-mobile-[^"]+"', ('download="' + $ApkFilename + '"')
 
   # button text "(build N)"
   $c = $c -replace "\(build\s*\d+\)\s*\(APK\)", ("(build $BuildPart) (APK)")
@@ -54,8 +54,9 @@ Replace-TextFile -Path 'pages\\MobileApp.tsx' -Transform {
 Replace-TextFile -Path 'backend\\main.py' -Transform {
   param($c)
 
-  $c = $c -replace 'MOBILE_APP_BUILD\s*=\s*"\d+"', ("MOBILE_APP_BUILD = \"$BuildPart\"")
-  $c = $c -replace 'MOBILE_APP_DOWNLOAD_URL\s*=\s*"http://[^\"]+/mobile/[^\"]+"', ("MOBILE_APP_DOWNLOAD_URL = \"http://$ServerIp/mobile/$ApkFilename\"")
+  $c = $c -replace 'MOBILE_APP_VERSION\s*=\s*"\d+\.\d+\.\d+"', ('MOBILE_APP_VERSION = "' + $VersionPart + '"')
+  $c = $c -replace 'MOBILE_APP_BUILD\s*=\s*"\d+"', ('MOBILE_APP_BUILD = "' + $BuildPart + '"')
+  $c = $c -replace 'MOBILE_APP_DOWNLOAD_URL\s*=\s*"http://[^"]+/mobile/[^"]+"', ('MOBILE_APP_DOWNLOAD_URL = "http://' + $ServerIp + '/mobile/' + $ApkFilename + '"')
 
   return $c
 }

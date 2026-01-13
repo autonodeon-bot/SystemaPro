@@ -1,7 +1,7 @@
 ﻿name: es_td_ngo_mobile
 description: Мобильное приложение инженера диагностики (ЕС ТД НГО)
 publish_to: 'none'
-version: 3.6.2+6
+version: 3.7.0+1
 
 environment:
   sdk: '>=3.2.0 <4.0.0'

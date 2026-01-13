@@ -136,7 +136,7 @@ const Layout: React.FC = () => {
                <Menu size={20} />
              </button>
              <h2 className="text-base md:text-lg font-semibold text-white">Единая цифровая платформа</h2>
-             <span className="text-xs text-slate-400 ml-2 hidden sm:inline">v3.6.2</span>
+             <span className="text-xs text-slate-400 ml-2 hidden sm:inline">v3.7.0</span>
            </div>
            <div className="flex items-center gap-4">
               <button className="relative p-2 text-slate-400 hover:text-white transition">
