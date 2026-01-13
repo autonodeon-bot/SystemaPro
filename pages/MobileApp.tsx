@@ -2,7 +2,7 @@ import React from 'react';
 import { Download, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
 
 const MobileApp = () => {
-  const downloadUrl = 'http://5.129.203.182/mobile/es-td-ngo-mobile-3.6.2-1.apk';
+  const downloadUrl = 'http://5.129.203.182/mobile/es-td-ngo-mobile-3.6.2-6.apk';
 
   return (
     <div className="space-y-6">
@@ -18,7 +18,7 @@ const MobileApp = () => {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-white mb-2">ЕС ТД НГО - Мобильное приложение</h2>
-            <p className="text-slate-400 mb-1">Версия: 3.6.2 (build 1) от {new Date().toLocaleDateString('ru-RU')} — последняя версия</p>
+            <p className="text-slate-400 mb-1">Версия: 3.6.2 (build 6) от {new Date().toLocaleDateString('ru-RU')} — последняя версия</p>
             <p className="text-sm text-green-400 mb-2">✓ Доступна новая версия для скачивания</p>
             <p className="text-slate-300">
               Мобильное приложение для инженеров диагностики. Позволяет заполнять и отправлять отчеты обследования оборудования прямо с мобильного устройства.
@@ -111,7 +111,8 @@ const MobileApp = () => {
             <h3 className="text-green-400 font-bold">Новая версия доступна!</h3>
           </div>
           <p className="text-sm text-slate-300 mb-4">
-            Скачайте последнюю версию мобильного приложения (3.6.2 (build 1)) для получения всех обновлений и исправлений, включая:
+            Скачайте последнюю версию мобильного приложения (3.6.2 (build 6)) для получения всех обновлений и исправлений, включая:
+            Скачайте последнюю версию мобильного приложения (3.6.2 (build 6)) для получения всех обновлений и исправлений, включая:
           </p>
           <ul className="text-sm text-slate-300 space-y-1 ml-4">
             <li>• Улучшенная система заданий с иерархией и фильтрами</li>
@@ -124,13 +125,13 @@ const MobileApp = () => {
         <div className="flex flex-col sm:flex-row gap-4">
           <a
             href={downloadUrl}
-            download="es-td-ngo-mobile-3.6.2-1.apk"
+            download="es-td-ngo-mobile-3.6.2-6.apk"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-3 bg-accent hover:bg-blue-600 text-white font-bold px-6 py-4 rounded-lg transition-colors shadow-lg"
           >
             <Download size={24} />
-            <span>Скачать приложение v3.6.2 (build 1) (APK)</span>
+            <span>Скачать приложение v3.6.2 (build 6) (APK)</span>
           </a>
           
           <button

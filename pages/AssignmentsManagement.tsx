@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, Download, Edit, Trash2, ArrowUpDown, Calendar, User, Building2, MapPin, Settings } from 'lucide-react';
+import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, Download, Edit, Trash2, ArrowUpDown, Calendar, User, Building2, MapPin, Settings, FileText, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface Assignment {
   id: string;
@@ -25,7 +26,17 @@ interface Assignment {
   workshop_name?: string | null;
 }
 
+interface AssignmentServerSummary {
+  has_history: boolean;
+  has_inspection: boolean;
+  has_report: boolean;
+  inspection_id?: string | null;
+  report_id?: string | null;
+  report_file_path?: string | null;
+}
+
 const AssignmentsManagement = () => {
+  const navigate = useNavigate();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -48,6 +59,8 @@ const AssignmentsManagement = () => {
   const [selectedAssignments, setSelectedAssignments] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(true);
   const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop' | 'engineer' | 'status' | 'priority'>('enterprise');
+  const [generatingReport, setGeneratingReport] = useState<string | null>(null);
+  const [serverSummary, setServerSummary] = useState<Record<string, AssignmentServerSummary>>({});
 
   useEffect(() => {
     loadAssignments();
@@ -93,11 +106,36 @@ const AssignmentsManagement = () => {
           console.log('⚠️ Assignment without enterprise_name:', data[0]);
         }
         setAssignments(data);
+        // Подтягиваем сводку: есть ли данные/отчет на сервере
+        loadServerSummary(data);
       }
     } catch (error) {
       console.error('Ошибка загрузки заданий:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadServerSummary = async (items: Assignment[]) => {
+    try {
+      if (!items || items.length === 0) return;
+      const token = localStorage.getItem('token');
+      const API_BASE = 'http://5.129.203.182:8000';
+      const ids = items.map((a) => a.id);
+      const response = await fetch(`${API_BASE}/api/assignments/status-summary`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ assignment_ids: ids }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServerSummary(data || {});
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки сводки по заданиям:', e);
     }
   };
 
@@ -136,6 +174,157 @@ const AssignmentsManagement = () => {
       }
     } catch (error) {
       console.error('Ошибка загрузки инженеров:', error);
+    }
+  };
+
+  const handleViewChecklist = async (assignmentId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const API_BASE = 'http://5.129.203.182:8000';
+      const response = await fetch(`${API_BASE}/api/assignments/${assignmentId}/inspection`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const inspectionData = await response.json();
+        if (inspectionData.inspection_id) {
+          // Переходим на страницу просмотра инспекции через EquipmentDetails
+          navigate(`/equipment/${inspectionData.equipment_id}?inspection=${inspectionData.inspection_id}`);
+        } else if (inspectionData.inspection_history_id) {
+          // Если inspection_id нет, но есть inspection_history_id, показываем данные из InspectionHistory
+          // Можно открыть модальное окно или перейти на страницу с данными из истории
+          alert(`Чек-лист найден в истории обследований.\nДата: ${inspectionData.date_performed || 'N/A'}\nСтатус: ${inspectionData.status || 'N/A'}\n\nПереход к оборудованию для просмотра всех чек-листов...`);
+          navigate(`/equipment/${inspectionData.equipment_id}`);
+        } else {
+          alert('Чек-лист не найден для этого задания');
+        }
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось загрузить чек-лист'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка просмотра чек-листа:', error);
+      alert('Ошибка при загрузке чек-листа');
+    }
+  };
+
+  const handleGenerateReport = async (assignmentId: string) => {
+    try {
+      setGeneratingReport(assignmentId);
+      const token = localStorage.getItem('token');
+      const API_BASE = 'http://5.129.203.182:8000';
+      // Подбираем шаблон (MVP): по типу оборудования, иначе дефолт
+      let resolvedReportType = 'DIAGNOSTICS';
+      let resolvedFormat = 'docx';
+      try {
+        const a = assignments.find((x) => x.id === assignmentId);
+        const eq = equipmentList.find((e: any) => e.id === a?.equipment_id);
+        const typeId = eq?.type_id as string | undefined;
+        const tplRes = await fetch(
+          `${API_BASE}/api/report-templates/resolve?equipment_type_id=${encodeURIComponent(typeId || '')}&fallback_report_type=DIAGNOSTICS&fallback_format=docx`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (tplRes.ok) {
+          const tpl = await tplRes.json();
+          resolvedReportType = tpl.report_type || resolvedReportType;
+          resolvedFormat = tpl.format || resolvedFormat;
+        }
+      } catch (_) {}
+      
+      // Сначала получаем inspection_id по assignment_id
+      const inspectionResponse = await fetch(`${API_BASE}/api/assignments/${assignmentId}/inspection`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!inspectionResponse.ok) {
+        throw new Error('Не удалось получить чек-лист для задания');
+      }
+      
+      const inspectionData = await inspectionResponse.json();
+      const inspectionId = inspectionData.inspection_id;
+      
+      if (!inspectionId) {
+        alert('Чек-лист не найден для этого задания. Невозможно сгенерировать отчет.');
+        return;
+      }
+      
+      // Генерируем отчет
+      const reportResponse = await fetch(`${API_BASE}/api/reports/generate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inspection_id: inspectionId,
+          report_type: resolvedReportType,
+          format: resolvedFormat
+        })
+      });
+      
+      if (reportResponse.ok) {
+        const reportData = await reportResponse.json();
+        alert('Отчет успешно сгенерирован!');
+        // Скачивание через защищенный endpoint (с Authorization)
+        if (reportData.id) {
+          await downloadReport(reportData.id as string, resolvedFormat);
+        }
+        // Обновим сводку (появится "Отчет готов")
+        loadServerSummary(assignments);
+      } else {
+        const error = await reportResponse.json();
+        alert(`Ошибка генерации отчета: ${error.detail || 'Неизвестная ошибка'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка генерации отчета:', error);
+      alert('Ошибка при генерации отчета');
+    } finally {
+      setGeneratingReport(null);
+    }
+  };
+
+  const downloadReport = async (reportId: string, format: string = 'docx') => {
+    const token = localStorage.getItem('token');
+    const API_BASE = 'http://5.129.203.182:8000';
+    const url = `${API_BASE}/api/reports/${reportId}/download?format=${encodeURIComponent(format)}`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || `Ошибка скачивания: ${res.status}`);
+    }
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    // пробуем взять имя из заголовка
+    const cd = res.headers.get('Content-Disposition') || res.headers.get('content-disposition');
+    const filename = cd?.match(/filename="?([^"]+)"?/i)?.[1] || `report_${reportId}.${format}`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+  };
+
+  const handleDownloadReport = async (assignmentId: string) => {
+    try {
+      const s = serverSummary[assignmentId];
+      if (!s?.report_id) {
+        alert('Отчет еще не сформирован');
+        return;
+      }
+      await downloadReport(s.report_id, 'docx');
+    } catch (e) {
+      console.error('Ошибка скачивания отчета:', e);
+      alert('Ошибка скачивания отчета');
     }
   };
 
@@ -658,6 +847,11 @@ const AssignmentsManagement = () => {
                       getStatusLabel={getStatusLabel}
                       getTypeLabel={getTypeLabel}
                       getPriorityColor={getPriorityColor}
+                      onViewChecklist={handleViewChecklist}
+                      onGenerateReport={handleGenerateReport}
+                      onDownloadReport={handleDownloadReport}
+                      generatingReport={generatingReport}
+                      serverSummary={serverSummary[assignment.id]}
                     />
                   ))}
                 </div>
@@ -686,6 +880,11 @@ const AssignmentsManagement = () => {
               getStatusLabel={getStatusLabel}
               getTypeLabel={getTypeLabel}
               getPriorityColor={getPriorityColor}
+              onViewChecklist={handleViewChecklist}
+              onGenerateReport={handleGenerateReport}
+              onDownloadReport={handleDownloadReport}
+              generatingReport={generatingReport}
+              serverSummary={serverSummary[assignment.id]}
             />
           ))
         )}
@@ -1292,15 +1491,22 @@ const AssignmentCard: React.FC<{
   getStatusLabel: (status: string) => string;
   getTypeLabel: (type: string) => string;
   getPriorityColor: (priority: string) => string;
-}> = ({ assignment, isSelected, onSelect, getStatusIcon, getStatusLabel, getTypeLabel, getPriorityColor }) => {
+  onViewChecklist?: (assignmentId: string) => void;
+  onGenerateReport?: (assignmentId: string) => void;
+  onDownloadReport?: (assignmentId: string) => void;
+  generatingReport?: string | null;
+  serverSummary?: AssignmentServerSummary;
+}> = ({ assignment, isSelected, onSelect, getStatusIcon, getStatusLabel, getTypeLabel, getPriorityColor, onViewChecklist, onGenerateReport, generatingReport, serverSummary }) => {
   const isOverdue = assignment.due_date && new Date(assignment.due_date) < new Date() && assignment.status !== 'COMPLETED';
+  const isCompleted = assignment.status === 'COMPLETED';
+  const server = serverSummary;
   
   return (
     <div
-      className={`bg-slate-800 rounded-xl border-2 p-4 hover:border-accent/50 transition-colors cursor-pointer ${
+      className={`bg-slate-800 rounded-xl border-2 p-4 hover:border-accent/50 transition-colors ${
         isSelected ? 'border-accent' : 'border-slate-700'
-      } ${isOverdue ? 'border-red-500/50' : ''}`}
-      onClick={() => onSelect(assignment.id)}
+      } ${isOverdue ? 'border-red-500/50' : ''} ${!isCompleted ? 'cursor-pointer' : ''}`}
+      onClick={() => !isCompleted && onSelect(assignment.id)}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
@@ -1376,6 +1582,75 @@ const AssignmentCard: React.FC<{
           <span className="text-green-400">Завершено: {new Date(assignment.completed_at).toLocaleDateString('ru-RU')}</span>
         )}
       </div>
+
+      {/* Индикатор: есть ли данные/отчет на сервере */}
+      {(server?.has_history || server?.has_report || (isCompleted && server && !server.has_history)) && (
+        <div className="flex flex-wrap items-center gap-2 mt-2 ml-7">
+          {server?.has_history && (
+            <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-300 border border-green-500/30">
+              Данные на сервере
+            </span>
+          )}
+          {server?.has_report && (
+            <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              Отчет готов
+            </span>
+          )}
+          {isCompleted && server && !server.has_history && (
+            <span className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-300 border border-red-500/30">
+              Нет данных на сервере
+            </span>
+          )}
+        </div>
+      )}
+      
+      {isCompleted && (
+        <div className="flex items-center gap-2 mt-3 ml-7 pt-3 border-t border-slate-700">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewChecklist?.(assignment.id);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+          >
+            <Eye size={16} />
+            Просмотреть чек-лист
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onGenerateReport?.(assignment.id);
+            }}
+            disabled={generatingReport === assignment.id}
+            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white text-sm rounded transition-colors"
+          >
+            {generatingReport === assignment.id ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Генерация...
+              </>
+            ) : (
+              <>
+                <FileText size={16} />
+                Сгенерировать отчет
+              </>
+            )}
+          </button>
+          {serverSummary?.has_report && serverSummary?.report_id && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadReport?.(assignment.id);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+              title="Скачать отчет"
+            >
+              <Download size={16} />
+              Скачать
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

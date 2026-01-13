@@ -6,6 +6,47 @@ import 'vessel_inspection_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
 
+// Вспомогательный класс для группировки заданий
+class AssignmentGroup {
+  final String? enterpriseName;
+  final String? branchName;
+  final String? workshopName;
+  final List<Assignment> assignments;
+  
+  AssignmentGroup({
+    this.enterpriseName,
+    this.branchName,
+    this.workshopName,
+    required this.assignments,
+  });
+  
+  String get key {
+    return '${enterpriseName ?? 'Без предприятия'}_${branchName ?? ''}_${workshopName ?? ''}';
+  }
+  
+  String get displayName {
+    if (enterpriseName != null && enterpriseName!.isNotEmpty) {
+      if (branchName != null && branchName!.isNotEmpty) {
+        if (workshopName != null && workshopName!.isNotEmpty) {
+          return '$enterpriseName → $branchName → $workshopName';
+        }
+        return '$enterpriseName → $branchName';
+      }
+      return enterpriseName!;
+    }
+    if (branchName != null && branchName!.isNotEmpty) {
+      if (workshopName != null && workshopName!.isNotEmpty) {
+        return '[Филиал] $branchName → $workshopName';
+      }
+      return '[Филиал] $branchName';
+    }
+    if (workshopName != null && workshopName!.isNotEmpty) {
+      return '[Цех] $workshopName';
+    }
+    return 'Без привязки';
+  }
+}
+
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({super.key});
 
@@ -19,6 +60,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   final _authService = AuthService();
   List<Assignment> _assignments = [];
   List<Assignment> _filteredAssignments = [];
+  Map<String, LocalAssignmentInspectionState> _localInspectionState = {};
   bool _isLoading = true;
   String _selectedStatus = 'all';
   String _selectedSort = 'due_date'; // due_date, priority, created_at, equipment_name
@@ -26,6 +68,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   String _searchQuery = '';
   bool _isSyncing = false;
   bool _showFilters = false;
+  
+  // Состояние раскрытия иерархии
+  final Map<String, bool> _expandedGroups = {}; // Ключ: "enterprise_branch_workshop", значение: раскрыто/свернуто
 
   @override
   void initState() {
@@ -47,6 +92,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         _assignments = assignments;
         _isLoading = false;
       });
+      await _refreshLocalInspectionState(assignments);
       _filterAssignments();
     } catch (e) {
       final msg = e.toString();
@@ -77,6 +123,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           _assignments = offlineAssignments;
           _isLoading = false;
         });
+        await _refreshLocalInspectionState(offlineAssignments);
         _filterAssignments();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -125,6 +172,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         _assignments = assignments;
         _isSyncing = false;
       });
+      await _refreshLocalInspectionState(assignments);
       _filterAssignments();
 
       if (mounted) {
@@ -171,6 +219,89 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
   }
 
+  Future<void> _refreshLocalInspectionState(List<Assignment> assignments) async {
+    try {
+      final ids = assignments.map((a) => a.id).toList();
+      final st = await _syncService.getLocalAssignmentInspectionState(ids);
+      if (!mounted) return;
+      setState(() {
+        _localInspectionState = st;
+      });
+    } catch (_) {
+      // Игнорируем
+    }
+  }
+
+  Widget _buildSyncBadges(Assignment assignment) {
+    final local = _localInspectionState[assignment.id] ?? LocalAssignmentInspectionState.none();
+    final chips = <Widget>[];
+
+    if (local.hasDraft) {
+      chips.add(_chip('Черновик (локально)', Colors.orange));
+    }
+    if (local.hasSigned) {
+      chips.add(_chip('Подписано (локально)', const Color(0xFF3b82f6)));
+    }
+    if (assignment.status == 'COMPLETED') {
+      chips.add(_chip('На сервере', Colors.green));
+    } else if (local.hasSigned) {
+      chips.add(_chip('Ожидает синхронизации', Colors.purple));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: chips,
+      ),
+    );
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  // Группировка заданий по иерархии
+  List<AssignmentGroup> _groupAssignments(List<Assignment> assignments) {
+    final Map<String, List<Assignment>> groups = {};
+    
+    for (final assignment in assignments) {
+      final key = '${assignment.enterpriseName ?? 'Без предприятия'}_${assignment.branchName ?? ''}_${assignment.workshopName ?? ''}';
+      if (!groups.containsKey(key)) {
+        groups[key] = [];
+      }
+      groups[key]!.add(assignment);
+    }
+    
+    return groups.entries.map((entry) {
+      final firstAssignment = entry.value.first;
+      return AssignmentGroup(
+        enterpriseName: firstAssignment.enterpriseName,
+        branchName: firstAssignment.branchName,
+        workshopName: firstAssignment.workshopName,
+        assignments: entry.value,
+      );
+    }).toList()
+      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+  }
+  
   void _filterAssignments() {
     List<Assignment> filtered = _assignments;
     
@@ -255,14 +386,35 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   Future<void> _startAssignment(Assignment assignment) async {
     try {
+      // Показываем индикатор загрузки
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+      
       // Обновляем статус задания на "В работе"
       await _apiService.updateAssignmentStatus(assignment.id, 'IN_PROGRESS');
       
       // Получаем информацию об оборудовании
       final equipment = await _apiService.getAssignmentEquipment(assignment.id);
       
+      // Проверяем, что оборудование получено корректно
+      if (equipment.id.isEmpty) {
+        throw Exception('Не удалось загрузить информацию об оборудовании');
+      }
+      
       // Сохраняем оборудование локально
       await _syncService.saveEquipmentOffline([equipment]);
+
+      // Закрываем индикатор загрузки
+      if (mounted) {
+        Navigator.of(context).pop(); // Закрываем диалог загрузки
+      }
 
       if (mounted) {
         Navigator.push(
@@ -276,14 +428,27 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         ).then((_) {
           // Обновляем список заданий после возврата
           _loadAssignments();
+        }).catchError((error) {
+          // Обработка ошибок навигации
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Ошибка открытия экрана обследования: $error'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         });
       }
     } catch (e) {
+      // Закрываем индикатор загрузки в случае ошибки
       if (mounted) {
+        Navigator.of(context).pop(); // Закрываем диалог загрузки, если он открыт
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -486,247 +651,206 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       )
                     : RefreshIndicator(
                         onRefresh: _loadAssignments,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(8),
-                          itemCount: _filteredAssignments.length,
-                          itemBuilder: (context, index) {
-                            final assignment = _filteredAssignments[index];
-                            return Card(
-                              color: const Color(0xFF1e293b),
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: InkWell(
-                                onTap: assignment.status == 'COMPLETED' ||
-                                        assignment.status == 'CANCELLED'
-                                    ? null
-                                    : () => _startAssignment(assignment),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  assignment.equipmentCode,
-                                                  style: const TextStyle(
-                                                    color: Color(0xFF3b82f6),
-                                                    fontSize: 12,
-                                                    fontFamily: 'monospace',
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  assignment.equipmentName,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                // Иерархия
-                                                if (assignment.enterpriseName != null ||
-                                                    assignment.branchName != null ||
-                                                    assignment.workshopName != null) ...[
-                                                  const SizedBox(height: 6),
-                                                  Wrap(
-                                                    spacing: 8,
-                                                    runSpacing: 4,
-                                                    children: [
-                                                      if (assignment.enterpriseName != null)
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                          decoration: BoxDecoration(
-                                                            color: Colors.blue.withOpacity(0.2),
-                                                            borderRadius: BorderRadius.circular(4),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              const Icon(Icons.business, size: 12, color: Colors.blue),
-                                                              const SizedBox(width: 4),
-                                                              Text(
-                                                                assignment.enterpriseName!,
-                                                                style: const TextStyle(color: Colors.blue, fontSize: 10),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      if (assignment.branchName != null)
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                          decoration: BoxDecoration(
-                                                            color: Colors.green.withOpacity(0.2),
-                                                            borderRadius: BorderRadius.circular(4),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              const Icon(Icons.location_on, size: 12, color: Colors.green),
-                                                              const SizedBox(width: 4),
-                                                              Text(
-                                                                assignment.branchName!,
-                                                                style: const TextStyle(color: Colors.green, fontSize: 10),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      if (assignment.workshopName != null)
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                          decoration: BoxDecoration(
-                                                            color: Colors.purple.withOpacity(0.2),
-                                                            borderRadius: BorderRadius.circular(4),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              const Icon(Icons.build, size: 12, color: Colors.purple),
-                                                              const SizedBox(width: 4),
-                                                              Text(
-                                                                assignment.workshopName!,
-                                                                style: const TextStyle(color: Colors.purple, fontSize: 10),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: _getStatusColor(
-                                                      assignment.status)
-                                                  .withOpacity(0.2),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              assignment.statusLabel,
-                                              style: TextStyle(
-                                                color: _getStatusColor(
-                                                    assignment.status),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.assignment,
-                                            size: 16,
-                                            color: Colors.grey[400],
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            assignment.typeLabel,
-                                            style: TextStyle(
-                                              color: Colors.grey[300],
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: _getPriorityColor(
-                                                      assignment.priority)
-                                                  .withOpacity(0.2),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              assignment.priority,
-                                              style: TextStyle(
-                                                color: _getPriorityColor(
-                                                    assignment.priority),
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      if (assignment.dueDate != null) ...[
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.calendar_today,
-                                              size: 16,
-                                              color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
-                                                  ? Colors.red
-                                                  : Colors.grey[400],
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'Срок: ${assignment.dueDate!.day}.${assignment.dueDate!.month}.${assignment.dueDate!.year}',
-                                              style: TextStyle(
-                                                color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
-                                                    ? Colors.red
-                                                    : Colors.grey[300],
-                                                fontSize: 12,
-                                                fontWeight: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                              ),
-                                            ),
-                                            if (assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED')
-                                              const Padding(
-                                                padding: EdgeInsets.only(left: 8),
-                                                child: Text(
-                                                  'ПРОСРОЧЕНО!',
-                                                  style: TextStyle(
-                                                    color: Colors.red,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                      if (assignment.description != null &&
-                                          assignment.description!.isNotEmpty) ...[
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          assignment.description!,
-                                          style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                        child: _buildHierarchicalList(),
                       ),
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildHierarchicalList() {
+    final groups = _groupAssignments(_filteredAssignments);
+    
+    if (groups.isEmpty) {
+      return const Center(
+        child: Text(
+          'Нет заданий',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: groups.length,
+      itemBuilder: (context, groupIndex) {
+        final group = groups[groupIndex];
+        final groupKey = group.key;
+        final isExpanded = _expandedGroups[groupKey] ?? true; // По умолчанию раскрыто
+        
+        return Card(
+          color: const Color(0xFF1e293b),
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ExpansionTile(
+            key: Key(groupKey),
+            initiallyExpanded: isExpanded,
+            onExpansionChanged: (expanded) {
+              setState(() {
+                _expandedGroups[groupKey] = expanded;
+              });
+            },
+            title: Row(
+              children: [
+                Icon(
+                  Icons.folder,
+                  color: Colors.blue[300],
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    group.displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${group.assignments.length}',
+                    style: TextStyle(
+                      color: Colors.blue[300],
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            children: group.assignments.map((assignment) {
+              return Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                child: Card(
+                  color: const Color(0xFF0f172a),
+                  margin: EdgeInsets.zero,
+                  child: InkWell(
+                    onTap: assignment.status == 'COMPLETED' ||
+                            assignment.status == 'CANCELLED'
+                        ? null
+                        : () => _startAssignment(assignment),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      assignment.equipmentCode,
+                                      style: const TextStyle(
+                                        color: Color(0xFF3b82f6),
+                                        fontSize: 12,
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      assignment.equipmentName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(assignment.status).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  assignment.statusLabel,
+                                  style: TextStyle(
+                                    color: _getStatusColor(assignment.status),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.assignment, size: 14, color: Colors.grey[400]),
+                              const SizedBox(width: 4),
+                              Text(
+                                assignment.typeLabel,
+                                style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _getPriorityColor(assignment.priority).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  assignment.priority,
+                                  style: TextStyle(
+                                    color: _getPriorityColor(assignment.priority),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          _buildSyncBadges(assignment),
+                          if (assignment.dueDate != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 14,
+                                  color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
+                                      ? Colors.red
+                                      : Colors.grey[400],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Срок: ${assignment.dueDate!.day}.${assignment.dueDate!.month}.${assignment.dueDate!.year}',
+                                  style: TextStyle(
+                                    color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
+                                        ? Colors.red
+                                        : Colors.grey[300],
+                                    fontSize: 11,
+                                    fontWeight: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }

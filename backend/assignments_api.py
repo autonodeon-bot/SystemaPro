@@ -17,6 +17,8 @@ from models import (
     Equipment,
     User,
     InspectionHistory,
+    Inspection,
+    Report,
     HierarchyEngineerAssignment,
     Enterprise,
     Branch,
@@ -41,6 +43,9 @@ class AssignmentUpdate(BaseModel):
     priority: Optional[str] = None
     due_date: Optional[str] = None
     description: Optional[str] = None
+
+class AssignmentsStatusSummaryRequest(BaseModel):
+    assignment_ids: List[str]
 
 class AssignmentResponse(BaseModel):
     id: str
@@ -388,6 +393,203 @@ async def update_assignment(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка при обновлении задания: {str(e)}")
+
+@router.get("/{assignment_id}/inspection", response_model=dict)
+async def get_assignment_inspection(
+    assignment_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить чек-лист (inspection) по заданию"""
+    try:
+        assignment_uuid = uuid_lib.UUID(assignment_id)
+        
+        # Проверяем существование задания
+        assignment_result = await db.execute(
+            select(Assignment).where(Assignment.id == assignment_uuid)
+        )
+        assignment = assignment_result.scalar_one_or_none()
+        
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        
+        # Ищем inspection_history по assignment_id
+        history_result = await db.execute(
+            select(InspectionHistory)
+            .where(InspectionHistory.assignment_id == assignment_uuid)
+            .order_by(InspectionHistory.inspection_date.desc())
+        )
+        history_entry = history_result.scalar_one_or_none()
+        
+        if not history_entry:
+            raise HTTPException(status_code=404, detail="Чек-лист для этого задания не найден")
+        
+        # Ищем связанный Inspection по equipment_id и дате (ближайший по времени к history_entry)
+        inspection_result = await db.execute(
+            select(Inspection)
+            .where(Inspection.equipment_id == assignment.equipment_id)
+            .order_by(Inspection.date_performed.desc() if Inspection.date_performed else Inspection.created_at.desc())
+        )
+        inspections = inspection_result.scalars().all()
+        
+        # Пытаемся найти Inspection, который был создан примерно в то же время, что и history_entry
+        inspection = None
+        if inspections:
+            # Берем последний Inspection, если он был создан не более чем через 5 минут после history_entry
+            history_time = history_entry.created_at or history_entry.inspection_date
+            for insp in inspections:
+                insp_time = insp.created_at or insp.date_performed
+                if insp_time and history_time:
+                    time_diff = abs((insp_time - history_time).total_seconds())
+                    if time_diff < 300:  # 5 минут
+                        inspection = insp
+                        break
+            # Если не нашли по времени, берем последний
+            if not inspection:
+                inspection = inspections[0]
+        
+        # Если нашли Inspection, возвращаем его данные
+        if inspection:
+            return {
+                "inspection_id": str(inspection.id),
+                "inspection_history_id": str(history_entry.id),
+                "equipment_id": str(inspection.equipment_id),
+                "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
+                "data": inspection.data or {},
+                "conclusion": inspection.conclusion,
+                "status": inspection.status,
+                "created_at": inspection.created_at.isoformat() if inspection.created_at else None,
+            }
+        else:
+            # Если Inspection не найден, возвращаем данные из InspectionHistory
+            return {
+                "inspection_id": None,
+                "inspection_history_id": str(history_entry.id),
+                "equipment_id": str(history_entry.equipment_id),
+                "date_performed": history_entry.inspection_date.isoformat() if history_entry.inspection_date else None,
+                "data": history_entry.data or {},
+                "conclusion": history_entry.conclusion,
+                "status": history_entry.status,
+                "created_at": history_entry.created_at.isoformat() if history_entry.created_at else None,
+            }
+        
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный формат ID задания")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении чек-листа: {str(e)}")
+
+
+@router.post("/status-summary", response_model=dict)
+async def get_assignments_status_summary(
+    request: AssignmentsStatusSummaryRequest,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Сводка по заданиям для веб-интерфейса:
+    - есть ли данные по заданию на сервере (InspectionHistory)
+    - удалось ли сопоставить Inspection
+    - есть ли сгенерированный отчет (Report)
+    """
+    try:
+        ids: List[str] = request.assignment_ids or []
+        if not ids:
+            return {}
+
+        # Валидация UUID
+        uuids: List[uuid_lib.UUID] = []
+        for s in ids:
+            try:
+                uuids.append(uuid_lib.UUID(str(s)))
+            except Exception:
+                continue
+
+        if not uuids:
+            return {}
+
+        # Загружаем задания пачкой
+        ass_res = await db.execute(select(Assignment).where(Assignment.id.in_(uuids)))
+        assignments = ass_res.scalars().all()
+        assignments_map = {str(a.id): a for a in assignments}
+
+        # Загружаем последние записи истории по assignment_id
+        hist_res = await db.execute(
+            select(InspectionHistory)
+            .where(InspectionHistory.assignment_id.in_(uuids))
+            .order_by(InspectionHistory.assignment_id, InspectionHistory.inspection_date.desc())
+        )
+        histories = hist_res.scalars().all()
+
+        latest_history: dict[str, InspectionHistory] = {}
+        for h in histories:
+            key = str(h.assignment_id) if h.assignment_id else None
+            if not key or key in latest_history:
+                continue
+            latest_history[key] = h
+
+        result: dict[str, dict] = {}
+
+        for a_id, a in assignments_map.items():
+            h = latest_history.get(a_id)
+            has_history = h is not None
+
+            inspection = None
+            has_inspection = False
+            report = None
+            has_report = False
+
+            # Эвристика: сопоставляем Inspection по equipment_id и времени, близкому к истории
+            if has_history and a.equipment_id:
+                insp_res = await db.execute(
+                    select(Inspection)
+                    .where(Inspection.equipment_id == a.equipment_id)
+                    .order_by(Inspection.created_at.desc())
+                    .limit(10)
+                )
+                insp_list = insp_res.scalars().all()
+                if insp_list:
+                    history_time = getattr(h, "created_at", None) or getattr(h, "inspection_date", None)
+                    best = insp_list[0]
+                    best_diff = None
+                    if history_time:
+                        for insp in insp_list:
+                            insp_time = getattr(insp, "created_at", None) or getattr(insp, "date_performed", None)
+                            if not insp_time:
+                                continue
+                            diff = abs((insp_time - history_time).total_seconds())
+                            if best_diff is None or diff < best_diff:
+                                best = insp
+                                best_diff = diff
+                    inspection = best
+
+            if inspection is not None:
+                has_inspection = True
+                rep_res = await db.execute(
+                    select(Report)
+                    .where(Report.inspection_id == inspection.id)
+                    .order_by(Report.created_at.desc())
+                    .limit(1)
+                )
+                report = rep_res.scalar_one_or_none()
+                has_report = report is not None
+
+            result[a_id] = {
+                "has_history": has_history,
+                "has_inspection": has_inspection,
+                "has_report": has_report,
+                "inspection_id": str(inspection.id) if inspection is not None else None,
+                "report_id": str(report.id) if report is not None else None,
+                "report_file_path": report.file_path if report is not None else None,
+            }
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка сводки по заданиям: {str(e)}")
 
 @router.get("/{assignment_id}/equipment", response_model=dict)
 async def get_assignment_equipment(

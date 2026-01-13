@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Download, FileCheck, Sparkles, Search, Eye, X, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface Inspection {
   id: string;
@@ -64,6 +65,7 @@ interface PreviewData {
 }
 
 const ReportGeneration = () => {
+  const navigate = useNavigate();
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
@@ -150,7 +152,13 @@ const ReportGeneration = () => {
           inspection_id: inspectionId,
           report_type: reportType,
           format: format,
-          title: `${reportType === 'TECHNICAL_REPORT' ? 'Технический отчет' : 'Экспертиза ПБ'} для диагностики`
+          title: `${
+            reportType === 'DIAGNOSTICS'
+              ? 'Диагностический отчет'
+              : reportType === 'TECHNICAL_REPORT'
+                ? 'Технический отчет'
+                : 'Экспертиза ПБ'
+          }`
         })
       });
 
@@ -256,7 +264,16 @@ const ReportGeneration = () => {
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <h1 className="text-xl md:text-2xl font-bold text-white">Генерация отчетов и экспертиз</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl md:text-2xl font-bold text-white">Генерация отчетов и экспертиз</h1>
+          <button
+            onClick={() => navigate('/report-templates')}
+            className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs md:text-sm font-bold"
+            title="Перейти в редактор макетов отчетов"
+          >
+            Редактор отчетов
+          </button>
+        </div>
         <div className="relative w-full md:w-64">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
           <input
@@ -323,6 +340,15 @@ const ReportGeneration = () => {
                   <span className="sm:hidden">Предпросмотр (ЭПБ)</span>
                 </button>
                 {/* Всегда показываем кнопки генерации, даже если отчет уже создан */}
+                <button
+                  onClick={() => handleGenerateDirectly(inspection.id, 'DIAGNOSTICS', 'docx')}
+                  disabled={generating === inspection.id}
+                  className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-amber-500/20 disabled:opacity-50"
+                >
+                  <FileText size={14} className="md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">Диагностический отчет (DOCX)</span>
+                  <span className="sm:hidden">Диагн. DOCX</span>
+                </button>
                 <button
                   onClick={() => handleGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'pdf')}
                   disabled={generating === inspection.id}

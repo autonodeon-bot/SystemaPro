@@ -5,6 +5,8 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -211,8 +213,22 @@ class WordGenerator:
         document_files: Optional[List[Dict[str, Any]]] = None,
         specialist_docs: Optional[List[Dict[str, Any]]] = None,
         verification_equipment: Optional[List[Dict[str, Any]]] = None,
+        template_definition: Optional[Dict[str, Any]] = None,
     ):
         """Генерировать Word документ отчета"""
+        rt = (report_type or "").strip().upper()
+        if rt in ["DIAGNOSTICS", "DIAGNOSTIC", "TECHNICAL_DIAGNOSTICS"]:
+            return self._generate_diagnostics_report_word(
+                inspection_data=inspection_data,
+                equipment_data=equipment_data,
+                ndt_methods=ndt_methods,
+                output_path=output_path,
+                document_files=document_files,
+                specialist_docs=specialist_docs,
+                verification_equipment=verification_equipment,
+                template_definition=template_definition,
+            )
+
         doc = Document()
         
         # Настройка стилей
@@ -711,6 +727,420 @@ class WordGenerator:
         
         # Сохранение
         doc.save(output_path)
+        return
+
+    def _fmt_date_ru(self, s: Optional[str]) -> Optional[str]:
+        if not s:
+            return None
+        try:
+            # 2025-07-25 / 2025-07-25T...Z
+            if "T" in s:
+                d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            else:
+                d = datetime.fromisoformat(s)
+            return d.strftime("%d.%m.%Y")
+        except Exception:
+            return s
+
+    def _add_toc_field(self, doc: Document):
+        """
+        Вставить поле оглавления (обновляется в Word: ПКМ -> Обновить поле).
+        """
+        p = doc.add_paragraph()
+        run = p.add_run()
+
+        fldChar1 = OxmlElement("w:fldChar")
+        fldChar1.set(qn("w:fldCharType"), "begin")
+
+        instrText = OxmlElement("w:instrText")
+        instrText.set(qn("xml:space"), "preserve")
+        instrText.text = r'TOC \o "1-3" \h \z \u'
+
+        fldChar2 = OxmlElement("w:fldChar")
+        fldChar2.set(qn("w:fldCharType"), "separate")
+
+        fldChar3 = OxmlElement("w:t")
+        fldChar3.text = "Оглавление будет сформировано при обновлении полей в Word."
+
+        fldChar4 = OxmlElement("w:fldChar")
+        fldChar4.set(qn("w:fldCharType"), "end")
+
+        run._r.append(fldChar1)
+        run._r.append(instrText)
+        run._r.append(fldChar2)
+        run._r.append(fldChar3)
+        run._r.append(fldChar4)
+
+    def _generate_diagnostics_report_word(
+        self,
+        inspection_data: Dict[str, Any],
+        equipment_data: Dict[str, Any],
+        ndt_methods: List[Dict[str, Any]],
+        output_path: str,
+        document_files: Optional[List[Dict[str, Any]]] = None,
+        specialist_docs: Optional[List[Dict[str, Any]]] = None,
+        verification_equipment: Optional[List[Dict[str, Any]]] = None,
+        template_definition: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Диагностический отчет в структуре, близкой к примеру (reciver.md):
+        титульник -> оглавление -> разделы 1..15 -> приложения.
+        """
+        doc = Document()
+        self._setup_styles(doc)
+
+        data = inspection_data.get("data") or {}
+        if not isinstance(data, dict):
+            data = {}
+        attrs = equipment_data.get("attributes") or {}
+        if not isinstance(attrs, dict):
+            attrs = {}
+
+        # template_definition: {logo_path, fields:{...}, sections:[{key,enabled}]}
+        tdef = template_definition if isinstance(template_definition, dict) else {}
+        tfields = tdef.get("fields") if isinstance(tdef.get("fields"), dict) else {}
+        tsections = tdef.get("sections") if isinstance(tdef.get("sections"), list) else []
+        enabled = {str(s.get("key")): bool(s.get("enabled")) for s in tsections if isinstance(s, dict) and s.get("key")}
+        def is_on(key: str) -> bool:
+            # по умолчанию включено, если нет явного списка
+            if not tsections:
+                return True
+            return enabled.get(key, False)
+
+        def g(*keys, default=None):
+            for k in keys:
+                if k in data and data.get(k) not in (None, ""):
+                    return data.get(k)
+            for k in keys:
+                if k in attrs and attrs.get(k) not in (None, ""):
+                    return attrs.get(k)
+            return default
+
+        date_perf_iso = inspection_data.get("date_performed")
+        date_perf_ru = self._fmt_date_ru(date_perf_iso) or datetime.now().strftime("%d.%m.%Y")
+        year2 = datetime.now().strftime("%y")
+        # Номер отчета: YY-xxxx (по последним 4 символам UUID)
+        rid = str(equipment_data.get("id") or "")[-4:] or "0000"
+        report_no = g("report_number", default=f"{year2}-{rid}")
+
+        # --------------- ТИТУЛЬНЫЙ ЛИСТ ---------------
+        if is_on("title"):
+            logo_path = tdef.get("logo_path") or g("report_logo_path", default="/app/reports/assets/yutar_logo.png")
+            try:
+                p = Path(str(logo_path))
+                if p.exists():
+                    doc.add_picture(str(p), width=Inches(6.5))
+            except Exception:
+                pass
+
+        # Блок заголовка (как таблица в примере)
+        if is_on("title"):
+            title_table = doc.add_table(rows=1, cols=1)
+            title_table.style = "Table Grid"
+            title_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            cell = title_table.rows[0].cells[0]
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r = p.add_run(f"ТЕХНИЧЕСКИЙ ОТЧЕТ № {report_no}\nПО РЕЗУЛЬТАТАМ ТЕХНИЧЕСКОГО ДИАГНОСТИРОВАНИЯ")
+            r.bold = True
+            r.font.size = Pt(14)
+
+        doc.add_paragraph("")
+
+        # Таблица объекта (упрощенно, но структура похожа)
+        if is_on("title"):
+            obj_tbl = doc.add_table(rows=5, cols=2)
+            obj_tbl.style = "Table Grid"
+            obj_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+        object_name = g("equipment_object_name", "vessel_name", default=equipment_data.get("name") or "—")
+        device_name = g("equipment_device_name", default=equipment_data.get("name") or "—")
+        serial = g("serial_number", default=equipment_data.get("serial_number") or "—")
+        org = g("organization", "customer_name", default="—")
+        location = g("location", "equipment_location", default=equipment_data.get("location") or "—")
+
+        rows = [
+            ("Объект технического диагностирования:", ""),
+            ("Техническое устройство:", device_name),
+            ("Заводской номер:", str(serial)),
+            ("Эксплуатирующая организация:", str(org)),
+            ("Местонахождение объекта:", str(location)),
+        ]
+            for i, (k, v) in enumerate(rows):
+                obj_tbl.rows[i].cells[0].text = k
+                obj_tbl.rows[i].cells[1].text = v
+                try:
+                    obj_tbl.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
+                except Exception:
+                    pass
+
+        doc.add_paragraph("")
+
+        # Подпись руководителя (как в примере — справа)
+        if is_on("title"):
+            sign_tbl = doc.add_table(rows=1, cols=2)
+            sign_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+            sign_tbl.columns[0].width = Inches(3.5)
+            sign_tbl.columns[1].width = Inches(3.5)
+            sign_tbl.cell(0, 0).text = ""
+
+        contractor = tfields.get("contractor_name") or g("contractor_name", default='ООО «ЮТАР»')
+        director_title = tfields.get("director_title") or g("director_title", default="Генеральный директор")
+        director_name = tfields.get("director_name") or g("director_name", default="__________________")
+        city = tfields.get("report_city") or g("report_city", "city", default="г. ________")
+        year = datetime.now().strftime("%Y")
+
+        if is_on("title"):
+            p = sign_tbl.cell(0, 1).paragraphs[0]
+            p.add_run(f"{director_title}\n{contractor}\n\n__________________\n{director_name}\n\n«____» __________ {year} г.\nМ.П.").font.size = Pt(10)
+
+        doc.add_paragraph("")
+        if is_on("title"):
+            p = doc.add_paragraph(f"{city} {year} г.")
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_page_break()
+
+        # --------------- СОДЕРЖАНИЕ ---------------
+        if is_on("toc"):
+            doc.add_heading("СОДЕРЖАНИЕ", level=1)
+            self._add_toc_field(doc)
+            doc.add_page_break()
+
+        # --------------- РАЗДЕЛЫ 1..15 ---------------
+        if is_on("sections_1_15"):
+            doc.add_heading("1. Основания для проведения работ", level=1)
+            doc.add_paragraph(str(g("basis", "work_basis", default="—")))
+
+            doc.add_heading("2. Сроки проведения работ", level=1)
+            doc.add_paragraph(str(g("work_period", default=f"Дата проведения: {date_perf_ru}")))
+
+            doc.add_heading("3. Перечень нормативных и правовых актов, устанавливающих требования к объекту диагностирования", level=1)
+        # Минимальный дефолт (можно расширять через будущий редактор шаблонов)
+        doc.add_paragraph(str(g("normative_base", default="Приказ Ростехнадзора от 15.12.2020 №536.")))
+
+            doc.add_heading("4. Сведения о Заказчике", level=1)
+        t = doc.add_table(rows=2, cols=2)
+        t.style = "Table Grid"
+        t.rows[0].cells[0].text = "Полное наименование организации"
+        t.rows[0].cells[1].text = str(org)
+        t.rows[1].cells[0].text = "Адрес местонахождения"
+        t.rows[1].cells[1].text = str(location)
+
+            doc.add_heading("5. Сведения об организации, проводившей техническое диагностирование", level=1)
+        t = doc.add_table(rows=3, cols=2)
+        t.style = "Table Grid"
+        t.rows[0].cells[0].text = "Наименование организации"
+        t.rows[0].cells[1].text = str(contractor)
+        t.rows[1].cells[0].text = "Юридический адрес"
+        t.rows[1].cells[1].text = str(g("contractor_address", default="—"))
+        t.rows[2].cells[0].text = "Лицензия/аттестация"
+        t.rows[2].cells[1].text = str(g("contractor_license", default="—"))
+
+            doc.add_heading("6. Сведения об эксперте и специалисте, проводивших диагностирование", level=1)
+        inspectors = []
+        for m in (ndt_methods or []):
+            name = (m.get("inspector_name") or "").strip()
+            if name and name not in inspectors:
+                inspectors.append(name)
+        if inspectors:
+            for i, name in enumerate(inspectors, 1):
+                doc.add_paragraph(f"{i}. {name}")
+        else:
+            doc.add_paragraph("—")
+
+            doc.add_heading("7. Перечень приборов и оборудования", level=1)
+        if verification_equipment and isinstance(verification_equipment, list) and verification_equipment:
+            t = doc.add_table(rows=1, cols=5)
+            t.style = "Table Grid"
+            hdr = ["№", "Наименование прибора", "Заводской номер", "Свидетельство о поверке", "Действительна до"]
+            for i, h in enumerate(hdr):
+                t.rows[0].cells[i].text = h
+            for i, eq in enumerate(verification_equipment, 1):
+                row = t.add_row().cells
+                row[0].text = str(i)
+                row[1].text = str(eq.get("name") or "")
+                row[2].text = str(eq.get("serial_number") or "")
+                row[3].text = str(eq.get("verification_certificate_number") or "")
+                row[4].text = self._fmt_date_ru(eq.get("next_verification_date")) or str(eq.get("next_verification_date") or "")
+        else:
+            doc.add_paragraph("—")
+
+            doc.add_heading("8. Объект технического диагностирования", level=1)
+        t = doc.add_table(rows=4, cols=2)
+        t.style = "Table Grid"
+        t.rows[0].cells[0].text = "Объект диагностирования"
+        t.rows[0].cells[1].text = str(object_name)
+        t.rows[1].cells[0].text = "Заводской №"
+        t.rows[1].cells[1].text = str(serial)
+        t.rows[2].cells[0].text = "Место установки"
+        t.rows[2].cells[1].text = str(g("installation_place", default="—"))
+        t.rows[3].cells[0].text = "Местонахождение (адрес)"
+        t.rows[3].cells[1].text = str(location)
+
+            doc.add_heading("9. Краткая техническая характеристика и назначение объекта технического освидетельствования", level=1)
+            # Таблица характеристик (ориентир на reciver.md)
+            t = doc.add_table(rows=12, cols=2)
+            t.style = "Table Grid"
+            def row(i, k, v):
+                t.rows[i].cells[0].text = k
+                t.rows[i].cells[1].text = str(v if v is not None else "—")
+            row(0, "Наименование объекта", object_name)
+            row(1, "Назначение", g("purpose", "appointment", default=g("tech_description", default="—")))
+            row(2, "Завод-изготовитель", g("manufacturer", default="—"))
+            row(3, "Год изготовления", g("manufacture_year", "year_of_manufacture", default="—"))
+            row(4, "Год ввода в эксплуатацию", g("commissioning_year", "year_of_commissioning", default="—"))
+            row(5, "Рабочее давление", g("working_pressure", default="—"))
+            row(6, "Расчетное давление", g("design_pressure", default="—"))
+            row(7, "Пробное давление (гидроиспытания)", g("test_pressure", default="—"))
+            row(8, "Допустимая рабочая температура стенки", g("allowable_temp", "working_temp", default="—"))
+            row(9, "Расчетная температура стенки", g("design_temp", default="—"))
+            row(10, "Рабочая среда", g("working_medium", "medium", default="—"))
+            row(11, "Вместимость", g("capacity_liters", "capacity", "volume", default="—"))
+
+            doc.add_heading("10. Перечень работ, выполненных в процессе технического освидетельствования", level=1)
+        performed = [m for m in (ndt_methods or []) if m.get("is_performed")]
+        if performed:
+            for i, m in enumerate(performed, 1):
+                doc.add_paragraph(f"{i}. {m.get('method_name') or m.get('method_code') or 'Метод НК'}")
+        else:
+            doc.add_paragraph("—")
+
+            doc.add_heading("11. Сведения о рассмотренных в процессе технического освидетельствования документах", level=1)
+        docs = g("documents", default={})
+        if isinstance(docs, dict) and docs:
+            # В отчете (как в примере) обычно таблица: № / Наименование / Идентификационный номер / объем листов
+            t = doc.add_table(rows=1, cols=4)
+            t.style = "Table Grid"
+            for i, h in enumerate(["№", "Наименование документа", "Идентификационный номер", "Объём, листов"]):
+                t.rows[0].cells[i].text = h
+            # названия документов — те же, что в генераторе опросника
+            document_names = {
+                '1': 'Лицензия на осуществление деятельности по эксплуатации ...',
+                '2': 'Свидетельство о регистрации в государственном реестре ОПО ...',
+                '3': 'Технологический регламент ...',
+                '4': 'План мероприятий по локализации и ликвидации последствий аварий ...',
+                '5': 'Положение о производственном контроле ...',
+                '6': 'Журнал учета аварий и инцидентов на ОПО',
+                '7': 'Страховой полис ...',
+                '8': 'Приказ о назначении ответственного лица ...',
+                '9': 'Приказ о назначении ответственного лица ...',
+                '10': 'Паспорт сосуда заводской ...',
+                '11': 'Инструкция по монтажу и эксплуатации',
+                '12': 'Паспорта на предохранительные клапаны',
+                '13': 'Паспорта на запорную арматуру',
+                '14': 'Документация на контрольно-измерительные приборы',
+                '15': 'Ремонтная (исполнительная) документация',
+                '16': 'Заключение экспертизы промышленной безопасности',
+                '17': 'Акты проведения УЗТ',
+            }
+            idx = 1
+            for num, has_doc in sorted(docs.items(), key=lambda x: int(str(x[0]))):
+                if not has_doc:
+                    continue
+                row = t.add_row().cells
+                row[0].text = str(idx)
+                row[1].text = document_names.get(str(num), f"Документ {num}")
+                row[2].text = str(g("documents_id_number", default="—"))
+                row[3].text = str(g("documents_pages", default="—"))
+                idx += 1
+            if idx == 1:
+                doc.add_paragraph("Документы не отмечены.")
+        else:
+            doc.add_paragraph("—")
+
+            doc.add_heading("12. Анализ результатов предыдущих обследований", level=1)
+            doc.add_paragraph(str(g("previous_inspections", default="—")))
+
+            doc.add_heading("13. Результаты технического освидетельствования", level=1)
+            doc.add_paragraph(str(g("results_summary", default="—")))
+
+            doc.add_heading("14. Результаты расчетной оценки технического состояния", level=1)
+            doc.add_paragraph(str(g("calculation_results", default="—")))
+
+            doc.add_heading("15. Выводы по результатам технического освидетельствования", level=1)
+            concl = inspection_data.get("conclusion") or g("final_conclusion", default="—")
+            doc.add_paragraph(str(concl))
+
+        # --------------- ПРИЛОЖЕНИЯ (МИНИМАЛЬНОЕ MVP) ---------------
+        if is_on("appendices"):
+            doc.add_page_break()
+            doc.add_heading("ПРИЛОЖЕНИЯ", level=1)
+
+        # Приложения по методам НК (протоколы)
+        app_no = 1
+        if isinstance(docs, dict) and docs:
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол анализа технической документации", level=2)
+            doc.add_paragraph("Сведения о рассмотренных документах приведены в разделе 11.")
+            app_no += 1
+
+        if performed:
+            for m in performed:
+                doc.add_page_break()
+                doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам {m.get('method_name') or 'НК'}", level=2)
+                doc.add_paragraph(f"Дата проведения контроля: {self._fmt_date_ru(m.get('performed_date')) or date_perf_ru}")
+                doc.add_paragraph(f"НТД: {m.get('standard') or '—'}")
+                doc.add_paragraph(f"Оборудование: {m.get('equipment') or '—'}")
+                doc.add_paragraph(f"Результаты: {m.get('results') or '—'}")
+                if m.get("defects"):
+                    doc.add_paragraph(f"Дефекты: {m.get('defects')}")
+                if m.get("conclusion"):
+                    doc.add_paragraph(f"Заключение: {m.get('conclusion')}")
+                # Фотоматериалы (включая аннотированные)
+                photos = m.get("photos") or []
+                add_data = m.get("additional_data") or {}
+                annotated = []
+                if isinstance(add_data, dict):
+                    annotated = add_data.get("annotated_images") or []
+                all_imgs = []
+                if isinstance(photos, list):
+                    all_imgs.extend([x for x in photos if isinstance(x, str)])
+                if isinstance(annotated, list):
+                    all_imgs.extend([x for x in annotated if isinstance(x, str)])
+
+                def add_picture_if_exists(path: str):
+                    try:
+                        pth = Path(path)
+                        if pth.exists():
+                            doc.add_picture(str(pth), width=Inches(6.0))
+                    except Exception:
+                        pass
+
+                if all_imgs:
+                    doc.add_paragraph("Фотоматериалы:")
+                    for pth in all_imgs[:10]:
+                        add_picture_if_exists(pth)
+                app_no += 1
+
+        # Документы специалистов/поверки — оставляем в конце (если есть)
+        if specialist_docs:
+            doc.add_page_break()
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Документы специалистов НК", level=2)
+            for s in specialist_docs:
+                doc.add_heading(f"Специалист: {s.get('inspector_name') or '—'}", level=3)
+                for c in (s.get("certifications") or []):
+                    doc.add_paragraph(f"{c.get('certification_type') or 'Удостоверение'} № {c.get('certificate_number') or '—'}")
+                    sp = c.get("scan_file_path")
+                    if sp and isinstance(sp, str) and os.path.exists(sp):
+                        try:
+                            doc.add_picture(sp, width=Inches(6.0))
+                        except Exception:
+                            pass
+            app_no += 1
+
+        if verification_equipment:
+            doc.add_page_break()
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Свидетельства о поверке оборудования", level=2)
+            for eq in verification_equipment:
+                sp = eq.get("scan_file_path")
+                if sp and isinstance(sp, str) and os.path.exists(sp):
+                    doc.add_paragraph(f"{eq.get('name') or ''} № {eq.get('verification_certificate_number') or ''}")
+                    try:
+                        doc.add_picture(sp, width=Inches(6.0))
+                    except Exception:
+                        pass
+
+        doc.save(output_path)
+        return
     
     def _setup_styles(self, doc: Document):
         """Настройка стилей документа"""

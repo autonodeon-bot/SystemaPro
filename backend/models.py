@@ -220,7 +220,7 @@ class Report(Base):
     __tablename__ = "reports"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspections.id"), nullable=False)
+    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspections.id", ondelete="SET NULL"), nullable=True)
     report_type = Column(String(50))  # TECHNICAL, EXPERTISE
     file_path = Column(String(500))
     file_size = Column(Integer, default=0)

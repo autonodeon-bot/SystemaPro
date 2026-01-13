@@ -25,7 +25,10 @@ from pathlib import Path
 from access_management import router as access_router
 from hierarchy_management import router as hierarchy_router
 from assignments_api import router as assignments_router
+from report_templates_api import router as report_templates_router
 from equipment_history_api import router as equipment_history_router
+from pathlib import Path as _Path
+import json as _json
 
 app = FastAPI(
     title="ES TD NGO Platform API",
@@ -46,12 +49,13 @@ app.add_middleware(
 app.include_router(access_router)
 app.include_router(hierarchy_router)
 app.include_router(assignments_router)  # Новый роутер для заданий (версия 3.3.0)
+app.include_router(report_templates_router)  # Шаблоны отчетов (MVP без миграций БД)
 app.include_router(equipment_history_router)  # Новый роутер для истории (версия 3.3.0)
 
 # Версия мобильного приложения
 MOBILE_APP_VERSION = "3.6.2"
-MOBILE_APP_BUILD = "1"
-MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/es-td-ngo-mobile-3.6.2-1.apk"
+MOBILE_APP_BUILD = "6"
+MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/es-td-ngo-mobile-3.6.2-6.apk"
 
 # Endpoint для проверки версии мобильного приложения
 @app.get("/api/mobile/version")
@@ -68,29 +72,38 @@ async def get_mobile_version():
 async def check_mobile_update(current_version: str, current_build: str):
     """Проверить наличие обновления для мобильного приложения"""
     try:
-        # Парсим версию (формат: "3.6.1+1" или "3.6.1")
+        # Парсим версию (формат: "3.6.1" или "3.6.2")
         current_v_parts = current_version.split('.')
         server_v_parts = MOBILE_APP_VERSION.split('.')
         
-        # Сравниваем версии
+        # Сравниваем версии по частям (major.minor.patch)
         has_update = False
-        for i in range(min(len(current_v_parts), len(server_v_parts))):
-            current_v = int(current_v_parts[i])
-            server_v = int(server_v_parts[i])
+        version_different = False
+        
+        # Сравниваем каждую часть версии
+        for i in range(max(len(current_v_parts), len(server_v_parts))):
+            current_v = int(current_v_parts[i]) if i < len(current_v_parts) else 0
+            server_v = int(server_v_parts[i]) if i < len(server_v_parts) else 0
+            
             if server_v > current_v:
                 has_update = True
+                version_different = True
                 break
             elif server_v < current_v:
+                # Текущая версия новее серверной (не должно быть, но на всякий случай)
+                version_different = True
                 break
         
-        # Если версии одинаковые, сравниваем build
-        if not has_update and current_version == MOBILE_APP_VERSION:
+        # Если версии одинаковые, сравниваем build номер
+        if not version_different:
             try:
                 current_b = int(current_build)
                 server_b = int(MOBILE_APP_BUILD)
+                # Обновление есть только если build номер сервера больше
                 has_update = server_b > current_b
-            except:
-                pass
+            except (ValueError, TypeError):
+                # Если не удалось распарсить build, считаем что обновления нет
+                has_update = False
         
         return {
             "has_update": has_update,
@@ -98,12 +111,14 @@ async def check_mobile_update(current_version: str, current_build: str):
             "current_build": current_build,
             "latest_version": MOBILE_APP_VERSION,
             "latest_build": MOBILE_APP_BUILD,
-            "download_url": MOBILE_APP_DOWNLOAD_URL if has_update else None
+            "download_url": MOBILE_APP_DOWNLOAD_URL if has_update else None,
+            "is_latest": not has_update  # Флаг, что версия последняя
         }
     except Exception as e:
         return {
             "has_update": False,
-            "error": str(e)
+            "error": str(e),
+            "is_latest": True  # При ошибке считаем что версия последняя
         }
 
 @app.on_event("startup")
@@ -1871,8 +1886,9 @@ async def get_reports(
             raise HTTPException(status_code=404, detail="User not found")
 
         query = select(Report)
-        # Фильтрация по архиву будет добавлена после миграции БД
-        # Пока не фильтруем, так как поле is_archived еще не существует в БД
+        # Временно НЕ фильтруем по is_archived, чтобы показать все отчеты
+        # Фильтрация будет добавлена позже, когда будет уверенность, что поле корректно работает
+        # query = query.where(Report.is_archived == False)
         if inspection_id:
             try:
                 insp_uuid = uuid_lib.UUID(inspection_id)
@@ -2301,6 +2317,53 @@ async def generate_report(
             # pdf или docx (поддерживаем также WORD/DOC)
             output_format = (report_data.get("format") or "pdf").strip().lower()
             is_docx = output_format in ["docx", "doc", "word"]
+
+            # Подключаем макет отчета (definition) из report_templates.json (MVP без миграций БД)
+            template_definition = None
+            try:
+                templates_path = _Path("/app/reports/report_templates.json")
+                if templates_path.exists():
+                    templates = _json.loads(templates_path.read_text(encoding="utf-8") or "[]")
+                    # ищем шаблон по типу оборудования (type_id), report_type и format
+                    eq_type_id = str(getattr(equipment, "type_id", "") or "")
+                    def _match(t):
+                        if not isinstance(t, dict) or not t.get("is_active"):
+                            return False
+                        if (t.get("equipment_type_id") or "") and (t.get("equipment_type_id") != eq_type_id):
+                            return False
+                        if (t.get("report_type") or "") and (t.get("report_type") != report_type):
+                            return False
+                        if (t.get("format") or "") and (t.get("format") != output_format):
+                            return False
+                        return True
+
+                    chosen = next((t for t in templates if _match(t)), None)
+                    if not chosen:
+                        # fallback: любой активный по type_id
+                        def _match2(t):
+                            if not isinstance(t, dict) or not t.get("is_active"):
+                                return False
+                            if (t.get("equipment_type_id") or "") and (t.get("equipment_type_id") != eq_type_id):
+                                return False
+                            if (t.get("report_type") or "") and (t.get("report_type") != report_type):
+                                return False
+                            return True
+                        chosen = next((t for t in templates if _match2(t)), None)
+                    if not chosen:
+                        # fallback: общий активный (equipment_type_id null/empty)
+                        def _match3(t):
+                            if not isinstance(t, dict) or not t.get("is_active"):
+                                return False
+                            if t.get("equipment_type_id") not in (None, "", "null"):
+                                return False
+                            if (t.get("report_type") or "") and (t.get("report_type") != report_type):
+                                return False
+                            return True
+                        chosen = next((t for t in templates if _match3(t)), None)
+                    if chosen:
+                        template_definition = chosen.get("definition")
+            except Exception:
+                template_definition = None
             
             if is_docx:
                 # Генерация Word документа
@@ -2404,6 +2467,7 @@ async def generate_report(
                     document_files=document_files,
                     specialist_docs=specialist_docs,
                     verification_equipment=verification_equipment_list,
+                    template_definition=template_definition,
                 )
             else:
                 # Генерация PDF
@@ -2591,35 +2655,38 @@ async def bulk_delete_inspections(
                 if not allowed:
                     continue
                 
-                # Удаляем связанные отчеты и их файлы
+                # ВАЖНО: НЕ удаляем связанные отчеты при удалении чек-листа!
+                # Отчеты должны оставаться в системе даже если чек-лист удален.
+                # Проверяем, есть ли связанные отчеты - если есть, не удаляем инспекцию
                 rep_result = await db.execute(select(Report).where(Report.inspection_id == inspection.id))
                 related_reports = rep_result.scalars().all()
-                for report in related_reports:
-                    for p in [report.file_path, getattr(report, "word_file_path", None)]:
-                        if p:
-                            try:
-                                fp = Path(p)
-                                if fp.exists():
-                                    fp.unlink()
-                            except Exception:
-                                pass
-                    await db.delete(report)
+                
+                if related_reports:
+                    # Если есть связанные отчеты, пропускаем удаление этой инспекции
+                    print(f"⚠️ Inspection {inspection_id} has {len(related_reports)} related reports. Skipping deletion to preserve reports.")
+                    continue
                 
                 # Удаляем связанные методы НК
                 try:
                     ndt_result = await db.execute(select(NDTMethod).where(NDTMethod.inspection_id == inspection.id))
-                    for m in ndt_result.scalars().all():
+                    ndt_methods = ndt_result.scalars().all()
+                    for m in ndt_methods:
                         await db.delete(m)
-                except Exception:
-                    pass
+                    if ndt_methods:
+                        await db.flush()
+                except Exception as e:
+                    print(f"⚠️ Error deleting NDT methods for inspection {inspection_id}: {str(e)}")
                 
                 # Удаляем связанное оборудование для поверок
                 try:
                     eq_result = await db.execute(select(InspectionEquipment).where(InspectionEquipment.inspection_id == inspection.id))
-                    for eq in eq_result.scalars().all():
+                    inspection_equipment = eq_result.scalars().all()
+                    for eq in inspection_equipment:
                         await db.delete(eq)
-                except Exception:
-                    pass
+                    if inspection_equipment:
+                        await db.flush()
+                except Exception as e:
+                    print(f"⚠️ Error deleting inspection equipment for inspection {inspection_id}: {str(e)}")
                 
                 # Теперь можно безопасно удалить сам чек-лист
                 await db.delete(inspection)

@@ -1,48 +1,56 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo  УВЕЛИЧЕНИЕ ВЕРСИИ МОБИЛЬНОГО ПРИЛОЖЕНИЯ
+echo  РЈР’Р•Р›РР§Р•РќРР• Р’Р•Р РЎРР РњРћР‘РР›Р¬РќРћР“Рћ РџР РР›РћР–Р•РќРРЇ
 echo ========================================
 echo.
+
+REM Р•СЃР»Рё СѓСЃС‚Р°РЅРѕРІР»РµРЅР° РїРµСЂРµРјРµРЅРЅР°СЏ РѕРєСЂСѓР¶РµРЅРёСЏ NO_PAUSE=1 вЂ” РЅРµ РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРјСЃСЏ РЅР° pause
+if "%NO_PAUSE%"=="1" (
+    set "SKIP_PAUSE=1"
+)
 
 set PUBSPEC_FILE=mobile\pubspec.yaml
 
 if not exist "%PUBSPEC_FILE%" (
-    echo Ошибка: Файл %PUBSPEC_FILE% не найден!
-    pause
+    echo РћС€РёР±РєР°: Р¤Р°Р№Р» %PUBSPEC_FILE% РЅРµ РЅР°Р№РґРµРЅ!
+    if not defined SKIP_PAUSE pause
     exit /b 1
 )
 
-echo [*] Чтение текущей версии из %PUBSPEC_FILE%...
+echo [*] Р§С‚РµРЅРёРµ С‚РµРєСѓС‰РµР№ РІРµСЂСЃРёРё РёР· %PUBSPEC_FILE%...
 
 for /f "tokens=2 delims=: " %%a in ('findstr /C:"version:" "%PUBSPEC_FILE%"') do (
     set CURRENT_VERSION=%%a
 )
 
-echo Текущая версия: %CURRENT_VERSION%
+echo РўРµРєСѓС‰Р°СЏ РІРµСЂСЃРёСЏ: %CURRENT_VERSION%
 
-REM Парсим версию (формат: X.Y.Z+BUILD)
+REM РџР°СЂСЃРёРј РІРµСЂСЃРёСЋ (С„РѕСЂРјР°С‚: X.Y.Z+BUILD)
 for /f "tokens=1,2 delims=+" %%a in ("%CURRENT_VERSION%") do (
     set VERSION_PART=%%a
     set BUILD_PART=%%b
 )
 
-REM Увеличиваем build number
+REM РЈРІРµР»РёС‡РёРІР°РµРј build number
 set /a NEW_BUILD=%BUILD_PART%+1
 set NEW_VERSION=%VERSION_PART%+%NEW_BUILD%
 
-echo Новая версия: %NEW_VERSION%
+echo РќРѕРІР°СЏ РІРµСЂСЃРёСЏ: %NEW_VERSION%
 
-REM Заменяем версию в файле
-powershell -Command "(Get-Content '%PUBSPEC_FILE%') -replace 'version: %CURRENT_VERSION%', 'version: %NEW_VERSION%' | Set-Content '%PUBSPEC_FILE%'"
+REM Р—Р°РјРµРЅСЏРµРј РІРµСЂСЃРёСЋ РІ С„Р°Р№Р»Рµ
+powershell -NoProfile -Command "$c = Get-Content -Path '%PUBSPEC_FILE%' -Raw -Encoding UTF8; $c = $c -replace 'version:\s*%CURRENT_VERSION%', 'version: %NEW_VERSION%'; Set-Content -Path '%PUBSPEC_FILE%' -Value $c -Encoding UTF8"
 
 echo.
-echo [✓] Версия успешно обновлена!
+echo [вњ“] Р’РµСЂСЃРёСЏ СѓСЃРїРµС€РЅРѕ РѕР±РЅРѕРІР»РµРЅР°!
 echo.
-echo Старая версия: %CURRENT_VERSION%
-echo Новая версия:  %NEW_VERSION%
+echo РЎС‚Р°СЂР°СЏ РІРµСЂСЃРёСЏ: %CURRENT_VERSION%
+echo РќРѕРІР°СЏ РІРµСЂСЃРёСЏ:  %NEW_VERSION%
 echo.
-pause
+if not defined SKIP_PAUSE pause
+
+
+
 
 
 

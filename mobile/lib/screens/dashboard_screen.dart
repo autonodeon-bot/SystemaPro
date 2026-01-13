@@ -43,16 +43,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkForUpdate() async {
     try {
       final updateInfo = await _apiService.checkAppUpdate();
-      if (updateInfo != null && updateInfo['has_update'] == true) {
-        setState(() {
-          _updateUrl = updateInfo['download_url'];
-        });
-        if (mounted) {
-          _showUpdateDialog();
+      if (updateInfo != null) {
+        // Проверяем флаг has_update и is_latest
+        final hasUpdate = updateInfo['has_update'] == true;
+        final isLatest = updateInfo['is_latest'] == true;
+        
+        // Показываем диалог только если реально есть обновление и версия не последняя
+        if (hasUpdate && !isLatest && updateInfo['download_url'] != null) {
+          setState(() {
+            _updateUrl = updateInfo['download_url'];
+          });
+          if (mounted) {
+            _showUpdateDialog();
+          }
         }
+        // Логируем для отладки
+        print('Проверка обновлений: has_update=$hasUpdate, is_latest=$isLatest, current=${updateInfo['current_version']}+${updateInfo['current_build']}, latest=${updateInfo['latest_version']}+${updateInfo['latest_build']}');
       }
     } catch (e) {
-      // Игнорируем ошибки проверки обновлений
+      // Игнорируем ошибки проверки обновлений, но логируем
+      print('Ошибка проверки обновлений: $e');
     }
   }
 
@@ -69,10 +79,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: const Text('Позже'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
               if (_updateUrl != null) {
-                launchUrl(Uri.parse(_updateUrl!));
+                try {
+                  final uri = Uri.parse(_updateUrl!);
+                  // Используем externalApplication для прямого скачивания APK
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Не удалось открыть ссылку для скачивания'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Ошибка при открытии ссылки: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                }
               }
             },
             child: const Text('Скачать'),

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar } from 'lucide-react';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
@@ -20,6 +20,7 @@ import AssignmentsManagement from './pages/AssignmentsManagement';
 import UsersManagement from './pages/UsersManagement';
 import VerificationsManagement from './pages/VerificationsManagement';
 import VerificationsCalendar from './pages/VerificationsCalendar';
+import ReportTemplates from './pages/ReportTemplates';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -67,7 +68,6 @@ const Layout: React.FC = () => {
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
           <SidebarItem to="/" icon={LayoutDashboard} label={isSidebarOpen ? "Дашборд" : ""} />
           <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? "Оборудование" : ""} />
-          <SidebarItem to="/equipment-hierarchy" icon={Package} label={isSidebarOpen ? "Оборудование для диагностики" : ""} />
           <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? "Задания" : ""} />
           <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Чек-листы" : ""} />
           <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
@@ -78,6 +78,9 @@ const Layout: React.FC = () => {
           <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
           {user?.role === 'admin' && (
             <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
+          )}
+          {user?.role === 'admin' && (
+            <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
           )}
           <SidebarItem to="/inspection" icon={ClipboardList} label={isSidebarOpen ? "Диагностика" : ""} />
           <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
@@ -189,6 +192,7 @@ const App = () => {
             <Route path="/regulatory" element={<RegulatoryDocuments />} />
             <Route path="/competencies" element={<CompetenciesManagement />} />
             <Route path="/users" element={<ProtectedRoute requiredRole="admin"><UsersManagement /></ProtectedRoute>} />
+            <Route path="/report-templates" element={<ProtectedRoute requiredRole="admin"><ReportTemplates /></ProtectedRoute>} />
             <Route path="/inspection" element={<DynamicInspection />} />
             <Route path="/specs" element={<TechSpecs />} />
             <Route path="/mobile-app" element={<MobileApp />} />
@@ -203,3 +207,4 @@ const App = () => {
 };
 
 export default App;
+

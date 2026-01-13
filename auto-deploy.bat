@@ -3,49 +3,54 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo  АВТОМАТИЧЕСКИЙ ДЕПЛОЙ НА СЕРВЕР
+echo  РђР’РўРћРњРђРўРР§Р•РЎРљРР™ Р”Р•РџР›РћР™ РќРђ РЎР•Р Р’Р•Р 
 echo ========================================
 echo.
+
+REM Р•СЃР»Рё СѓСЃС‚Р°РЅРѕРІР»РµРЅР° РїРµСЂРµРјРµРЅРЅР°СЏ РѕРєСЂСѓР¶РµРЅРёСЏ NO_PAUSE=1 вЂ” РЅРµ РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРјСЃСЏ РЅР° pause
+if "%NO_PAUSE%"=="1" (
+    set "SKIP_PAUSE=1"
+)
 
 set SERVER_IP=5.129.203.182
 set SERVER_USER=root
 set SERVER_PASS=ydR9+CL3?S@dgH
 set APP_DIR=/opt/es-td-ngo
 
-echo [1/8] Проверка необходимых файлов...
+echo [1/8] РџСЂРѕРІРµСЂРєР° РЅРµРѕР±С…РѕРґРёРјС‹С… С„Р°Р№Р»РѕРІ...
 if not exist "backend\main.py" (
-    echo [❌] Ошибка: backend\main.py не найден
-    pause
+    echo [вќЊ] РћС€РёР±РєР°: backend\main.py РЅРµ РЅР°Р№РґРµРЅ
+    if not defined SKIP_PAUSE pause
     exit /b 1
 )
 if not exist "docker-compose.yml" (
-    echo [❌] Ошибка: docker-compose.yml не найден
-    pause
+    echo [вќЊ] РћС€РёР±РєР°: docker-compose.yml РЅРµ РЅР°Р№РґРµРЅ
+    if not defined SKIP_PAUSE pause
     exit /b 1
 )
-echo [✓] Все файлы на месте
+echo [вњ“] Р’СЃРµ С„Р°Р№Р»С‹ РЅР° РјРµСЃС‚Рµ
 echo.
 
-echo [2/8] Проверка подключения к серверу...
+echo [2/8] РџСЂРѕРІРµСЂРєР° РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє СЃРµСЂРІРµСЂСѓ...
 ping -n 1 %SERVER_IP% >nul 2>&1
 if errorlevel 1 (
-    echo [❌] Сервер %SERVER_IP% недоступен
-    pause
+    echo [вќЊ] РЎРµСЂРІРµСЂ %SERVER_IP% РЅРµРґРѕСЃС‚СѓРїРµРЅ
+    if not defined SKIP_PAUSE pause
     exit /b 1
 )
-echo [✓] Сервер доступен
+echo [вњ“] РЎРµСЂРІРµСЂ РґРѕСЃС‚СѓРїРµРЅ
 echo.
 
-echo [3/8] Подключение к серверу и создание директорий...
+echo [3/8] РџРѕРґРєР»СЋС‡РµРЅРёРµ Рє СЃРµСЂРІРµСЂСѓ Рё СЃРѕР·РґР°РЅРёРµ РґРёСЂРµРєС‚РѕСЂРёР№...
 echo y | plink -ssh -pw %SERVER_PASS% %SERVER_USER%@%SERVER_IP% "mkdir -p %APP_DIR% && mkdir -p %APP_DIR%/backend && mkdir -p %APP_DIR%/backend/reports && mkdir -p %APP_DIR%/backend/certs && mkdir -p %APP_DIR%/frontend && mkdir -p %APP_DIR%/nginx" 2>nul
 if errorlevel 1 (
-    echo [⚠] Проверяю альтернативный метод подключения...
+    echo [вљ ] РџСЂРѕРІРµСЂСЏСЋ Р°Р»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Р№ РјРµС‚РѕРґ РїРѕРґРєР»СЋС‡РµРЅРёСЏ...
     plink -ssh -batch -pw %SERVER_PASS% %SERVER_USER%@%SERVER_IP% "mkdir -p %APP_DIR% && mkdir -p %APP_DIR%/backend && mkdir -p %APP_DIR%/backend/reports && mkdir -p %APP_DIR%/backend/certs && mkdir -p %APP_DIR%/frontend && mkdir -p %APP_DIR%/nginx" 2>nul
 )
-echo [✓] Директории созданы
+echo [вњ“] Р”РёСЂРµРєС‚РѕСЂРёРё СЃРѕР·РґР°РЅС‹
 echo.
 
-echo [4/8] Копирование backend файлов...
+echo [4/8] РљРѕРїРёСЂРѕРІР°РЅРёРµ backend С„Р°Р№Р»РѕРІ...
 pscp -batch -pw %SERVER_PASS% -r backend\*.py %SERVER_USER%@%SERVER_IP%:%APP_DIR%/backend/ 2>nul
 pscp -batch -pw %SERVER_PASS% backend\requirements.txt %SERVER_USER%@%SERVER_IP%:%APP_DIR%/backend/ 2>nul
 pscp -batch -pw %SERVER_PASS% backend\Dockerfile %SERVER_USER%@%SERVER_IP%:%APP_DIR%/backend/ 2>nul
@@ -55,10 +60,10 @@ if exist "backend\test_data.py" (
 if exist "backend\auth.py" (
     pscp -batch -pw %SERVER_PASS% backend\auth.py %SERVER_USER%@%SERVER_IP%:%APP_DIR%/backend/ 2>nul
 )
-echo [✓] Backend файлы скопированы
+echo [вњ“] Backend С„Р°Р№Р»С‹ СЃРєРѕРїРёСЂРѕРІР°РЅС‹
 echo.
 
-echo [5/8] Копирование frontend файлов...
+echo [5/8] РљРѕРїРёСЂРѕРІР°РЅРёРµ frontend С„Р°Р№Р»РѕРІ...
 if exist "src" (
     pscp -batch -pw %SERVER_PASS% -r src\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
 )
@@ -80,29 +85,29 @@ if exist "index.html" (
 if exist "frontend.Dockerfile" (
     pscp -batch -pw %SERVER_PASS% frontend.Dockerfile %SERVER_USER%@%SERVER_IP%:%APP_DIR%/frontend/ 2>nul
 )
-echo [✓] Frontend файлы скопированы
+echo [вњ“] Frontend С„Р°Р№Р»С‹ СЃРєРѕРїРёСЂРѕРІР°РЅС‹
 echo.
 
-echo [6/8] Копирование конфигурационных файлов...
+echo [6/8] РљРѕРїРёСЂРѕРІР°РЅРёРµ РєРѕРЅС„РёРіСѓСЂР°С†РёРѕРЅРЅС‹С… С„Р°Р№Р»РѕРІ...
 pscp -batch -pw %SERVER_PASS% docker-compose.yml %SERVER_USER%@%SERVER_IP%:%APP_DIR%/ 2>nul
 if exist "nginx" (
     pscp -batch -pw %SERVER_PASS% -r nginx\* %SERVER_USER%@%SERVER_IP%:%APP_DIR%/nginx/ 2>nul
 )
-echo [✓] Конфигурационные файлы скопированы
+echo [вњ“] РљРѕРЅС„РёРіСѓСЂР°С†РёРѕРЅРЅС‹Рµ С„Р°Р№Р»С‹ СЃРєРѕРїРёСЂРѕРІР°РЅС‹
 echo.
 
-echo [7/8] Создание скрипта деплоя на сервере...
+echo [7/8] РЎРѕР·РґР°РЅРёРµ СЃРєСЂРёРїС‚Р° РґРµРїР»РѕСЏ РЅР° СЃРµСЂРІРµСЂРµ...
 pscp -batch -pw %SERVER_PASS% deploy-simple.sh %SERVER_USER%@%SERVER_IP%:%APP_DIR%/deploy.sh 2>nul
 plink -batch -ssh -pw %SERVER_PASS% %SERVER_USER%@%SERVER_IP% "chmod +x %APP_DIR%/deploy.sh && dos2unix %APP_DIR%/deploy.sh 2>/dev/null || sed -i 's/\r$//' %APP_DIR%/deploy.sh" 2>nul
-echo [✓] Скрипт деплоя создан
+echo [вњ“] РЎРєСЂРёРїС‚ РґРµРїР»РѕСЏ СЃРѕР·РґР°РЅ
 echo.
 
-echo [8/8] Запуск деплоя на сервере...
-echo [*] Это может занять несколько минут...
+echo [8/8] Р—Р°РїСѓСЃРє РґРµРїР»РѕСЏ РЅР° СЃРµСЂРІРµСЂРµ...
+echo [*] Р­С‚Рѕ РјРѕР¶РµС‚ Р·Р°РЅСЏС‚СЊ РЅРµСЃРєРѕР»СЊРєРѕ РјРёРЅСѓС‚...
 plink -batch -ssh -pw %SERVER_PASS% %SERVER_USER%@%SERVER_IP% "cd %APP_DIR% && ./deploy.sh"
 if errorlevel 1 (
-    echo [⚠] Ошибка при выполнении деплоя на сервере
-    echo [*] Попробуйте подключиться вручную:
+    echo [вљ ] РћС€РёР±РєР° РїСЂРё РІС‹РїРѕР»РЅРµРЅРёРё РґРµРїР»РѕСЏ РЅР° СЃРµСЂРІРµСЂРµ
+    echo [*] РџРѕРїСЂРѕР±СѓР№С‚Рµ РїРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ РІСЂСѓС‡РЅСѓСЋ:
     echo     ssh %SERVER_USER%@%SERVER_IP%
     echo     cd %APP_DIR%
     echo     ./deploy.sh
@@ -111,22 +116,24 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
-echo  ДЕПЛОЙ ЗАВЕРШЕН УСПЕШНО!
+echo  Р”Р•РџР›РћР™ Р—РђР’Р•Р РЁР•Рќ РЈРЎРџР•РЁРќРћ!
 echo ========================================
 echo.
-echo Проверьте статус:
+echo РџСЂРѕРІРµСЂСЊС‚Рµ СЃС‚Р°С‚СѓСЃ:
 echo   ssh %SERVER_USER%@%SERVER_IP%
 echo   cd %APP_DIR%
 echo   docker-compose ps
 echo   docker-compose logs -f backend
 echo.
-echo API доступен по адресу:
+echo API РґРѕСЃС‚СѓРїРµРЅ РїРѕ Р°РґСЂРµСЃСѓ:
 echo   http://%SERVER_IP%:8000
 echo   http://%SERVER_IP%:8000/health
 echo.
-echo Frontend доступен по адресу:
+echo Frontend РґРѕСЃС‚СѓРїРµРЅ РїРѕ Р°РґСЂРµСЃСѓ:
 echo   http://%SERVER_IP%
 echo.
 
 :end
-pause
+if not defined SKIP_PAUSE pause
+endlocal
+

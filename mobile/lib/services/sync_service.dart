@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as Path;
 import '../models/vessel_checklist.dart';
+import '../models/compressor_checklist.dart';
 import '../models/equipment.dart';
 import '../models/assignment.dart';
 import 'api_service.dart';
@@ -25,6 +26,7 @@ class SyncService {
     Map<String, String>? documentFiles,
     String? assignmentId, // ID задания (версия 3.3.0)
     List<String>? verificationEquipmentIds, // ID выбранного оборудования для поверок
+    String status = 'DRAFT', // DRAFT / SIGNED
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -66,7 +68,10 @@ class SyncService {
         'data': checklistJson,
         'conclusion': conclusion,
         'date_performed': inspectionDate,
-        'status': 'DRAFT',
+        // Статус выставляется UI (вариант Б):
+        // - "Сохранить" -> DRAFT
+        // - "Подписать/Завершить" -> SIGNED
+        'status': status,
         'timestamp': DateTime.now().toIso8601String(),
         // Сохраняем структурированный формат, чтобы синхронизация корректно загрузила файлы
         'document_files': structuredDocumentFiles,
@@ -95,6 +100,40 @@ class SyncService {
     } catch (e) {
       return [];
     }
+  }
+
+  /// Локальный статус по заданиям:
+  /// - hasDraft: есть локальный черновик (DRAFT)
+  /// - hasSigned: есть локально подписанное (SIGNED)
+  Future<Map<String, LocalAssignmentInspectionState>> getLocalAssignmentInspectionState(
+    List<String> assignmentIds,
+  ) async {
+    final state = <String, LocalAssignmentInspectionState>{};
+    try {
+      if (assignmentIds.isEmpty) return state;
+
+      for (final id in assignmentIds) {
+        state[id] = LocalAssignmentInspectionState.none();
+      }
+
+      final pending = await getPendingInspections();
+      for (final item in pending) {
+        final aId = item['assignment_id']?.toString();
+        if (aId == null || aId.isEmpty) continue;
+        if (!state.containsKey(aId)) continue;
+
+        final st = (item['status']?.toString().toUpperCase() ?? 'DRAFT');
+        final cur = state[aId] ?? LocalAssignmentInspectionState.none();
+        if (st == 'SIGNED') {
+          state[aId] = cur.copyWith(hasSigned: true);
+        } else if (st == 'DRAFT') {
+          state[aId] = cur.copyWith(hasDraft: true);
+        }
+      }
+    } catch (_) {
+      // Не роняем UI
+    }
+    return state;
   }
 
   /// Синхронизировать все ожидающие диагностики и загрузить оборудование
@@ -141,10 +180,7 @@ class SyncService {
       final pendingInspections = await getPendingInspections();
       if (pendingInspections.isEmpty) {
         result.success = true;
-        if (result.message == null) {
-          result.message =
-              'Синхронизация завершена. Нет данных для отправки на сервер';
-        }
+        result.message ??= 'Синхронизация завершена. Нет данных для отправки на сервер';
         return result;
       }
 
@@ -153,8 +189,20 @@ class SyncService {
 
       for (final inspectionData in pendingInspections) {
         try {
-          final checklist = VesselChecklist.fromJson(
-              inspectionData['data'] as Map<String, dynamic>);
+          final data = inspectionData['data'] as Map<String, dynamic>;
+          
+          // Определяем тип чек-листа на основе equipment_type
+          VesselChecklist checklist;
+          final equipmentType = data['equipment_type'] as String?;
+          
+          if (equipmentType != null && 
+              (equipmentType.toUpperCase().contains('COMPRESSOR') || 
+               equipmentType.toUpperCase().contains('КОМПРЕССОР'))) {
+            // Используем CompressorChecklist для компрессоров
+            checklist = CompressorChecklist.fromJson(data);
+          } else {
+            checklist = VesselChecklist.fromJson(data);
+          }
 
           DateTime? datePerformed;
           if (inspectionData['date_performed'] != null) {
@@ -173,6 +221,7 @@ class SyncService {
             conclusion: inspectionData['conclusion'] as String?,
             datePerformed: datePerformed,
             assignmentId: inspectionData['assignment_id'] as String?, // Версия 3.3.0
+            status: (inspectionData['status'] as String?) ?? 'DRAFT',
           );
 
           // После отправки (при наличии связи) — обновляем карточку оборудования данными,
@@ -393,4 +442,24 @@ class SyncResult {
   int failedCount = 0;
   String? message;
   String? error;
+}
+
+class LocalAssignmentInspectionState {
+  final bool hasDraft;
+  final bool hasSigned;
+
+  const LocalAssignmentInspectionState({
+    required this.hasDraft,
+    required this.hasSigned,
+  });
+
+  factory LocalAssignmentInspectionState.none() =>
+      const LocalAssignmentInspectionState(hasDraft: false, hasSigned: false);
+
+  LocalAssignmentInspectionState copyWith({bool? hasDraft, bool? hasSigned}) {
+    return LocalAssignmentInspectionState(
+      hasDraft: hasDraft ?? this.hasDraft,
+      hasSigned: hasSigned ?? this.hasSigned,
+    );
+  }
 }

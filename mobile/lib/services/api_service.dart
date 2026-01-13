@@ -232,6 +232,7 @@ class ApiService {
     String? conclusion,
     DateTime? datePerformed,
     String? assignmentId, // ID задания (версия 3.3.0)
+    String status = 'DRAFT', // DRAFT / SIGNED
   }) async {
     try {
       final authService = AuthService();
@@ -244,7 +245,7 @@ class ApiService {
         'equipment_id': equipmentId,
         'data': checklist.toJson(),
         'conclusion': conclusion,
-        'status': 'DRAFT',
+        'status': status,
         'date_performed': datePerformed?.toIso8601String(),
       };
       
@@ -317,9 +318,11 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/health'),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
+      // Логируем ошибку для отладки
+      print('Connection check failed: $e');
       return false;
     }
   }

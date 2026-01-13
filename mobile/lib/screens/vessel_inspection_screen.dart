@@ -9,6 +9,7 @@ import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
+import '../models/compressor_checklist.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import '../data/checklist_constants.dart';
@@ -36,12 +37,23 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   final SyncService _syncService = SyncService();
   bool _isSubmitting = false;
 
-  final VesselChecklist _checklist = VesselChecklist();
+  // Определяем тип чек-листа на основе типа оборудования
+  late final VesselChecklist _checklist;
+  
+  // Проверяем, является ли оборудование компрессором
+  bool get _isCompressor {
+    final typeCode = widget.equipment.typeCode?.toUpperCase() ?? '';
+    final typeName = widget.equipment.typeName?.toUpperCase() ?? '';
+    return typeCode.contains('COMPRESSOR') || 
+           typeCode.contains('КОМПРЕССОР') ||
+           typeName.contains('COMPRESSOR') ||
+           typeName.contains('КОМПРЕССОР');
+  }
   File? _factoryPlatePhoto;
   File? _controlSchemeImage;
   
   // Храним загруженные файлы документов: document_number -> file_path
-  Map<String, String> _documentFiles = {};
+  final Map<String, String> _documentFiles = {};
   // Храним questionnaire_id после создания
   String? _questionnaireId;
   // Выбранное оборудование для поверок
@@ -52,11 +64,25 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   @override
   void initState() {
     super.initState();
-    // Инициализация документов
-    for (var doc in ChecklistConstants.documents) {
-      _checklist.documents[doc['number']!] = false;
+    try {
+      // Создаем чек-лист в зависимости от типа оборудования
+      _checklist = _isCompressor 
+          ? CompressorChecklist() 
+          : VesselChecklist();
+      
+      // Инициализация документов
+      for (var doc in ChecklistConstants.documents) {
+        _checklist.documents[doc['number']!] = false;
+      }
+      _prefillFromEquipment();
+    } catch (e) {
+      // Если ошибка при инициализации, создаем базовый чек-лист
+      _checklist = VesselChecklist();
+      for (var doc in ChecklistConstants.documents) {
+        _checklist.documents[doc['number']!] = false;
+      }
+      print('Ошибка инициализации чек-листа: $e');
     }
-    _prefillFromEquipment();
   }
 
   void _prefillFromEquipment() {
@@ -68,18 +94,31 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
       return s.trim().isEmpty ? null : s.trim();
     }
 
-    // Карта обследования — тянем из базы оборудования (attributes + стандартные поля)
+    // Общие поля для всех типов оборудования
     _checklist.vesselName = getAttr('vessel_name') ?? widget.equipment.name;
     _checklist.serialNumber = getAttr('serial_number') ?? widget.equipment.serialNumber;
     _checklist.regNumber = getAttr('reg_number');
     _checklist.manufacturer = getAttr('manufacturer');
     _checklist.manufactureYear = getAttr('manufacture_year');
-    _checklist.diameter = getAttr('diameter');
-    _checklist.workingPressure = getAttr('working_pressure');
-    _checklist.wallThickness = getAttr('wall_thickness');
-
-    // Организация/место — если в атрибутах есть
     _checklist.organization = _checklist.organization ?? getAttr('organization');
+
+      // Поля специфичные для сосудов
+      if (!_isCompressor) {
+        _checklist.diameter = getAttr('diameter');
+        _checklist.workingPressure = getAttr('working_pressure');
+        _checklist.wallThickness = getAttr('wall_thickness');
+      } else {
+        // Поля специфичные для компрессоров
+        final compressorChecklist = _checklist as CompressorChecklist;
+      compressorChecklist.compressorType = getAttr('compressor_type');
+      compressorChecklist.powerRating = getAttr('power_rating');
+      compressorChecklist.pressureRatio = getAttr('pressure_ratio');
+      compressorChecklist.flowRate = getAttr('flow_rate');
+      compressorChecklist.rotationSpeed = getAttr('rotation_speed');
+      compressorChecklist.numberOfStages = getAttr('number_of_stages');
+      compressorChecklist.coolingSystem = getAttr('cooling_system');
+      compressorChecklist.lubricationSystem = getAttr('lubrication_system');
+    }
   }
 
   Future<void> _pickImage(ImageSource source, bool isFactoryPlate) async {
@@ -103,99 +142,160 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     }
   }
 
-  Future<void> _submitForm() async {
-    if (_formKey.currentState?.saveAndValidate() ?? false) {
-      setState(() => _isSubmitting = true);
-
+  String _resolveInspectionDateIso() {
+    if (_checklist.inspectionDate != null && _checklist.inspectionDate!.isNotEmpty) {
       try {
-        // Парсим дату обследования
-        DateTime? datePerformed;
-        String inspectionDateStr;
-        if (_checklist.inspectionDate != null &&
-            _checklist.inspectionDate!.isNotEmpty) {
-          try {
-            datePerformed = DateTime.parse(_checklist.inspectionDate!);
-            inspectionDateStr = _checklist.inspectionDate!;
-          } catch (e) {
-            // Если не удалось распарсить, используем текущую дату
-            datePerformed = DateTime.now();
-            inspectionDateStr = datePerformed.toIso8601String();
-          }
-        } else {
-          // Если дата не указана, используем текущую дату
-          datePerformed = DateTime.now();
-          inspectionDateStr = datePerformed.toIso8601String();
-        }
-
-        // Валидация: проверяем, что выбрано оборудование для поверок
-        if (_selectedEquipmentIds.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Необходимо выбрать оборудование для поверок перед сохранением!'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          setState(() => _isSubmitting = false);
-          return;
-        }
-
-        // Сохраняем локально вместо отправки на сервер
-        await _syncService.saveInspectionOffline(
-          equipmentId: widget.equipment.id,
-          checklist: _checklist,
-          conclusion: _checklist.conclusion,
-          inspectionDate: inspectionDateStr,
-          documentFiles: _documentFiles,
-          assignmentId: widget.assignmentId, // Добавляем ID задания (версия 3.3.0)
-          verificationEquipmentIds: _selectedEquipmentIds, // Добавляем выбранное оборудование
-        );
-
-        // Если есть assignmentId, обновляем статус задания на "Завершено" (версия 3.3.0)
-        if (widget.assignmentId != null) {
-          try {
-            await _apiService.updateAssignmentStatus(
-              widget.assignmentId!,
-              'COMPLETED',
-            );
-          } catch (e) {
-            // Игнорируем ошибки обновления статуса задания
-            print('Ошибка обновления статуса задания: $e');
-          }
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Чек-лист сохранен локально. Отправка на сервер при синхронизации.'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Ошибка сохранения: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-        }
+        DateTime.parse(_checklist.inspectionDate!);
+        return _checklist.inspectionDate!;
+      } catch (_) {
+        return DateTime.now().toIso8601String();
       }
-    } else {
+    }
+    return DateTime.now().toIso8601String();
+  }
+
+  Future<void> _saveDraft() async {
+    if (!(_formKey.currentState?.saveAndValidate() ?? false)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Пожалуйста, заполните все обязательные поля'),
           backgroundColor: Colors.orange,
         ),
       );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final inspectionDateStr = _resolveInspectionDateIso();
+
+      // Черновик: разрешаем сохранять даже без оборудования для поверок,
+      // чтобы инженер мог заполнить часть данных и вернуться позже.
+      await _syncService.saveInspectionOffline(
+        equipmentId: widget.equipment.id,
+        checklist: _checklist,
+        conclusion: _checklist.conclusion,
+        inspectionDate: inspectionDateStr,
+        documentFiles: _documentFiles,
+        assignmentId: widget.assignmentId,
+        verificationEquipmentIds: _selectedEquipmentIds,
+        status: 'DRAFT',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Черновик сохранен локально. Отправка на сервер при синхронизации.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка сохранения: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _signAndFinish() async {
+    if (!(_formKey.currentState?.saveAndValidate() ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Пожалуйста, заполните все обязательные поля'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (widget.assignmentId == null || widget.assignmentId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Подписание доступно только для работ по заданию'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Подписание: требуем выбор оборудования для поверок
+    if (_selectedEquipmentIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Перед завершением необходимо выбрать оборудование для поверок'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Подписать и завершить?'),
+        content: const Text(
+          'После синхронизации на сервере задание будет отмечено как выполненное. '
+          'Вы сможете скачать/сформировать отчет в веб-версии.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Подписать')),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      final inspectionDateStr = _resolveInspectionDateIso();
+
+      await _syncService.saveInspectionOffline(
+        equipmentId: widget.equipment.id,
+        checklist: _checklist,
+        conclusion: _checklist.conclusion,
+        inspectionDate: inspectionDateStr,
+        documentFiles: _documentFiles,
+        assignmentId: widget.assignmentId,
+        verificationEquipmentIds: _selectedEquipmentIds,
+        status: 'SIGNED',
+      );
+
+      // Важно: НЕ ставим задание COMPLETED на клиенте.
+      // COMPLETED выставит backend после успешной синхронизации create_inspection(status=SIGNED).
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Чек-лист подписан локально. Отправка на сервер при синхронизации.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка сохранения: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -205,16 +305,28 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
       'executors': _checklist.executors,
       'organization': _checklist.organization,
 
-      // Карта обследования
+      // Карта обследования (общие поля)
       'vessel_name': _checklist.vesselName,
       'serial_number': _checklist.serialNumber,
       'reg_number': _checklist.regNumber,
       'manufacturer': _checklist.manufacturer,
       'manufacture_year': _checklist.manufactureYear,
-      'diameter': _checklist.diameter,
-      'working_pressure': _checklist.workingPressure,
-      'wall_thickness': _checklist.wallThickness,
     };
+    
+    // Добавляем поля в зависимости от типа оборудования
+    if (!_isCompressor) {
+      initialValues['diameter'] = _checklist.diameter;
+      initialValues['working_pressure'] = _checklist.workingPressure;
+      initialValues['wall_thickness'] = _checklist.wallThickness;
+    } else {
+      final compressorChecklist = _checklist as CompressorChecklist;
+      initialValues['compressor_type'] = compressorChecklist.compressorType;
+      initialValues['power_rating'] = compressorChecklist.powerRating;
+      initialValues['pressure_ratio'] = compressorChecklist.pressureRatio;
+      initialValues['flow_rate'] = compressorChecklist.flowRate;
+      initialValues['rotation_speed'] = compressorChecklist.rotationSpeed;
+      initialValues['number_of_stages'] = compressorChecklist.numberOfStages;
+    }
 
     // Дата (если уже есть строка ISO)
     if (_checklist.inspectionDate != null && _checklist.inspectionDate!.isNotEmpty) {
@@ -244,8 +356,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           else
             IconButton(
               icon: const Icon(Icons.save),
-              onPressed: _submitForm,
-              tooltip: 'Сохранить локально (отправка при синхронизации)',
+              onPressed: _saveDraft,
+              tooltip: 'Сохранить черновик локально (отправка при синхронизации)',
             ),
         ],
       ),
@@ -342,7 +454,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
                 .map((doc) => _buildDocumentCheckbox(doc)),
             const SizedBox(height: 24),
             _buildSectionHeader('3. Карта обследования'),
-            _buildTextField('vessel_name', 'Наименование сосуда', (value) {
+            _buildTextField('vessel_name', _isCompressor ? 'Наименование компрессора' : 'Наименование сосуда', (value) {
               _checklist.vesselName = value;
             }),
             _buildTextField('serial_number', 'Заводской номер', (value) {
@@ -357,16 +469,49 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
             _buildTextField('manufacture_year', 'Год изготовления', (value) {
               _checklist.manufactureYear = value;
             }),
-            _buildTextField('diameter', 'Диаметр сосуда', (value) {
-              _checklist.diameter = value;
-            }),
-            _buildTextField('working_pressure', 'Рабочее давление', (value) {
-              _checklist.workingPressure = value;
-            }),
-            _buildTextField(
-                'wall_thickness', 'Толщина стенки (обечайка / днище)', (value) {
-              _checklist.wallThickness = value;
-            }),
+            // Поля для сосудов (скрыты для компрессоров)
+            if (!_isCompressor) ...[
+              _buildTextField('diameter', 'Диаметр сосуда', (value) {
+                _checklist.diameter = value;
+              }),
+              _buildTextField('working_pressure', 'Рабочее давление', (value) {
+                _checklist.workingPressure = value;
+              }),
+              _buildTextField(
+                  'wall_thickness', 'Толщина стенки (обечайка / днище)', (value) {
+                _checklist.wallThickness = value;
+              }),
+            ],
+            // Поля для компрессоров
+            if (_isCompressor) ...[
+              Builder(
+                builder: (context) {
+                  final compressorChecklist = _checklist as CompressorChecklist;
+                  return Column(
+                    children: [
+                      _buildTextField('compressor_type', 'Тип компрессора', (value) {
+                        compressorChecklist.compressorType = value;
+                      }),
+                      _buildTextField('power_rating', 'Мощность', (value) {
+                        compressorChecklist.powerRating = value;
+                      }),
+                      _buildTextField('pressure_ratio', 'Степень сжатия', (value) {
+                        compressorChecklist.pressureRatio = value;
+                      }),
+                      _buildTextField('flow_rate', 'Производительность', (value) {
+                        compressorChecklist.flowRate = value;
+                      }),
+                      _buildTextField('rotation_speed', 'Частота вращения', (value) {
+                        compressorChecklist.rotationSpeed = value;
+                      }),
+                      _buildTextField('number_of_stages', 'Количество ступеней', (value) {
+                        compressorChecklist.numberOfStages = value;
+                      }),
+                    ],
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 16),
             _buildPhotoSection(
                 'Фото заводской таблички', _factoryPlatePhoto, true),
@@ -890,7 +1035,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
                 _dialogTextField(uzk, 'Дефект (УЗК)'),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: conclusion,
+                  initialValue: conclusion,
                   decoration: const InputDecoration(
                     labelText: 'Заключение',
                     labelStyle: TextStyle(color: Colors.white70),
@@ -1239,7 +1384,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final targetPath = Path.join(
       storageDir.path,
-      '${documentNumber}_$ts\_$safeName',
+      '${documentNumber}_${ts}_$safeName',
     );
     final f = File(targetPath);
     await f.writeAsBytes(bytes, flush: true);
@@ -1257,7 +1402,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
       await storageDir.create(recursive: true);
     }
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final targetPath = Path.join(storageDir.path, '${documentNumber}_$ts\_$fileName');
+    final targetPath = Path.join(storageDir.path, '${documentNumber}_${ts}_$fileName');
     final targetFile = File(targetPath);
     await targetFile.writeAsBytes(await File(sourcePath).readAsBytes(), flush: true);
     return targetFile.path;
@@ -1488,35 +1633,73 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   }
 
   Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _submitForm,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF22c55e),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+    final isAssignment = widget.assignmentId != null && widget.assignmentId!.isNotEmpty;
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _saveDraft,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3b82f6),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Сохранить (черновик)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ),
-        child: _isSubmitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text(
-                'Сохранить локально',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+        if (isAssignment) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : _signAndFinish,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF22c55e),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
-      ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Подписать / Завершить',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
