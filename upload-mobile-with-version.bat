@@ -47,7 +47,7 @@ if errorlevel 1 goto error
 
 echo.
 echo [*] Move APK on server and update symlink
-plink -batch -ssh -pw "ydR9+CL3?S@dgH" "root@5.129.203.182" "mv /tmp/app-release.apk /opt/es-td-ngo/frontend/dist/mobile/%APK_FILENAME% && ln -sf /opt/es-td-ngo/frontend/dist/mobile/%APK_FILENAME% /opt/es-td-ngo/frontend/dist/mobile/app-release.apk"
+plink -batch -ssh -pw "ydR9+CL3?S@dgH" "root@5.129.203.182" "mv /tmp/app-release.apk /opt/es-td-ngo/mobile-apk/%APK_FILENAME% && ln -sf /opt/es-td-ngo/mobile-apk/%APK_FILENAME% /opt/es-td-ngo/mobile-apk/app-release.apk"
 if errorlevel 1 goto error
 
 echo.
