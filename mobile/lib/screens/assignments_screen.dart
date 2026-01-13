@@ -76,6 +76,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   List<Assignment> _assignments = [];
   List<Assignment> _filteredAssignments = [];
   Map<String, LocalAssignmentInspectionState> _localInspectionState = {};
+  final Map<String, bool> _opoHasData = {}; // opo_id -> есть ли данные ОПО (локально или на сервере)
   bool _isLoading = true;
   String _selectedStatus = 'all';
   String _selectedSort = 'due_date'; // due_date, priority, created_at, equipment_name
@@ -108,6 +109,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         _isLoading = false;
       });
       await _refreshLocalInspectionState(assignments);
+      await _refreshOpoSurveyState(assignments);
       _filterAssignments();
     } catch (e) {
       final msg = e.toString();
@@ -161,6 +163,63 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _refreshOpoSurveyState(List<Assignment> assignments) async {
+    try {
+      final opoIds = assignments
+          .map((a) => a.opoId)
+          .whereType<String>()
+          .where((s) => s.isNotEmpty)
+          .toSet()
+          .toList();
+      if (opoIds.isEmpty) return;
+
+      // 1) Локальные несинхронизированные опросники ОПО
+      try {
+        final pending = await _syncService.getPendingOpoSurveys();
+        for (final p in pending) {
+          final id = p['opo_id']?.toString();
+          if (id != null && id.isNotEmpty) {
+            _opoHasData[id] = true;
+          }
+        }
+      } catch (_) {}
+
+      // 2) Данные на сервере (подтягиваем и кэшируем)
+      for (final id in opoIds) {
+        if (_opoHasData[id] == true) continue; // уже знаем, что есть
+        try {
+          final resp = await _apiService.getOpoSurvey(id);
+          final data = resp['survey_data'];
+          bool has = false;
+          if (data is Map) {
+            final m = Map<String, dynamic>.from(data);
+            if ((m['organization']?.toString().trim().isNotEmpty ?? false) ||
+                (m['executors']?.toString().trim().isNotEmpty ?? false)) {
+              has = true;
+            }
+            final docs = m['documents'];
+            if (docs is Map) {
+              for (final e in docs.entries) {
+                if (e.value == true) {
+                  has = true;
+                  break;
+                }
+              }
+            }
+          }
+          _opoHasData[id] = has;
+        } catch (_) {
+          // игнорируем ошибки сети
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {});
+    } catch (_) {
+      // игнорируем
     }
   }
 
@@ -261,6 +320,11 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       chips.add(_chip('На сервере', Colors.green));
     } else if (local.hasSigned) {
       chips.add(_chip('Ожидает синхронизации', Colors.purple));
+    }
+
+    final opoId = assignment.opoId;
+    if (opoId != null && opoId.isNotEmpty && (_opoHasData[opoId] == true)) {
+      chips.add(_chip('ОПО заполнено', Colors.teal));
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -747,6 +811,22 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       }
                     },
                     icon: const Icon(Icons.assignment_turned_in, color: Colors.green),
+                  ),
+                if ((group.assignments.isNotEmpty) &&
+                    ((group.assignments.first.opoId ?? '').isNotEmpty) &&
+                    (_opoHasData[group.assignments.first.opoId!] == true))
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.teal.withOpacity(0.35)),
+                    ),
+                    child: const Text(
+                      'ОПО заполнено',
+                      style: TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
