@@ -48,10 +48,10 @@ class ImageAnnotationScreen extends StatefulWidget {
 class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   File? _imageFile;
-  List<AnnotationPoint> _annotations = [];
-  AnnotationType _currentType = AnnotationType.point;
+  final List<AnnotationPoint> _annotations = [];
+  final AnnotationType _currentType = AnnotationType.point;
   Color _currentColor = Colors.red;
-  double _currentStrokeWidth = 3.0;
+  final double _currentStrokeWidth = 3.0;
   final GlobalKey _repaintBoundaryKey = GlobalKey();
 
   @override
@@ -167,7 +167,7 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<AnnotationType>(
-                value: annotation.type,
+                initialValue: annotation.type,
                 decoration: const InputDecoration(
                   labelText: 'Тип аннотации',
                   labelStyle: TextStyle(color: Colors.white70),

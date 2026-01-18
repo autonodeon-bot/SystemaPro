@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import 'equipment_list_screen.dart';
 import 'assignments_screen.dart'; // Версия 3.3.0
@@ -19,6 +21,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _appVersion = '';
   String? _updateUrl;
   final _apiService = ApiService();
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+  BuildContext? _progressDialogContext;
 
   @override
   void initState() {
@@ -70,53 +75,203 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
     showDialog(
       context: context,
+      barrierDismissible: !_isDownloading,
       builder: (context) => AlertDialog(
         title: const Text('Доступно обновление'),
-        content: const Text('Доступна новая версия приложения. Хотите скачать?'),
+        content: _isDownloading
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Скачивание обновления...'),
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(value: _downloadProgress),
+                  const SizedBox(height: 8),
+                  Text('${(_downloadProgress * 100).toStringAsFixed(0)}%'),
+                ],
+              )
+            : const Text('Доступна новая версия приложения. Хотите скачать и установить?'),
         actions: [
+          if (!_isDownloading)
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Позже'),
+            ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Позже'),
-          ),
-          TextButton(
-            onPressed: () async {
+            onPressed: _isDownloading ? null : () async {
               Navigator.of(context).pop();
               if (_updateUrl != null) {
-                try {
-                  final uri = Uri.parse(_updateUrl!);
-                  // Используем externalApplication для прямого скачивания APK
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Не удалось открыть ссылку для скачивания'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Ошибка при открытии ссылки: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-                }
+                await _downloadAndInstallUpdate(_updateUrl!);
               }
             },
-            child: const Text('Скачать'),
+            child: _isDownloading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Скачать и установить'),
           ),
         ],
       ),
     );
+  }
+
+  void _showProgressDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        _progressDialogContext = context;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Сохраняем setDialogState для обновления диалога
+            _updateDialogState = setDialogState;
+            return AlertDialog(
+              title: const Text('Скачивание обновления'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Пожалуйста, подождите...'),
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(value: _downloadProgress),
+                  const SizedBox(height: 8),
+                  Text('${(_downloadProgress * 100).toStringAsFixed(0)}%'),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void Function(void Function())? _updateDialogState;
+
+  void _updateProgressDialog() {
+    if (_updateDialogState != null) {
+      _updateDialogState!(() {});
+    }
+  }
+
+  void _closeProgressDialog() {
+    if (_progressDialogContext != null && mounted) {
+      Navigator.of(_progressDialogContext!).pop();
+      _progressDialogContext = null;
+      _updateDialogState = null;
+    }
+  }
+
+  Future<void> _downloadAndInstallUpdate(String url) async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
+    // Показываем диалог с прогрессом
+    if (mounted) {
+      _showProgressDialog();
+    }
+
+    try {
+      // Получаем директорию для сохранения файла
+      final directory = await getExternalStorageDirectory();
+      if (directory == null) {
+        throw Exception('Не удалось получить директорию для сохранения');
+      }
+
+      // Извлекаем имя файла из URL
+      final uri = Uri.parse(url);
+      final fileName = uri.pathSegments.last;
+      if (fileName.isEmpty || !fileName.endsWith('.apk')) {
+        throw Exception('Неверный формат файла обновления');
+      }
+
+      final filePath = '${directory.path}/$fileName';
+
+      // Скачиваем файл
+      final dio = Dio();
+      await dio.download(
+        url,
+        filePath,
+        onReceiveProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() {
+              _downloadProgress = received / total;
+            });
+            _updateProgressDialog();
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _downloadProgress = 1.0;
+        });
+        _updateProgressDialog();
+      }
+
+      // Закрываем диалог прогресса
+      _closeProgressDialog();
+
+      // Открываем установщик APK
+      // Для Android 8.0+ система автоматически запросит разрешение на установку из неизвестных источников
+      final result = await OpenFilex.open(filePath);
+      
+      if (mounted) {
+        if (result.type == ResultType.done) {
+          // После успешной установки обновляем версию и проверяем обновления снова
+          await _loadAppVersion();
+          // Ждем немного, чтобы система обновила информацию о пакете
+          await Future.delayed(const Duration(seconds: 2));
+          await _checkForUpdate();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Установка начата. После завершения установки приложение будет обновлено.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        } else if (result.type == ResultType.noAppToOpen) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не найдено приложение для установки APK. Пожалуйста, установите файловый менеджер.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ошибка при открытии установщика: ${result.message}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Закрываем диалог прогресса в случае ошибки
+      _closeProgressDialog();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка при скачивании обновления: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      print('Ошибка скачивания обновления: $e');
+    } finally {
+      setState(() {
+        _isDownloading = false;
+        _downloadProgress = 0.0;
+      });
+    }
   }
 
   @override

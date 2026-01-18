@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../services/sync_service.dart';
 
 class VerificationEquipmentSelectionScreen extends StatefulWidget {
   final List<String>? preselectedIds; // Предварительно выбранные ID
@@ -20,6 +21,7 @@ class VerificationEquipmentSelectionScreen extends StatefulWidget {
 class _VerificationEquipmentSelectionScreenState
     extends State<VerificationEquipmentSelectionScreen> {
   final ApiService _apiService = ApiService();
+  final SyncService _syncService = SyncService();
   List<Map<String, dynamic>> _equipmentList = [];
   Set<String> _selectedIds = {};
   bool _loading = true;
@@ -62,10 +64,20 @@ class _VerificationEquipmentSelectionScreenState
         _loading = false;
       });
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      // Фолбэк на офлайн-список
+      final offline = await _syncService.getOfflineVerificationEquipment();
+      if (offline.isNotEmpty) {
+        setState(() {
+          _equipmentList = offline;
+          _loading = false;
+          _error = null;
+        });
+      } else {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 

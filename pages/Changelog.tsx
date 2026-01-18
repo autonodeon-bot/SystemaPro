@@ -1,5 +1,5 @@
-import React from 'react';
-import { Sparkles, CheckCircle, AlertCircle, Plus, Bug, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { Sparkles, CheckCircle, AlertCircle, Plus, Bug, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Version {
   version: string;
@@ -13,6 +13,32 @@ interface Version {
 
 const Changelog = () => {
   const versions: Version[] = [
+    {
+      version: '3.8.1',
+      date: '18.01.2026',
+      type: 'patch',
+      changes: [
+        { type: 'added', description: 'Отдельные формы актов обследования по каждому методу НК в отчетах' },
+        { type: 'improved', description: 'Расширена таблица технических характеристик по сосуду' },
+        { type: 'improved', description: 'Опросный лист: документы и вложения прикрепляются в отчет' },
+        { type: 'improved', description: 'ВИК: дефекты с фото/размерами добавлены в отчет' },
+        { type: 'improved', description: 'УЗТ: схема контроля и таблицы точек измерения' },
+        { type: 'improved', description: 'Синхронизация инженеров, заданий и поверок в мобильном приложении' },
+        { type: 'added', description: 'Раздел “Что нового” на дашборде с переходом к истории изменений' },
+      ],
+    },
+    {
+      version: '3.8.0',
+      date: '18.01.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Биометрическая аутентификация: вход по отпечатку пальца или PIN-коду в мобильном приложении' },
+        { type: 'added', description: 'Привязка пользователя к устройству: безопасная локальная авторизация для офлайн-режима' },
+        { type: 'improved', description: 'Офлайн-авторизация: пользователь может войти в приложение без интернета, используя биометрию или PIN' },
+        { type: 'improved', description: 'Безопасность: токены и пароли хранятся в защищенном хранилище устройства' },
+        { type: 'improved', description: 'UX мобильного приложения: автоматическое предложение биометрической аутентификации при первом входе' },
+      ],
+    },
     {
       version: '3.7.0',
       date: '13.01.2026',
@@ -181,6 +207,20 @@ const Changelog = () => {
     },
   ];
 
+  const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set([versions[0]?.version || '']));
+
+  const toggleVersion = (version: string) => {
+    setExpandedVersions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(version)) {
+        newSet.delete(version);
+      } else {
+        newSet.add(version);
+      }
+      return newSet;
+    });
+  };
+
   const getChangeIcon = (type: string) => {
     switch (type) {
       case 'added':
@@ -234,57 +274,74 @@ const Changelog = () => {
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
         <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
           <h2 className="text-xl font-bold text-white mb-2">Версия системы</h2>
-          <p className="text-2xl font-bold text-accent">3.7.0 (13.01.2026)</p>
+          <p className="text-2xl font-bold text-accent">3.8.1 (18.01.2026)</p>
           <p className="text-sm text-slate-400 mt-1">Текущая версия платформы</p>
         </div>
         <p className="text-slate-300 mb-6">
           Здесь вы можете увидеть все изменения и обновления системы. Версии отсортированы от новых к старым.
         </p>
 
-        <div className="space-y-8">
-          {versions.map((version, index) => (
-            <div
-              key={index}
-              className="bg-slate-900 rounded-lg border border-slate-700 p-6 hover:border-accent/50 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold text-white">Версия {version.version}</h2>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${getVersionBadgeColor(
-                      version.type
-                    )}`}
-                  >
-                    {version.type === 'major'
-                      ? 'Крупное обновление'
-                      : version.type === 'minor'
-                      ? 'Обновление'
-                      : 'Исправление'}
-                  </span>
-                </div>
-                <span className="text-slate-400 text-sm">{version.date}</span>
-              </div>
-
-              <div className="space-y-2">
-                {version.changes.map((change, changeIndex) => (
-                  <div
-                    key={changeIndex}
-                    className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
-                  >
-                    <div className="mt-0.5">{getChangeIcon(change.type)}</div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-slate-400">
-                          {getChangeLabel(change.type)}
-                        </span>
-                      </div>
-                      <p className="text-slate-300 text-sm">{change.description}</p>
+        <div className="space-y-4">
+          {versions.map((version, index) => {
+            const isExpanded = expandedVersions.has(version.version);
+            return (
+              <div
+                key={index}
+                className="bg-slate-900 rounded-lg border border-slate-700 hover:border-accent/50 transition-colors overflow-hidden"
+              >
+                <button
+                  onClick={() => toggleVersion(version.version)}
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-800/50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-800 border border-slate-700">
+                      {isExpanded ? (
+                        <ChevronUp className="text-accent" size={20} />
+                      ) : (
+                        <ChevronDown className="text-slate-400" size={20} />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-2xl font-bold text-white">Версия {version.version}</h2>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${getVersionBadgeColor(
+                          version.type
+                        )}`}
+                      >
+                        {version.type === 'major'
+                          ? 'Крупное обновление'
+                          : version.type === 'minor'
+                          ? 'Обновление'
+                          : 'Исправление'}
+                      </span>
                     </div>
                   </div>
-                ))}
+                  <span className="text-slate-400 text-sm">{version.date}</span>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-6 pb-6 pt-2 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                    {version.changes.map((change, changeIndex) => (
+                      <div
+                        key={changeIndex}
+                        className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                      >
+                        <div className="mt-0.5">{getChangeIcon(change.type)}</div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-semibold text-slate-400">
+                              {getChangeLabel(change.type)}
+                            </span>
+                          </div>
+                          <p className="text-slate-300 text-sm">{change.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-8 pt-6 border-t border-slate-700">

@@ -302,7 +302,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     // Фильтр по предприятию
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedEnterprise,
+                        initialValue: _selectedEnterprise,
                         decoration: InputDecoration(
                           labelText: 'Предприятие',
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -346,7 +346,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     if (_selectedEnterprise != null)
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedBranch,
+                          initialValue: _selectedBranch,
                           decoration: InputDecoration(
                             labelText: 'Филиал',
                             labelStyle: const TextStyle(color: Colors.white70),
@@ -391,7 +391,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     if (_selectedBranch != null)
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedWorkshop,
+                          initialValue: _selectedWorkshop,
                           decoration: InputDecoration(
                             labelText: 'Цех',
                             labelStyle: const TextStyle(color: Colors.white70),
@@ -434,7 +434,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     // Фильтр по типу оборудования
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedType,
+                        initialValue: _selectedType,
                         decoration: InputDecoration(
                           labelText: 'Тип оборудования',
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -694,7 +694,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                                   ),
                                 ),
                               );
-                            }).toList(),
+                            }),
                         ],
                       ),
                     );

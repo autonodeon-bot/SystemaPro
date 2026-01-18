@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as Path;
 import '../models/vessel_checklist.dart';
@@ -10,11 +11,13 @@ import 'api_service.dart';
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
   static const String _prefsKeyPendingInspections = 'pending_inspections';
-  static const String _prefsKeyPendingOpoSurveys = 'pending_opo_surveys';
   static const String _prefsKeyLastSync = 'last_sync';
   static const String _prefsKeyOfflineMode = 'offline_mode';
   static const String _prefsKeyOfflineEquipment = 'offline_equipment';
-  static const String _prefsKeyOfflineAssignments = 'offline_assignments'; // Версия 3.3.0
+  static const String _prefsKeyOfflineAssignments =
+      'offline_assignments'; // Версия 3.3.0
+  static const String _prefsKeyPendingOpoSurveys =
+      'pending_opo_surveys'; // Версия 3.7.0
 
   final ApiService _apiService = ApiService();
 
@@ -26,7 +29,8 @@ class SyncService {
     required String inspectionDate,
     Map<String, String>? documentFiles,
     String? assignmentId, // ID задания (версия 3.3.0)
-    List<String>? verificationEquipmentIds, // ID выбранного оборудования для поверок
+    List<String>?
+        verificationEquipmentIds, // ID выбранного оборудования для поверок
     String status = 'DRAFT', // DRAFT / SIGNED
   }) async {
     try {
@@ -51,6 +55,7 @@ class SyncService {
           };
         }
       }
+
       addAttachmentIfPresent('factory_plate_photo');
       addAttachmentIfPresent('control_scheme_image');
       if (documentFiles != null && documentFiles.isNotEmpty) {
@@ -77,63 +82,15 @@ class SyncService {
         // Сохраняем структурированный формат, чтобы синхронизация корректно загрузила файлы
         'document_files': structuredDocumentFiles,
         'assignment_id': assignmentId, // ID задания (версия 3.3.0)
-        'verification_equipment_ids': verificationEquipmentIds ?? [], // ID выбранного оборудования для поверок
+        'verification_equipment_ids': verificationEquipmentIds ??
+            [], // ID выбранного оборудования для поверок
       };
 
-      // Перезаписываем предыдущую локальную версию для того же оборудования/задания,
-      // чтобы при повторном открытии формы подтягивались заполненные данные,
-      // и чтобы не было десятков дубликатов в очереди синхронизации.
-      final filtered = <String>[];
-      for (final item in pendingInspections) {
-        try {
-          final decoded = json.decode(item) as Map<String, dynamic>;
-          final sameEquipment = decoded['equipment_id']?.toString() == equipmentId;
-          final sameAssignment =
-              (decoded['assignment_id']?.toString() ?? '') == (assignmentId ?? '');
-          if (sameEquipment && sameAssignment) {
-            continue;
-          }
-          filtered.add(item);
-        } catch (_) {
-          filtered.add(item);
-        }
-      }
-
-      filtered.add(json.encode(inspectionData));
-      await prefs.setStringList(_prefsKeyPendingInspections, filtered);
+      pendingInspections.add(json.encode(inspectionData));
+      await prefs.setStringList(
+          _prefsKeyPendingInspections, pendingInspections);
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
-    }
-  }
-
-  /// Получить последнюю локально сохраненную диагностику для оборудования/задания
-  Future<Map<String, dynamic>?> getLatestPendingInspection({
-    required String equipmentId,
-    String? assignmentId,
-  }) async {
-    try {
-      final pending = await getPendingInspections();
-      Map<String, dynamic>? best;
-      DateTime bestTs = DateTime.fromMillisecondsSinceEpoch(0);
-
-      for (final item in pending) {
-        final sameEquipment = item['equipment_id']?.toString() == equipmentId;
-        final sameAssignment =
-            (item['assignment_id']?.toString() ?? '') == (assignmentId ?? '');
-        if (!sameEquipment || !sameAssignment) continue;
-
-        final tsStr = item['timestamp']?.toString();
-        final ts = tsStr != null
-            ? (DateTime.tryParse(tsStr) ?? DateTime.now())
-            : DateTime.now();
-        if (ts.isAfter(bestTs)) {
-          bestTs = ts;
-          best = item;
-        }
-      }
-      return best;
-    } catch (_) {
-      return null;
     }
   }
 
@@ -155,13 +112,15 @@ class SyncService {
   /// Локальный статус по заданиям:
   /// - hasDraft: есть локальный черновик (DRAFT)
   /// - hasSigned: есть локально подписанное (SIGNED)
-  Future<Map<String, LocalAssignmentInspectionState>> getLocalAssignmentInspectionState(
+  Future<Map<String, LocalAssignmentInspectionState>>
+      getLocalAssignmentInspectionState(
     List<String> assignmentIds,
   ) async {
     final state = <String, LocalAssignmentInspectionState>{};
     try {
       if (assignmentIds.isEmpty) return state;
 
+      // Инициализируем
       for (final id in assignmentIds) {
         state[id] = LocalAssignmentInspectionState.none();
       }
@@ -178,10 +137,12 @@ class SyncService {
           state[aId] = cur.copyWith(hasSigned: true);
         } else if (st == 'DRAFT') {
           state[aId] = cur.copyWith(hasDraft: true);
+        } else {
+          // Игнорируем неизвестные статусы
         }
       }
     } catch (_) {
-      // Не роняем UI
+      // Не роняем UI, просто вернем то, что есть
     }
     return state;
   }
@@ -196,13 +157,6 @@ class SyncService {
       if (!isConnected) {
         result.error = 'Нет подключения к серверу';
         return result;
-      }
-
-      // 0) Сначала синхронизируем ОПО (они нужны для автоподтягивания пунктов 1-9)
-      try {
-        await _syncPendingOpoSurveys(result);
-      } catch (e) {
-        result.error = 'Ошибка синхронизации ОПО: $e';
       }
 
       // Загружаем список оборудования с сервера и сохраняем локально
@@ -237,7 +191,8 @@ class SyncService {
       final pendingInspections = await getPendingInspections();
       if (pendingInspections.isEmpty) {
         result.success = true;
-        result.message ??= 'Синхронизация завершена. Нет данных для отправки на сервер';
+        result.message ??=
+            'Синхронизация завершена. Нет данных для отправки на сервер';
         return result;
       }
 
@@ -246,15 +201,15 @@ class SyncService {
 
       for (final inspectionData in pendingInspections) {
         try {
-          final data = Map<String, dynamic>.from(inspectionData['data'] as Map);
-          
+          final data = inspectionData['data'] as Map<String, dynamic>;
+
           // Определяем тип чек-листа на основе equipment_type
           VesselChecklist checklist;
           final equipmentType = data['equipment_type'] as String?;
-          
-          if (equipmentType != null && 
-              (equipmentType.toUpperCase().contains('COMPRESSOR') || 
-               equipmentType.toUpperCase().contains('КОМПРЕССОР'))) {
+
+          if (equipmentType != null &&
+              (equipmentType.toUpperCase().contains('COMPRESSOR') ||
+                  equipmentType.toUpperCase().contains('КОМПРЕССОР'))) {
             // Используем CompressorChecklist для компрессоров
             checklist = CompressorChecklist.fromJson(data);
           } else {
@@ -277,7 +232,8 @@ class SyncService {
             checklist: checklist,
             conclusion: inspectionData['conclusion'] as String?,
             datePerformed: datePerformed,
-            assignmentId: inspectionData['assignment_id'] as String?, // Версия 3.3.0
+            assignmentId:
+                inspectionData['assignment_id'] as String?, // Версия 3.3.0
             status: (inspectionData['status'] as String?) ?? 'DRAFT',
           );
 
@@ -292,11 +248,14 @@ class SyncService {
             // Не блокируем синхронизацию из-за обновления оборудования
             print('Ошибка обновления данных оборудования: $e');
           }
-          
+
           // Добавляем используемое оборудование для поверок, если оно было выбрано
           final inspectionId = submitResult['id'] as String?;
-          final verificationEquipmentIds = inspectionData['verification_equipment_ids'] as List<dynamic>?;
-          if (inspectionId != null && verificationEquipmentIds != null && verificationEquipmentIds.isNotEmpty) {
+          final verificationEquipmentIds =
+              inspectionData['verification_equipment_ids'] as List<dynamic>?;
+          if (inspectionId != null &&
+              verificationEquipmentIds != null &&
+              verificationEquipmentIds.isNotEmpty) {
             try {
               final equipmentIds = verificationEquipmentIds
                   .map((id) => id.toString())
@@ -316,7 +275,7 @@ class SyncService {
 
           // Если есть questionnaire_id, загружаем файлы документов
           String? questionnaireId;
-          if (submitResult.containsKey('questionnaire_id') && 
+          if (submitResult.containsKey('questionnaire_id') &&
               submitResult['questionnaire_id'] != null) {
             questionnaireId = submitResult['questionnaire_id'] as String;
           }
@@ -324,7 +283,9 @@ class SyncService {
           // Загружаем файлы документов, если они есть
           final documentFiles =
               inspectionData['document_files'] as Map<String, dynamic>?;
-          if (questionnaireId != null && documentFiles != null && documentFiles.isNotEmpty) {
+          if (questionnaireId != null &&
+              documentFiles != null &&
+              documentFiles.isNotEmpty) {
             for (var entry in documentFiles.entries) {
               try {
                 String? filePath;
@@ -344,7 +305,7 @@ class SyncService {
                   filePath = m['file_path'] as String?;
                   fileName = m['file_name'] as String?;
                 }
-                
+
                 if (filePath != null && fileName != null) {
                   await _apiService.uploadDocumentFile(
                     questionnaireId: questionnaireId,
@@ -364,8 +325,6 @@ class SyncService {
         } catch (e) {
           failedInspections.add(json.encode(inspectionData));
           result.failedCount++;
-          // Сохраняем последнюю ошибку, чтобы пользователь видел причину
-          result.error = e.toString();
         }
       }
 
@@ -376,87 +335,14 @@ class SyncService {
       await prefs.setString(
           _prefsKeyLastSync, DateTime.now().toIso8601String());
 
-      result.success = result.failedCount == 0;
+      result.success = true;
       result.message =
           'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
-      if (result.failedCount > 0 && (result.error?.isNotEmpty ?? false)) {
-        result.message = '${result.message}\nПоследняя ошибка: ${result.error}';
-      }
     } catch (e) {
       result.error = 'Ошибка синхронизации: $e';
     }
 
     return result;
-  }
-
-  /// Сохранить опросный лист ОПО локально (для последующей синхронизации)
-  Future<void> saveOpoSurveyOffline({
-    required String opoId,
-    required Map<String, dynamic> surveyData,
-  }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final pending = prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
-
-      // Перезаписываем по opo_id
-      final filtered = <String>[];
-      for (final item in pending) {
-        try {
-          final decoded = json.decode(item) as Map<String, dynamic>;
-          if (decoded['opo_id']?.toString() == opoId) continue;
-          filtered.add(item);
-        } catch (_) {
-          filtered.add(item);
-        }
-      }
-
-      filtered.add(json.encode({
-        'opo_id': opoId,
-        'survey_data': surveyData,
-        'timestamp': DateTime.now().toIso8601String(),
-      }));
-
-      await prefs.setStringList(_prefsKeyPendingOpoSurveys, filtered);
-    } catch (e) {
-      throw Exception('Ошибка сохранения ОПО локально: $e');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingOpoSurveys() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final pending = prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
-      return pending.map((s) => json.decode(s) as Map<String, dynamic>).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  /// Синхронизировать ожидающие опросные листы ОПО
-  Future<void> _syncPendingOpoSurveys(SyncResult result) async {
-    final prefs = await SharedPreferences.getInstance();
-    final pending = await getPendingOpoSurveys();
-    if (pending.isEmpty) return;
-
-    final failed = <String>[];
-    for (final item in pending) {
-      try {
-        final opoId = item['opo_id']?.toString();
-        final data = item['survey_data'];
-        if (opoId == null || opoId.isEmpty || data is! Map) {
-          continue;
-        }
-        await _apiService.updateOpoSurvey(
-          opoId: opoId,
-          surveyData: Map<String, dynamic>.from(data),
-        );
-      } catch (e) {
-        failed.add(json.encode(item));
-        result.error = e.toString();
-      }
-    }
-
-    await prefs.setStringList(_prefsKeyPendingOpoSurveys, failed);
   }
 
   /// Получить время последней синхронизации
@@ -545,7 +431,8 @@ class SyncService {
       final prefs = await SharedPreferences.getInstance();
       final assignmentsJsonList =
           assignments.map((a) => json.encode(a.toJson())).toList();
-      await prefs.setStringList(_prefsKeyOfflineAssignments, assignmentsJsonList);
+      await prefs.setStringList(
+          _prefsKeyOfflineAssignments, assignmentsJsonList);
     } catch (e) {
       throw Exception('Ошибка сохранения заданий локально: $e');
     }
@@ -564,6 +451,90 @@ class SyncService {
       }).toList();
     } catch (e) {
       return [];
+    }
+  }
+
+  /// Сохранить опросник ОПО в офлайн-режиме (версия 3.7.0)
+  Future<void> saveOpoSurveyOffline({
+    required String opoId,
+    required Map<String, dynamic> surveyData,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pendingSurveys =
+          prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
+
+      final surveyEntry = {
+        'opo_id': opoId,
+        'survey_data': surveyData,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      // Удаляем старую запись для этого ОПО, если есть
+      pendingSurveys.removeWhere((item) {
+        try {
+          final decoded = json.decode(item) as Map<String, dynamic>;
+          return decoded['opo_id'] == opoId;
+        } catch (_) {
+          return false;
+        }
+      });
+
+      pendingSurveys.add(json.encode(surveyEntry));
+      await prefs.setStringList(_prefsKeyPendingOpoSurveys, pendingSurveys);
+    } catch (e) {
+      throw Exception('Ошибка сохранения опросника ОПО: $e');
+    }
+  }
+
+  /// Получить список ожидающих синхронизации опросников ОПО (версия 3.7.0)
+  Future<List<Map<String, dynamic>>> getPendingOpoSurveys() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pendingSurveys =
+          prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
+
+      return pendingSurveys.map((item) {
+        return json.decode(item) as Map<String, dynamic>;
+      }).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Получить последний ожидающий inspection для оборудования (версия 3.7.0)
+  Future<Map<String, dynamic>?> getLatestPendingInspection({
+    required String equipmentId,
+    String? assignmentId,
+  }) async {
+    try {
+      final pending = await getPendingInspections();
+
+      // Фильтруем по equipment_id и assignment_id (если указан)
+      final matching = pending.where((item) {
+        final eqId = item['equipment_id']?.toString();
+        if (eqId != equipmentId) return false;
+
+        if (assignmentId != null) {
+          final aId = item['assignment_id']?.toString();
+          if (aId != assignmentId) return false;
+        }
+
+        return true;
+      }).toList();
+
+      if (matching.isEmpty) return null;
+
+      // Сортируем по timestamp (новые первыми) и возвращаем последний
+      matching.sort((a, b) {
+        final tsA = a['timestamp'] as String? ?? '';
+        final tsB = b['timestamp'] as String? ?? '';
+        return tsB.compareTo(tsA);
+      });
+
+      return matching.first;
+    } catch (e) {
+      return null;
     }
   }
 }
@@ -587,7 +558,6 @@ class LocalAssignmentInspectionState {
 
   factory LocalAssignmentInspectionState.none() =>
       const LocalAssignmentInspectionState(hasDraft: false, hasSigned: false);
-
   LocalAssignmentInspectionState copyWith({bool? hasDraft, bool? hasSigned}) {
     return LocalAssignmentInspectionState(
       hasDraft: hasDraft ?? this.hasDraft,

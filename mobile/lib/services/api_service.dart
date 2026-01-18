@@ -113,6 +113,49 @@ class ApiService {
     }
   }
 
+  // Получить список инженеров
+  Future<List<Map<String, dynamic>>> getEngineers() async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/engineers'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('AUTH_INVALID');
+      }
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List? ?? [];
+        return items.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      }
+
+      String errorMessage =
+          'Failed to load engineers: ${response.statusCode}';
+      try {
+        final errorData = json.decode(response.body);
+        if (errorData['detail'] != null) {
+          errorMessage = '${errorData['detail']} (${response.statusCode})';
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    } catch (e) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
+        throw Exception(
+            'Нет подключения к серверу. Проверьте интернет-соединение.');
+      }
+      throw Exception('Ошибка загрузки инженеров: $e');
+    }
+  }
+
   // Получить оборудование по ID
   Future<Equipment> getEquipmentById(String id) async {
     try {

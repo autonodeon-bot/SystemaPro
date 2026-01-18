@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import 'dashboard_screen.dart';
 import '../services/sync_service.dart';
+import '../services/biometric_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,15 +19,19 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authService = AuthService();
   final _apiService = ApiService();
+  final _biometricService = BiometricService();
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _hasOfflineSession = false;
   String? _offlineUserName;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _checkOfflineAvailability();
+    _checkBiometricAvailability();
   }
 
   Future<void> _checkOfflineAvailability() async {
@@ -37,6 +42,28 @@ class _LoginScreenState extends State<LoginScreen> {
       _hasOfflineSession = user != null && offlineEquipment.isNotEmpty;
       _offlineUserName = user?.fullName ?? user?.username;
     });
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final isAvailable = await _biometricService.isBiometricAvailable();
+    final isEnabled = await _authService.isBiometricEnabled();
+    final isBound = await _authService.isUserBoundToDevice();
+    
+    if (!mounted) return;
+    setState(() {
+      _biometricAvailable = isAvailable && isBound;
+      _biometricEnabled = isEnabled;
+    });
+    
+    // Автоматически предлагаем биометрическую аутентификацию при открытии экрана
+    if (_biometricAvailable && _biometricEnabled && _hasOfflineSession) {
+      // Небольшая задержка для показа экрана входа
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _loginWithBiometric();
+        }
+      });
+    }
   }
 
   Future<void> _login() async {
@@ -63,11 +90,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // Сохраняем пользователя с хешем пароля для офлайн-авторизации
           await _authService.saveUser(user, passwordHash: response['password_hash']);
-
-          if (mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
-            );
+          
+          // Предлагаем включить биометрическую аутентификацию
+          if (mounted && !_biometricEnabled) {
+            final biometricAvailable = await _biometricService.isBiometricAvailable();
+            if (biometricAvailable) {
+              _showBiometricSetupDialog();
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              );
+            }
+          } else {
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              );
+            }
           }
         } else {
           if (mounted) {
@@ -96,6 +135,82 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     }
+  }
+
+  Future<void> _loginWithBiometric() async {
+    if (!_biometricAvailable || !_biometricEnabled) {
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final authenticated = await _authService.authenticateWithBiometric();
+      
+      if (authenticated && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        );
+      } else if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Биометрическая аутентификация не удалась'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка биометрической аутентификации: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showBiometricSetupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Включить вход по отпечатку пальца?'),
+        content: const Text(
+          'Вы можете использовать отпечаток пальца или PIN-код для быстрого входа в приложение без ввода пароля.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              );
+            },
+            child: const Text('Позже'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _authService.setBiometricEnabled(true);
+              Navigator.of(context).pop();
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              );
+            },
+            child: const Text('Включить'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loginOffline() async {
@@ -305,24 +420,45 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   if (_hasOfflineSession) ...[
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _loginOffline,
-                      icon:
-                          const Icon(Icons.offline_bolt, color: Colors.white70),
-                      label: Text(
-                        _offlineUserName != null
-                            ? 'Войти офлайн ($_offlineUserName)'
-                            : 'Войти офлайн',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white24),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Кнопка биометрической аутентификации (если доступна)
+                    if (_biometricAvailable && _biometricEnabled) ...[
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _loginWithBiometric,
+                        icon: const Icon(Icons.fingerprint, size: 24),
+                        label: const Text(
+                          'Войти по отпечатку пальца',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10b981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                    ],
+                    // Кнопка офлайн-входа (если биометрия недоступна или не включена)
+                    if (!_biometricEnabled || !_biometricAvailable)
+                      OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _loginOffline,
+                        icon: const Icon(Icons.offline_bolt, color: Colors.white70),
+                        label: Text(
+                          _offlineUserName != null
+                              ? 'Войти офлайн ($_offlineUserName)'
+                              : 'Войти офлайн',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white24),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                   ],
                 ],
               ),

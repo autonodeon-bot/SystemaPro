@@ -50,7 +50,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
   final _apiService = ApiService();
   bool _isSubmitting = false;
   String? _selectedMethodCode;
-  List<String> _annotatedImagePaths = [];
+  final List<String> _annotatedImagePaths = [];
 
   @override
   void initState() {

@@ -1,7 +1,7 @@
-﻿name: es_td_ngo_mobile
+name: es_td_ngo_mobile
 description: Мобильное приложение инженера диагностики (ЕС ТД НГО)
 publish_to: 'none'
-version: 3.7.0+4
+version: 3.8.1+6
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -45,6 +45,11 @@ dependencies:
   package_info_plus: ^8.0.2
   crypto: ^3.0.5
   url_launcher: ^6.3.1
+  permission_handler: ^11.3.1
+  open_filex: ^4.5.0
+  local_auth: ^2.3.0
+  device_info_plus: ^11.1.0
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
-import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles } from 'lucide-react';
 import { INSPECTION_TASKS, API_BASE } from '../constants';
 import { RiskLevel } from '../types';
 
@@ -73,6 +73,18 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="text-accent" size={20} />
+          <h3 className="text-white font-semibold">Что нового</h3>
+        </div>
+        <p className="text-slate-300 text-sm">
+          Версия системы 3.8.1 от 18.01.2026 — обновлены формы актов по методам НК и расширены теххарактеристики.
+        </p>
+        <a href="#/changelog" className="mt-2 inline-block text-sm text-blue-400 hover:text-blue-300">
+          Открыть список изменений →
+        </a>
+      </div>
       {/* Предупреждения о поверках */}
       {(verificationAlerts.expired > 0 || verificationAlerts.warning7 > 0 || verificationAlerts.warning30 > 0) && (
         <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">

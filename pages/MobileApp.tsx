@@ -2,7 +2,7 @@
 import { Download, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
 
 const MobileApp = () => {
-  const downloadUrl = 'http://5.129.203.182/mobile/es-td-ngo-mobile-3.7.0-4.apk';
+  const downloadUrl = 'http://5.129.203.182/mobile/app-release.apk';
 
   return (
     <div className="space-y-6">
@@ -18,7 +18,7 @@ const MobileApp = () => {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-white mb-2">ЕС ТД НГО - Мобильное приложение</h2>
-            <p className="text-slate-400 mb-1">Версия: 3.7.0 (build 1) от 13.01.2026 — последняя версия</p>
+            <p className="text-slate-400 mb-1">Версия: 3.8.1 (build 6) от 18.01.2026 — последняя версия</p>
             <p className="text-sm text-green-400 mb-2">✓ Доступна новая версия для скачивания</p>
             <p className="text-slate-300">
               Мобильное приложение для инженеров диагностики. Позволяет заполнять и отправлять отчеты обследования оборудования прямо с мобильного устройства.
@@ -108,29 +108,31 @@ const MobileApp = () => {
         <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
           <div className="flex items-center gap-3 mb-3">
             <CheckCircle className="text-green-400" size={20} />
-            <h3 className="text-green-400 font-bold">Новая версия доступна!</h3>
+            <h3 className="text-green-400 font-bold">Новая версия 3.8.1 доступна!</h3>
           </div>
           <p className="text-sm text-slate-300 mb-4">
-            Скачайте последнюю версию мобильного приложения (3.7.0 (build 1)) для получения всех обновлений и исправлений, включая:
+            Скачайте последнюю версию мобильного приложения (3.8.1 (build 6)) для получения всех обновлений и исправлений, включая:
           </p>
           <ul className="text-sm text-slate-300 space-y-1 ml-4">
-            <li>• Улучшенная система заданий с иерархией и фильтрами</li>
-            <li>• Управление поверками оборудования</li>
-            <li>• Выбор поверенного оборудования перед началом работ</li>
-            <li>• Расширенная сортировка и поиск заданий</li>
+            <li>• Автообновление приложения и корректная ссылка на APK</li>
+            <li>• Вход по отпечатку пальца или PIN (офлайн‑режим)</li>
+            <li>• Выбор инженера по методам НК и поверенного оборудования</li>
+            <li>• ВИК: дефекты с фото и размерами</li>
+            <li>• Синхронизация инженеров, заданий и поверок</li>
+            <li>• Расширенные отчеты с таблицами замеров и приложениями</li>
           </ul>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
           <a
             href={downloadUrl}
-            download="es-td-ngo-mobile-3.7.0-4.apk"
+            download="es-td-ngo-mobile-3.8.1-6.apk"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-3 bg-accent hover:bg-blue-600 text-white font-bold px-6 py-4 rounded-lg transition-colors shadow-lg"
           >
             <Download size={24} />
-            <span>Скачать приложение v3.7.0 (build 4) (APK)</span>
+            <span>Скачать приложение v3.8.1 (build 6) (APK)</span>
           </a>
           
           <button
@@ -179,6 +181,7 @@ const MobileApp = () => {
 };
 
 export default MobileApp;
+
 
 
 

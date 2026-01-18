@@ -78,6 +78,12 @@ class VesselChecklist {
   
   // УЗТ (Ультразвуковая толщинометрия)
   List<ThicknessMeasurement> thicknessMeasurements = [];
+
+  // Инженеры по видам обследований (ВИК/УЗК/УЗТ/ПВК и др.)
+  List<InspectionEngineer> inspectionEngineers = [];
+
+  // Дефекты ВИК с фото и размерами
+  List<VisualDefect> visualDefects = [];
   
   // Схема контроля (фото/рисунок)
   String? controlSchemeImage;
@@ -105,6 +111,7 @@ class VesselChecklist {
   
   Map<String, dynamic> toJson() {
     return {
+      'equipment_type': 'VESSEL', // Тип оборудования для правильного определения при синхронизации
       'inspection_date': inspectionDate,
       'executors': executors,
       'organization': organization,
@@ -145,6 +152,8 @@ class VesselChecklist {
       'hardness_tests': hardnessTests.map((e) => e.toJson()).toList(),
       'weld_inspections': weldInspections.map((e) => e.toJson()).toList(),
       'thickness_measurements': thicknessMeasurements.map((e) => e.toJson()).toList(),
+      'inspection_engineers': inspectionEngineers.map((e) => e.toJson()).toList(),
+      'visual_defects': visualDefects.map((e) => e.toJson()).toList(),
       'control_scheme_image': controlSchemeImage,
       'conclusion': conclusion,
     };
@@ -278,6 +287,22 @@ class VesselChecklist {
       checklist.thicknessMeasurements = tmRaw
           .whereType<Map>()
           .map((e) => ThicknessMeasurement.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final ieRaw = json['inspection_engineers'];
+    if (ieRaw is List) {
+      checklist.inspectionEngineers = ieRaw
+          .whereType<Map>()
+          .map((e) => InspectionEngineer.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final vdRaw = json['visual_defects'];
+    if (vdRaw is List) {
+      checklist.visualDefects = vdRaw
+          .whereType<Map>()
+          .map((e) => VisualDefect.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     }
 
@@ -622,6 +647,64 @@ class ThicknessMeasurement {
     t.xPercent = VesselChecklist._asDouble(json['x_percent']);
     t.yPercent = VesselChecklist._asDouble(json['y_percent']);
     return t;
+  }
+}
+
+class InspectionEngineer {
+  String method; // ВИК, УЗК, УЗТ, ПВК и т.д.
+  String? engineerId;
+  String? fullName;
+  String? certificateNumber;
+  String? validUntil;
+
+  InspectionEngineer({required this.method});
+
+  Map<String, dynamic> toJson() => {
+    'method': method,
+    'engineer_id': engineerId,
+    'full_name': fullName,
+    'certificate_number': certificateNumber,
+    'valid_until': validUntil,
+  };
+
+  factory InspectionEngineer.fromJson(Map<String, dynamic> json) {
+    final e = InspectionEngineer(method: (json['method'] ?? '').toString());
+    e.engineerId = json['engineer_id']?.toString();
+    e.fullName = json['full_name']?.toString();
+    e.certificateNumber = json['certificate_number']?.toString();
+    e.validUntil = json['valid_until']?.toString();
+    return e;
+  }
+}
+
+class VisualDefect {
+  String? defectType; // коррозия, вмятина, трещина, и т.д.
+  String? location;
+  String? size;
+  String? description;
+  List<String> photos = [];
+
+  VisualDefect();
+
+  Map<String, dynamic> toJson() => {
+    'defect_type': defectType,
+    'location': location,
+    'size': size,
+    'description': description,
+    'photos': photos,
+  };
+
+  factory VisualDefect.fromJson(Map<String, dynamic> json) {
+    final d = VisualDefect();
+    d.defectType = json['defect_type']?.toString();
+    d.location = json['location']?.toString();
+    d.size = json['size']?.toString();
+    d.description = json['description']?.toString();
+    final ph = json['photos'];
+    if (ph is List) {
+      d.photos = ph.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    }
+    return d;
   }
 }
 

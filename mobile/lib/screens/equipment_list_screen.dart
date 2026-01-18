@@ -548,7 +548,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                   children: [
                     // Предприятие
                     DropdownButtonFormField<String>(
-                        value: _selectedEnterprise,
+                        initialValue: _selectedEnterprise,
                         decoration: InputDecoration(
                           labelText: 'Предприятие',
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -591,7 +591,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     // Фильтр по филиалу
                     if (_selectedEnterprise != null)
                       DropdownButtonFormField<String>(
-                          value: _selectedBranch,
+                          initialValue: _selectedBranch,
                           decoration: InputDecoration(
                             labelText: 'Филиал',
                             labelStyle: const TextStyle(color: Colors.white70),
@@ -635,7 +635,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     // Фильтр по цеху
                     if (_selectedBranch != null)
                       DropdownButtonFormField<String>(
-                          value: _selectedWorkshop,
+                          initialValue: _selectedWorkshop,
                           decoration: InputDecoration(
                             labelText: 'Цех',
                             labelStyle: const TextStyle(color: Colors.white70),
@@ -677,7 +677,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     if (_selectedBranch != null) const SizedBox(height: 8),
                     // Фильтр по типу оборудования
                     DropdownButtonFormField<String>(
-                        value: _selectedType,
+                        initialValue: _selectedType,
                         decoration: InputDecoration(
                           labelText: 'Тип оборудования',
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -781,86 +781,86 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                               },
                               child: const Text('Сбросить фильтры'),
                             ),
-                          ),
-                        ],
-                      ),
+          ),
+        ],
+      ),
                     );
                   }
                   
                   // Если список действительно пустой
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.inventory_2_outlined,
-                          size: 64,
-                          color: Colors.white38,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Оборудование не найдено',
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 64,
+                    color: Colors.white38,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Оборудование не найдено',
                           style: TextStyle(color: Colors.white70, fontSize: 16),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
                           'Обратитесь к администратору для назначения оборудования',
                           style: TextStyle(color: Colors.white54, fontSize: 14),
-                          textAlign: TextAlign.center,
+                    textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           onPressed: () => ref.invalidate(equipmentListProvider),
                           icon: const Icon(Icons.refresh),
                           label: const Text('Обновить'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF3b82f6),
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3b82f6),
+                      foregroundColor: Colors.white,
                     ),
-                  );
-                }
+                  ),
+                ],
+              ),
+            );
+          }
 
                 // Группируем оборудование по иерархии
                 final groupedEquipment = _groupEquipmentByHierarchy(filtered);
-                
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
                   itemCount: groupedEquipment.length,
-                  itemBuilder: (context, index) {
+            itemBuilder: (context, index) {
                     final group = groupedEquipment[index];
                     return _buildGroupItem(group, 0);
-                  },
-                );
-              },
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF3b82f6),
-                ),
+            },
+          );
+        },
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF3b82f6),
+          ),
+        ),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 48,
               ),
-              error: (error, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Ошибка загрузки оборудования',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
+              const SizedBox(height: 16),
+              const Text(
+                'Ошибка загрузки оборудования',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error.toString(),
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
                     if (error.toString().contains('AUTH_INVALID') ||
                         error.toString().contains('Invalid authentication credentials') ||
                         error.toString().contains('401')) ...[
@@ -889,13 +889,13 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                         child: const Text('Повторить'),
                       ),
                     ] else
-                      ElevatedButton(
-                        onPressed: () => ref.invalidate(equipmentListProvider),
-                        child: const Text('Повторить'),
-                      ),
-                  ],
-                ),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(equipmentListProvider),
+                child: const Text('Повторить'),
               ),
+            ],
+          ),
+        ),
             ),
           ),
         ],

@@ -37,7 +37,7 @@ class WeldDefectAnnotationScreen extends StatefulWidget {
 class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   File? _imageFile;
-  List<WeldDefect> _defects = [];
+  final List<WeldDefect> _defects = [];
 
   static const List<Map<String, String>> DEFECT_TYPES = [
     {'code': 'POROSITY', 'name': 'Пористость'},
@@ -147,7 +147,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(
                     labelText: 'Тип дефекта *',
                     labelStyle: TextStyle(color: Colors.white70),
