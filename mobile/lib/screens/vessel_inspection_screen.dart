@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
 import '../models/equipment.dart';
@@ -12,6 +14,10 @@ import '../models/vessel_checklist.dart';
 import '../models/compressor_checklist.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
+import '../services/location_service.dart';
+import '../services/auto_save_service.dart';
+import '../services/photo_annotation_service.dart';
+import '../widgets/checklist_progress_indicator.dart';
 import '../data/checklist_constants.dart';
 import 'thickness_measurement_screen.dart';
 import 'verification_equipment_selection_screen.dart';
@@ -19,23 +25,33 @@ import 'verification_equipment_selection_screen.dart';
 class VesselInspectionScreen extends StatefulWidget {
   final Equipment equipment;
   final String? assignmentId; // ID задания (версия 3.3.0)
+  final String? existingInspectionId; // ID существующей инспекции для редактирования
 
   const VesselInspectionScreen({
     super.key,
     required this.equipment,
     this.assignmentId,
+    this.existingInspectionId,
   });
 
   @override
   State<VesselInspectionScreen> createState() => _VesselInspectionScreenState();
 }
 
-class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
+class _VesselInspectionScreenState extends State<VesselInspectionScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormBuilderState>();
   final _scrollController = ScrollController();
   final ApiService _apiService = ApiService();
   final SyncService _syncService = SyncService();
+  final LocationService _locationService = LocationService();
+  final AutoSaveService _autoSaveService = AutoSaveService();
+  final PhotoAnnotationService _photoAnnotationService = PhotoAnnotationService();
   bool _isSubmitting = false;
+  bool _hasUnsavedChanges = false;
+  bool _isAutoSaving = false;
+  Map<String, double>? _gpsCoordinates;
+  DateTime? _lastAutoSaveTime;
 
   // Определяем тип чек-листа на основе типа оборудования
   late final VesselChecklist _checklist;
@@ -62,12 +78,24 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   List<Map<String, dynamic>> _engineers = [];
   bool _loadingEngineers = false;
   final Map<String, Map<String, dynamic>> _selectedEngineerByMethod = {};
+  // Выбранные методы контроля (галочки)
+  final Map<String, bool> _selectedNdtMethods = {
+    'VIK': false,
+    'UZK': false,
+    'UZT': false,
+    'PVK': false,
+  };
+  // ОПО
+  List<Map<String, dynamic>> _opos = [];
+  bool _loadingOpos = false;
+  String? _selectedOpoId;
 
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     try {
       // Создаем чек-лист в зависимости от типа оборудования
       _checklist = _isCompressor ? CompressorChecklist() : VesselChecklist();
@@ -84,6 +112,16 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
       // (иначе при повторном открытии инженеру показывается пустая форма).
       Future.microtask(_loadLocalPendingIfExists);
       Future.microtask(_loadEngineers);
+      Future.microtask(_loadOpos);
+      Future.microtask(_loadOpos);
+      Future.microtask(_getGpsCoordinates);
+      Future.microtask(_startAutoSaveTimer);
+      
+      // Расширенное автозаполнение из предыдущих обследований и ОПО
+      Future.microtask(() async {
+        await _prefillFromPreviousInspections();
+        await _prefillFromOpo();
+      });
     } catch (e) {
       // Если ошибка при инициализации, создаем базовый чек-лист
       _checklist = VesselChecklist();
@@ -94,20 +132,216 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Автосохранение при закрытии экрана
+    if (_hasUnsavedChanges && !_isSubmitting) {
+      _autoSaveDraft();
+    }
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Автосохранение при сворачивании/закрытии приложения
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      if (_hasUnsavedChanges && !_isSubmitting) {
+        _autoSaveDraft();
+      }
+    }
+  }
+
+  /// Получить GPS координаты
+  Future<void> _getGpsCoordinates() async {
+    try {
+      final coords = await _locationService.getLastKnownLocation();
+      if (coords != null) {
+        setState(() {
+          _gpsCoordinates = coords;
+        });
+        // Сохраняем координаты в чек-лист
+        if (_checklist.additionalData == null) {
+          _checklist.additionalData = {};
+        }
+        _checklist.additionalData!['gps_coordinates'] = coords;
+      }
+    } catch (e) {
+      print('Ошибка получения GPS координат: $e');
+    }
+  }
+
+  /// Запустить таймер автосохранения
+  void _startAutoSaveTimer() {
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted && _hasUnsavedChanges && !_isSubmitting) {
+        _autoSaveDraft();
+        _startAutoSaveTimer(); // Продолжаем цикл
+      }
+    });
+  }
+
+  Future<void> _autoSaveDraft() async {
+    if (_isAutoSaving) return;
+    _isAutoSaving = true;
+
+    try {
+      // Сохраняем форму без валидации (черновик)
+      _formKey.currentState?.save();
+
+      final inspectionDateStr = _resolveInspectionDateIso();
+
+      // Обновляем GPS координаты если их еще нет
+      if (_gpsCoordinates == null) {
+        await _getGpsCoordinates();
+      }
+
+      // Обновляем ОПО оборудования, если было выбрано
+      if (_selectedOpoId != null && _selectedOpoId!.isNotEmpty) {
+        try {
+          await _apiService.updateEquipmentOpo(
+            equipmentId: widget.equipment.id,
+            opoId: _selectedOpoId,
+          );
+        } catch (e) {
+          // Не блокируем сохранение из-за ошибки обновления ОПО
+          print('Ошибка обновления ОПО оборудования: $e');
+        }
+      }
+
+      // Сохраняем через новый сервис автосохранения
+      final checklistData = _checklist.toJson();
+      checklistData['gps_coordinates'] = _gpsCoordinates;
+      
+      await _autoSaveService.saveDraft(
+        equipmentId: widget.equipment.id,
+        checklistData: checklistData,
+        assignmentId: widget.assignmentId,
+        inspectionId: widget.existingInspectionId,
+      );
+
+      await _syncService.saveInspectionOffline(
+        equipmentId: widget.equipment.id,
+        checklist: _checklist,
+        conclusion: _checklist.conclusion,
+        inspectionDate: inspectionDateStr,
+        documentFiles: _documentFiles,
+        assignmentId: widget.assignmentId,
+        verificationEquipmentIds: _selectedEquipmentIds,
+        status: 'DRAFT',
+      );
+
+      setState(() {
+        _hasUnsavedChanges = false;
+        _lastAutoSaveTime = DateTime.now();
+      });
+      print('Черновик автоматически сохранен');
+    } catch (e) {
+      print('Ошибка автосохранения черновика: $e');
+    } finally {
+      _isAutoSaving = false;
+    }
+  }
+
+  Future<void> _loadOpos() async {
+    // Загружаем ОПО только если у оборудования нет opo_id
+    if (widget.equipment.opoId != null && widget.equipment.opoId!.isNotEmpty) {
+      _selectedOpoId = widget.equipment.opoId;
+      return;
+    }
+
+    setState(() {
+      _loadingOpos = true;
+    });
+    try {
+      // Пытаемся загрузить из локального хранилища
+      var opos = await _syncService.getOfflineOpos();
+      
+      // Если нет локально, загружаем с сервера
+      if (opos.isEmpty) {
+        try {
+          // Получаем enterprise_id из задания или оборудования
+          String? enterpriseId;
+          if (widget.assignmentId != null) {
+            try {
+              final assignments = await _apiService.getAssignments();
+              final assignment = assignments.firstWhere(
+                (a) => a.id == widget.assignmentId,
+                orElse: () => assignments.first,
+              );
+              enterpriseId = assignment.enterpriseId;
+            } catch (_) {
+              // Игнорируем ошибки
+            }
+          }
+          
+          if (enterpriseId != null && enterpriseId.isNotEmpty) {
+            opos = await _apiService.getOposByEnterprise(enterpriseId);
+            await _syncService.saveOposOffline(opos);
+          } else {
+            // Если нет enterprise_id, загружаем все ОПО
+            opos = await _apiService.getOpos();
+            await _syncService.saveOposOffline(opos);
+          }
+        } catch (_) {
+          // Игнорируем ошибки загрузки
+        }
+      }
+      
+      if (!mounted) return;
+      setState(() {
+        _opos = opos;
+        _loadingOpos = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingOpos = false;
+      });
+    }
+  }
+
   Future<void> _loadEngineers() async {
     setState(() {
       _loadingEngineers = true;
     });
     try {
+      // Сначала загружаем локальные данные для быстрого отображения
       var engineers = await _syncService.getOfflineEngineers();
-      if (engineers.isEmpty) {
-        try {
-          engineers = await _apiService.getEngineers();
-          await _syncService.saveEngineersOffline(engineers);
-        } catch (_) {
-          // игнорируем
+      
+      // Пытаемся загрузить свежие данные с сервера (если есть интернет)
+      try {
+        final freshEngineers = await _apiService.getEngineers();
+        // Нормализуем qualifications (может быть строкой JSON)
+        for (final eng in freshEngineers) {
+          final quals = eng['qualifications'];
+          if (quals is String) {
+            try {
+              eng['qualifications'] = json.decode(quals);
+            } catch (_) {
+              eng['qualifications'] = [];
+            }
+          }
+        }
+        await _syncService.saveEngineersOffline(freshEngineers);
+        engineers = freshEngineers; // Используем свежие данные
+      } catch (_) {
+        // Если не удалось загрузить с сервера, используем локальные
+        // Нормализуем qualifications в локальных данных тоже
+        for (final eng in engineers) {
+          final quals = eng['qualifications'];
+          if (quals is String) {
+            try {
+              eng['qualifications'] = json.decode(quals);
+            } catch (_) {
+              eng['qualifications'] = [];
+            }
+          }
         }
       }
+      
       if (!mounted) return;
       setState(() {
         _engineers = engineers;
@@ -117,7 +351,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
         for (final ie in _checklist.inspectionEngineers) {
           final match = engineers.firstWhere(
             (e) => e['id']?.toString() == ie.engineerId,
-            orElse: () => {},
+            orElse: () => <String, dynamic>{},
           );
           if (match.isNotEmpty) {
             _selectedEngineerByMethod[ie.method] = match;
@@ -321,17 +555,182 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     }
   }
 
+  /// Автозаполнение из предыдущих обследований
+  Future<void> _prefillFromPreviousInspections() async {
+    try {
+      // Получаем предыдущие обследования для этого оборудования
+      final inspections = await _apiService.getInspections(widget.equipment.id);
+      
+      if (inspections.isEmpty) return;
+      
+      // Берем последнее завершенное обследование
+      Map<String, dynamic>? previousInspection;
+      for (var insp in inspections) {
+        if (insp['status'] == 'COMPLETED' || insp['status'] == 'SIGNED') {
+          previousInspection = insp;
+          break;
+        }
+      }
+      if (previousInspection == null && inspections.isNotEmpty) {
+        previousInspection = inspections.first;
+      }
+      
+      if (previousInspection == null) return;
+      
+      final prevData = previousInspection['data'] as Map<String, dynamic>?;
+      if (prevData == null) return;
+      
+      // Автозаполняем только если поля пустые
+      if (_checklist.organization == null || _checklist.organization!.isEmpty) {
+        final org = prevData['organization']?.toString();
+        if (org != null && org.isNotEmpty) {
+          _checklist.organization = org;
+        }
+      }
+      
+      if (_checklist.executors == null || _checklist.executors!.isEmpty) {
+        final exec = prevData['executors']?.toString();
+        if (exec != null && exec.isNotEmpty) {
+          _checklist.executors = exec;
+        }
+      }
+      
+      // Автозаполняем документы, если они были в предыдущем обследовании
+      final prevDocs = prevData['documents'] as Map<String, dynamic>?;
+      if (prevDocs != null && _checklist.documents.isEmpty) {
+        for (var entry in prevDocs.entries) {
+          if (entry.value == true) {
+            _checklist.documents[entry.key] = true;
+          }
+        }
+      }
+      
+      // Автозаполняем информацию о документах (номера и даты)
+      final prevDocsInfo = prevData['documents_info'] as Map<String, dynamic>?;
+      if (prevDocsInfo != null) {
+        if (_checklist.documentsInfo == null) {
+          _checklist.documentsInfo = {};
+        }
+        for (var entry in prevDocsInfo.entries) {
+          if (!_checklist.documentsInfo!.containsKey(entry.key)) {
+            _checklist.documentsInfo![entry.key] = entry.value;
+          }
+        }
+      }
+      
+      setState(() {});
+    } catch (e) {
+      print('Ошибка автозаполнения из предыдущих обследований: $e');
+    }
+  }
+
+  /// Автозаполнение из данных ОПО
+  Future<void> _prefillFromOpo() async {
+    if (_selectedOpoId == null || _selectedOpoId!.isEmpty) return;
+    
+    try {
+      final opo = _opos.firstWhere(
+        (o) => o['id'] == _selectedOpoId,
+        orElse: () => {},
+      );
+      
+      if (opo.isEmpty) return;
+      
+      final surveyData = opo['survey_data'] as Map<String, dynamic>?;
+      if (surveyData == null) return;
+      
+      // Автозаполняем организацию из ОПО, если не заполнена
+      if ((_checklist.organization == null || _checklist.organization!.isEmpty) &&
+          surveyData['organization'] != null) {
+        _checklist.organization = surveyData['organization'].toString();
+      }
+      
+      // Автозаполняем исполнителей из ОПО, если не заполнены
+      if ((_checklist.executors == null || _checklist.executors!.isEmpty) &&
+          surveyData['executors'] != null) {
+        _checklist.executors = surveyData['executors'].toString();
+      }
+      
+      setState(() {});
+    } catch (e) {
+      print('Ошибка автозаполнения из ОПО: $e');
+    }
+  }
+
   Future<void> _pickImage(ImageSource source, bool isFactoryPlate) async {
     try {
       final XFile? image = await _imagePicker.pickImage(source: source);
       if (image != null) {
+        // Показываем диалог для аннотации фото
+        final shouldAnnotate = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Добавить аннотацию?'),
+            content: const Text('Хотите добавить текст или пометки на фото?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Пропустить'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Добавить'),
+              ),
+            ],
+          ),
+        );
+
+        String finalImagePath = image.path;
+        
+        if (shouldAnnotate == true) {
+          // Показываем диалог для ввода текста аннотации
+          final annotationText = await showDialog<String>(
+            context: context,
+            builder: (context) {
+              final controller = TextEditingController();
+              return AlertDialog(
+                title: const Text('Текст аннотации'),
+                content: TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    hintText: 'Введите текст для фото',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Отмена'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, controller.text),
+                    child: const Text('Добавить'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (annotationText != null && annotationText.isNotEmpty) {
+            // Добавляем аннотацию к фото
+            final annotatedPath = await _photoAnnotationService.annotatePhoto(
+              imagePath: image.path,
+              annotationText: annotationText,
+            );
+            if (annotatedPath != null) {
+              finalImagePath = annotatedPath;
+            }
+          }
+        }
+
         setState(() {
           if (isFactoryPlate) {
-            _factoryPlatePhoto = File(image.path);
-            _checklist.factoryPlatePhoto = image.path;
+            _factoryPlatePhoto = File(finalImagePath);
+            _checklist.factoryPlatePhoto = finalImagePath;
           } else {
-            _controlSchemeImage = File(image.path);
-            _checklist.controlSchemeImage = image.path;
+            _controlSchemeImage = File(finalImagePath);
+            _checklist.controlSchemeImage = finalImagePath;
           }
         });
       }
@@ -468,6 +867,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     try {
       final inspectionDateStr = _resolveInspectionDateIso();
 
+      // Обновляем ОПО оборудования, если было выбрано
+      if (_selectedOpoId != null && _selectedOpoId!.isNotEmpty) {
+        try {
+          await _apiService.updateEquipmentOpo(
+            equipmentId: widget.equipment.id,
+            opoId: _selectedOpoId,
+          );
+        } catch (e) {
+          // Не блокируем сохранение из-за ошибки обновления ОПО
+          print('Ошибка обновления ОПО оборудования: $e');
+        }
+      }
+
       await _syncService.saveInspectionOffline(
         equipmentId: widget.equipment.id,
         checklist: _checklist,
@@ -545,483 +957,536 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
       } catch (_) {}
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Обследование: ${widget.equipment.name}'),
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvoked: (didPop) async {
+        if (!didPop && _hasUnsavedChanges) {
+          final shouldPop = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Несохраненные изменения'),
+              content: const Text(
+                  'У вас есть несохраненные изменения. Сохранить черновик перед выходом?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Отмена'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Выйти без сохранения'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    await _autoSaveDraft();
+                    if (mounted) Navigator.pop(context, true);
+                  },
+                  child: const Text('Сохранить и выйти'),
+                ),
+              ],
+            ),
+          );
+          if (shouldPop == true && mounted) {
+            Navigator.pop(context);
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Обследование: ${widget.equipment.name}'),
+          backgroundColor: const Color(0xFF0f172a),
+          foregroundColor: Colors.white,
+          actions: [
+            if (_isSubmitting)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.save),
+                onPressed: _saveDraft,
+                tooltip:
+                    'Сохранить черновик локально (отправка при синхронизации)',
+              ),
+          ],
+        ),
         backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
-        actions: [
-          if (_isSubmitting)
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.save),
-              onPressed: _saveDraft,
-              tooltip:
-                  'Сохранить черновик локально (отправка при синхронизации)',
-            ),
-        ],
-      ),
-      backgroundColor: const Color(0xFF0f172a),
-      body: FormBuilder(
-        key: _formKey,
-        initialValue: initialValues,
-        child: ListView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildSectionHeader('1. Основная информация'),
-            // Кнопка выбора оборудования для поверок
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final selected = await Navigator.push<List<String>>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          VerificationEquipmentSelectionScreen(
-                        preselectedIds: _selectedEquipmentIds,
-                      ),
-                    ),
-                  );
-                  if (selected != null) {
-                    setState(() {
-                      _selectedEquipmentIds = selected;
-                    });
-                  }
-                },
-                icon: Icon(
-                  _selectedEquipmentIds.isEmpty
-                      ? Icons.warning
-                      : Icons.check_circle,
-                  color: _selectedEquipmentIds.isEmpty
-                      ? Colors.orange
-                      : Colors.green,
-                ),
-                label: Text(
-                  _selectedEquipmentIds.isEmpty
-                      ? 'Выбрать оборудование для поверок *'
-                      : 'Выбрано оборудования: ${_selectedEquipmentIds.length}',
-                  style: TextStyle(
-                    color: _selectedEquipmentIds.isEmpty
-                        ? Colors.orange
-                        : Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedEquipmentIds.isEmpty
-                      ? Colors.orange.withOpacity(0.2)
-                      : Colors.green.withOpacity(0.2),
-                  padding: const EdgeInsets.all(16),
-                  side: BorderSide(
-                    color: _selectedEquipmentIds.isEmpty
-                        ? Colors.orange
-                        : Colors.green,
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
-            if (_selectedEquipmentIds.isEmpty)
+        body: FormBuilder(
+          key: _formKey,
+          onChanged: () {
+            if (!_hasUnsavedChanges) {
+              setState(() {
+                _hasUnsavedChanges = true;
+              });
+            }
+          },
+          initialValue: initialValues,
+          child: ListView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Виджет прогресса заполнения
+              _buildProgressIndicator(),
+              const SizedBox(height: 16),
+              _buildSectionHeader('1. Основная информация'),
+              // Кнопка выбора оборудования для поверок
               Container(
-                padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.red),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Внимание! Необходимо выбрать поверенное оборудование перед началом работ.',
-                        style: TextStyle(color: Colors.red),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final selected = await Navigator.push<List<String>>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            VerificationEquipmentSelectionScreen(
+                          preselectedIds: _selectedEquipmentIds,
+                        ),
                       ),
+                    );
+                    if (selected != null) {
+                      setState(() {
+                        _selectedEquipmentIds = selected;
+                      });
+                    }
+                  },
+                  icon: Icon(
+                    _selectedEquipmentIds.isEmpty
+                        ? Icons.warning
+                        : Icons.check_circle,
+                    color: _selectedEquipmentIds.isEmpty
+                        ? Colors.orange
+                        : Colors.green,
+                  ),
+                  label: Text(
+                    _selectedEquipmentIds.isEmpty
+                        ? 'Выбрать оборудование для поверок *'
+                        : 'Выбрано оборудования: ${_selectedEquipmentIds.length}',
+                    style: TextStyle(
+                      color: _selectedEquipmentIds.isEmpty
+                          ? Colors.orange
+                          : Colors.green,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _selectedEquipmentIds.isEmpty
+                        ? Colors.orange.withOpacity(0.2)
+                        : Colors.green.withOpacity(0.2),
+                    padding: const EdgeInsets.all(16),
+                    side: BorderSide(
+                      color: _selectedEquipmentIds.isEmpty
+                          ? Colors.orange
+                          : Colors.green,
+                      width: 2,
+                    ),
+                  ),
                 ),
               ),
-            _buildDateField('inspection_date', 'Дата обследования', (date) {
-              _checklist.inspectionDate = date?.toIso8601String();
-            }),
-            _buildTextField('executors', 'Исполнители', (value) {
-              _checklist.executors = value;
-            }),
-            _buildTextField(
-                'organization', 'Организация (НГДУ, цех, месторождение)',
-                (value) {
-              _checklist.organization = value;
-            }),
-            const SizedBox(height: 16),
-            _buildEngineerSelectionSection(),
-            const SizedBox(height: 24),
-            _buildSectionHeader('2. Перечень рассмотренных документов'),
-
-            // Галочка: включать ли пункты 1-9 (ОПО) в этот чек-лист
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.withOpacity(0.25)),
-              ),
-              child: SwitchListTile.adaptive(
-                value: _checklist.includeOpoData,
-                onChanged: (v) {
-                  setState(() {
-                    _checklist.includeOpoData = v;
-                  });
-                },
-                title: const Text(
-                  'Данные по ОПО (пункты 1–9)',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
+              if (_selectedEquipmentIds.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.red),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Внимание! Необходимо выбрать поверенное оборудование перед началом работ.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                subtitle: Text(
-                  _checklist.includeOpoData
-                      ? 'Включено: заполните весь опросный лист'
-                      : 'Выключено: чек-лист только по оборудованию (начиная с пункта 10)',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                activeColor: Colors.green,
-              ),
-            ),
-
-            ...ChecklistConstants.documents.where((doc) {
-              final n = int.tryParse(doc['number'] ?? '0') ?? 0;
-              if (_checklist.includeOpoData) return true;
-              return n >= 10; // без ОПО показываем только 10-17
-            }).map((doc) => _buildDocumentCheckbox(doc)),
-            const SizedBox(height: 24),
-            _buildSectionHeader('3. Карта обследования'),
-            _buildTextField(
-                'vessel_name',
-                _isCompressor
-                    ? 'Наименование компрессора'
-                    : 'Наименование сосуда', (value) {
-              _checklist.vesselName = value;
-            }),
-            _buildTextField('serial_number', 'Заводской номер', (value) {
-              _checklist.serialNumber = value;
-            }),
-            _buildTextField('reg_number', 'Регистрационный номер', (value) {
-              _checklist.regNumber = value;
-            }),
-            _buildTextField('manufacturer', 'Изготовитель', (value) {
-              _checklist.manufacturer = value;
-            }),
-            _buildTextField('manufacture_year', 'Год изготовления', (value) {
-              _checklist.manufactureYear = value;
-            }),
-            // Поля для сосудов (скрыты для компрессоров)
-            if (!_isCompressor) ...[
-              _buildTextField('diameter', 'Диаметр сосуда', (value) {
-                _checklist.diameter = value;
+              _buildDateField('inspection_date', 'Дата обследования', (date) {
+                _checklist.inspectionDate = date?.toIso8601String();
               }),
-              _buildTextField('working_pressure', 'Рабочее давление', (value) {
-                _checklist.workingPressure = value;
+              _buildTextField('executors', 'Исполнители', (value) {
+                _checklist.executors = value;
               }),
               _buildTextField(
-                  'wall_thickness', 'Толщина стенки (обечайка / днище)',
+                  'organization', 'Организация (НГДУ, цех, месторождение)',
                   (value) {
-                _checklist.wallThickness = value;
+                _checklist.organization = value;
               }),
-            ],
-            // Поля для компрессоров
-            if (_isCompressor) ...[
-              Builder(
-                builder: (context) {
-                  final compressorChecklist = _checklist as CompressorChecklist;
-                  return Column(
-                    children: [
-                      _buildTextField('compressor_type', 'Тип компрессора',
-                          (value) {
-                        compressorChecklist.compressorType = value;
-                      }),
-                      _buildTextField('power_rating', 'Мощность', (value) {
-                        compressorChecklist.powerRating = value;
-                      }),
-                      _buildTextField('pressure_ratio', 'Степень сжатия',
-                          (value) {
-                        compressorChecklist.pressureRatio = value;
-                      }),
-                      _buildTextField('flow_rate', 'Производительность',
-                          (value) {
-                        compressorChecklist.flowRate = value;
-                      }),
-                      _buildTextField('rotation_speed', 'Частота вращения',
-                          (value) {
-                        compressorChecklist.rotationSpeed = value;
-                      }),
-                      _buildTextField('number_of_stages', 'Количество ступеней',
-                          (value) {
-                        compressorChecklist.numberOfStages = value;
-                      }),
-                    ],
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 16),
-            _buildPhotoSection(
-                'Фото заводской таблички', _factoryPlatePhoto, true),
-            const SizedBox(height: 24),
-            _buildSectionHeader('4. Проверки'),
-            _buildYesNoField(
-                'matches_drawing', 'Соответствует ли сосуд чертежу', (value) {
-              _checklist.matchesDrawing = value == 'yes';
-            }),
-            _buildYesNoField(
-                'has_thermal_insulation', 'Наличие тепловой изоляции', (value) {
-              _checklist.hasThermalInsulation = value == 'yes';
-            }),
-            _buildDropdownField(
-                'anticorrosion_coating',
-                'Состояние антикоррозионного покрытия',
-                ChecklistConstants.states, (value) {
-              _checklist.anticorrosionCoatingState = value;
-            }),
-            _buildDropdownField('support_state', 'Состояние опор сосуда',
-                ChecklistConstants.states, (value) {
-              _checklist.supportState = value;
-            }),
-            _buildDropdownField(
-                'fasteners_state',
-                'Состояние крепежных элементов',
-                ChecklistConstants.states, (value) {
-              _checklist.fastenersState = value;
-            }),
-            _buildYesNoField(
-                'has_flange_misalignment', 'Перекосы фланцевых соединений',
-                (value) {
-              _checklist.hasFlangeMisalignment = value == 'yes';
-            }),
-            _buildYesNoField(
-                'has_nozzle_misalignment', 'Непрямолинейность патрубков',
-                (value) {
-              _checklist.hasNozzleMisalignment = value == 'yes';
-            }),
-            _buildYesNoField(
-                'has_vessel_repairs', 'Имеются ли места ремонта сосуда',
-                (value) {
-              _checklist.hasVesselRepairs = value == 'yes';
-            }),
-            _buildYesNoField('has_tpa_repairs', 'Имеются ли места ремонта ТПА',
-                (value) {
-              _checklist.hasTpaRepairs = value == 'yes';
-            }),
-            _buildTextField(
-                'internal_devices_state', 'Состояние внутренних устройств',
-                (value) {
-              _checklist.internalDevicesState = value;
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('5. ЗРА (Запорно-регулирующая арматура)'),
-            _buildAddItemButton('Добавить ЗРА', () {
-              _showZraDialog();
-            }),
-            ..._checklist.zraItems.asMap().entries.map((e) {
-              final idx = e.key;
-              final item = e.value;
-              return _buildListItemCard(
-                title: 'ЗРА №${idx + 1}',
-                subtitle: [
-                  if (item.typeSize != null && item.typeSize!.isNotEmpty)
-                    'Тип/размер: ${item.typeSize}',
-                  if (item.serialNumber != null &&
-                      item.serialNumber!.isNotEmpty)
-                    'Зав.№: ${item.serialNumber}',
-                  if (item.locationOnScheme != null &&
-                      item.locationOnScheme!.isNotEmpty)
-                    'Место: ${item.locationOnScheme}',
-                ].join(' • '),
-                onDelete: () {
-                  setState(() {
-                    _checklist.zraItems.removeAt(idx);
-                  });
-                },
-              );
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('6. СППК (Система предохранительных клапанов)'),
-            _buildAddItemButton('Добавить СППК', () {
-              _showSppkDialog();
-            }),
-            ..._checklist.sppkItems.asMap().entries.map((e) {
-              final idx = e.key;
-              final item = e.value;
-              return _buildListItemCard(
-                title: 'СППК №${idx + 1}',
-                subtitle: [
-                  if (item.typeSize != null && item.typeSize!.isNotEmpty)
-                    'Тип/размер: ${item.typeSize}',
-                  if (item.serialNumber != null &&
-                      item.serialNumber!.isNotEmpty)
-                    'Зав.№: ${item.serialNumber}',
-                  if (item.locationOnScheme != null &&
-                      item.locationOnScheme!.isNotEmpty)
-                    'Место: ${item.locationOnScheme}',
-                ].join(' • '),
-                onDelete: () {
-                  setState(() {
-                    _checklist.sppkItems.removeAt(idx);
-                  });
-                },
-              );
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('7. Измерительный контроль'),
-            _buildSubsectionHeader('Овальность'),
-            _buildAddItemButton('Добавить измерение овальности', () {
-              _showOvalityDialog();
-            }),
-            ..._checklist.ovalityMeasurements.asMap().entries.map((e) {
-              final idx = e.key;
-              final m = e.value;
-              return _buildListItemCard(
-                title: 'Овальность, участок ${m.sectionNumber}',
-                subtitle: [
-                  if (m.maxDiameter != null) 'Dmax=${m.maxDiameter}',
-                  if (m.minDiameter != null) 'Dmin=${m.minDiameter}',
-                  if (m.deviationPercent != null) 'Δ%=${m.deviationPercent}',
-                ].join(' • '),
-                onDelete: () => setState(
-                    () => _checklist.ovalityMeasurements.removeAt(idx)),
-              );
-            }),
-            _buildSubsectionHeader('Прогиб'),
-            _buildAddItemButton('Добавить измерение прогиба', () {
-              _showDeflectionDialog();
-            }),
-            ..._checklist.deflectionMeasurements.asMap().entries.map((e) {
-              final idx = e.key;
-              final m = e.value;
-              return _buildListItemCard(
-                title: 'Прогиб, участок ${m.sectionNumber}',
-                subtitle: [
-                  if (m.deflectionMm != null) 'мм=${m.deflectionMm}',
-                  if (m.deflectionPercent != null) '%=${m.deflectionPercent}',
-                ].join(' • '),
-                onDelete: () => setState(
-                    () => _checklist.deflectionMeasurements.removeAt(idx)),
-              );
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('8. Результаты контроля твердости'),
-            _buildAddItemButton('Добавить измерение твердости', () {
-              _showHardnessDialog();
-            }),
-            ..._checklist.hardnessTests.asMap().entries.map((e) {
-              final idx = e.key;
-              final t = e.value;
-              return _buildListItemCard(
-                title: 'Твердость, шов ${t.weldNumber}',
-                subtitle: [
-                  if (t.areaNumber != null && t.areaNumber!.isNotEmpty)
-                    'Участок: ${t.areaNumber}',
-                  if (t.hardnessBase != null && t.hardnessBase!.isNotEmpty)
-                    'Осн: ${t.hardnessBase}',
-                  if (t.hardnessWeld != null && t.hardnessWeld!.isNotEmpty)
-                    'Шов: ${t.hardnessWeld}',
-                  if (t.hardnessHaz != null && t.hardnessHaz!.isNotEmpty)
-                    'ЗТВ: ${t.hardnessHaz}',
-                ].join(' • '),
-                onDelete: () =>
-                    setState(() => _checklist.hardnessTests.removeAt(idx)),
-              );
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('9. Результаты ПВК (МК) и УЗК'),
-            _buildAddItemButton('Добавить сварное соединение', () {
-              _showWeldInspectionDialog();
-            }),
-            ..._checklist.weldInspections.asMap().entries.map((e) {
-              final idx = e.key;
-              final w = e.value;
-              return _buildListItemCard(
-                title: 'Сварное соединение ${w.weldNumber}',
-                subtitle: [
-                  if (w.pvkDefect != null && w.pvkDefect!.isNotEmpty)
-                    'ПВК/МК: ${w.pvkDefect}',
-                  if (w.uzkDefect != null && w.uzkDefect!.isNotEmpty)
-                    'УЗК: ${w.uzkDefect}',
-                  if (w.conclusion != null && w.conclusion!.isNotEmpty)
-                    'Заключение: ${w.conclusion}',
-                ].join(' • '),
-                onDelete: () =>
-                    setState(() => _checklist.weldInspections.removeAt(idx)),
-              );
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('10. УЗТ (Ультразвуковая толщинометрия)'),
-            _buildPhotoSection('Схема контроля', _controlSchemeImage, false),
-            _buildAddItemButton('Открыть карту замеров', () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ThicknessMeasurementScreen(
-                    schemeImage: _controlSchemeImage,
-                    existingMeasurements: _checklist.thicknessMeasurements,
-                    onSave: (measurements, image) {
-                      setState(() {
-                        _checklist.thicknessMeasurements = measurements;
-                        if (image != null) {
-                          _controlSchemeImage = image;
-                        }
-                      });
-                    },
-                  ),
+              // Выбор ОПО (если не задано)
+              if (widget.equipment.opoId == null || widget.equipment.opoId!.isEmpty)
+                _buildOpoSelectionField(),
+              const SizedBox(height: 16),
+              _buildEngineerSelectionSection(),
+              const SizedBox(height: 24),
+              _buildSectionHeader('2. Перечень рассмотренных документов'),
+
+              // Галочка: включать ли пункты 1-9 (ОПО) в этот чек-лист
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.25)),
                 ),
-              );
-            }),
-            const SizedBox(height: 24),
-            _buildSectionHeader('11. Дефекты'),
-            _buildYesNoField(
-                'has_local_deformations', 'Локально деформированные зоны',
-                (value) {
-              _checklist.hasLocalDeformations = value == 'yes';
-            }),
-            _buildYesNoField(
-                'has_external_defects', 'Дефекты при наружном осмотре',
-                (value) {
-              _checklist.hasExternalDefects = value == 'yes';
-            }),
-            _buildYesNoField(
-                'has_internal_defects', 'Дефекты при внутреннем осмотре',
-                (value) {
-              _checklist.hasInternalDefects = value == 'yes';
-            }),
-            _buildYesNoField('has_armature_defects', 'Дефекты арматуры',
-                (value) {
-              _checklist.hasArmatureDefects = value == 'yes';
-            }),
-            const SizedBox(height: 12),
-            _buildVisualDefectsSection(),
-            const SizedBox(height: 24),
-            _buildSectionHeader('12. Заключение'),
-            _buildMultilineField('conclusion', 'Заключение', (value) {
-              _checklist.conclusion = value;
-            }),
-            const SizedBox(height: 32),
-            _buildSubmitButton(),
-            const SizedBox(height: 32),
-          ],
+                child: SwitchListTile.adaptive(
+                  value: _checklist.includeOpoData,
+                  onChanged: (v) {
+                    setState(() {
+                      _checklist.includeOpoData = v;
+                    });
+                  },
+                  title: const Text(
+                    'Данные по ОПО (пункты 1–9)',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    _checklist.includeOpoData
+                        ? 'Включено: заполните весь опросный лист'
+                        : 'Выключено: чек-лист только по оборудованию (начиная с пункта 10)',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  activeColor: Colors.green,
+                ),
+              ),
+
+              ...ChecklistConstants.documents.where((doc) {
+                final n = int.tryParse(doc['number'] ?? '0') ?? 0;
+                if (_checklist.includeOpoData) return true;
+                return n >= 10; // без ОПО показываем только 10-17
+              }).map((doc) => _buildDocumentCheckbox(doc)),
+              const SizedBox(height: 24),
+              _buildSectionHeader('3. Карта обследования'),
+              _buildTextField(
+                  'vessel_name',
+                  _isCompressor
+                      ? 'Наименование компрессора'
+                      : 'Наименование сосуда', (value) {
+                _checklist.vesselName = value;
+              }),
+              _buildTextField('serial_number', 'Заводской номер', (value) {
+                _checklist.serialNumber = value;
+              }),
+              _buildTextField('reg_number', 'Регистрационный номер', (value) {
+                _checklist.regNumber = value;
+              }),
+              _buildTextField('manufacturer', 'Изготовитель', (value) {
+                _checklist.manufacturer = value;
+              }),
+              _buildTextField('manufacture_year', 'Год изготовления', (value) {
+                _checklist.manufactureYear = value;
+              }),
+              // Поля для сосудов (скрыты для компрессоров)
+              if (!_isCompressor) ...[
+                _buildTextField('diameter', 'Диаметр сосуда', (value) {
+                  _checklist.diameter = value;
+                }),
+                _buildTextField('working_pressure', 'Рабочее давление',
+                    (value) {
+                  _checklist.workingPressure = value;
+                }),
+                _buildTextField(
+                    'wall_thickness', 'Толщина стенки (обечайка / днище)',
+                    (value) {
+                  _checklist.wallThickness = value;
+                }),
+              ],
+              // Поля для компрессоров
+              if (_isCompressor) ...[
+                Builder(
+                  builder: (context) {
+                    final compressorChecklist =
+                        _checklist as CompressorChecklist;
+                    return Column(
+                      children: [
+                        _buildTextField('compressor_type', 'Тип компрессора',
+                            (value) {
+                          compressorChecklist.compressorType = value;
+                        }),
+                        _buildTextField('power_rating', 'Мощность', (value) {
+                          compressorChecklist.powerRating = value;
+                        }),
+                        _buildTextField('pressure_ratio', 'Степень сжатия',
+                            (value) {
+                          compressorChecklist.pressureRatio = value;
+                        }),
+                        _buildTextField('flow_rate', 'Производительность',
+                            (value) {
+                          compressorChecklist.flowRate = value;
+                        }),
+                        _buildTextField('rotation_speed', 'Частота вращения',
+                            (value) {
+                          compressorChecklist.rotationSpeed = value;
+                        }),
+                        _buildTextField(
+                            'number_of_stages', 'Количество ступеней', (value) {
+                          compressorChecklist.numberOfStages = value;
+                        }),
+                      ],
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 16),
+              _buildPhotoSection(
+                  'Фото заводской таблички', _factoryPlatePhoto, true),
+              const SizedBox(height: 24),
+              _buildSectionHeader('4. Проверки'),
+              _buildYesNoField(
+                  'matches_drawing', 'Соответствует ли сосуд чертежу', (value) {
+                _checklist.matchesDrawing = value == 'yes';
+              }),
+              _buildYesNoField(
+                  'has_thermal_insulation', 'Наличие тепловой изоляции',
+                  (value) {
+                _checklist.hasThermalInsulation = value == 'yes';
+              }),
+              _buildDropdownField(
+                  'anticorrosion_coating',
+                  'Состояние антикоррозионного покрытия',
+                  ChecklistConstants.states, (value) {
+                _checklist.anticorrosionCoatingState = value;
+              }),
+              _buildDropdownField('support_state', 'Состояние опор сосуда',
+                  ChecklistConstants.states, (value) {
+                _checklist.supportState = value;
+              }),
+              _buildDropdownField(
+                  'fasteners_state',
+                  'Состояние крепежных элементов',
+                  ChecklistConstants.states, (value) {
+                _checklist.fastenersState = value;
+              }),
+              _buildYesNoField(
+                  'has_flange_misalignment', 'Перекосы фланцевых соединений',
+                  (value) {
+                _checklist.hasFlangeMisalignment = value == 'yes';
+              }),
+              _buildYesNoField(
+                  'has_nozzle_misalignment', 'Непрямолинейность патрубков',
+                  (value) {
+                _checklist.hasNozzleMisalignment = value == 'yes';
+              }),
+              _buildYesNoField(
+                  'has_vessel_repairs', 'Имеются ли места ремонта сосуда',
+                  (value) {
+                _checklist.hasVesselRepairs = value == 'yes';
+              }),
+              _buildYesNoField(
+                  'has_tpa_repairs', 'Имеются ли места ремонта ТПА', (value) {
+                _checklist.hasTpaRepairs = value == 'yes';
+              }),
+              _buildTextField(
+                  'internal_devices_state', 'Состояние внутренних устройств',
+                  (value) {
+                _checklist.internalDevicesState = value;
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader('5. ЗРА (Запорно-регулирующая арматура)'),
+              _buildAddItemButton('Добавить ЗРА', () {
+                _showZraDialog();
+              }),
+              ..._checklist.zraItems.asMap().entries.map((e) {
+                final idx = e.key;
+                final item = e.value;
+                return _buildListItemCard(
+                  title: 'ЗРА №${idx + 1}',
+                  subtitle: [
+                    if (item.typeSize != null && item.typeSize!.isNotEmpty)
+                      'Тип/размер: ${item.typeSize}',
+                    if (item.serialNumber != null &&
+                        item.serialNumber!.isNotEmpty)
+                      'Зав.№: ${item.serialNumber}',
+                    if (item.locationOnScheme != null &&
+                        item.locationOnScheme!.isNotEmpty)
+                      'Место: ${item.locationOnScheme}',
+                  ].join(' • '),
+                  onDelete: () {
+                    setState(() {
+                      _checklist.zraItems.removeAt(idx);
+                    });
+                  },
+                );
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader(
+                  '6. СППК (Система предохранительных клапанов)'),
+              _buildAddItemButton('Добавить СППК', () {
+                _showSppkDialog();
+              }),
+              ..._checklist.sppkItems.asMap().entries.map((e) {
+                final idx = e.key;
+                final item = e.value;
+                return _buildListItemCard(
+                  title: 'СППК №${idx + 1}',
+                  subtitle: [
+                    if (item.typeSize != null && item.typeSize!.isNotEmpty)
+                      'Тип/размер: ${item.typeSize}',
+                    if (item.serialNumber != null &&
+                        item.serialNumber!.isNotEmpty)
+                      'Зав.№: ${item.serialNumber}',
+                    if (item.locationOnScheme != null &&
+                        item.locationOnScheme!.isNotEmpty)
+                      'Место: ${item.locationOnScheme}',
+                  ].join(' • '),
+                  onDelete: () {
+                    setState(() {
+                      _checklist.sppkItems.removeAt(idx);
+                    });
+                  },
+                );
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader('7. Измерительный контроль'),
+              _buildSubsectionHeader('Овальность'),
+              _buildAddItemButton('Добавить измерение овальности', () {
+                _showOvalityDialog();
+              }),
+              ..._checklist.ovalityMeasurements.asMap().entries.map((e) {
+                final idx = e.key;
+                final m = e.value;
+                return _buildListItemCard(
+                  title: 'Овальность, участок ${m.sectionNumber}',
+                  subtitle: [
+                    if (m.maxDiameter != null) 'Dmax=${m.maxDiameter}',
+                    if (m.minDiameter != null) 'Dmin=${m.minDiameter}',
+                    if (m.deviationPercent != null) 'Δ%=${m.deviationPercent}',
+                  ].join(' • '),
+                  onDelete: () => setState(
+                      () => _checklist.ovalityMeasurements.removeAt(idx)),
+                );
+              }),
+              _buildSubsectionHeader('Прогиб'),
+              _buildAddItemButton('Добавить измерение прогиба', () {
+                _showDeflectionDialog();
+              }),
+              ..._checklist.deflectionMeasurements.asMap().entries.map((e) {
+                final idx = e.key;
+                final m = e.value;
+                return _buildListItemCard(
+                  title: 'Прогиб, участок ${m.sectionNumber}',
+                  subtitle: [
+                    if (m.deflectionMm != null) 'мм=${m.deflectionMm}',
+                    if (m.deflectionPercent != null) '%=${m.deflectionPercent}',
+                  ].join(' • '),
+                  onDelete: () => setState(
+                      () => _checklist.deflectionMeasurements.removeAt(idx)),
+                );
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader('8. Результаты контроля твердости'),
+              _buildAddItemButton('Добавить измерение твердости', () {
+                _showHardnessDialog();
+              }),
+              ..._checklist.hardnessTests.asMap().entries.map((e) {
+                final idx = e.key;
+                final t = e.value;
+                return _buildListItemCard(
+                  title: 'Твердость, шов ${t.weldNumber}',
+                  subtitle: [
+                    if (t.areaNumber != null && t.areaNumber!.isNotEmpty)
+                      'Участок: ${t.areaNumber}',
+                    if (t.hardnessBase != null && t.hardnessBase!.isNotEmpty)
+                      'Осн: ${t.hardnessBase}',
+                    if (t.hardnessWeld != null && t.hardnessWeld!.isNotEmpty)
+                      'Шов: ${t.hardnessWeld}',
+                    if (t.hardnessHaz != null && t.hardnessHaz!.isNotEmpty)
+                      'ЗТВ: ${t.hardnessHaz}',
+                  ].join(' • '),
+                  onDelete: () =>
+                      setState(() => _checklist.hardnessTests.removeAt(idx)),
+                );
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader('9. Результаты ПВК (МК) и УЗК'),
+              _buildAddItemButton('Добавить сварное соединение', () {
+                _showWeldInspectionDialog();
+              }),
+              ..._checklist.weldInspections.asMap().entries.map((e) {
+                final idx = e.key;
+                final w = e.value;
+                return _buildListItemCard(
+                  title: 'Сварное соединение ${w.weldNumber}',
+                  subtitle: [
+                    if (w.pvkDefect != null && w.pvkDefect!.isNotEmpty)
+                      'ПВК/МК: ${w.pvkDefect}',
+                    if (w.uzkDefect != null && w.uzkDefect!.isNotEmpty)
+                      'УЗК: ${w.uzkDefect}',
+                    if (w.conclusion != null && w.conclusion!.isNotEmpty)
+                      'Заключение: ${w.conclusion}',
+                  ].join(' • '),
+                  onDelete: () =>
+                      setState(() => _checklist.weldInspections.removeAt(idx)),
+                );
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader('10. УЗТ (Ультразвуковая толщинометрия)'),
+              _buildPhotoSection('Схема контроля', _controlSchemeImage, false),
+              _buildAddItemButton('Открыть карту замеров', () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ThicknessMeasurementScreen(
+                      schemeImage: _controlSchemeImage,
+                      existingMeasurements: _checklist.thicknessMeasurements,
+                      equipment: widget.equipment,
+                      onSave: (measurements, image) {
+                        setState(() {
+                          _checklist.thicknessMeasurements = measurements;
+                          if (image != null) {
+                            _controlSchemeImage = image;
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 24),
+              _buildSectionHeader('11. Дефекты'),
+              _buildYesNoField(
+                  'has_local_deformations', 'Локально деформированные зоны',
+                  (value) {
+                _checklist.hasLocalDeformations = value == 'yes';
+              }),
+              _buildYesNoField(
+                  'has_external_defects', 'Дефекты при наружном осмотре',
+                  (value) {
+                _checklist.hasExternalDefects = value == 'yes';
+              }),
+              _buildYesNoField(
+                  'has_internal_defects', 'Дефекты при внутреннем осмотре',
+                  (value) {
+                _checklist.hasInternalDefects = value == 'yes';
+              }),
+              _buildYesNoField('has_armature_defects', 'Дефекты арматуры',
+                  (value) {
+                _checklist.hasArmatureDefects = value == 'yes';
+              }),
+              const SizedBox(height: 12),
+              _buildVisualDefectsSection(),
+              const SizedBox(height: 24),
+              _buildSectionHeader('12. Заключение'),
+              _buildMultilineField('conclusion', 'Заключение', (value) {
+                _checklist.conclusion = value;
+              }),
+              const SizedBox(height: 32),
+              _buildSubmitButton(),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
@@ -1622,12 +2087,88 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
   }
 
   Widget _buildEngineerDropdown(String label, String methodKey) {
-    final items = _engineers;
+    // Фильтруем инженеров по методу контроля - показываем только тех, у кого есть соответствующее удостоверение
+    final filteredEngineers = _engineers.where((engineer) {
+      var qualifications = engineer['qualifications'];
+      if (qualifications == null) return false;
+
+      // Нормализуем qualifications (может быть строкой JSON)
+      if (qualifications is String) {
+        try {
+          qualifications = json.decode(qualifications);
+        } catch (_) {
+          return false;
+        }
+      }
+
+      // Проверяем, есть ли у инженера удостоверение по данному методу
+      if (qualifications is List) {
+        for (final qual in qualifications) {
+          if (qual is Map) {
+            final method = qual['method']?.toString().toUpperCase() ??
+                qual['ndt_method']?.toString().toUpperCase() ??
+                '';
+            final methodCode =
+                qual['method_code']?.toString().toUpperCase() ?? '';
+
+            // Сопоставление методов
+            if (methodKey == 'VIK' &&
+                (method.contains('ВИК') ||
+                    method.contains('VIK') ||
+                    methodCode == 'VIK')) {
+              return true;
+            }
+            if (methodKey == 'UZK' &&
+                (method.contains('УЗК') ||
+                    method.contains('UZK') ||
+                    methodCode == 'UZK')) {
+              return true;
+            }
+            if (methodKey == 'UZT' &&
+                (method.contains('УЗТ') ||
+                    method.contains('UZT') ||
+                    methodCode == 'UZT')) {
+              return true;
+            }
+            if (methodKey == 'PVK' &&
+                (method.contains('ПВК') ||
+                    method.contains('МК') ||
+                    method.contains('PVK') ||
+                    method.contains('MK') ||
+                    methodCode == 'PVK' ||
+                    methodCode == 'MK')) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }).toList();
+
     final selected = _selectedEngineerByMethod[methodKey];
+
+    if (filteredEngineers.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.orange),
+          ),
+          child: Text(
+            '$label: нет специалистов с соответствующим удостоверением',
+            style: const TextStyle(color: Colors.orange, fontSize: 12),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: DropdownButtonFormField<Map<String, dynamic>>(
-        value: selected,
+        initialValue: selected,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(color: Colors.white70),
@@ -1640,14 +2181,81 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           ),
         ),
         dropdownColor: const Color(0xFF1e293b),
-        items: items.map((e) {
+        items: filteredEngineers.map((e) {
           final name = (e['full_name'] ?? '').toString();
           final position = (e['position'] ?? '').toString();
+          // Показываем информацию об удостоверении
+          final qualifications = e['qualifications'];
+          String certInfo = '';
+          if (qualifications is List && qualifications.isNotEmpty) {
+            for (final qual in qualifications) {
+              if (qual is Map) {
+                final method = qual['method']?.toString() ??
+                    qual['ndt_method']?.toString() ??
+                    '';
+                final methodCode = qual['method_code']?.toString() ?? '';
+                bool matches = false;
+                if (methodKey == 'VIK' &&
+                    (method.contains('ВИК') ||
+                        method.contains('VIK') ||
+                        methodCode == 'VIK')) {
+                  matches = true;
+                }
+                if (methodKey == 'UZK' &&
+                    (method.contains('УЗК') ||
+                        method.contains('UZK') ||
+                        methodCode == 'UZK')) {
+                  matches = true;
+                }
+                if (methodKey == 'UZT' &&
+                    (method.contains('УЗТ') ||
+                        method.contains('UZT') ||
+                        methodCode == 'UZT')) {
+                  matches = true;
+                }
+                if (methodKey == 'PVK' &&
+                    (method.contains('ПВК') ||
+                        method.contains('МК') ||
+                        method.contains('PVK') ||
+                        method.contains('MK') ||
+                        methodCode == 'PVK' ||
+                        methodCode == 'MK')) {
+                  matches = true;
+                }
+
+                if (matches) {
+                  final certNum = qual['number']?.toString() ??
+                      qual['certificate_number']?.toString() ??
+                      '';
+                  final validUntil = qual['valid_until']?.toString() ??
+                      qual['expiry_date']?.toString() ??
+                      '';
+                  if (certNum.isNotEmpty) {
+                    certInfo = ' (Удостоверение: $certNum';
+                    if (validUntil.isNotEmpty) certInfo += ', до $validUntil';
+                    certInfo += ')';
+                  }
+                  break;
+                }
+              }
+            }
+          }
           return DropdownMenuItem<Map<String, dynamic>>(
             value: e,
-            child: Text(
-              position.isNotEmpty ? '$name — $position' : name,
-              style: const TextStyle(color: Colors.white),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  position.isNotEmpty ? '$name — $position' : name,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                if (certInfo.isNotEmpty)
+                  Text(
+                    certInfo,
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+              ],
             ),
           );
         }).toList(),
@@ -1656,6 +2264,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           setState(() {
             _selectedEngineerByMethod[methodKey] = value;
             _updateInspectionEngineers();
+            _hasUnsavedChanges = true;
           });
         },
       ),
@@ -1785,7 +2394,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: defectType,
+                  initialValue: defectType,
                   decoration: const InputDecoration(labelText: 'Тип дефекта'),
                   items: defectTypes
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -1880,6 +2489,76 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  Widget _buildOpoSelectionField() {
+    if (_loadingOpos) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_opos.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: FormBuilderDropdown<String>(
+        name: 'opo_id',
+        decoration: InputDecoration(
+          labelText: 'ОПО (Опасный производственный объект)',
+          labelStyle: const TextStyle(color: Colors.white70),
+          filled: true,
+          fillColor: const Color(0xFF1e293b),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.white24),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.blue),
+          ),
+        ),
+        initialValue: _selectedOpoId,
+        items: _opos.map((opo) {
+          final id = opo['id'] as String? ?? '';
+          final name = opo['name'] as String? ?? 'Без названия';
+          final code = opo['code'] as String?;
+          final displayName = code != null ? '$name ($code)' : name;
+          return DropdownMenuItem<String>(
+            value: id,
+            child: Text(
+              displayName,
+              style: const TextStyle(color: Colors.white),
+            ),
+          );
+        }).toList(),
+        onChanged: (value) {
+          setState(() {
+            _selectedOpoId = value;
+          });
+          // Обновляем оборудование на сервере с выбранным ОПО
+          if (value != null && value.isNotEmpty) {
+            _apiService.updateEquipmentOpo(
+              equipmentId: widget.equipment.id,
+              opoId: value,
+            ).catchError((e) {
+              print('Ошибка обновления ОПО оборудования: $e');
+            });
+          }
+        },
+        style: const TextStyle(color: Colors.white),
+        dropdownColor: const Color(0xFF1e293b),
+      ),
+    );
   }
 
   Widget _buildDropdownField(String name, String label, List<String> items,
@@ -2117,6 +2796,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
     final documentNumber = doc['number']!;
     final hasFile = _documentFiles.containsKey(documentNumber);
     final isChecked = _checklist.documents[documentNumber] ?? false;
+    final info = _checklist.documentsInfo[documentNumber] ?? {'number': '', 'date': ''};
+    DateTime? infoDate;
+    if ((info['date'] ?? '').isNotEmpty) {
+      try {
+        infoDate = DateTime.parse(info['date']!);
+      } catch (_) {
+        infoDate = null;
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -2133,6 +2821,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
               onChanged: (value) {
                 setState(() {
                   _checklist.documents[documentNumber] = value ?? false;
+                  if ((value ?? false) &&
+                      !_checklist.documentsInfo.containsKey(documentNumber)) {
+                    _checklist.documentsInfo[documentNumber] = {
+                      'number': '',
+                      'date': '',
+                    };
+                  }
                   // Если снимаем галочку, удаляем файл
                   if (value == false && hasFile) {
                     _documentFiles.remove(documentNumber);
@@ -2159,42 +2854,99 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _pickDocumentFile(documentNumber),
-                        icon: Icon(hasFile ? Icons.edit : Icons.attach_file),
-                        label:
-                            Text(hasFile ? 'Изменить файл' : 'Прикрепить файл'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.blue,
-                          side: const BorderSide(color: Colors.blue),
+                    FormBuilderTextField(
+                      name: 'doc_number_$documentNumber',
+                      initialValue: info['number'],
+                      decoration: const InputDecoration(
+                        labelText: 'Номер документа',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF3b82f6)),
                         ),
                       ),
+                      style: const TextStyle(color: Colors.white),
+                      onChanged: (value) {
+                        setState(() {
+                          final current = _checklist.documentsInfo[documentNumber] ?? {};
+                          _checklist.documentsInfo[documentNumber] = {
+                            'number': value ?? '',
+                            'date': current['date'] ?? '',
+                          };
+                        });
+                      },
                     ),
-                    if (hasFile) ...[
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          setState(() {
-                            _documentFiles.remove(documentNumber);
-                          });
-                          if (_questionnaireId != null) {
-                            _apiService
-                                .deleteDocumentFile(
-                              questionnaireId: _questionnaireId!,
-                              documentNumber: documentNumber,
-                            )
-                                .catchError((e) {
-                              // Игнорируем ошибки
-                            });
-                          }
-                        },
-                        tooltip: 'Удалить файл',
+                    const SizedBox(height: 8),
+                    FormBuilderDateTimePicker(
+                      name: 'doc_date_$documentNumber',
+                      inputType: InputType.date,
+                      initialValue: infoDate,
+                      decoration: const InputDecoration(
+                        labelText: 'Дата документа',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF3b82f6)),
+                        ),
                       ),
-                    ],
+                      style: const TextStyle(color: Colors.white),
+                      onChanged: (value) {
+                        setState(() {
+                          final current = _checklist.documentsInfo[documentNumber] ?? {};
+                          _checklist.documentsInfo[documentNumber] = {
+                            'number': current['number'] ?? '',
+                            'date': value != null
+                                ? value.toIso8601String().split('T')[0]
+                                : '',
+                          };
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _pickDocumentFile(documentNumber),
+                            icon: Icon(hasFile ? Icons.edit : Icons.attach_file),
+                            label: Text(
+                                hasFile ? 'Изменить файл' : 'Прикрепить файл'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.blue,
+                              side: const BorderSide(color: Colors.blue),
+                            ),
+                          ),
+                        ),
+                        if (hasFile) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                _documentFiles.remove(documentNumber);
+                              });
+                              if (_questionnaireId != null) {
+                                _apiService
+                                    .deleteDocumentFile(
+                                  questionnaireId: _questionnaireId!,
+                                  documentNumber: documentNumber,
+                                )
+                                    .catchError((e) {
+                                  // Игнорируем ошибки
+                                });
+                              }
+                            },
+                            tooltip: 'Удалить файл',
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -2246,27 +2998,55 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
                   const Text('Нет фото',
                       style: TextStyle(color: Colors.white70)),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () =>
-                            _pickImage(ImageSource.camera, isFactoryPlate),
-                        icon: const Icon(Icons.camera),
-                        label: const Text('Камера'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3b82f6),
+                      Text(
+                        isFactoryPlate
+                            ? 'Выберите способ получения фото заводской таблички:'
+                            : 'Выберите способ получения схемы контроля:',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () =>
-                            _pickImage(ImageSource.gallery, isFactoryPlate),
-                        icon: const Icon(Icons.photo_library),
-                        label: const Text('Галерея'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3b82f6),
-                        ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _pickImage(
+                                  ImageSource.camera, isFactoryPlate),
+                              icon: const Icon(Icons.camera),
+                              label: Text(isFactoryPlate
+                                  ? 'Сфотографировать табличку'
+                                  : 'Сфотографировать схему'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3b82f6),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _pickImage(
+                                  ImageSource.gallery, isFactoryPlate),
+                              icon: const Icon(Icons.photo_library),
+                              label: Text(isFactoryPlate
+                                  ? 'Выбрать из галереи'
+                                  : 'Выбрать из галереи'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3b82f6),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2291,6 +3071,72 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
+    );
+  }
+
+  /// Подсчет заполненных полей для прогресса
+  Map<String, int> _calculateProgress() {
+    int completed = 0;
+    int total = 0;
+    List<String> missingRequired = [];
+
+    // Основная информация
+    total += 3;
+    if (_checklist.inspectionDate != null && _checklist.inspectionDate!.isNotEmpty) completed++;
+    else missingRequired.add('Дата обследования');
+    if (_checklist.executors != null && _checklist.executors!.isNotEmpty) completed++;
+    else missingRequired.add('Исполнители');
+    if (_checklist.organization != null && _checklist.organization!.isNotEmpty) completed++;
+    else missingRequired.add('Организация');
+
+    // Оборудование для поверок
+    total += 1;
+    if (_selectedEquipmentIds.isNotEmpty) completed++;
+    else missingRequired.add('Оборудование для поверок');
+
+    // Карта обследования
+    total += 5;
+    if (_checklist.vesselName != null && _checklist.vesselName!.isNotEmpty) completed++;
+    if (_checklist.serialNumber != null && _checklist.serialNumber!.isNotEmpty) completed++;
+    if (_checklist.regNumber != null && _checklist.regNumber!.isNotEmpty) completed++;
+    if (_checklist.manufacturer != null && _checklist.manufacturer!.isNotEmpty) completed++;
+    if (_checklist.manufactureYear != null && _checklist.manufactureYear!.isNotEmpty) completed++;
+
+    // Фото заводской таблички
+    total += 1;
+    if (_factoryPlatePhoto != null || (_checklist.factoryPlatePhoto != null && _checklist.factoryPlatePhoto!.isNotEmpty)) completed++;
+    else missingRequired.add('Фото заводской таблички');
+
+    // Заключение
+    total += 1;
+    if (_checklist.conclusion != null && _checklist.conclusion!.isNotEmpty) completed++;
+    else missingRequired.add('Заключение');
+
+    return {
+      'completed': completed,
+      'total': total,
+      'missing': missingRequired.length,
+    };
+  }
+
+  Widget _buildProgressIndicator() {
+    final progress = _calculateProgress();
+    final completed = progress['completed']!;
+    final total = progress['total']!;
+    final missing = progress['missing']!;
+    
+    List<String> missingRequired = [];
+    if (_checklist.inspectionDate == null || _checklist.inspectionDate!.isEmpty) missingRequired.add('Дата обследования');
+    if (_checklist.executors == null || _checklist.executors!.isEmpty) missingRequired.add('Исполнители');
+    if (_checklist.organization == null || _checklist.organization!.isEmpty) missingRequired.add('Организация');
+    if (_selectedEquipmentIds.isEmpty) missingRequired.add('Оборудование для поверок');
+    if (_factoryPlatePhoto == null && (_checklist.factoryPlatePhoto == null || _checklist.factoryPlatePhoto!.isEmpty)) missingRequired.add('Фото заводской таблички');
+    if (_checklist.conclusion == null || _checklist.conclusion!.isEmpty) missingRequired.add('Заключение');
+
+    return ChecklistProgressIndicator(
+      completedFields: completed,
+      totalFields: total,
+      missingRequiredFields: missingRequired.isNotEmpty ? missingRequired : null,
     );
   }
 

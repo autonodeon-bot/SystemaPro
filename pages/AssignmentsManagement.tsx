@@ -1034,15 +1034,16 @@ const CreateAssignmentModal: React.FC<{
   // Проверка, все ли оборудование выбрано в предприятии
   const isEnterpriseSelected = (enterpriseId: string): boolean => {
     // Если филиалы не загружены, возвращаем false
-    if (!branches[enterpriseId] || branches[enterpriseId].length === 0) return false;
-    
     const entBranches = branches[enterpriseId];
+    if (!entBranches || entBranches.length === 0) return false;
+    
     const allEquipmentIds: string[] = [];
     
     entBranches.forEach((branch: any) => {
       // Если цехи не загружены, пропускаем
-      if (!workshops[branch.id]) return;
       const branchWorkshops = workshops[branch.id];
+      if (!branchWorkshops || branchWorkshops.length === 0) return;
+      
       branchWorkshops.forEach((workshop: any) => {
         const workshopEquipment = getEquipmentForWorkshop(workshop.id);
         workshopEquipment.forEach((eq: any) => {
@@ -1052,6 +1053,7 @@ const CreateAssignmentModal: React.FC<{
     });
 
     if (allEquipmentIds.length === 0) return false;
+    // Проверяем, что все оборудование выбрано
     return allEquipmentIds.every(id => formData.selectedEquipmentIds.includes(id));
   };
 
@@ -1090,19 +1092,21 @@ const CreateAssignmentModal: React.FC<{
     // Загружаем филиалы, если они не загружены
     if (!branches[enterpriseId]) {
       await loadBranches(enterpriseId);
-      // Ждем немного для обновления состояния
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     const allEquipmentIds: string[] = [];
     const entBranches = branches[enterpriseId] || [];
     
-    // Загружаем цехи для всех филиалов
-    for (const branch of entBranches) {
+    // Загружаем цехи для всех филиалов параллельно
+    const loadPromises = entBranches.map(async (branch: any) => {
       if (!workshops[branch.id]) {
         await loadWorkshops(branch.id);
-        await new Promise(resolve => setTimeout(resolve, 50));
       }
+    });
+    await Promise.all(loadPromises);
+
+    // Собираем все оборудование после загрузки
+    entBranches.forEach((branch: any) => {
       const branchWorkshops = workshops[branch.id] || [];
       branchWorkshops.forEach((workshop: any) => {
         const workshopEquipment = getEquipmentForWorkshop(workshop.id);
@@ -1110,20 +1114,23 @@ const CreateAssignmentModal: React.FC<{
           allEquipmentIds.push(eq.id);
         });
       });
-    }
+    });
 
+    // Обновляем состояние сразу
     setFormData(prev => {
       if (isChecked) {
         // Добавляем все
+        const newIds = [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])];
         return {
           ...prev,
-          selectedEquipmentIds: [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])]
+          selectedEquipmentIds: newIds
         };
       } else {
         // Удаляем все
+        const newIds = prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id));
         return {
           ...prev,
-          selectedEquipmentIds: prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id))
+          selectedEquipmentIds: newIds
         };
       }
     });
@@ -1133,7 +1140,6 @@ const CreateAssignmentModal: React.FC<{
     // Загружаем цехи, если они не загружены
     if (!workshops[branchId]) {
       await loadWorkshops(branchId);
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     const branchWorkshops = workshops[branchId] || [];
@@ -1146,18 +1152,21 @@ const CreateAssignmentModal: React.FC<{
       });
     });
 
+    // Обновляем состояние сразу
     setFormData(prev => {
       if (isChecked) {
         // Добавляем все
+        const newIds = [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])];
         return {
           ...prev,
-          selectedEquipmentIds: [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])]
+          selectedEquipmentIds: newIds
         };
       } else {
         // Удаляем все
+        const newIds = prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id));
         return {
           ...prev,
-          selectedEquipmentIds: prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id))
+          selectedEquipmentIds: newIds
         };
       }
     });
@@ -1273,12 +1282,14 @@ const CreateAssignmentModal: React.FC<{
                         <input
                           type="checkbox"
                           checked={isEnterpriseSelected(enterprise.id)}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             e.stopPropagation();
-                            selectAllInEnterprise(enterprise.id, e.target.checked);
+                            const newChecked = e.target.checked;
+                            // Сразу обновляем визуально, затем загружаем данные
+                            await selectAllInEnterprise(enterprise.id, newChecked);
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="rounded"
+                          className="rounded cursor-pointer"
                         />
                         <span className="text-white font-semibold">{enterprise.name}</span>
                         <button

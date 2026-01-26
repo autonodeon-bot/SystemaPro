@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon } from 'lucide-react';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
+import { useTheme } from './contexts/ThemeContext';
 import Dashboard from './pages/Dashboard';
 import DynamicInspection from './pages/DynamicInspection';
 import TechSpecs from './pages/TechSpecs';
@@ -13,6 +14,7 @@ import ResourceManagement from './pages/ResourceManagement';
 import RegulatoryDocuments from './pages/RegulatoryDocuments';
 import CompetenciesManagement from './pages/CompetenciesManagement';
 import ReportGeneration from './pages/ReportGeneration';
+import ReportViewer from './pages/ReportViewer';
 import InspectionsList from './pages/InspectionsList';
 import MobileApp from './pages/MobileApp';
 import Changelog from './pages/Changelog';
@@ -26,9 +28,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
   const location = useLocation();
+  const { theme } = useTheme();
   const isActive = location.pathname === to;
   return (
-    <NavLink to={to} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive ? 'bg-accent/20 text-accent border-r-2 border-accent' : 'text-slate-400 hover:bg-secondary hover:text-white'}`}>
+    <NavLink to={to} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive ? 'bg-accent/20 text-accent border-r-2 border-accent' : theme === 'dark' ? 'text-slate-400 hover:bg-secondary hover:text-white' : 'text-slate-600 hover:bg-secondary-light hover:text-slate-900'}`}>
       <Icon size={20} />
       <span className="font-medium">{label}</span>
     </NavLink>
@@ -38,6 +41,7 @@ const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: 
 const Layout: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false); // Закрыт по умолчанию на мобильных
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   // Открываем sidebar на десктопе автоматически
@@ -55,9 +59,9 @@ const Layout: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-screen bg-primary overflow-hidden">
+    <div className={`flex h-screen overflow-hidden ${theme === 'dark' ? 'bg-primary' : 'bg-primary-light'} transition-colors duration-300`}>
       {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-secondary/50 border-r border-slate-700 transition-all duration-300 flex flex-col fixed md:relative z-30 h-full ${isSidebarOpen ? 'left-0' : '-left-20 md:left-0'}`}>
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} ${theme === 'dark' ? 'bg-secondary/50 border-slate-700' : 'bg-secondary-light/50 border-slate-300'} border-r transition-all duration-300 flex flex-col fixed md:relative z-30 h-full ${isSidebarOpen ? 'left-0' : '-left-20 md:left-0'}`}>
         <div className="p-4 flex items-center justify-between border-b border-slate-700 h-16">
           {isSidebarOpen && <div className="flex items-center gap-2 font-bold text-white text-lg tracking-wider"><div className="w-8 h-8 bg-accent rounded flex items-center justify-center">ES</div>ТД НГО</div>}
           <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-1 hover:bg-slate-700 rounded text-slate-400">
@@ -71,7 +75,6 @@ const Layout: React.FC = () => {
           <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? "Задания" : ""} />
           <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Чек-листы" : ""} />
           <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
-          <SidebarItem to="/resources" icon={Calculator} label={isSidebarOpen ? "Ресурс оборудования" : ""} />
           <SidebarItem to="/reports" icon={Sparkles} label={isSidebarOpen ? "Генерация отчетов" : ""} />
           <SidebarItem to="/verifications" icon={CheckCircle2} label={isSidebarOpen ? "Поверки" : ""} />
           <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Нормативные документы" : ""} />
@@ -82,12 +85,18 @@ const Layout: React.FC = () => {
           {user?.role === 'admin' && (
             <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
           )}
-          <SidebarItem to="/inspection" icon={ClipboardList} label={isSidebarOpen ? "Диагностика" : ""} />
           <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
           <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? "Мобильное приложение" : ""} />
           <div className="my-4 border-t border-slate-700"></div>
           <SidebarItem to="/changelog" icon={Sparkles} label={isSidebarOpen ? "Что нового?" : ""} />
           <SidebarItem to="/settings" icon={Settings} label={isSidebarOpen ? "Настройки" : ""} />
+          <button
+            onClick={toggleTheme}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-slate-400 hover:bg-secondary hover:text-white w-full text-left`}
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            {isSidebarOpen && <span className="font-medium">Светлая тема</span>}
+          </button>
         </nav>
         
         <div className="p-4 border-t border-slate-700">
@@ -136,7 +145,7 @@ const Layout: React.FC = () => {
                <Menu size={20} />
              </button>
              <h2 className="text-base md:text-lg font-semibold text-white">Единая цифровая платформа</h2>
-             <span className="text-xs text-slate-400 ml-2 hidden sm:inline">v3.8.1</span>
+             <span className="text-xs text-slate-400 ml-2 hidden sm:inline">v3.15.0</span>
            </div>
            <div className="flex items-center gap-4">
               <button className="relative p-2 text-slate-400 hover:text-white transition">
@@ -187,6 +196,7 @@ const App = () => {
             <Route path="/projects" element={<ProjectsManagement />} />
             <Route path="/resources" element={<ResourceManagement />} />
             <Route path="/reports" element={<ReportGeneration />} />
+            <Route path="/report-viewer/:inspectionId" element={<ReportViewer />} />
             <Route path="/verifications" element={<VerificationsManagement />} />
             <Route path="/verifications-calendar" element={<VerificationsCalendar />} />
             <Route path="/regulatory" element={<RegulatoryDocuments />} />

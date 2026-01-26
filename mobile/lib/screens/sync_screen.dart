@@ -27,11 +27,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final pending = await _syncService.getPendingInspections();
     final lastSync = await _syncService.getLastSyncTime();
     
+    // Подсчитываем черновики (DRAFT) и подписанные (SIGNED)
+    int draftCount = 0;
+    int signedCount = 0;
+    for (final item in pending) {
+      final status = (item['status']?.toString().toUpperCase() ?? 'DRAFT');
+      if (status == 'DRAFT') {
+        draftCount += 1;
+      } else if (status == 'SIGNED') {
+        signedCount += 1;
+      }
+    }
+    
     setState(() {
       _pendingCount = pending.length;
       _lastSyncTime = lastSync;
+      _draftCount = draftCount;
+      _signedCount = signedCount;
     });
   }
+  
+  int _draftCount = 0;
+  int _signedCount = 0;
 
   Future<void> _syncNow() async {
     setState(() => _isSyncing = true);
@@ -105,7 +122,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Ожидающих синхронизации:',
+                          'Всего ожидает синхронизации:',
                           style: TextStyle(color: Colors.white70),
                         ),
                         Text(
@@ -118,6 +135,44 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         ),
                       ],
                     ),
+                    if (_draftCount > 0 || _signedCount > 0) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '  • Черновики (DRAFT):',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                          Text(
+                            '$_draftCount',
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '  • Подписанные (SIGNED):',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                          Text(
+                            '$_signedCount',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

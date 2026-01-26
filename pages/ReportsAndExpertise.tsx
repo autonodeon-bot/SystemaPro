@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Download, FileText, Search, Filter, Calendar, User, AlertCircle, Upload, X, File, Image as ImageIcon, Trash2, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Download, FileText, Search, Filter, Calendar, User, AlertCircle, Upload, X, File, Image as ImageIcon, Trash2, CheckCircle2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_BASE = 'http://5.129.203.182:8000';
@@ -11,6 +12,15 @@ interface Report {
   equipment_name?: string;
   equipment_location?: string;
   project_id?: string;
+  enterprise_id?: string;
+  enterprise_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+  workshop_id?: string;
+  workshop_name?: string;
+  opo_id?: string;
+  opo_name?: string;
+  opo_code?: string;
   report_type: string;
   title: string;
   file_path?: string;
@@ -56,6 +66,15 @@ interface Questionnaire {
   file_size?: number;
   word_file_path?: string;
   word_file_size?: number;
+  enterprise_id?: string;
+  enterprise_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+  workshop_id?: string;
+  workshop_name?: string;
+  opo_id?: string;
+  opo_name?: string;
+  opo_code?: string;
   ndt_methods?: NDTMethod[];
   document_files?: DocumentFile[];
   created_by?: string;
@@ -64,6 +83,7 @@ interface Questionnaire {
 
 const ReportsAndExpertise = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [reports, setReports] = useState<Report[]>([]);
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
   const [equipment, setEquipment] = useState<any[]>([]);
@@ -76,6 +96,11 @@ const ReportsAndExpertise = () => {
   const [documentFiles, setDocumentFiles] = useState<Record<string, DocumentFile[]>>({});
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
   const [cleanupReportsDays, setCleanupReportsDays] = useState<number>(180);
+  const [showMineOnly, setShowMineOnly] = useState<boolean>(false);
+  const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [groupBy, setGroupBy] = useState<string>('none'); // 'none', 'enterprise', 'branch', 'workshop', 'opo'
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -489,8 +514,357 @@ const ReportsAndExpertise = () => {
     
     const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
     
-    return matchesSearch && matchesType && matchesStatus;
+    let matchesMine = true;
+    if (showMineOnly && user) {
+      const createdBy = (item as any).created_by as string | undefined;
+      const inspectorName = (item as any).inspector_name as string | undefined;
+      const fullName = user.full_name || user.username;
+      matchesMine =
+        (createdBy && createdBy === user.id) ||
+        (inspectorName && fullName && inspectorName === fullName);
+    }
+
+    return matchesSearch && matchesType && matchesStatus && matchesMine;
   });
+
+  // Функция для получения ключа группировки
+  const getGroupKey = (item: any, groupType: string): string | null => {
+    switch (groupType) {
+      case 'enterprise':
+        return item.enterprise_id ? `enterprise_${item.enterprise_id}` : 'enterprise_unknown';
+      case 'branch':
+        return item.branch_id ? `branch_${item.branch_id}` : 'branch_unknown';
+      case 'workshop':
+        return item.workshop_id ? `workshop_${item.workshop_id}` : 'workshop_unknown';
+      case 'opo':
+        return item.opo_id ? `opo_${item.opo_id}` : 'opo_unknown';
+      default:
+        return null;
+    }
+  };
+
+  // Функция для получения названия группы
+  const getGroupName = (item: any, groupType: string): string => {
+    switch (groupType) {
+      case 'enterprise':
+        return item.enterprise_name || 'Предприятие не указано';
+      case 'branch':
+        return item.branch_name || 'Филиал не указан';
+      case 'workshop':
+        return item.workshop_name || 'Цех не указан';
+      case 'opo':
+        return item.opo_name ? `${item.opo_name}${item.opo_code ? ` (${item.opo_code})` : ''}` : 'ОПО не указано';
+      default:
+        return '';
+    }
+  };
+
+  // Группировка элементов
+  const groupedItems = useMemo(() => {
+    if (groupBy === 'none') {
+      return { 'all': filteredItems };
+    }
+
+    const groups: Record<string, typeof filteredItems> = {};
+    filteredItems.forEach(item => {
+      const key = getGroupKey(item, groupBy);
+      if (key) {
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(item);
+      }
+    });
+
+    return groups;
+  }, [filteredItems, groupBy]);
+
+  // Функция для рендеринга одного элемента отчета/опросного листа
+  const renderItem = (item: typeof filteredItems[0]) => (
+    <div
+      key={item.id}
+      className="bg-slate-900 border border-slate-700 rounded-lg p-4 sm:p-6 hover:border-slate-600 transition-colors"
+    >
+      <div className="flex items-start gap-3 mb-3">
+        <input
+          type="checkbox"
+          checked={selectedReports.has(item.id)}
+          onChange={(e) => {
+            const newSelected = new Set(selectedReports);
+            if (e.target.checked) {
+              newSelected.add(item.id);
+            } else {
+              newSelected.delete(item.id);
+            }
+            setSelectedReports(newSelected);
+          }}
+          className="mt-1 accent-blue-500"
+        />
+        <FileText className="text-accent mt-1 flex-shrink-0" size={24} />
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg font-bold text-white mb-2 break-words">
+            {item.title}
+          </h3>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <span className={`px-2 py-1 rounded text-xs font-semibold border ${getStatusColor(item.status)}`}>
+              {getStatusLabel(item.status)}
+            </span>
+            <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              {getReportTypeLabel(item.report_type)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2 text-sm text-slate-300 ml-9">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400">Оборудование:</span>
+          <span className="font-medium">{item.equipment_name || 'Не указано'}</span>
+        </div>
+        {item.equipment_location && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Местоположение:</span>
+            <span>{item.equipment_location}</span>
+          </div>
+        )}
+        {(item as any).enterprise_name && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Предприятие:</span>
+            <span>{(item as any).enterprise_name}</span>
+          </div>
+        )}
+        {(item as any).branch_name && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Филиал:</span>
+            <span>{(item as any).branch_name}</span>
+          </div>
+        )}
+        {(item as any).workshop_name && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Цех:</span>
+            <span>{(item as any).workshop_name}</span>
+          </div>
+        )}
+        {(item as any).opo_name && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">ОПО:</span>
+            <span>{(item as any).opo_name}{(item as any).opo_code ? ` (${(item as any).opo_code})` : ''}</span>
+          </div>
+        )}
+        {((item.itemType === 'questionnaire' || item.itemType === 'report') && (item as any).inspector_name) && (
+          <div className="flex items-center gap-2">
+            <User size={16} className="text-slate-400" />
+            <span className="text-slate-400">Инженер:</span>
+            <span className="font-medium">{(item as any).inspector_name}</span>
+            {(item as any).inspector_position && (
+              <span className="text-slate-500">({(item as any).inspector_position})</span>
+            )}
+          </div>
+        )}
+        {item.itemType === 'questionnaire' && (item as any).inspection_date && (
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-slate-400" />
+            <span className="text-slate-400">Дата обследования:</span>
+            <span>{formatDate((item as any).inspection_date)}</span>
+          </div>
+        )}
+        {item.created_at && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Создан:</span>
+            <span>{formatDate(item.created_at)}</span>
+          </div>
+        )}
+        {item.file_size !== undefined && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Размер PDF:</span>
+            <span>{formatFileSize(item.file_size)}</span>
+            {item.file_size === 0 && item.itemType === 'questionnaire' && (
+              <span className="text-yellow-400 text-xs flex items-center gap-1">
+                <AlertCircle size={14} />
+                PDF не сгенерирован
+              </span>
+            )}
+          </div>
+        )}
+        {item.itemType === 'questionnaire' && (item as any).word_file_size !== undefined && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Размер Word:</span>
+            <span>{formatFileSize((item as any).word_file_size || 0)}</span>
+            {(item as any).word_file_size === 0 && (
+              <span className="text-yellow-400 text-xs flex items-center gap-1">
+                <AlertCircle size={14} />
+                Word не сгенерирован
+              </span>
+            )}
+          </div>
+        )}
+        {item.itemType === 'questionnaire' && (item as any).ndt_methods && (item as any).ndt_methods.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-700">
+            <div className="text-slate-400 text-sm mb-2">Методы неразрушающего контроля:</div>
+            <div className="flex flex-wrap gap-2">
+              {(item as any).ndt_methods.map((method: NDTMethod) => (
+                <span
+                  key={method.id}
+                  className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                  title={`${method.method_name}${method.standard ? ` (${method.standard})` : ''}`}
+                >
+                  {method.method_code}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {item.itemType === 'questionnaire' && documentFiles[item.id] && documentFiles[item.id].length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-700">
+            <div className="flex items-center gap-2 mb-2">
+              <File size={16} className="text-slate-400" />
+              <span className="text-slate-400 font-semibold">Прикрепленные документы:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {documentFiles[item.id].map((file) => (
+                <a
+                  key={file.id}
+                  href={`${API_BASE}/api/questionnaires/${item.id}/documents/${file.document_number}/view`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-white transition-colors"
+                >
+                  {file.file_type === 'image' ? (
+                    <ImageIcon size={14} className="text-green-400" />
+                  ) : (
+                    <FileText size={14} className="text-red-400" />
+                  )}
+                  <span className="max-w-[200px] truncate" title={getDocumentName(Number(file.document_number))}>
+                    {getDocumentName(Number(file.document_number))}
+                  </span>
+                  <span className="text-slate-400 text-xs">({formatFileSize(file.file_size)})</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 flex-shrink-0 ml-9 mt-4">
+        {item.itemType === 'questionnaire' ? (
+          <>
+            <div className="flex gap-2">
+              {item.file_size === 0 || !item.file_path ? (
+                <button
+                  onClick={() => generateQuestionnairePDF(item.id)}
+                  className="px-3 py-2 bg-accent hover:bg-accent/80 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
+                >
+                  <FileText size={16} />
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
+              ) : (
+                <a
+                  href={`${API_BASE}/api/questionnaires/${item.id}/download`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
+                >
+                  <Download size={16} />
+                  <span className="hidden sm:inline">PDF</span>
+                </a>
+              )}
+              {(item as any).word_file_size === 0 || !(item as any).word_file_path ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                      const token = localStorage.getItem('token');
+                      if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                      }
+                      const response = await fetch(`${API_BASE}/api/questionnaires/${item.id}/generate-word`, {
+                        method: 'POST',
+                        headers
+                      });
+                      if (response.ok) {
+                        await loadData();
+                        window.open(`${API_BASE}/api/questionnaires/${item.id}/download-word`, '_blank');
+                      } else {
+                        alert('Ошибка генерации Word');
+                      }
+                    } catch (error) {
+                      console.error('Ошибка генерации Word:', error);
+                      alert('Ошибка генерации Word');
+                    }
+                  }}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
+                >
+                  <FileText size={16} />
+                  <span className="hidden sm:inline">Word</span>
+                </button>
+              ) : (
+                <a
+                  href={`${API_BASE}/api/questionnaires/${item.id}/download-word`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
+                >
+                  <Download size={16} />
+                  <span className="hidden sm:inline">Word</span>
+                </a>
+              )}
+              <button
+                onClick={() => setSelectedQuestionnaire(item as Questionnaire)}
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
+              >
+                <Upload size={16} />
+                <span className="hidden sm:inline">Управление файлами</span>
+                <span className="sm:hidden">Файлы</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          item.file_path && (
+            <div className="flex items-center gap-2">
+              <a
+                href={`${API_BASE}/api/reports/${item.id}/download`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-accent hover:bg-accent/80 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Download size={18} />
+                <span className="hidden sm:inline">Скачать</span>
+                <span className="sm:hidden">PDF</span>
+              </a>
+              {(item as any).inspection_id && (
+                <button
+                  onClick={() => navigate(`/report-viewer/${(item as any).inspection_id}`)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  title="Полный просмотр"
+                >
+                  <FileText size={18} />
+                  <span className="hidden sm:inline">Просмотр</span>
+                </button>
+              )}
+              {canApprove && (item as any).inspection_id && item.status !== 'APPROVED' && (
+                <button
+                  onClick={() => approveReport((item as any).inspection_id)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  title="Утвердить отчет"
+                >
+                  <CheckCircle2 size={18} />
+                  <span className="hidden sm:inline">Утвердить</span>
+                </button>
+              )}
+              <button
+                onClick={() => deleteReport(item.id)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                title="Удалить отчет"
+              >
+                <Trash2 size={18} />
+                <span className="hidden sm:inline">Удалить</span>
+              </button>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -592,6 +966,44 @@ const ReportsAndExpertise = () => {
             <option value="SENT">Отправлен</option>
           </select>
 
+          {user?.role === 'engineer' && (
+            <label className="flex items-center gap-2 text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+              <input
+                type="checkbox"
+                checked={showMineOnly}
+                onChange={(e) => setShowMineOnly(e.target.checked)}
+                className="accent-blue-500"
+              />
+              Мои чек-листы и отчеты
+            </label>
+          )}
+
+          <select
+            value={groupBy}
+            onChange={(e) => {
+              setGroupBy(e.target.value);
+              // Автоматически раскрываем все группы при изменении группировки
+              if (e.target.value !== 'none') {
+                const allGroupKeys = new Set<string>();
+                filteredItems.forEach(item => {
+                  const key = getGroupKey(item, e.target.value);
+                  if (key) allGroupKeys.add(key);
+                });
+                setExpandedGroups(allGroupKeys);
+              } else {
+                setExpandedGroups(new Set());
+              }
+            }}
+            className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+            title="Группировка отчетов"
+          >
+            <option value="none">Без группировки</option>
+            <option value="enterprise">По предприятию</option>
+            <option value="branch">По филиалу</option>
+            <option value="workshop">По цеху</option>
+            <option value="opo">По ОПО</option>
+          </select>
+
           <div className="flex items-center gap-2 sm:ml-auto">
             <span className="text-slate-400 text-sm hidden sm:inline">Очистка:</span>
             <select
@@ -620,254 +1032,54 @@ const ReportsAndExpertise = () => {
 
       {/* Список отчетов и опросных листов */}
       <div className="space-y-4">
-        {filteredItems.length === 0 ? (
+        {Object.keys(groupedItems).length === 0 || filteredItems.length === 0 ? (
           <div className="text-center text-slate-400 py-20">
             {searchTerm || filterType !== 'all' || filterStatus !== 'all' 
               ? 'Ничего не найдено' 
               : 'Отчеты и опросные листы не найдены'}
           </div>
+        ) : groupBy === 'none' ? (
+          // Без группировки - показываем все элементы
+          filteredItems.map((item) => renderItem(item))
         ) : (
-          filteredItems.map((item) => (
-            <div
-              key={item.id}
-              className="bg-slate-900 border border-slate-700 rounded-lg p-4 sm:p-6 hover:border-slate-600 transition-colors"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start gap-3 mb-3">
-                    <FileText className="text-accent mt-1 flex-shrink-0" size={24} />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-white mb-2 break-words">
-                        {item.title}
-                      </h3>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold border ${getStatusColor(item.status)}`}>
-                          {getStatusLabel(item.status)}
-                        </span>
-                        <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                          {getReportTypeLabel(item.report_type)}
-                        </span>
-                      </div>
-                    </div>
+          // С группировкой - показываем группы с раскрывающимися списками
+          Object.entries(groupedItems).map(([groupKey, items]) => {
+            if (items.length === 0) return null;
+            const firstItem = items[0];
+            const groupName = getGroupName(firstItem, groupBy);
+            const isExpanded = expandedGroups.has(groupKey);
+            
+            return (
+              <div key={groupKey} className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => {
+                    const newExpanded = new Set(expandedGroups);
+                    if (isExpanded) {
+                      newExpanded.delete(groupKey);
+                    } else {
+                      newExpanded.add(groupKey);
+                    }
+                    setExpandedGroups(newExpanded);
+                  }}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <ChevronRight 
+                      size={20} 
+                      className={`text-slate-400 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    />
+                    <span className="text-lg font-bold text-white">{groupName}</span>
+                    <span className="text-slate-400 text-sm">({items.length})</span>
                   </div>
-
-                  <div className="space-y-2 text-sm text-slate-300">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">Оборудование:</span>
-                      <span className="font-medium">{item.equipment_name || 'Не указано'}</span>
-                    </div>
-                    {item.equipment_location && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Местоположение:</span>
-                        <span>{item.equipment_location}</span>
-                      </div>
-                    )}
-                    {((item.itemType === 'questionnaire' || item.itemType === 'report') && (item as any).inspector_name) && (
-                      <div className="flex items-center gap-2">
-                        <User size={16} className="text-slate-400" />
-                        <span className="text-slate-400">Инженер:</span>
-                        <span className="font-medium">{(item as any).inspector_name}</span>
-                        {(item as any).inspector_position && (
-                          <span className="text-slate-500">({(item as any).inspector_position})</span>
-                        )}
-                      </div>
-                    )}
-                    {item.itemType === 'questionnaire' && (item as any).inspection_date && (
-                      <div className="flex items-center gap-2">
-                        <Calendar size={16} className="text-slate-400" />
-                        <span className="text-slate-400">Дата обследования:</span>
-                        <span>{formatDate((item as any).inspection_date)}</span>
-                      </div>
-                    )}
-                    {item.created_at && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Создан:</span>
-                        <span>{formatDate(item.created_at)}</span>
-                      </div>
-                    )}
-                    {item.file_size !== undefined && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Размер PDF:</span>
-                        <span>{formatFileSize(item.file_size)}</span>
-                        {item.file_size === 0 && item.itemType === 'questionnaire' && (
-                          <span className="text-yellow-400 text-xs flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            PDF не сгенерирован
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {item.itemType === 'questionnaire' && (item as any).word_file_size !== undefined && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Размер Word:</span>
-                        <span>{formatFileSize((item as any).word_file_size || 0)}</span>
-                        {(item as any).word_file_size === 0 && (
-                          <span className="text-yellow-400 text-xs flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            Word не сгенерирован
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {item.itemType === 'questionnaire' && (item as any).ndt_methods && (item as any).ndt_methods.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-700">
-                        <div className="text-slate-400 text-sm mb-2">Методы неразрушающего контроля:</div>
-                        <div className="flex flex-wrap gap-2">
-                          {(item as any).ndt_methods.map((method: NDTMethod) => (
-                            <span
-                              key={method.id}
-                              className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                              title={`${method.method_name}${method.standard ? ` (${method.standard})` : ''}`}
-                            >
-                              {method.method_code}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {item.itemType === 'questionnaire' && documentFiles[item.id] && documentFiles[item.id].length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-700">
-                        <div className="flex items-center gap-2 mb-2">
-                          <File size={16} className="text-slate-400" />
-                          <span className="text-slate-400 font-semibold">Прикрепленные документы:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {documentFiles[item.id].map((file) => (
-                            <a
-                              key={file.id}
-                              href={`${API_BASE}/api/questionnaires/${item.id}/documents/${file.document_number}/view`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-white transition-colors"
-                            >
-                              {file.file_type === 'image' ? (
-                                <ImageIcon size={14} className="text-green-400" />
-                              ) : (
-                                <FileText size={14} className="text-red-400" />
-                              )}
-                              <span className="max-w-[200px] truncate" title={getDocumentName(Number(file.document_number))}>
-                                {getDocumentName(Number(file.document_number))}
-                              </span>
-                              <span className="text-slate-400 text-xs">({formatFileSize(file.file_size)})</span>
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-slate-700 p-4 space-y-3">
+                    {items.map((item) => renderItem(item))}
                   </div>
-                </div>
-
-                <div className="flex flex-col gap-2 flex-shrink-0">
-                  {item.itemType === 'questionnaire' ? (
-                    <>
-                      <div className="flex gap-2">
-                        {item.file_size === 0 || !item.file_path ? (
-                          <button
-                            onClick={() => generateQuestionnairePDF(item.id)}
-                            className="px-3 py-2 bg-accent hover:bg-accent/80 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <FileText size={16} />
-                            <span className="hidden sm:inline">PDF</span>
-                          </button>
-                        ) : (
-                          <a
-                            href={`${API_BASE}/api/questionnaires/${item.id}/download`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <Download size={16} />
-                            <span className="hidden sm:inline">PDF</span>
-                          </a>
-                        )}
-                        {(item as any).word_file_size === 0 || !(item as any).word_file_path ? (
-                          <button
-                            onClick={async () => {
-                              try {
-                                const headers: HeadersInit = { 'Content-Type': 'application/json' };
-                                const token = localStorage.getItem('token');
-                                if (token) {
-                                  headers['Authorization'] = `Bearer ${token}`;
-                                }
-                                const response = await fetch(`${API_BASE}/api/questionnaires/${item.id}/generate-word`, {
-                                  method: 'POST',
-                                  headers
-                                });
-                                if (response.ok) {
-                                  await loadData();
-                                  window.open(`${API_BASE}/api/questionnaires/${item.id}/download-word`, '_blank');
-                                } else {
-                                  alert('Ошибка генерации Word');
-                                }
-                              } catch (error) {
-                                console.error('Ошибка генерации Word:', error);
-                                alert('Ошибка генерации Word');
-                              }
-                            }}
-                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <FileText size={16} />
-                            <span className="hidden sm:inline">Word</span>
-                          </button>
-                        ) : (
-                          <a
-                            href={`${API_BASE}/api/questionnaires/${item.id}/download-word`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <Download size={16} />
-                            <span className="hidden sm:inline">Word</span>
-                          </a>
-                        )}
-                        <button
-                          onClick={() => setSelectedQuestionnaire(item as Questionnaire)}
-                          className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 text-sm"
-                        >
-                          <Upload size={16} />
-                          <span className="hidden sm:inline">Управление файлами</span>
-                          <span className="sm:hidden">Файлы</span>
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    item.file_path && (
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`${API_BASE}/api/reports/${item.id}/download`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-accent hover:bg-accent/80 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                        >
-                          <Download size={18} />
-                          <span className="hidden sm:inline">Скачать</span>
-                          <span className="sm:hidden">PDF</span>
-                        </a>
-                        {canApprove && (item as any).inspection_id && item.status !== 'APPROVED' && (
-                          <button
-                            onClick={() => approveReport((item as any).inspection_id)}
-                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                            title="Утвердить отчет"
-                          >
-                            <CheckCircle2 size={18} />
-                            <span className="hidden sm:inline">Утвердить</span>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteReport(item.id)}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                          title="Удалить отчет"
-                        >
-                          <Trash2 size={18} />
-                          <span className="hidden sm:inline">Удалить</span>
-                        </button>
-                      </div>
-                    )
-                  )}
-                </div>
+                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

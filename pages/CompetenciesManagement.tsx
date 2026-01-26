@@ -19,6 +19,8 @@ interface Certification {
   certification_type: string;
   certificate_number?: string;
   number?: string;
+  method_code?: string;
+  equipment_type_id?: string;
   issued_by?: string;
   issuing_organization?: string;
   issue_date?: string;
@@ -44,12 +46,17 @@ const CompetenciesManagement = () => {
     engineer_id: '',
     certification_type: '',
     certificate_number: '',
+    method_code: '',
+    equipment_type_id: '',
     issue_date: '',
     expiry_date: '',
     issuing_organization: '',
     document_number: '',
     document_date: '',
   });
+  
+  const [ndtMethods, setNdtMethods] = useState<Array<{code: string, name: string}>>([]);
+  const [equipmentTypes, setEquipmentTypes] = useState<Array<{id: string, name: string}>>([]);
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -94,7 +101,48 @@ const CompetenciesManagement = () => {
 
   useEffect(() => {
     loadData();
+    loadNdtMethods();
+    loadEquipmentTypes();
   }, []);
+  
+  const loadNdtMethods = async () => {
+    const methods = [
+      { code: 'ВИК', name: 'Визуальный и измерительный контроль' },
+      { code: 'УЗК', name: 'Ультразвуковой контроль' },
+      { code: 'РК', name: 'Радиографический контроль' },
+      { code: 'МПД', name: 'Магнитопорошковая дефектоскопия' },
+      { code: 'КПД', name: 'Капиллярная дефектоскопия' },
+      { code: 'ПВК', name: 'Пневматический контроль' },
+      { code: 'АК', name: 'Акустико-эмиссионный контроль' },
+      { code: 'ТК', name: 'Тепловой контроль' },
+      { code: 'УЗТ', name: 'Ультразвуковая толщинометрия' },
+      { code: 'ВТК', name: 'Вихретоковый контроль' },
+      { code: 'ТВИ', name: 'Тепловизионный контроль' },
+      { code: 'ОЭ', name: 'Оптико-эмиссионная спектрометрия' },
+      { code: 'МК', name: 'Магнитный контроль' },
+    ];
+    setNdtMethods(methods);
+  };
+  
+  const loadEquipmentTypes = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(`${API_BASE}/api/equipment-types`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setEquipmentTypes(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки типов оборудования:', error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -219,6 +267,8 @@ const CompetenciesManagement = () => {
       engineer_id: engineerId,
       certification_type: '',
       certificate_number: '',
+      method_code: '',
+      equipment_type_id: '',
       issue_date: '',
       expiry_date: '',
       issuing_organization: '',
@@ -235,6 +285,8 @@ const CompetenciesManagement = () => {
       engineer_id: cert.engineer_id,
       certification_type: cert.certification_type || '',
       certificate_number: cert.certificate_number || cert.number || '',
+      method_code: (cert as any).method_code || '',
+      equipment_type_id: (cert as any).equipment_type_id || '',
       issue_date: cert.issue_date ? cert.issue_date.split('T')[0] : '',
       expiry_date: cert.expiry_date ? cert.expiry_date.split('T')[0] : '',
       issuing_organization: cert.issuing_organization || cert.issued_by || '',
@@ -819,6 +871,36 @@ const CompetenciesManagement = () => {
                     className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
                     placeholder="СЕРТ-2024-123456"
                   />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 block mb-1">Метод НК</label>
+                  <select
+                    value={certFormData.method_code}
+                    onChange={(e) => setCertFormData({ ...certFormData, method_code: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  >
+                    <option value="">Выберите метод</option>
+                    {ndtMethods.map(method => (
+                      <option key={method.code} value={method.code}>
+                        {method.code} - {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 block mb-1">Тип оборудования</label>
+                  <select
+                    value={certFormData.equipment_type_id}
+                    onChange={(e) => setCertFormData({ ...certFormData, equipment_type_id: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  >
+                    <option value="">Выберите тип оборудования</option>
+                    {equipmentTypes.map(type => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-sm text-slate-400 block mb-1">Организация, выдавшая сертификат *</label>

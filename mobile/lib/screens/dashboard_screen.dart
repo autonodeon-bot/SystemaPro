@@ -8,6 +8,7 @@ import 'equipment_list_screen.dart';
 import 'assignments_screen.dart'; // Версия 3.3.0
 import 'profile_screen.dart';
 import 'sync_screen.dart';
+import 'opo_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -283,6 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: const [
           AssignmentsScreen(), // Версия 3.3.0: Задания вместо списка оборудования
           EquipmentListScreen(), // Оборудование доступно как отдельный экран
+          OpoListScreen(), // ОПО - отдельная вкладка
           SyncScreen(),
           ProfileScreen(),
         ],
@@ -317,11 +319,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.assignment),
-                label: 'Задания', // Версия 3.3.0
+                label: 'Задания',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.list),
                 label: 'Оборудование',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.dangerous),
+                label: 'ОПО',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.sync),

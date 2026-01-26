@@ -468,6 +468,128 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   Future<void> _startAssignment(Assignment assignment) async {
     try {
+      // Если задание уже выполнено, показываем диалог выбора
+      if (assignment.status == 'COMPLETED') {
+        final choice = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Задание выполнено'),
+            content: const Text(
+              'Это задание уже выполнено. Что вы хотите сделать?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'edit'),
+                child: const Text('Внести изменения'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'restart'),
+                child: const Text('Пройти заново'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Отмена'),
+              ),
+            ],
+          ),
+        );
+
+        if (choice == null) return;
+
+        // Получаем информацию об оборудовании
+        final equipment = await _apiService.getAssignmentEquipment(assignment.id);
+        if (equipment.id.isEmpty) {
+          throw Exception('Не удалось загрузить информацию об оборудовании');
+        }
+        await _syncService.saveEquipmentOffline([equipment]);
+
+        if (choice == 'edit') {
+          // Внести изменения - загружаем существующую инспекцию
+          try {
+            final inspections = await _apiService.getInspections(equipment.id);
+            // Ищем инспекцию для этого задания
+            Map<String, dynamic>? existingInspection;
+            for (var insp in inspections) {
+              // Проверяем, связана ли инспекция с этим заданием
+              // (можно проверить по assignment_id в data или другим способом)
+              final data = insp['data'] as Map<String, dynamic>?;
+              if (data != null) {
+                final assignmentIdInData = data['assignment_id'] as String?;
+                if (assignmentIdInData == assignment.id) {
+                  existingInspection = insp;
+                  break;
+                }
+              }
+            }
+
+            if (existingInspection != null) {
+              // Открываем экран редактирования с существующей инспекцией
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VesselInspectionScreen(
+                      equipment: equipment,
+                      assignmentId: assignment.id,
+                      existingInspectionId: existingInspection!['id'] as String,
+                    ),
+                  ),
+                ).then((_) {
+                  _loadAssignments();
+                });
+              }
+            } else {
+              // Инспекция не найдена, создаем новую
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VesselInspectionScreen(
+                      equipment: equipment,
+                      assignmentId: assignment.id,
+                    ),
+                  ),
+                ).then((_) {
+                  _loadAssignments();
+                });
+              }
+            }
+          } catch (e) {
+            // Если не удалось загрузить инспекции, просто открываем новый экран
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => VesselInspectionScreen(
+                    equipment: equipment,
+                    assignmentId: assignment.id,
+                  ),
+                ),
+              ).then((_) {
+                _loadAssignments();
+              });
+            }
+          }
+        } else if (choice == 'restart') {
+          // Пройти заново - создаем новую инспекцию, статус остается COMPLETED
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => VesselInspectionScreen(
+                  equipment: equipment,
+                  assignmentId: assignment.id,
+                ),
+              ),
+            ).then((_) {
+              _loadAssignments();
+            });
+          }
+        }
+        return;
+      }
+
+      // Для заданий в статусе не COMPLETED - обычная логика
       // Показываем индикатор загрузки
       if (mounted) {
         showDialog(
@@ -479,8 +601,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         );
       }
       
-      // Обновляем статус задания на "В работе"
-      await _apiService.updateAssignmentStatus(assignment.id, 'IN_PROGRESS');
+      // Обновляем статус задания на "В работе" только если не COMPLETED
+      if (assignment.status != 'COMPLETED') {
+        await _apiService.updateAssignmentStatus(assignment.id, 'IN_PROGRESS');
+      }
       
       // Получаем информацию об оборудовании
       final equipment = await _apiService.getAssignmentEquipment(assignment.id);
@@ -852,8 +976,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   color: const Color(0xFF0f172a),
                   margin: EdgeInsets.zero,
                   child: InkWell(
-                    onTap: assignment.status == 'COMPLETED' ||
-                            assignment.status == 'CANCELLED'
+                    onTap: assignment.status == 'CANCELLED'
                         ? null
                         : () => _startAssignment(assignment),
                     child: Padding(

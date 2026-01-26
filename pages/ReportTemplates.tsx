@@ -1,458 +1,344 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Save, RefreshCw, Edit3, Upload, X } from 'lucide-react';
-
-interface EquipmentType {
-  id: string;
-  name: string;
-  code?: string;
-}
+import React, { useState, useEffect } from 'react';
+import { FileText, Plus, Edit, Trash2, Save, X, CheckCircle } from 'lucide-react';
 
 interface ReportTemplate {
   id: string;
   name: string;
-  report_type: string;
-  format: string;
-  equipment_type_id?: string | null;
-  is_active: boolean;
-  definition?: any;
-  created_at?: string;
-  updated_at?: string;
+  description?: string;
+  template_type: string;
+  client_id?: string;
+  client_name?: string;
+  template_config: any;
+  is_default: boolean;
+  is_active: number;
 }
-
-const API_BASE = 'http://5.129.203.182:8000';
 
 const ReportTemplates = () => {
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
-  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<ReportTemplate | null>(null);
-  const [editTab, setEditTab] = useState<'visual' | 'json'>('visual');
-  const [definitionDraft, setDefinitionDraft] = useState<any>(null);
-  const [definitionJson, setDefinitionJson] = useState<string>('');
-  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ReportTemplate | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    template_type: 'TECHNICAL',
+    client_id: '',
+    template_config: {
+      include_sections: {
+        equipment_info: true,
+        opo_info: true,
+        ndt_methods: true,
+        specialists: true,
+        verification_equipment: true,
+        documents: true,
+        photos: true,
+        control_scheme: true,
+      },
+      styles: {
+        font_family: 'Arial',
+        font_size: 11,
+        header_color: '#1e40af',
+      }
+    },
+    is_default: false,
+  });
 
-  const token = useMemo(() => localStorage.getItem('token'), []);
+  const API_BASE = 'http://5.129.203.182:8000';
 
-  const headers: HeadersInit = useMemo(
-    () => ({
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }),
-    [token]
-  );
+  useEffect(() => {
+    loadTemplates();
+  }, []);
 
-  const loadAll = async () => {
-    setLoading(true);
+  const loadTemplates = async () => {
     try {
-      const [tplRes, typesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/report-templates`, { headers }),
-        fetch(`${API_BASE}/api/equipment-types`),
-      ]);
-      const tpl = tplRes.ok ? await tplRes.json() : [];
-      const types = typesRes.ok ? await typesRes.json() : { items: [] };
-      setTemplates(Array.isArray(tpl) ? tpl : []);
-      setEquipmentTypes(types.items || []);
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const response = await fetch(`${API_BASE}/api/report-templates-db`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки шаблонов:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const createTemplate = async () => {
-    setCreating(true);
+  const handleSave = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/report-templates`, {
-        method: 'POST',
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const url = editingTemplate 
+        ? `${API_BASE}/api/report-templates/${editingTemplate.id}`
+        : `${API_BASE}/api/report-templates`;
+      
+      const method = editingTemplate ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
         headers,
-        body: JSON.stringify({
-          name: 'Новый шаблон',
-          report_type: 'DIAGNOSTICS',
-          format: 'docx',
-          equipment_type_id: null,
-          is_active: true,
-        }),
+        body: JSON.stringify(formData)
       });
-      if (res.ok) {
-        const item = await res.json();
-        setTemplates((prev) => [item, ...prev]);
+
+      if (response.ok) {
+        await loadTemplates();
+        setShowForm(false);
+        setEditingTemplate(null);
+        setFormData({
+          name: '',
+          description: '',
+          template_type: 'TECHNICAL',
+          client_id: '',
+          template_config: {
+            include_sections: {
+              equipment_info: true,
+              opo_info: true,
+              ndt_methods: true,
+              specialists: true,
+              verification_equipment: true,
+              documents: true,
+              photos: true,
+              control_scheme: true,
+            },
+            styles: {
+              font_family: 'Arial',
+              font_size: 11,
+              header_color: '#1e40af',
+            }
+          },
+          is_default: false,
+        });
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось сохранить шаблон'}`);
       }
-    } finally {
-      setCreating(false);
+    } catch (error) {
+      console.error('Ошибка сохранения шаблона:', error);
+      alert('Ошибка сохранения шаблона');
     }
   };
 
-  const updateTemplate = async (id: string, patch: Partial<ReportTemplate>) => {
-    setSaving(id);
-    try {
-      const res = await fetch(`${API_BASE}/api/report-templates/${id}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(patch),
-      });
-      if (res.ok) {
-        const item = await res.json();
-        setTemplates((prev) => prev.map((t) => (t.id === id ? item : t)));
-        // если сейчас редактируем — обновим объект
-        if (editing?.id === id) {
-          setEditing(item);
-        }
-      }
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  const openEditor = (t: ReportTemplate) => {
-    const def = t.definition || {
-      logo_path: '/app/reports/assets/yutar_logo.png',
-      fields: {
-        contractor_name: 'ООО «ЮТАР»',
-        director_title: 'Генеральный директор',
-        director_name: '__________________',
-        report_city: 'г. Урай',
-      },
-      sections: [
-        { key: 'title', enabled: true },
-        { key: 'toc', enabled: true },
-        { key: 'sections_1_15', enabled: true },
-        { key: 'appendices', enabled: true },
-      ],
-    };
-    setEditing(t);
-    setEditTab('visual');
-    setDefinitionDraft(def);
-    setDefinitionJson(JSON.stringify(def, null, 2));
-  };
-
-  const saveDefinition = async () => {
-    if (!editing) return;
-    if (editTab === 'json') {
-      try {
-        const parsed = JSON.parse(definitionJson);
-        await updateTemplate(editing.id, { definition: parsed } as any);
-        setDefinitionDraft(parsed);
-      } catch (e: any) {
-        alert(`JSON ошибка: ${e?.message || e}`);
-        return;
-      }
-    } else {
-      await updateTemplate(editing.id, { definition: definitionDraft } as any);
-    }
-  };
-
-  const uploadLogo = async (file: File) => {
-    if (!editing) return;
-    setUploadingLogo(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch(`${API_BASE}/api/report-templates/assets/logo`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: form,
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || String(res.status));
-      }
-      const data = await res.json();
-      const path = data.path as string;
-      const next = { ...(definitionDraft || {}), logo_path: path };
-      setDefinitionDraft(next);
-      setDefinitionJson(JSON.stringify(next, null, 2));
-    } catch (e: any) {
-      alert(`Ошибка загрузки логотипа: ${e?.message || e}`);
-    } finally {
-      setUploadingLogo(false);
-    }
-  };
-
-  const deleteTemplate = async (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Удалить шаблон?')) return;
-    const res = await fetch(`${API_BASE}/api/report-templates/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setTemplates((prev) => prev.filter((t) => t.id !== id));
+    
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const response = await fetch(`${API_BASE}/api/report-templates-db/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (response.ok) {
+        await loadTemplates();
+      }
+    } catch (error) {
+      console.error('Ошибка удаления шаблона:', error);
     }
   };
+
+  if (loading) {
+    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Шаблоны отчетов (MVP)</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Настройка, какой тип отчета и формат использовать для разных типов оборудования.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadAll}
-            className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white inline-flex items-center gap-2"
-            title="Обновить"
-          >
-            <RefreshCw size={16} /> Обновить
-          </button>
-          <button
-            onClick={createTemplate}
-            disabled={creating}
-            className="px-3 py-2 rounded bg-accent hover:bg-blue-600 disabled:opacity-50 text-white inline-flex items-center gap-2"
-          >
-            <Plus size={16} /> Добавить
-          </button>
-        </div>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-white">Шаблоны отчетов</h1>
+        <button
+          onClick={() => {
+            setEditingTemplate(null);
+            setShowForm(true);
+          }}
+          className="px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Создать шаблон
+        </button>
       </div>
 
-      {loading ? (
-        <div className="text-slate-400">Загрузка...</div>
-      ) : (
-        <div className="space-y-3">
-          {templates.length === 0 ? (
-            <div className="text-slate-400">Шаблонов нет</div>
-          ) : (
-            templates.map((t) => (
-              <div key={t.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="text-xs text-slate-400">Название</label>
-                      <input
-                        className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
-                        value={t.name}
-                        onChange={(e) =>
-                          setTemplates((prev) =>
-                            prev.map((x) => (x.id === t.id ? { ...x, name: e.target.value } : x))
-                          )
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">Тип отчета</label>
-                      <select
-                        className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
-                        value={t.report_type}
-                        onChange={(e) => updateTemplate(t.id, { report_type: e.target.value })}
-                      >
-                        <option value="DIAGNOSTICS">DIAGNOSTICS</option>
-                        <option value="TECHNICAL">TECHNICAL</option>
-                        <option value="EXPERTISE">EXPERTISE</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">Формат</label>
-                      <select
-                        className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
-                        value={t.format}
-                        onChange={(e) => updateTemplate(t.id, { format: e.target.value })}
-                      >
-                        <option value="docx">DOCX</option>
-                        <option value="pdf">PDF</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400">Тип оборудования</label>
-                      <select
-                        className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
-                        value={t.equipment_type_id || ''}
-                        onChange={(e) =>
-                          updateTemplate(t.id, { equipment_type_id: e.target.value || null })
-                        }
-                      >
-                        <option value="">(По умолчанию)</option>
-                        {equipmentTypes.map((et) => (
-                          <option key={et.id} value={et.id}>
-                            {et.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="md:col-span-4 flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-slate-300 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={t.is_active}
-                          onChange={(e) => updateTemplate(t.id, { is_active: e.target.checked })}
-                        />
-                        Активен
-                      </label>
-                      {saving === t.id && (
-                        <span className="text-xs text-slate-400 inline-flex items-center gap-2">
-                          <Save size={14} /> Сохранение...
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => openEditor(t)}
-                    className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white inline-flex items-center gap-2"
-                    title="Редактор макета"
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                  <button
-                    onClick={() => updateTemplate(t.id, { name: t.name })}
-                    className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white inline-flex items-center gap-2"
-                    title="Сохранить имя"
-                  >
-                    <Save size={16} />
-                  </button>
-                  <button
-                    onClick={() => deleteTemplate(t.id)}
-                    className="px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white inline-flex items-center gap-2"
-                    title="Удалить"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      {showForm && (
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white">
+              {editingTemplate ? 'Редактировать шаблон' : 'Создать шаблон'}
+            </h2>
+            <button
+              onClick={() => {
+                setShowForm(false);
+                setEditingTemplate(null);
+              }}
+              className="text-slate-400 hover:text-white"
+            >
+              <X size={24} />
+            </button>
+          </div>
 
-      {/* Модалка редактора макета */}
-      {editing && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setEditing(null)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-3xl mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-              <div>
-                <div className="text-white font-bold">Редактор макета: {editing.name}</div>
-                <div className="text-slate-400 text-xs">{editing.report_type} • {String(editing.format).toUpperCase()}</div>
-              </div>
-              <button className="text-slate-400 hover:text-white" onClick={() => setEditing(null)}>
-                <X size={20} />
-              </button>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Название *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                placeholder="Название шаблона"
+              />
             </div>
 
-            <div className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setEditTab('visual')}
-                  className={`px-3 py-2 rounded ${editTab === 'visual' ? 'bg-accent text-white' : 'bg-slate-700 text-slate-200'}`}
-                >
-                  Визуально
-                </button>
-                <button
-                  onClick={() => setEditTab('json')}
-                  className={`px-3 py-2 rounded ${editTab === 'json' ? 'bg-accent text-white' : 'bg-slate-700 text-slate-200'}`}
-                >
-                  JSON
-                </button>
-              </div>
-
-              {editTab === 'visual' ? (
-                <div className="space-y-4">
-                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
-                    <div className="text-white font-semibold mb-3">Логотип титульного листа</div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-slate-300 text-sm flex-1 break-all">
-                        Путь: <span className="text-slate-100">{String(definitionDraft?.logo_path || '')}</span>
-                      </div>
-                      <label className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white inline-flex items-center gap-2 cursor-pointer">
-                        <Upload size={16} />
-                        {uploadingLogo ? 'Загрузка...' : 'Загрузить'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) uploadLogo(f);
-                          }}
-                        />
-                      </label>
-                    </div>
-                    <div className="text-slate-500 text-xs mt-2">Файл сохраняется на сервер: `/app/reports/assets/yutar_logo.png`</div>
-                  </div>
-
-                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
-                    <div className="text-white font-semibold mb-3">Поля титульного листа</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {[
-                        ['contractor_name', 'Организация'],
-                        ['director_title', 'Должность'],
-                        ['director_name', 'ФИО директора'],
-                        ['report_city', 'Город'],
-                      ].map(([key, label]) => (
-                        <div key={key}>
-                          <label className="text-xs text-slate-400">{label}</label>
-                          <input
-                            className="mt-1 w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
-                            value={String(definitionDraft?.fields?.[key] || '')}
-                            onChange={(e) => {
-                              const next = {
-                                ...(definitionDraft || {}),
-                                fields: { ...(definitionDraft?.fields || {}), [key]: e.target.value },
-                              };
-                              setDefinitionDraft(next);
-                              setDefinitionJson(JSON.stringify(next, null, 2));
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
-                    <div className="text-white font-semibold mb-3">Разделы</div>
-                    <div className="space-y-2">
-                      {(definitionDraft?.sections || []).map((s: any, idx: number) => (
-                        <label key={String(s.key) + idx} className="flex items-center gap-2 text-slate-200 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={!!s.enabled}
-                            onChange={(e) => {
-                              const arr = [...(definitionDraft?.sections || [])];
-                              arr[idx] = { ...arr[idx], enabled: e.target.checked };
-                              const next = { ...(definitionDraft || {}), sections: arr };
-                              setDefinitionDraft(next);
-                              setDefinitionJson(JSON.stringify(next, null, 2));
-                            }}
-                          />
-                          {String(s.key)}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <textarea
-                    className="w-full h-80 bg-slate-900 border border-slate-700 rounded p-3 text-slate-100 font-mono text-xs"
-                    value={definitionJson}
-                    onChange={(e) => setDefinitionJson(e.target.value)}
-                  />
-                  <div className="text-slate-500 text-xs">Можно редактировать весь JSON целиком. Сохранение валидирует JSON.</div>
-                </div>
-              )}
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Тип отчета</label>
+              <select
+                value={formData.template_type}
+                onChange={(e) => setFormData({ ...formData, template_type: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              >
+                <option value="TECHNICAL">Технический отчет</option>
+                <option value="EXPERTISE">Экспертиза</option>
+              </select>
             </div>
 
-            <div className="p-4 border-t border-slate-700 flex items-center justify-end gap-2">
+            <div>
+              <label className="text-sm text-slate-400 block mb-1">Описание</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                rows={3}
+                placeholder="Описание шаблона"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-400 block mb-2">Включаемые разделы</label>
+              <div className="grid grid-cols-2 gap-2 bg-slate-900 p-4 rounded border border-slate-700">
+                {Object.entries(formData.template_config.include_sections).map(([key, value]) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={value as boolean}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          template_config: {
+                            ...formData.template_config,
+                            include_sections: {
+                              ...formData.template_config.include_sections,
+                              [key]: e.target.checked
+                            }
+                          }
+                        });
+                      }}
+                      className="accent-blue-500"
+                    />
+                    <span className="text-white text-sm">
+                      {key === 'equipment_info' ? 'Информация об оборудовании' :
+                       key === 'opo_info' ? 'Информация об ОПО' :
+                       key === 'ndt_methods' ? 'Методы НК' :
+                       key === 'specialists' ? 'Специалисты' :
+                       key === 'verification_equipment' ? 'Поверенное оборудование' :
+                       key === 'documents' ? 'Документы' :
+                       key === 'photos' ? 'Фотографии' :
+                       key === 'control_scheme' ? 'Схема контроля' : key}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.is_default}
+                onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
+                className="accent-blue-500"
+              />
+              <label className="text-sm text-slate-300">Использовать по умолчанию</label>
+            </div>
+
+            <div className="flex gap-2">
               <button
-                onClick={() => setEditing(null)}
-                className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white"
+                onClick={handleSave}
+                className="flex-1 px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2"
               >
-                Закрыть
+                <Save size={18} />
+                Сохранить
               </button>
               <button
-                onClick={saveDefinition}
-                className="px-4 py-2 rounded bg-accent hover:bg-blue-600 text-white inline-flex items-center gap-2"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingTemplate(null);
+                }}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold"
               >
-                <Save size={16} />
-                Сохранить макет
+                Отмена
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {templates.map((template) => (
+          <div
+            key={template.id}
+            className="bg-slate-800 rounded-xl p-6 border border-slate-700"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">{template.name}</h3>
+                {template.is_default && (
+                  <span className="inline-block mt-1 px-2 py-1 bg-blue-600 text-white text-xs rounded">
+                    По умолчанию
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditingTemplate(template);
+                    setFormData({
+                      name: template.name,
+                      description: template.description || '',
+                      template_type: template.template_type,
+                      client_id: template.client_id || '',
+                      template_config: template.template_config,
+                      is_default: template.is_default,
+                    });
+                    setShowForm(true);
+                  }}
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  <Edit size={18} />
+                </button>
+                <button
+                  onClick={() => handleDelete(template.id)}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+            
+            <p className="text-slate-400 text-sm mb-4">{template.description || 'Без описания'}</p>
+            
+            <div className="text-xs text-slate-500">
+              Тип: {template.template_type === 'TECHNICAL' ? 'Технический отчет' : 'Экспертиза'}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {templates.length === 0 && (
+        <div className="text-center text-slate-400 py-20">
+          Шаблоны не найдены. Создайте первый шаблон.
         </div>
       )}
     </div>
@@ -460,4 +346,3 @@ const ReportTemplates = () => {
 };
 
 export default ReportTemplates;
-

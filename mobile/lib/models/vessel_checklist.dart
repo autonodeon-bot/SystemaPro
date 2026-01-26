@@ -8,6 +8,8 @@ class VesselChecklist {
   
   // Перечень документов (17 пунктов)
   Map<String, bool> documents = {}; // Ключ - номер документа, значение - наличие
+  // Доп. сведения по документам (номер и дата)
+  Map<String, Map<String, String>> documentsInfo = {}; // { "1": {number: "...", date: "YYYY-MM-DD"} }
 
   // Данные по ОПО (пункты 1-9). Если false — показываем/заполняем только документы 10-17.
   bool includeOpoData = true;
@@ -81,6 +83,9 @@ class VesselChecklist {
 
   // Инженеры по видам обследований (ВИК/УЗК/УЗТ/ПВК и др.)
   List<InspectionEngineer> inspectionEngineers = [];
+  
+  // Выбранные методы контроля (список кодов: VIK, UZK, UZT, PVK)
+  List<String> ndtMethods = [];
 
   // Дефекты ВИК с фото и размерами
   List<VisualDefect> visualDefects = [];
@@ -116,6 +121,14 @@ class VesselChecklist {
       'executors': executors,
       'organization': organization,
       'documents': documents,
+      'documents_info': documentsInfo.map((k, v) {
+        final present = documents[k] ?? false;
+        return MapEntry(k, {
+          'present': present,
+          'number': (v['number'] ?? ''),
+          'date': (v['date'] ?? ''),
+        });
+      }),
       'include_opo_data': includeOpoData,
       'vessel_name': vesselName,
       'serial_number': serialNumber,
@@ -153,6 +166,7 @@ class VesselChecklist {
       'weld_inspections': weldInspections.map((e) => e.toJson()).toList(),
       'thickness_measurements': thicknessMeasurements.map((e) => e.toJson()).toList(),
       'inspection_engineers': inspectionEngineers.map((e) => e.toJson()).toList(),
+      'ndt_methods': ndtMethods, // Выбранные методы контроля
       'visual_defects': visualDefects.map((e) => e.toJson()).toList(),
       'control_scheme_image': controlSchemeImage,
       'conclusion': conclusion,
@@ -171,9 +185,42 @@ class VesselChecklist {
     final docsRaw = json['documents'];
     if (docsRaw is Map) {
       final m = Map<String, dynamic>.from(docsRaw);
-      checklist.documents = m.map((k, v) => MapEntry(k.toString(), (_asBool(v) ?? false)));
+      checklist.documents = m.map((k, v) {
+        if (v is Map) {
+          final mv = Map<String, dynamic>.from(v);
+          final present = _asBool(mv['present']) ?? _asBool(mv['has']) ?? _asBool(mv['value']) ?? false;
+          return MapEntry(k.toString(), present);
+        }
+        return MapEntry(k.toString(), (_asBool(v) ?? false));
+      });
     } else {
       checklist.documents = {};
+    }
+
+    final docsInfoRaw = json['documents_info'];
+    if (docsInfoRaw is Map) {
+      final m = Map<String, dynamic>.from(docsInfoRaw);
+      checklist.documentsInfo = m.map((k, v) {
+        if (v is Map) {
+          final mv = Map<String, dynamic>.from(v);
+          if (!checklist.documents.containsKey(k.toString())) {
+            final present = _asBool(mv['present']) ?? _asBool(mv['has']) ?? _asBool(mv['value']);
+            if (present != null) {
+              checklist.documents[k.toString()] = present;
+            }
+          }
+          return MapEntry(
+            k.toString(),
+            {
+              'number': (mv['number'] ?? mv['doc_number'] ?? '').toString(),
+              'date': (mv['date'] ?? mv['doc_date'] ?? '').toString(),
+            },
+          );
+        }
+        return MapEntry(k.toString(), {'number': '', 'date': ''});
+      });
+    } else {
+      checklist.documentsInfo = {};
     }
 
     checklist.vesselName = json['vessel_name'] as String?;

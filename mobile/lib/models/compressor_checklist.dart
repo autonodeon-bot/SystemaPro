@@ -75,6 +75,23 @@ class CompressorChecklist extends VesselChecklist {
     checklist.executors = json['executors'];
     checklist.organization = json['organization'];
     checklist.documents = Map<String, bool>.from(json['documents'] ?? {});
+    final docsInfoRaw = json['documents_info'];
+    if (docsInfoRaw is Map) {
+      final m = Map<String, dynamic>.from(docsInfoRaw);
+      checklist.documentsInfo = m.map((k, v) {
+        if (v is Map) {
+          final mv = Map<String, dynamic>.from(v);
+          return MapEntry(
+            k.toString(),
+            {
+              'number': (mv['number'] ?? mv['doc_number'] ?? '').toString(),
+              'date': (mv['date'] ?? mv['doc_date'] ?? '').toString(),
+            },
+          );
+        }
+        return MapEntry(k.toString(), {'number': '', 'date': ''});
+      });
+    }
     checklist.conclusion = json['conclusion'];
     checklist.factoryPlatePhoto = json['factory_plate_photo'];
     checklist.controlSchemeImage = json['control_scheme_image'];

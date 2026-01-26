@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X } from 'lucide-react';
+import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Key, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface UserData {
   id: string;
@@ -9,18 +10,46 @@ interface UserData {
   full_name?: string;
   role: string;
   engineer_id?: string;
+  phone?: string;
+  position?: string;
+  department?: string;
+  photo_url?: string;
+  is_active?: boolean;
 }
 
 const UsersManagement = () => {
   const { user: currentUser } = useAuth();
+  const { theme } = useTheme();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  const [formData, setFormData] = useState({
+    username: '',
+    password: '',
+    email: '',
+    full_name: '',
+    role: 'engineer',
+    phone: '',
+    position: '',
+    department: '',
+    engineer_id: '',
+    is_active: true,
+  });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const API_BASE = 'http://5.129.203.182:8000';
+
+  const bgClass = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
+  const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';
+  const textSecondaryClass = theme === 'dark' ? 'text-slate-400' : 'text-slate-600';
+  const borderClass = theme === 'dark' ? 'border-slate-700' : 'border-slate-300';
+  const inputBgClass = theme === 'dark' ? 'bg-slate-900' : 'bg-slate-50';
+  const cardBgClass = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
 
   useEffect(() => {
     if (currentUser?.role === 'admin') {
@@ -48,6 +77,171 @@ const UsersManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      const formDataToSend = new FormData();
+      
+      formDataToSend.append('username', formData.username);
+      formDataToSend.append('password', formData.password);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('full_name', formData.full_name);
+      formDataToSend.append('role', formData.role);
+      formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('position', formData.position);
+      formDataToSend.append('department', formData.department);
+      formDataToSend.append('engineer_id', formData.engineer_id);
+      formDataToSend.append('is_active', formData.is_active ? '1' : '0');
+      
+      if (photoFile) {
+        formDataToSend.append('photo', photoFile);
+      }
+
+      const response = await fetch(`${API_BASE}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formDataToSend
+      });
+
+      if (response.ok) {
+        alert('Сотрудник успешно создан');
+        setShowCreateModal(false);
+        resetForm();
+        loadUsers();
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось создать сотрудника'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка создания сотрудника:', error);
+      alert('Ошибка создания сотрудника');
+    }
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const formDataToSend = new FormData();
+      
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('full_name', formData.full_name);
+      formDataToSend.append('role', formData.role);
+      formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('position', formData.position);
+      formDataToSend.append('department', formData.department);
+      formDataToSend.append('engineer_id', formData.engineer_id);
+      formDataToSend.append('is_active', formData.is_active ? '1' : '0');
+      
+      if (photoFile) {
+        formDataToSend.append('photo', photoFile);
+      }
+      if (formData.password) {
+        formDataToSend.append('password', formData.password);
+      }
+
+      const response = await fetch(`${API_BASE}/api/users/${selectedUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formDataToSend
+      });
+
+      if (response.ok) {
+        alert('Сотрудник успешно обновлен');
+        setShowEditModal(false);
+        setSelectedUser(null);
+        resetForm();
+        loadUsers();
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось обновить сотрудника'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка обновления сотрудника:', error);
+      alert('Ошибка обновления сотрудника');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        alert('Сотрудник успешно удален');
+        loadUsers();
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.detail || 'Не удалось удалить сотрудника'}`);
+      }
+    } catch (error) {
+      console.error('Ошибка удаления сотрудника:', error);
+      alert('Ошибка удаления сотрудника');
+    }
+  };
+
+  const openEditModal = (user: UserData) => {
+    setSelectedUser(user);
+    setFormData({
+      username: user.username,
+      password: '',
+      email: user.email || '',
+      full_name: user.full_name || '',
+      role: user.role,
+      phone: user.phone || '',
+      position: user.position || '',
+      department: user.department || '',
+      engineer_id: user.engineer_id || '',
+      is_active: user.is_active !== false,
+    });
+    setPhotoPreview(user.photo_url || null);
+    setPhotoFile(null);
+    setShowEditModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      password: '',
+      email: '',
+      full_name: '',
+      role: 'engineer',
+      phone: '',
+      position: '',
+      department: '',
+      engineer_id: '',
+      is_active: true,
+    });
+    setPhotoFile(null);
+    setPhotoPreview(null);
   };
 
   const getRoleLabel = (role: string) => {
@@ -83,7 +277,7 @@ const UsersManagement = () => {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="text-center text-slate-400 mt-20">
+      <div className={`text-center ${textSecondaryClass} mt-20`}>
         <Shield className="mx-auto mb-4" size={48} />
         <p>Доступ запрещен. Только администратор может просматривать список пользователей.</p>
       </div>
@@ -91,7 +285,7 @@ const UsersManagement = () => {
   }
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className={`text-center ${textSecondaryClass} mt-20`}>Загрузка...</div>;
   }
 
   return (
@@ -99,28 +293,38 @@ const UsersManagement = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Users className="text-accent" size={32} />
-          <h1 className="text-3xl font-bold text-white">Сотрудники</h1>
+          <h1 className={`text-3xl font-bold ${textClass}`}>Сотрудники</h1>
         </div>
+        <button
+          onClick={() => {
+            resetForm();
+            setShowCreateModal(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-medium"
+        >
+          <Plus size={20} />
+          Добавить сотрудника
+        </button>
       </div>
 
       {/* Фильтры */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+      <div className={`${cardBgClass} rounded-xl border ${borderClass} p-4`}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${textSecondaryClass}`} size={20} />
             <input
               type="text"
               placeholder="Поиск по имени, логину, email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+              className={`w-full pl-10 pr-4 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} placeholder-slate-400 focus:outline-none focus:border-accent`}
             />
           </div>
           
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+            className={`px-4 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
           >
             <option value="all">Все роли</option>
             <option value="admin">Администратор</option>
@@ -137,33 +341,68 @@ const UsersManagement = () => {
         {filteredUsers.map((user) => (
           <div
             key={user.id}
-            className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-accent/50 transition-colors cursor-pointer"
-            onClick={() => setSelectedUser(user)}
+            className={`${cardBgClass} rounded-xl border ${borderClass} p-6 hover:border-accent/50 transition-colors`}
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="bg-accent/10 p-3 rounded-lg">
-                  <User className="text-accent" size={24} />
-                </div>
+                {user.photo_url || photoPreview ? (
+                  <img 
+                    src={user.photo_url || photoPreview || ''} 
+                    alt={user.full_name || user.username}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="bg-accent/10 p-3 rounded-lg">
+                    <User className="text-accent" size={24} />
+                  </div>
+                )}
                 <div>
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className={`text-lg font-bold ${textClass}`}>
                     {user.full_name || user.username}
                   </h3>
-                  <p className="text-sm text-slate-400">{user.username}</p>
+                  <p className={`text-sm ${textSecondaryClass}`}>{user.username}</p>
                 </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => openEditModal(user)}
+                  className="p-2 hover:bg-slate-700 rounded text-blue-400"
+                  title="Редактировать"
+                >
+                  <Edit size={16} />
+                </button>
+                <button
+                  onClick={() => handleDeleteUser(user.id)}
+                  className="p-2 hover:bg-slate-700 rounded text-red-400"
+                  title="Удалить"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
             </div>
 
             <div className="space-y-2">
               {user.email && (
-                <div className="flex items-center gap-2 text-sm text-slate-300">
+                <div className={`flex items-center gap-2 text-sm ${textSecondaryClass}`}>
                   <Mail size={14} />
                   <span>{user.email}</span>
                 </div>
               )}
+              {user.phone && (
+                <div className={`flex items-center gap-2 text-sm ${textSecondaryClass}`}>
+                  <Phone size={14} />
+                  <span>{user.phone}</span>
+                </div>
+              )}
+              {user.position && (
+                <div className={`flex items-center gap-2 text-sm ${textSecondaryClass}`}>
+                  <Briefcase size={14} />
+                  <span>{user.position}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
-                <Shield size={14} className="text-slate-400" />
+                <Shield size={14} className={textSecondaryClass} />
                 <span className={`px-2 py-1 rounded text-xs font-semibold border ${getRoleColor(user.role)}`}>
                   {getRoleLabel(user.role)}
                 </span>
@@ -174,51 +413,314 @@ const UsersManagement = () => {
       </div>
 
       {filteredUsers.length === 0 && (
-        <div className="text-center text-slate-400 py-20">
+        <div className={`text-center ${textSecondaryClass} py-20`}>
           <Users className="mx-auto mb-4 opacity-50" size={48} />
           <p>Пользователи не найдены</p>
         </div>
       )}
 
-      {/* Модальное окно с деталями пользователя */}
-      {selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedUser(null)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-white">{selectedUser.full_name || selectedUser.username}</h2>
-                <p className="text-slate-400">{selectedUser.username}</p>
-              </div>
-              <button onClick={() => setSelectedUser(null)} className="text-slate-400 hover:text-white">
+      {/* Модальное окно создания сотрудника */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`${cardBgClass} rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border ${borderClass}`}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className={`text-xl font-bold ${textClass}`}>Добавить сотрудника</h2>
+              <button onClick={() => setShowCreateModal(false)} className={textSecondaryClass}>
                 <X size={24} />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-slate-400 mb-1">Email</p>
-                <p className="text-white">{selectedUser.email || 'Не указан'}</p>
-              </div>
-
-              <div>
-                <p className="text-sm text-slate-400 mb-1">Роль</p>
-                <span className={`px-3 py-1 rounded text-sm font-semibold border ${getRoleColor(selectedUser.role)}`}>
-                  {getRoleLabel(selectedUser.role)}
-                </span>
-              </div>
-
-              {selectedUser.engineer_id && (
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">ID инженера</p>
-                  <p className="text-white font-mono text-sm">{selectedUser.engineer_id}</p>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Логин *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
                 </div>
-              )}
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Пароль *</label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>ФИО</label>
+                  <input
+                    type="text"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Телефон</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Должность</label>
+                  <input
+                    type="text"
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Отдел</label>
+                  <input
+                    type="text"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Роль *</label>
+                  <select
+                    required
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  >
+                    <option value="engineer">Инженер</option>
+                    <option value="operator">Оператор</option>
+                    <option value="chief_operator">Шеф-оператор</option>
+                    <option value="admin">Администратор</option>
+                    <option value="client">Клиент</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>ID инженера</label>
+                  <input
+                    type="text"
+                    value={formData.engineer_id}
+                    onChange={(e) => setFormData({ ...formData, engineer_id: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                    placeholder="UUID инженера (опционально)"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label className={`text-sm ${textSecondaryClass}`}>Активен</label>
+                </div>
+              </div>
 
               <div>
-                <p className="text-sm text-slate-400 mb-1">ID пользователя</p>
-                <p className="text-white font-mono text-sm">{selectedUser.id}</p>
+                <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Фото</label>
+                <div className="flex items-center gap-4">
+                  {photoPreview && (
+                    <img src={photoPreview} alt="Preview" className="w-20 h-20 rounded-full object-cover" />
+                  )}
+                  <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer">
+                    <Camera size={20} />
+                    <span>Выбрать фото</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg"
+                >
+                  <Save size={20} />
+                  Создать
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно редактирования сотрудника */}
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`${cardBgClass} rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border ${borderClass}`}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className={`text-xl font-bold ${textClass}`}>Редактировать сотрудника</h2>
+              <button onClick={() => setShowEditModal(false)} className={textSecondaryClass}>
+                <X size={24} />
+              </button>
             </div>
+
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Логин</label>
+                  <input
+                    type="text"
+                    value={selectedUser.username}
+                    disabled
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textSecondaryClass} opacity-50`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Новый пароль</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Оставьте пустым, чтобы не менять"
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>ФИО</label>
+                  <input
+                    type="text"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Телефон</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Должность</label>
+                  <input
+                    type="text"
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Отдел</label>
+                  <input
+                    type="text"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Роль</label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                  >
+                    <option value="engineer">Инженер</option>
+                    <option value="operator">Оператор</option>
+                    <option value="chief_operator">Шеф-оператор</option>
+                    <option value="admin">Администратор</option>
+                    <option value="client">Клиент</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>ID инженера</label>
+                  <input
+                    type="text"
+                    value={formData.engineer_id}
+                    onChange={(e) => setFormData({ ...formData, engineer_id: e.target.value })}
+                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+                    placeholder="UUID инженера (опционально)"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label className={`text-sm ${textSecondaryClass}`}>Активен</label>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>Фото</label>
+                <div className="flex items-center gap-4">
+                  {photoPreview && (
+                    <img src={photoPreview} alt="Preview" className="w-20 h-20 rounded-full object-cover" />
+                  )}
+                  <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer">
+                    <Camera size={20} />
+                    <span>Изменить фото</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg"
+                >
+                  <Save size={20} />
+                  Сохранить
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -227,16 +729,3 @@ const UsersManagement = () => {
 };
 
 export default UsersManagement;
-
-
-
-
-
-
-
-
-
-
-
-
-

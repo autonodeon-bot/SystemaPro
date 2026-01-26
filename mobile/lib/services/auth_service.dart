@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'dart:math';
+import 'package:crypto/crypto.dart';
 import '../models/user.dart';
 import 'biometric_service.dart';
 
@@ -12,9 +14,12 @@ class AuthService {
   static const String _prefsKeyDeviceId = 'device_id';
   static const String _prefsKeyBiometricEnabled = 'biometric_enabled';
   static const String _prefsKeyLastLoginTime = 'last_login_time';
+  static const String _prefsKeyPinHash = 'pin_hash';
+  static const String _prefsKeyPinSalt = 'pin_salt';
   
   final _secureStorage = const FlutterSecureStorage();
   final _biometricService = BiometricService();
+  final _rng = Random.secure();
 
   // Сохранить пользователя
   Future<void> saveUser(User user, {String? passwordHash}) async {
@@ -47,6 +52,61 @@ class AuthService {
       // Fallback на SharedPreferences для обратной совместимости
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_prefsKeyPasswordHash);
+    }
+  }
+
+  List<int> _makeSalt([int length = 16]) {
+    return List<int>.generate(length, (_) => _rng.nextInt(256));
+  }
+
+  String _hashPin(String pin, List<int> salt) {
+    final data = <int>[...salt, ...utf8.encode(pin)];
+    return base64.encode(sha256.convert(data).bytes);
+  }
+
+  Future<bool> hasPin() async {
+    try {
+      final hash = await _secureStorage.read(key: _prefsKeyPinHash);
+      return hash != null && hash.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setPin(String pin) async {
+    final salt = _makeSalt();
+    final hash = _hashPin(pin, salt);
+    await _secureStorage.write(key: _prefsKeyPinHash, value: hash);
+    await _secureStorage.write(
+      key: _prefsKeyPinSalt,
+      value: base64.encode(salt),
+    );
+  }
+
+  Future<bool> verifyPin(String pin) async {
+    try {
+      final hash = await _secureStorage.read(key: _prefsKeyPinHash);
+      final saltBase64 = await _secureStorage.read(key: _prefsKeyPinSalt);
+      if (hash == null || saltBase64 == null) return false;
+      final salt = base64.decode(saltBase64);
+      final calc = _hashPin(pin, salt);
+      final ok = calc == hash;
+      if (ok) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_prefsKeyLastLoginTime, DateTime.now().toIso8601String());
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> clearPin() async {
+    try {
+      await _secureStorage.delete(key: _prefsKeyPinHash);
+      await _secureStorage.delete(key: _prefsKeyPinSalt);
+    } catch (_) {
+      // ignore
     }
   }
   
@@ -139,6 +199,8 @@ class AuthService {
     try {
       await _secureStorage.delete(key: _prefsKeyToken);
       await _secureStorage.delete(key: _prefsKeyPasswordHash);
+      await _secureStorage.delete(key: _prefsKeyPinHash);
+      await _secureStorage.delete(key: _prefsKeyPinSalt);
     } catch (e) {
       // Игнорируем ошибки при удалении
     }

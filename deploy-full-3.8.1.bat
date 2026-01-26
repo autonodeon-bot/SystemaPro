@@ -47,7 +47,7 @@ echo.
 
 echo [5/6] Пересборка контейнеров БЕЗ КЭША
 plink -batch -ssh -pw "%PASSWORD%" "%SERVER%" "cd %APP_DIR%; docker-compose build --no-cache --pull backend frontend"
-echo ✓ Контейнеры пересобраны
+ echo ✓ Контейнеры пересобраны
 echo.
 
 echo [6/6] Запуск контейнеров

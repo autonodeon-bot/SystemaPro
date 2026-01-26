@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/vessel_checklist.dart';
+import '../services/api_service.dart';
+import '../models/equipment.dart';
 
 class ThicknessMeasurementScreen extends StatefulWidget {
   final File? schemeImage;
   final List<ThicknessMeasurement>? existingMeasurements;
   final Function(List<ThicknessMeasurement>, File?) onSave;
+  final Equipment? equipment; // Для определения типа оборудования
 
   const ThicknessMeasurementScreen({
     super.key,
     this.schemeImage,
     this.existingMeasurements,
     required this.onSave,
+    this.equipment,
   });
 
   @override
@@ -21,15 +25,58 @@ class ThicknessMeasurementScreen extends StatefulWidget {
 
 class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen> {
   final ImagePicker _imagePicker = ImagePicker();
+  final ApiService _apiService = ApiService();
   File? _schemeImage;
   List<ThicknessMeasurement> _measurements = [];
   ThicknessMeasurement? _selectedPoint;
+  bool _loadingTemplate = false;
 
   @override
   void initState() {
     super.initState();
     _schemeImage = widget.schemeImage;
     _measurements = widget.existingMeasurements ?? [];
+    
+    // Если нет фото схемы и оборудование - сосуд/ресивер, загружаем шаблон
+    if (_schemeImage == null && _isVessel()) {
+      _loadTemplate();
+    }
+  }
+
+  bool _isVessel() {
+    if (widget.equipment == null) return false;
+    final typeCode = widget.equipment!.typeCode?.toUpperCase() ?? '';
+    final typeName = widget.equipment!.typeName?.toUpperCase() ?? '';
+    return typeCode.contains('VESSEL') || 
+           typeName.contains('СОСУД') || 
+           typeName.contains('РЕСИВЕР');
+  }
+
+  Future<void> _loadTemplate() async {
+    if (!_isVessel()) return;
+    
+    setState(() {
+      _loadingTemplate = true;
+    });
+
+    try {
+      final templatePath = await _apiService.getVesselTemplate('vessel_template.png');
+      if (templatePath != null && mounted) {
+        setState(() {
+          _schemeImage = File(templatePath);
+          _loadingTemplate = false;
+        });
+      } else {
+        setState(() {
+          _loadingTemplate = false;
+        });
+      }
+    } catch (e) {
+      print('Ошибка загрузки шаблона: $e');
+      setState(() {
+        _loadingTemplate = false;
+      });
+    }
   }
 
   Future<void> _pickSchemeImage() async {
@@ -240,16 +287,31 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white24),
               ),
-              child: _schemeImage == null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.image,
-                            size: 64,
-                            color: Colors.white38,
-                          ),
+              child: _loadingTemplate
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : _schemeImage == null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.image,
+                                size: 64,
+                                color: Colors.white38,
+                              ),
+                              const SizedBox(height: 16),
+                              if (_isVessel())
+                                ElevatedButton.icon(
+                                  onPressed: _loadTemplate,
+                                  icon: const Icon(Icons.download),
+                                  label: const Text('Загрузить шаблон с сервера'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3b82f6),
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
                           const SizedBox(height: 16),
                           const Text(
                             'Загрузите схему для нанесения точек',

@@ -59,6 +59,8 @@ class _VerificationEquipmentSelectionScreenState
         equipmentType: _filterType,
         isActive: true,
       );
+      // Сохраняем загруженные данные локально
+      await _syncService.saveVerificationEquipmentOffline(equipment);
       setState(() {
         _equipmentList = equipment;
         _loading = false;

@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
 import '../models/assignment.dart';
@@ -482,6 +484,84 @@ class ApiService {
     }
   }
 
+  // Загрузить фото для метода НК (опросный лист)
+  Future<Map<String, dynamic>> uploadNdtMethodPhoto({
+    required String questionnaireId,
+    required String methodId,
+    required String filePath,
+    bool annotated = false,
+  }) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token == null) {
+        throw Exception('Токен авторизации не найден');
+      }
+      final uri = Uri.parse(
+        '$baseUrl/api/questionnaires/$questionnaireId/ndt-methods/$methodId/photos/upload?annotated=$annotated',
+      );
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $token';
+      final file = await http.MultipartFile.fromPath('file', filePath);
+      request.files.add(file);
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body);
+      } else {
+        String errorMessage = 'Failed to upload file: ${response.statusCode}';
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      throw Exception('Error uploading NDT photo: $e');
+    }
+  }
+
+  // Загрузить фото для метода НК (обследование)
+  Future<Map<String, dynamic>> uploadNdtMethodPhotoForInspection({
+    required String inspectionId,
+    required String methodId,
+    required String filePath,
+    bool annotated = false,
+  }) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token == null) {
+        throw Exception('Токен авторизации не найден');
+      }
+      final uri = Uri.parse(
+        '$baseUrl/api/inspections/$inspectionId/ndt-methods/$methodId/photos/upload?annotated=$annotated',
+      );
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $token';
+      final file = await http.MultipartFile.fromPath('file', filePath);
+      request.files.add(file);
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body);
+      } else {
+        String errorMessage = 'Failed to upload file: ${response.statusCode}';
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      throw Exception('Error uploading NDT photo: $e');
+    }
+  }
+
   // Получить список файлов документов для опросного листа
   Future<List<Map<String, dynamic>>> getDocumentFiles(
       String questionnaireId) async {
@@ -709,6 +789,67 @@ class ApiService {
     }
   }
 
+  // Получить шаблон чертежа сосуда
+  Future<String?> getVesselTemplate(String templateName) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      
+      final headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/vessel-templates/$templateName'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        // Сохраняем файл во временную директорию
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$templateName');
+        await file.writeAsBytes(response.bodyBytes);
+        return file.path;
+      } else if (response.statusCode == 404) {
+        return null; // Шаблон не найден
+      } else {
+        throw Exception('Ошибка загрузки шаблона: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Ошибка получения шаблона: $e');
+      return null;
+    }
+  }
+
+  // Получить список доступных шаблонов
+  Future<List<Map<String, dynamic>>> getVesselTemplates() async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      
+      final headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/vessel-templates'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['templates'] ?? []);
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print('Ошибка получения списка шаблонов: $e');
+      return [];
+    }
+  }
+
   // Получить список оборудования для поверок
   Future<List<Map<String, dynamic>>> getVerificationEquipment({
     String? equipmentType,
@@ -825,6 +966,100 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Error getting inspection equipment: $e');
+    }
+  }
+
+  // Получить список ОПО
+  Future<List<Map<String, dynamic>>> getOpos({String? enterpriseId}) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      
+      Uri uri = Uri.parse('$baseUrl/api/opos');
+      if (enterpriseId != null && enterpriseId.isNotEmpty) {
+        uri = uri.replace(queryParameters: {'enterprise_id': enterpriseId});
+      }
+      
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('AUTH_INVALID');
+      }
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List? ?? [];
+        return items.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      }
+
+      String errorMessage = 'Failed to load OPOs: ${response.statusCode}';
+      try {
+        final errorData = json.decode(response.body);
+        if (errorData['detail'] != null) {
+          errorMessage = '${errorData['detail']} (${response.statusCode})';
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    } catch (e) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
+        throw Exception(
+            'Нет подключения к серверу. Проверьте интернет-соединение.');
+      }
+      throw Exception('Ошибка загрузки ОПО: $e');
+    }
+  }
+
+  // Получить список ОПО по предприятию
+  Future<List<Map<String, dynamic>>> getOposByEnterprise(String enterpriseId) async {
+    return getOpos(enterpriseId: enterpriseId);
+  }
+
+  // Обновить оборудование с ОПО
+  Future<void> updateEquipmentOpo({
+    required String equipmentId,
+    required String? opoId,
+  }) async {
+    try {
+      final authService = AuthService();
+      final token = await authService.getToken();
+      if (token == null) {
+        throw Exception('Токен авторизации не найден');
+      }
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/equipment/$equipmentId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'opo_id': opoId,
+        }),
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('AUTH_INVALID');
+      }
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        String errorMessage = 'Failed to update equipment OPO: ${response.statusCode}';
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['detail'] != null) {
+            errorMessage = errorData['detail'].toString();
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      throw Exception('Error updating equipment OPO: $e');
     }
   }
 

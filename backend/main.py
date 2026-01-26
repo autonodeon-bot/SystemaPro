@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -33,7 +33,7 @@ import json as _json
 app = FastAPI(
     title="ES TD NGO Platform API",
     description="API для системы учета оборудования и диагностирования",
-    version="3.8.1"
+    version="3.15.0"
 )
 
 # CORS configuration
@@ -61,8 +61,8 @@ app.include_router(report_templates_router)  # Шаблоны отчетов (MV
 app.include_router(equipment_history_router)  # Новый роутер для истории (версия 3.3.0)
 
 # Версия мобильного приложения
-MOBILE_APP_VERSION = "3.8.1"
-MOBILE_APP_BUILD = "6"
+MOBILE_APP_VERSION = "3.15.0"
+MOBILE_APP_BUILD = "16"
 MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/app-release.apk"
 
 # Endpoint для проверки версии мобильного приложения
@@ -75,6 +75,72 @@ async def get_mobile_version():
         "download_url": MOBILE_APP_DOWNLOAD_URL,
         "release_date": datetime.now().isoformat()
     }
+
+@app.get("/api/vessel-templates/{template_name}")
+async def get_vessel_template(
+    template_name: str,
+    username: str = Depends(verify_token_optional)
+):
+    """
+    Получить шаблон чертежа сосуда.
+    template_name: название шаблона (например, 'vessel_template.png')
+    """
+    try:
+        # Безопасность: разрешаем только PNG/JPG файлы из assets
+        if not template_name.endswith(('.png', '.jpg', '.jpeg')):
+            raise HTTPException(status_code=400, detail="Invalid file type")
+        
+        # Убираем путь из имени файла для безопасности
+        safe_name = Path(template_name).name
+        
+        template_path = Path(f"/app/reports/assets/{safe_name}")
+        
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="Template not found")
+        
+        # Определяем media type
+        if safe_name.endswith('.png'):
+            media_type = 'image/png'
+        elif safe_name.endswith(('.jpg', '.jpeg')):
+            media_type = 'image/jpeg'
+        else:
+            media_type = 'application/octet-stream'
+        
+        return FileResponse(
+            path=str(template_path),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{safe_name}"',
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/vessel-templates")
+async def list_vessel_templates(
+    username: str = Depends(verify_token_optional)
+):
+    """Получить список доступных шаблонов чертежей"""
+    try:
+        assets_dir = Path("/app/reports/assets")
+        if not assets_dir.exists():
+            return {"templates": []}
+        
+        templates = []
+        for file in assets_dir.glob("*_template.*"):
+            if file.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                templates.append({
+                    "name": file.name,
+                    "type": file.suffix.lower().replace('.', ''),
+                    "size": file.stat().st_size if file.exists() else 0
+                })
+        
+        return {"templates": templates}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/mobile/check-update")
 async def check_mobile_update(current_version: str, current_build: str):
@@ -808,6 +874,7 @@ async def delete_equipment(
 @app.get("/api/opos")
 async def list_opos(
     workshop_id: Optional[str] = None,
+    enterprise_id: Optional[str] = None,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
@@ -819,6 +886,35 @@ async def list_opos(
                 query = query.where(Opo.workshop_id == uuid_lib.UUID(workshop_id))
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid workshop_id format")
+        elif enterprise_id:
+            # Фильтруем по предприятию через цеха
+            try:
+                enterprise_uuid = uuid_lib.UUID(enterprise_id)
+                # Получаем все филиалы предприятия
+                branches_result = await db.execute(
+                    select(Branch).where(Branch.enterprise_id == enterprise_uuid)
+                )
+                branches = branches_result.scalars().all()
+                branch_ids = [b.id for b in branches]
+                
+                if branch_ids:
+                    # Получаем все цеха филиалов
+                    workshops_result = await db.execute(
+                        select(Workshop).where(Workshop.branch_id.in_(branch_ids))
+                    )
+                    workshops = workshops_result.scalars().all()
+                    workshop_ids = [w.id for w in workshops]
+                    
+                    if workshop_ids:
+                        query = query.where(Opo.workshop_id.in_(workshop_ids))
+                    else:
+                        # Нет цехов - возвращаем пустой список
+                        return {"items": []}
+                else:
+                    # Нет филиалов - возвращаем пустой список
+                    return {"items": []}
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid enterprise_id format")
 
         result = await db.execute(query.order_by(Opo.name))
         items = result.scalars().all()
@@ -1165,9 +1261,50 @@ async def get_inspections(
                 select(Equipment).where(Equipment.id.in_([uuid_lib.UUID(eid) for eid in equipment_ids]))
             )
             for eq in equipment_result.scalars().all():
+                # Получаем информацию о цехе, филиале и предприятии
+                enterprise_id = None
+                enterprise_name = None
+                branch_id = None
+                branch_name = None
+                workshop_id = None
+                workshop_name = None
+                
+                if eq.workshop_id:
+                    workshop_result = await db.execute(
+                        select(Workshop).where(Workshop.id == eq.workshop_id)
+                    )
+                    workshop = workshop_result.scalar_one_or_none()
+                    if workshop:
+                        workshop_id = str(workshop.id)
+                        workshop_name = workshop.name
+                        
+                        # Получаем филиал
+                        branch_result = await db.execute(
+                            select(Branch).where(Branch.id == workshop.branch_id)
+                        )
+                        branch = branch_result.scalar_one_or_none()
+                        if branch:
+                            branch_id = str(branch.id)
+                            branch_name = branch.name
+                            
+                            # Получаем предприятие
+                            enterprise_result = await db.execute(
+                                select(Enterprise).where(Enterprise.id == branch.enterprise_id)
+                            )
+                            enterprise = enterprise_result.scalar_one_or_none()
+                            if enterprise:
+                                enterprise_id = str(enterprise.id)
+                                enterprise_name = enterprise.name
+                
                 equipment_map[str(eq.id)] = {
                     "name": eq.name,
-                    "location": eq.location
+                    "location": eq.location,
+                    "enterprise_id": enterprise_id,
+                    "enterprise_name": enterprise_name,
+                    "branch_id": branch_id,
+                    "branch_name": branch_name,
+                    "workshop_id": workshop_id,
+                    "workshop_name": workshop_name,
                 }
         
         return {
@@ -1177,10 +1314,17 @@ async def get_inspections(
                     "equipment_id": str(ins.equipment_id),
                     "equipment_name": equipment_map.get(str(ins.equipment_id), {}).get("name"),
                     "equipment_location": equipment_map.get(str(ins.equipment_id), {}).get("location"),
+                    "enterprise_id": equipment_map.get(str(ins.equipment_id), {}).get("enterprise_id"),
+                    "enterprise_name": equipment_map.get(str(ins.equipment_id), {}).get("enterprise_name"),
+                    "branch_id": equipment_map.get(str(ins.equipment_id), {}).get("branch_id"),
+                    "branch_name": equipment_map.get(str(ins.equipment_id), {}).get("branch_name"),
+                    "workshop_id": equipment_map.get(str(ins.equipment_id), {}).get("workshop_id"),
+                    "workshop_name": equipment_map.get(str(ins.equipment_id), {}).get("workshop_name"),
                     "date_performed": ins.date_performed.isoformat() if ins.date_performed else None,
                     "data": ins.data,
                     "conclusion": ins.conclusion,
                     "status": ins.status,
+                    "is_archived": getattr(ins, "is_archived", False),
                     "created_at": ins.created_at.isoformat() if ins.created_at else None,
                 }
                 for ins in inspections
@@ -1459,24 +1603,35 @@ async def get_clients(
 ):
     """Get list of clients"""
     try:
-        result = await db.execute(
-            select(Client).where(Client.is_active == 1).offset(skip).limit(limit)
-        )
-        clients = result.scalars().all()
+        # Используем прямой SQL запрос, чтобы избежать проблем с отсутствующими колонками
+        from sqlalchemy import text
+        # Используем только базовые колонки, которые точно есть в БД
+        query = text("""
+            SELECT id, name, inn, address, contact_person
+            FROM clients
+            LIMIT :limit OFFSET :offset
+        """)
+        result = await db.execute(query, {"limit": limit, "offset": skip})
+        clients = result.fetchall()
+        items = []
+        for row in clients:
+            try:
+                items.append({
+                    "id": str(row[0]),  # id
+                    "name": row[1] if row[1] else None,  # name
+                    "inn": row[2] if row[2] else None,  # inn
+                    "address": row[3] if row[3] else None,  # address
+                    "contact_person": row[4] if row[4] else None,  # contact_person
+                    "contact_phone": None,  # будет добавлено позже если нужно
+                    "contact_email": None,  # будет добавлено позже если нужно
+                })
+            except Exception as e:
+                # Если какое-то поле отсутствует, пропускаем его
+                continue
+        
         return {
-            "items": [
-                {
-                    "id": str(c.id),
-                    "name": c.name,
-                    "inn": c.inn,
-                    "address": c.address,
-                    "contact_person": c.contact_person,
-                    "contact_phone": c.contact_phone,
-                    "contact_email": c.contact_email,
-                }
-                for c in clients
-            ],
-            "total": len(clients)
+            "items": items,
+            "total": len(items)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1485,21 +1640,69 @@ async def get_clients(
 async def create_client(client_data: dict, db: AsyncSession = Depends(get_db)):
     """Create new client"""
     try:
-        new_client = Client(
-            name=client_data.get("name"),
-            inn=client_data.get("inn"),
-            address=client_data.get("address"),
-            contact_person=client_data.get("contact_person"),
-            contact_phone=client_data.get("contact_phone"),
-            contact_email=client_data.get("contact_email"),
-            notes=client_data.get("notes")
-        )
-        db.add(new_client)
+        # Используем прямой SQL запрос, проверяя наличие колонок
+        from sqlalchemy import text
+        import uuid as uuid_lib
+        
+        # Проверяем какие колонки есть в таблице
+        check_query = text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'clients'
+        """)
+        result = await db.execute(check_query)
+        columns = [row[0] for row in result.fetchall()]
+        
+        client_id = uuid_lib.uuid4()
+        
+        # Формируем список колонок и значений в зависимости от наличия колонок в БД
+        insert_cols = ["id", "name", "created_at", "updated_at"]
+        insert_vals = [":id", ":name", "NOW()", "NOW()"]
+        params = {
+            "id": client_id,
+            "name": client_data.get("name"),
+        }
+        
+        # Добавляем колонки только если они существуют
+        if "inn" in columns:
+            insert_cols.append("inn")
+            insert_vals.append(":inn")
+            params["inn"] = client_data.get("inn") or None
+        
+        if "address" in columns:
+            insert_cols.append("address")
+            insert_vals.append(":address")
+            params["address"] = client_data.get("address") or None
+        
+        if "contact_person" in columns:
+            insert_cols.append("contact_person")
+            insert_vals.append(":contact_person")
+            params["contact_person"] = client_data.get("contact_person") or None
+        
+        if "phone" in columns:
+            insert_cols.append("phone")
+            insert_vals.append(":phone")
+            params["phone"] = client_data.get("contact_phone") or client_data.get("phone") or None
+        
+        if "email" in columns:
+            insert_cols.append("email")
+            insert_vals.append(":email")
+            params["email"] = client_data.get("contact_email") or client_data.get("email") or None
+        
+        query = text(f"""
+            INSERT INTO clients ({', '.join(insert_cols)})
+            VALUES ({', '.join(insert_vals)})
+            RETURNING id
+        """)
+        
+        result = await db.execute(query, params)
         await db.commit()
-        await db.refresh(new_client)
-        return {"id": str(new_client.id), "status": "created"}
+        
+        return {"id": str(client_id), "status": "created"}
     except Exception as e:
         await db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1704,15 +1907,36 @@ async def create_project(project_data: dict, db: AsyncSession = Depends(get_db))
             except:
                 raise HTTPException(status_code=400, detail="Invalid client_id format")
         
+        # Преобразуем deadline в end_date если deadline указан, иначе используем end_date
+        deadline_date = None
+        if project_data.get("deadline"):
+            try:
+                deadline_date = datetime.fromisoformat(project_data.get("deadline").replace('Z', '+00:00')).date()
+            except:
+                try:
+                    deadline_date = datetime.fromisoformat(project_data.get("deadline")).date()
+                except:
+                    pass
+        
+        end_date_val = None
+        if project_data.get("end_date"):
+            try:
+                end_date_val = datetime.fromisoformat(project_data.get("end_date").replace('Z', '+00:00')).date()
+            except:
+                try:
+                    end_date_val = datetime.fromisoformat(project_data.get("end_date")).date()
+                except:
+                    pass
+        
         new_project = Project(
             client_id=client_id,
             name=project_data.get("name"),
             description=project_data.get("description"),
             status=project_data.get("status", "PLANNED"),
-            start_date=datetime.fromisoformat(project_data.get("start_date")).date() if project_data.get("start_date") else None,
-            end_date=datetime.fromisoformat(project_data.get("end_date")).date() if project_data.get("end_date") else None,
-            deadline=datetime.fromisoformat(project_data.get("deadline")).date() if project_data.get("deadline") else None,
-            budget=project_data.get("budget")
+            start_date=datetime.fromisoformat(project_data.get("start_date").replace('Z', '+00:00')).date() if project_data.get("start_date") else None,
+            end_date=end_date_val,
+            deadline=deadline_date,
+            budget=float(project_data.get("budget")) if project_data.get("budget") else None
         )
         db.add(new_project)
         await db.commit()
@@ -1940,12 +2164,31 @@ async def create_engineer(engineer_data: dict, db: AsyncSession = Depends(get_db
             email=engineer_data.get("email"),
             phone=engineer_data.get("phone"),
             qualifications=engineer_data.get("qualifications", []),
-            certifications=engineer_data.get("certifications", []),
             equipment_types=engineer_data.get("equipment_types", []),
         )
         db.add(new_engineer)
         await db.commit()
         await db.refresh(new_engineer)
+        
+        # Если есть сертификаты, создаем их отдельно
+        certifications_data = engineer_data.get("certifications", [])
+        if certifications_data:
+            from models import Certification
+            for cert_data in certifications_data:
+                cert = Certification(
+                    engineer_id=new_engineer.id,
+                    certification_type=cert_data.get("certification_type"),
+                    method=cert_data.get("method"),
+                    level=cert_data.get("level"),
+                    number=cert_data.get("number"),
+                    issued_by=cert_data.get("issued_by"),
+                    issue_date=cert_data.get("issue_date"),
+                    expiry_date=cert_data.get("expiry_date"),
+                    is_active=1
+                )
+                db.add(cert)
+            await db.commit()
+        
         return {"id": str(new_engineer.id), "status": "created"}
     except Exception as e:
         await db.rollback()
@@ -1985,6 +2228,8 @@ async def get_certifications(
                     "expiry_date": str(c.expiry_date) if c.expiry_date else None,
                     "document_number": c.document_number or None,
                     "document_date": str(c.document_date) if c.document_date else None,
+                    "method_code": c.method_code or None,
+                    "equipment_type_id": str(c.equipment_type_id) if c.equipment_type_id else None,
                     "scan_file_name": getattr(c, "scan_file_name", None),
                     "scan_file_size": getattr(c, "scan_file_size", None),
                     "scan_mime_type": getattr(c, "scan_mime_type", None),
@@ -2021,10 +2266,20 @@ async def create_certification(
         
         engineer_id = uuid_lib.UUID(certification_data.get("engineer_id"))
         
+        method_code = certification_data.get("method_code") or None
+        equipment_type_id = None
+        if certification_data.get("equipment_type_id"):
+            try:
+                equipment_type_id = uuid_lib.UUID(certification_data.get("equipment_type_id"))
+            except:
+                pass
+        
         certification = Certification(
             engineer_id=engineer_id,
             certification_type=certification_data.get("certification_type"),
             certificate_number=certification_data.get("certificate_number"),
+            method_code=method_code,
+            equipment_type_id=equipment_type_id,
             issue_date=datetime.strptime(certification_data.get("issue_date"), "%Y-%m-%d").date() if certification_data.get("issue_date") else None,
             expiry_date=datetime.strptime(certification_data.get("expiry_date"), "%Y-%m-%d").date() if certification_data.get("expiry_date") else None,
             issuing_organization=certification_data.get("issuing_organization"),
@@ -2042,6 +2297,8 @@ async def create_certification(
             "engineer_id": str(certification.engineer_id),
             "certification_type": certification.certification_type,
             "certificate_number": certification.certificate_number,
+            "method_code": certification.method_code,
+            "equipment_type_id": str(certification.equipment_type_id) if certification.equipment_type_id else None,
             "issue_date": str(certification.issue_date) if certification.issue_date else None,
             "expiry_date": str(certification.expiry_date) if certification.expiry_date else None,
             "issuing_organization": certification.issuing_organization,
@@ -2094,6 +2351,16 @@ async def update_certification(
             certification.document_number = certification_data["document_number"]
         if "document_date" in certification_data:
             certification.document_date = datetime.strptime(certification_data["document_date"], "%Y-%m-%d").date() if certification_data["document_date"] else None
+        if "method_code" in certification_data:
+            certification.method_code = certification_data["method_code"] or None
+        if "equipment_type_id" in certification_data:
+            if certification_data["equipment_type_id"]:
+                try:
+                    certification.equipment_type_id = uuid_lib.UUID(certification_data["equipment_type_id"])
+                except:
+                    certification.equipment_type_id = None
+            else:
+                certification.equipment_type_id = None
         
         await db.commit()
         await db.refresh(certification)
@@ -2103,6 +2370,8 @@ async def update_certification(
             "engineer_id": str(certification.engineer_id),
             "certification_type": certification.certification_type,
             "certificate_number": certification.certificate_number,
+            "method_code": certification.method_code,
+            "equipment_type_id": str(certification.equipment_type_id) if certification.equipment_type_id else None,
             "issue_date": str(certification.issue_date) if certification.issue_date else None,
             "expiry_date": str(certification.expiry_date) if certification.expiry_date else None,
             "issuing_organization": certification.issuing_organization,
@@ -2373,6 +2642,13 @@ async def get_reports(
             equipment_id = None
             project_id = None
             inspection = None
+            enterprise_id = None
+            enterprise_name = None
+            branch_id = None
+            branch_name = None
+            workshop_id = None
+            workshop_name = None
+            equipment_name = None
             
             # Пытаемся получить ФИО инженера из связанной инспекции
             if r.inspection_id:
@@ -2384,6 +2660,43 @@ async def get_reports(
                     # Получаем equipment_id и project_id из инспекции
                     equipment_id = str(inspection.equipment_id) if inspection.equipment_id else None
                     project_id = str(inspection.project_id) if inspection.project_id else None
+                    
+                    # Получаем информацию об оборудовании и иерархии
+                    if inspection.equipment_id:
+                        eq_result = await db.execute(
+                            select(Equipment).where(Equipment.id == inspection.equipment_id)
+                        )
+                        equipment = eq_result.scalar_one_or_none()
+                        if equipment:
+                            equipment_name = equipment.name
+                            
+                            # Получаем информацию о цехе, филиале и предприятии
+                            if equipment.workshop_id:
+                                workshop_result = await db.execute(
+                                    select(Workshop).where(Workshop.id == equipment.workshop_id)
+                                )
+                                workshop = workshop_result.scalar_one_or_none()
+                                if workshop:
+                                    workshop_id = str(workshop.id)
+                                    workshop_name = workshop.name
+                                    
+                                    # Получаем филиал
+                                    branch_result = await db.execute(
+                                        select(Branch).where(Branch.id == workshop.branch_id)
+                                    )
+                                    branch = branch_result.scalar_one_or_none()
+                                    if branch:
+                                        branch_id = str(branch.id)
+                                        branch_name = branch.name
+                                        
+                                        # Получаем предприятие
+                                        enterprise_result = await db.execute(
+                                            select(Enterprise).where(Enterprise.id == branch.enterprise_id)
+                                        )
+                                        enterprise = enterprise_result.scalar_one_or_none()
+                                        if enterprise:
+                                            enterprise_id = str(enterprise.id)
+                                            enterprise_name = enterprise.name
                     
                     if inspection.inspector_id:
                         # Получаем информацию об инженере из users
@@ -2406,7 +2719,14 @@ async def get_reports(
                 "id": str(r.id),
                 "inspection_id": str(r.inspection_id) if r.inspection_id else None,
                 "equipment_id": equipment_id,
+                "equipment_name": equipment_name,
                 "project_id": project_id,
+                "enterprise_id": enterprise_id,
+                "enterprise_name": enterprise_name,
+                "branch_id": branch_id,
+                "branch_name": branch_name,
+                "workshop_id": workshop_id,
+                "workshop_name": workshop_name,
                 "report_type": r.report_type,
                 "title": f"{r.report_type} Report" if r.report_type else "Report",
                 "file_path": r.file_path,
@@ -2417,6 +2737,7 @@ async def get_reports(
                 "inspector_name": inspector_name,
                 "inspector_position": inspector_position,
                 "created_by": str(r.created_by) if r.created_by else None,
+                "is_archived": getattr(r, "is_archived", False),
                 "created_at": r.created_at.isoformat() if r.created_at else None,
                 "word_file_path": getattr(r, "word_file_path", None),
                 "word_file_size": getattr(r, "word_file_size", None),
@@ -2451,21 +2772,102 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
         equipment = eq_result.scalar_one_or_none()
         if not equipment:
             raise HTTPException(status_code=404, detail="Equipment not found")
+
+        # Данные ОПО (если оборудование привязано к ОПО)
+        opo_info = None
+        try:
+            opo = None
+            if getattr(equipment, "opo_id", None):
+                opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
+                opo = opo_result.scalar_one_or_none()
+            if opo:
+                workshop = None
+                branch = None
+                enterprise = None
+                if getattr(opo, "workshop_id", None):
+                    w_result = await db.execute(select(Workshop).where(Workshop.id == opo.workshop_id))
+                    workshop = w_result.scalar_one_or_none()
+                if workshop and getattr(workshop, "branch_id", None):
+                    b_result = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
+                    branch = b_result.scalar_one_or_none()
+                if branch and getattr(branch, "enterprise_id", None):
+                    e_result = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
+                    enterprise = e_result.scalar_one_or_none()
+
+                opo_info = {
+                    "id": str(opo.id),
+                    "name": opo.name,
+                    "code": opo.code,
+                    "description": opo.description,
+                    "survey_data": opo.survey_data or {},
+                    "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
+                    "workshop_name": workshop.name if workshop else None,
+                    "branch_id": str(branch.id) if branch else None,
+                    "branch_name": branch.name if branch else None,
+                    "enterprise_id": str(enterprise.id) if enterprise else None,
+                    "enterprise_name": enterprise.name if enterprise else None,
+                }
+        except Exception as e:
+            print(f"Warning: Could not load OPO info for preview: {e}")
+            opo_info = None
         
-        # Получаем методы НК через questionnaire_id
+        # Получаем методы НК:
+        # 1) по inspection_id
+        # 2) фолбэк по questionnaire_id
+        ndt_methods = []
+        try:
+            ndt_result = await db.execute(
+                select(NDTMethod).where(NDTMethod.inspection_id == inspection.id)
+            )
+            ndt_methods = ndt_result.scalars().all()
+        except Exception:
+            ndt_methods = []
+
         # Сначала находим questionnaire для этого inspection
         questionnaire_result = await db.execute(
             select(Questionnaire).where(Questionnaire.equipment_id == equipment.id)
             .order_by(Questionnaire.created_at.desc())
         )
         questionnaire = questionnaire_result.scalar_one_or_none()
-        
-        ndt_methods = []
-        if questionnaire:
+        if not ndt_methods and questionnaire:
             ndt_result = await db.execute(
                 select(NDTMethod).where(NDTMethod.questionnaire_id == questionnaire.id)
             )
             ndt_methods = ndt_result.scalars().all()
+
+        # Файлы документов/вложений
+        document_files = []
+        try:
+            q_query = select(Questionnaire).where(Questionnaire.equipment_id == equipment.id)
+            if getattr(inspection, "created_at", None):
+                q_query = q_query.order_by(
+                    func.abs(func.extract("epoch", Questionnaire.created_at - inspection.created_at))
+                )
+            else:
+                q_query = q_query.order_by(Questionnaire.created_at.desc())
+
+            q_result = await db.execute(q_query)
+            q_for_files = q_result.scalar_one_or_none()
+            if q_for_files:
+                questionnaire = q_for_files
+                files_result = await db.execute(
+                    select(QuestionnaireDocumentFile).where(
+                        QuestionnaireDocumentFile.questionnaire_id == q_for_files.id
+                    )
+                )
+                files = files_result.scalars().all()
+                document_files = [
+                    {
+                        "document_number": f.document_number,
+                        "file_name": f.file_name,
+                        "file_size": int(f.file_size or 0),
+                        "file_type": f.file_type,
+                        "mime_type": f.mime_type,
+                    }
+                    for f in files
+                ]
+        except Exception:
+            document_files = []
         
         # Получаем данные ресурса, если есть
         resource_data = None
@@ -2503,8 +2905,11 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
             "questionnaire": {
                 "id": str(questionnaire.id) if questionnaire else None,
             },
+            "document_files": document_files,
+            "opo": opo_info,
             "ndt_methods": [
                 {
+                    "id": str(m.id),
                     "method_code": m.method_code,
                     "method_name": m.method_name,
                     "is_performed": bool(m.is_performed),
@@ -2515,6 +2920,8 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
                     "results": m.results,
                     "defects": m.defects,
                     "conclusion": m.conclusion,
+                    "photos": m.photos or [],
+                    "additional_data": m.additional_data or {},
                 }
                 for m in ndt_methods
             ],
@@ -2616,6 +3023,8 @@ async def generate_report(
                 inspection_id = uuid_lib.UUID(report_data.get("inspection_id"))
             except:
                 raise HTTPException(status_code=400, detail="Invalid inspection_id format")
+
+        opo_info = None
         
         # Get inspection data
         if inspection_id:
@@ -2633,6 +3042,56 @@ async def generate_report(
             equipment = eq_result.scalar_one_or_none()
             if not equipment:
                 raise HTTPException(status_code=404, detail="Equipment not found")
+            
+            # Get equipment type information
+            equipment_type_code = None
+            equipment_type_name = None
+            if equipment.type_id:
+                type_result = await db.execute(
+                    select(EquipmentType).where(EquipmentType.id == equipment.type_id)
+                )
+                equipment_type = type_result.scalar_one_or_none()
+                if equipment_type:
+                    equipment_type_code = equipment_type.code
+                    equipment_type_name = equipment_type.name
+
+            # Данные ОПО для отчета (если оборудование привязано к ОПО)
+            opo_info = None
+            try:
+                opo = None
+                if getattr(equipment, "opo_id", None):
+                    opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
+                    opo = opo_result.scalar_one_or_none()
+                if opo:
+                    workshop = None
+                    branch = None
+                    enterprise = None
+                    if getattr(opo, "workshop_id", None):
+                        w_result = await db.execute(select(Workshop).where(Workshop.id == opo.workshop_id))
+                        workshop = w_result.scalar_one_or_none()
+                    if workshop and getattr(workshop, "branch_id", None):
+                        b_result = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
+                        branch = b_result.scalar_one_or_none()
+                    if branch and getattr(branch, "enterprise_id", None):
+                        e_result = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
+                        enterprise = e_result.scalar_one_or_none()
+
+                    opo_info = {
+                        "id": str(opo.id),
+                        "name": opo.name,
+                        "code": opo.code,
+                        "description": opo.description,
+                        "survey_data": opo.survey_data or {},
+                        "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
+                        "workshop_name": workshop.name if workshop else None,
+                        "branch_id": str(branch.id) if branch else None,
+                        "branch_name": branch.name if branch else None,
+                        "enterprise_id": str(enterprise.id) if enterprise else None,
+                        "enterprise_name": enterprise.name if enterprise else None,
+                    }
+            except Exception as e:
+                print(f"Warning: Could not load OPO info: {e}")
+                opo_info = None
             
             # Get resource data if expertise
             resource_data = None
@@ -2878,16 +3337,61 @@ async def generate_report(
                         specialist_docs.append({"inspector_name": name, "certifications": items})
             except Exception:
                 specialist_docs = []
-            
+
+            # Подготавливаем данные для отчета и добавляем информацию об ОПО (если есть)
+            inspection_payload = {
+                "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
+                "data": inspection.data,
+                "conclusion": inspection.conclusion,
+                "status": inspection.status,
+            }
+            try:
+                data_payload = inspection_payload.get("data")
+                if isinstance(data_payload, dict) and opo_info:
+                    data_payload = dict(data_payload)
+                    survey = opo_info.get("survey_data") if isinstance(opo_info.get("survey_data"), dict) else {}
+                    if isinstance(survey, dict):
+                        docs_current = data_payload.get("documents") or {}
+                        if isinstance(docs_current, dict) and isinstance(survey.get("documents"), dict):
+                            merged_docs = dict(docs_current)
+                            for k, v in survey.get("documents").items():
+                                try:
+                                    n = int(str(k))
+                                except Exception:
+                                    continue
+                                if 1 <= n <= 9 and not merged_docs.get(str(k)):
+                                    merged_docs[str(k)] = v
+                            data_payload["documents"] = merged_docs
+                        if not data_payload.get("organization") and survey.get("organization"):
+                            data_payload["organization"] = survey.get("organization")
+                        if not data_payload.get("executors") and survey.get("executors"):
+                            data_payload["executors"] = survey.get("executors")
+                        data_payload.setdefault("opo_survey", survey)
+
+                    data_payload.setdefault("opo", opo_info)
+                    if opo_info.get("id"):
+                        data_payload.setdefault("opo_id", opo_info["id"])
+                    if opo_info.get("name"):
+                        data_payload.setdefault("opo_name", opo_info["name"])
+                    if opo_info.get("code"):
+                        data_payload.setdefault("opo_code", opo_info["code"])
+                    if opo_info.get("description"):
+                        data_payload.setdefault("opo_description", opo_info["description"])
+                    if opo_info.get("enterprise_name"):
+                        data_payload.setdefault("opo_enterprise", opo_info["enterprise_name"])
+                    if opo_info.get("branch_name"):
+                        data_payload.setdefault("opo_branch", opo_info["branch_name"])
+                    if opo_info.get("workshop_name"):
+                        data_payload.setdefault("opo_workshop", opo_info["workshop_name"])
+
+                    inspection_payload["data"] = data_payload
+            except Exception as e:
+                print(f"Warning: Could not merge OPO data into report payload: {e}")
+
             if is_docx:
                 # Генерация Word документа
                 word_generator.generate_report_word(
-                    {
-                        "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                        "data": inspection.data,
-                        "conclusion": inspection.conclusion,
-                        "status": inspection.status,
-                    },
+                    inspection_payload,
                     {
                         "id": str(equipment.id),
                         "name": equipment.name,
@@ -2895,6 +3399,8 @@ async def generate_report(
                         "location": equipment.location,
                         "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
                         "attributes": equipment.attributes or {},
+                        "type_code": equipment_type_code,
+                        "type_name": equipment_type_name,
                     },
                     ndt_methods_data,
                     str(file_path),
@@ -2908,12 +3414,7 @@ async def generate_report(
                 # Генерация PDF
                 if report_type == "EXPERTISE":
                     generator.generate_expertise_report(
-                        {
-                            "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                            "data": inspection.data,
-                            "conclusion": inspection.conclusion,
-                            "status": inspection.status,
-                        },
+                        inspection_payload,
                         {
                             "id": str(equipment.id),
                             "name": equipment.name,
@@ -2931,12 +3432,7 @@ async def generate_report(
                     )
                 else:
                     generator.generate_technical_report(
-                        {
-                            "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                            "data": inspection.data,
-                            "conclusion": inspection.conclusion,
-                            "status": inspection.status,
-                        },
+                        inspection_payload,
                         {
                             "id": str(equipment.id),
                             "name": equipment.name,
@@ -2952,10 +3448,17 @@ async def generate_report(
                         verification_equipment=verification_equipment_list,
                     )
             
+            # Генерируем номера отчета
+            from report_utils import generate_report_number, generate_registration_number
+            report_number = await generate_report_number(db, report_type)
+            registration_number = await generate_registration_number(db)
+            
             # Save report record
             new_report = Report(
                 inspection_id=inspection_id,
                 report_type=report_type,
+                report_number=report_number,
+                registration_number=registration_number,
                 file_path=str(file_path),
                 file_size=file_path.stat().st_size if file_path.exists() else 0,
                 created_by=current_user.id,
@@ -2971,6 +3474,8 @@ async def generate_report(
             
             return {
                 "id": str(new_report.id),
+                "report_number": new_report.report_number,
+                "registration_number": new_report.registration_number,
                 "file_path": str(file_path),
                 "file_size": new_report.file_size,
                 "format": "docx" if is_docx else "pdf",
@@ -2985,6 +3490,232 @@ async def generate_report(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+
+# Report Templates endpoints (работа с БД)
+@app.get("/api/report-templates-db")
+async def get_report_templates_db(
+    client_id: Optional[str] = None,
+    template_type: Optional[str] = None,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить список шаблонов отчетов из БД"""
+    try:
+        from models import ReportTemplate
+        query = select(ReportTemplate).where(ReportTemplate.is_active == 1)
+        
+        if client_id:
+            try:
+                client_uuid = uuid_lib.UUID(client_id)
+                query = query.where(ReportTemplate.client_id == client_uuid)
+            except:
+                pass
+        
+        if template_type:
+            query = query.where(ReportTemplate.template_type == template_type)
+        
+        result = await db.execute(query)
+        templates = result.scalars().all()
+        
+        items = []
+        for t in templates:
+            items.append({
+                "id": str(t.id),
+                "name": t.name,
+                "description": t.description,
+                "template_type": t.template_type,
+                "client_id": str(t.client_id) if t.client_id else None,
+                "template_config": t.template_config,
+                "is_default": t.is_default,
+                "is_active": t.is_active,
+            })
+        
+        return {"items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/report-templates-db")
+async def create_report_template_db(
+    template_data: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Создать шаблон отчета в БД"""
+    try:
+        from models import ReportTemplate
+        user_result = await db.execute(select(User).where(User.username == username))
+        current_user = user_result.scalar_one_or_none()
+        
+        client_id = None
+        if template_data.get("client_id"):
+            try:
+                client_id = uuid_lib.UUID(template_data.get("client_id"))
+            except:
+                pass
+        
+        if template_data.get("is_default"):
+            existing_defaults = await db.execute(
+                select(ReportTemplate).where(
+                    ReportTemplate.template_type == template_data.get("template_type"),
+                    ReportTemplate.is_default == True
+                )
+            )
+            for t in existing_defaults.scalars().all():
+                t.is_default = False
+        
+        template = ReportTemplate(
+            name=template_data.get("name"),
+            description=template_data.get("description"),
+            template_type=template_data.get("template_type", "TECHNICAL"),
+            client_id=client_id,
+            template_config=template_data.get("template_config", {}),
+            is_default=template_data.get("is_default", False),
+            created_by=current_user.id if current_user else None,
+        )
+        
+        db.add(template)
+        await db.commit()
+        await db.refresh(template)
+        
+        return {"id": str(template.id), "name": template.name, "status": "created"}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/report-templates-db/{template_id}")
+async def update_report_template_db(
+    template_id: str,
+    template_data: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Обновить шаблон отчета в БД"""
+    try:
+        from models import ReportTemplate
+        template_uuid = uuid_lib.UUID(template_id)
+        result = await db.execute(
+            select(ReportTemplate).where(ReportTemplate.id == template_uuid)
+        )
+        template = result.scalar_one_or_none()
+        
+        if not template:
+            raise HTTPException(status_code=404, detail="Шаблон не найден")
+        
+        if "name" in template_data:
+            template.name = template_data["name"]
+        if "description" in template_data:
+            template.description = template_data["description"]
+        if "template_type" in template_data:
+            template.template_type = template_data["template_type"]
+        if "template_config" in template_data:
+            template.template_config = template_data["template_config"]
+        if "client_id" in template_data:
+            if template_data["client_id"]:
+                try:
+                    template.client_id = uuid_lib.UUID(template_data["client_id"])
+                except:
+                    template.client_id = None
+            else:
+                template.client_id = None
+        
+        if "is_default" in template_data:
+            if template_data["is_default"]:
+                existing_defaults = await db.execute(
+                    select(ReportTemplate).where(
+                        ReportTemplate.template_type == template.template_type,
+                        ReportTemplate.is_default == True,
+                        ReportTemplate.id != template_uuid
+                    )
+                )
+                for t in existing_defaults.scalars().all():
+                    t.is_default = False
+            template.is_default = template_data["is_default"]
+        
+        await db.commit()
+        await db.refresh(template)
+        
+        return {"id": str(template.id), "name": template.name, "status": "updated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/report-templates-db/{template_id}")
+async def delete_report_template_db(
+    template_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Удалить шаблон отчета из БД"""
+    try:
+        from models import ReportTemplate
+        template_uuid = uuid_lib.UUID(template_id)
+        result = await db.execute(
+            select(ReportTemplate).where(ReportTemplate.id == template_uuid)
+        )
+        template = result.scalar_one_or_none()
+        
+        if not template:
+            raise HTTPException(status_code=404, detail="Шаблон не найден")
+        
+        template.is_active = 0
+        await db.commit()
+        
+        return {"status": "deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/reports/{report_id}/sign")
+async def sign_report(
+    report_id: str,
+    signature_data: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Подписать отчет электронной подписью"""
+    try:
+        from datetime import timezone
+        user_result = await db.execute(select(User).where(User.username == username))
+        current_user = user_result.scalar_one_or_none()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        report_uuid = uuid_lib.UUID(report_id)
+        result = await db.execute(
+            select(Report).where(Report.id == report_uuid)
+        )
+        report = result.scalar_one_or_none()
+        
+        if not report:
+            raise HTTPException(status_code=404, detail="Отчет не найден")
+        
+        report.is_signed = True
+        report.signed_at = datetime.now(timezone.utc)
+        report.signed_by = current_user.id
+        
+        await db.commit()
+        await db.refresh(report)
+        
+        return {
+            "id": str(report.id),
+            "is_signed": report.is_signed,
+            "signed_at": str(report.signed_at),
+            "status": "signed"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/api/reports/{report_id}")
@@ -3664,6 +4395,105 @@ async def add_ndt_method(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to add NDT method: {str(e)}")
 
+@app.post("/api/questionnaires/{questionnaire_id}/ndt-methods/{method_id}/photos/upload")
+async def upload_ndt_method_photo(
+    questionnaire_id: str,
+    method_id: str,
+    file: UploadFile = File(...),
+    annotated: Optional[bool] = Form(False),
+    db: AsyncSession = Depends(get_db)
+):
+    """Загрузить фото для метода НК (опросный лист)"""
+    try:
+        q_uuid = uuid_lib.UUID(questionnaire_id)
+        m_uuid = uuid_lib.UUID(method_id)
+
+        method_result = await db.execute(
+            select(NDTMethod).where(
+                NDTMethod.id == m_uuid,
+                NDTMethod.questionnaire_id == q_uuid
+            )
+        )
+        method = method_result.scalar_one_or_none()
+        if not method:
+            raise HTTPException(status_code=404, detail="NDT method not found")
+
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}"
+            )
+
+        upload_dir = Path("/app/uploads/ndt_photos") / "questionnaires" / str(q_uuid) / str(m_uuid)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        file_ext = Path(file.filename).suffix if file.filename else ".jpg"
+        stored_name = f"{uuid_lib.uuid4()}{file_ext}"
+        stored_path = upload_dir / stored_name
+
+        content = await file.read()
+        with open(stored_path, "wb") as f:
+            f.write(content)
+
+        photos = list(method.photos or [])
+        photos.append(str(stored_path))
+        method.photos = photos
+
+        if annotated:
+            additional = method.additional_data or {}
+            annotated_images = list(additional.get("annotated_images") or [])
+            annotated_images.append(str(stored_path))
+            additional["annotated_images"] = annotated_images
+            method.additional_data = additional
+
+        await db.commit()
+        await db.refresh(method)
+
+        return {
+            "status": "uploaded",
+            "file_path": str(stored_path),
+            "photos": method.photos,
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid id format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload NDT photo: {str(e)}")
+
+@app.get("/api/ndt-methods/{method_id}/photos/{file_name}")
+async def get_ndt_method_photo(
+    method_id: str,
+    file_name: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить фото метода НК по имени файла"""
+    try:
+        m_uuid = uuid_lib.UUID(method_id)
+        method_result = await db.execute(select(NDTMethod).where(NDTMethod.id == m_uuid))
+        method = method_result.scalar_one_or_none()
+        if not method:
+            raise HTTPException(status_code=404, detail="NDT method not found")
+
+        photos = list(method.photos or [])
+        target = None
+        for p in photos:
+            if p and Path(p).name == file_name:
+                target = p
+                break
+        if not target or not os.path.exists(target):
+            raise HTTPException(status_code=404, detail="Photo not found")
+
+        return FileResponse(target)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid method_id format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get NDT photo: {str(e)}")
+
 @app.post("/api/inspections/{inspection_id}/ndt-methods")
 async def add_ndt_method_to_inspection(
     inspection_id: str,
@@ -3725,6 +4555,74 @@ async def add_ndt_method_to_inspection(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to add NDT method: {str(e)}")
+
+@app.post("/api/inspections/{inspection_id}/ndt-methods/{method_id}/photos/upload")
+async def upload_ndt_method_photo_for_inspection(
+    inspection_id: str,
+    method_id: str,
+    file: UploadFile = File(...),
+    annotated: Optional[bool] = Form(False),
+    db: AsyncSession = Depends(get_db)
+):
+    """Загрузить фото для метода НК (обследование)"""
+    try:
+        insp_uuid = uuid_lib.UUID(inspection_id)
+        m_uuid = uuid_lib.UUID(method_id)
+
+        method_result = await db.execute(
+            select(NDTMethod).where(
+                NDTMethod.id == m_uuid,
+                NDTMethod.inspection_id == insp_uuid
+            )
+        )
+        method = method_result.scalar_one_or_none()
+        if not method:
+            raise HTTPException(status_code=404, detail="NDT method not found")
+
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}"
+            )
+
+        upload_dir = Path("/app/uploads/ndt_photos") / "inspections" / str(insp_uuid) / str(m_uuid)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        file_ext = Path(file.filename).suffix if file.filename else ".jpg"
+        stored_name = f"{uuid_lib.uuid4()}{file_ext}"
+        stored_path = upload_dir / stored_name
+
+        content = await file.read()
+        with open(stored_path, "wb") as f:
+            f.write(content)
+
+        photos = list(method.photos or [])
+        photos.append(str(stored_path))
+        method.photos = photos
+
+        if annotated:
+            additional = method.additional_data or {}
+            annotated_images = list(additional.get("annotated_images") or [])
+            annotated_images.append(str(stored_path))
+            additional["annotated_images"] = annotated_images
+            method.additional_data = additional
+
+        await db.commit()
+        await db.refresh(method)
+
+        return {
+            "status": "uploaded",
+            "file_path": str(stored_path),
+            "photos": method.photos,
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid id format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload NDT photo: {str(e)}")
 
 @app.post("/api/questionnaires/{questionnaire_id}/generate-pdf")
 async def generate_questionnaire_pdf(
@@ -4389,13 +5287,14 @@ async def create_verification_equipment(
         if current_user.get("role") not in ["admin", "chief_operator", "operator"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав")
         
+        new_id = uuid_lib.uuid4()
         scan_file_path = None
         scan_file_name = None
         scan_file_size = None
         scan_mime_type = None
         
         if scan_file:
-            upload_dir = Path("uploads/verification-scans")
+            upload_dir = Path("/app/uploads/verification_scans") / str(new_id)
             upload_dir.mkdir(parents=True, exist_ok=True)
             
             file_ext = Path(scan_file.filename).suffix
@@ -4415,6 +5314,7 @@ async def create_verification_equipment(
         next_verification_date_obj = datetime.strptime(next_verification_date, "%Y-%m-%d").date()
         
         new_equipment = VerificationEquipment(
+            id=new_id,
             name=name,
             equipment_type=equipment_type,
             category=category,
@@ -4600,7 +5500,7 @@ async def update_verification_equipment(
                 except:
                     pass
             
-            upload_dir = Path("uploads/verification-scans")
+            upload_dir = Path("/app/uploads/verification_scans") / str(item.id)
             upload_dir.mkdir(parents=True, exist_ok=True)
             
             file_ext = Path(scan_file.filename).suffix
@@ -5181,24 +6081,35 @@ async def get_clients(
 ):
     """Get list of clients"""
     try:
-        result = await db.execute(
-            select(Client).where(Client.is_active == 1).offset(skip).limit(limit)
-        )
-        clients = result.scalars().all()
+        # Используем прямой SQL запрос, чтобы избежать проблем с отсутствующими колонками
+        from sqlalchemy import text
+        # Используем только базовые колонки, которые точно есть в БД
+        query = text("""
+            SELECT id, name, inn, address, contact_person
+            FROM clients
+            LIMIT :limit OFFSET :offset
+        """)
+        result = await db.execute(query, {"limit": limit, "offset": skip})
+        clients = result.fetchall()
+        items = []
+        for row in clients:
+            try:
+                items.append({
+                    "id": str(row[0]),  # id
+                    "name": row[1] if row[1] else None,  # name
+                    "inn": row[2] if row[2] else None,  # inn
+                    "address": row[3] if row[3] else None,  # address
+                    "contact_person": row[4] if row[4] else None,  # contact_person
+                    "contact_phone": None,  # будет добавлено позже если нужно
+                    "contact_email": None,  # будет добавлено позже если нужно
+                })
+            except Exception as e:
+                # Если какое-то поле отсутствует, пропускаем его
+                continue
+        
         return {
-            "items": [
-                {
-                    "id": str(c.id),
-                    "name": c.name,
-                    "inn": c.inn,
-                    "address": c.address,
-                    "contact_person": c.contact_person,
-                    "contact_phone": c.contact_phone,
-                    "contact_email": c.contact_email,
-                }
-                for c in clients
-            ],
-            "total": len(clients)
+            "items": items,
+            "total": len(items)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -5207,21 +6118,69 @@ async def get_clients(
 async def create_client(client_data: dict, db: AsyncSession = Depends(get_db)):
     """Create new client"""
     try:
-        new_client = Client(
-            name=client_data.get("name"),
-            inn=client_data.get("inn"),
-            address=client_data.get("address"),
-            contact_person=client_data.get("contact_person"),
-            contact_phone=client_data.get("contact_phone"),
-            contact_email=client_data.get("contact_email"),
-            notes=client_data.get("notes")
-        )
-        db.add(new_client)
+        # Используем прямой SQL запрос, проверяя наличие колонок
+        from sqlalchemy import text
+        import uuid as uuid_lib
+        
+        # Проверяем какие колонки есть в таблице
+        check_query = text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'clients'
+        """)
+        result = await db.execute(check_query)
+        columns = [row[0] for row in result.fetchall()]
+        
+        client_id = uuid_lib.uuid4()
+        
+        # Формируем список колонок и значений в зависимости от наличия колонок в БД
+        insert_cols = ["id", "name", "created_at", "updated_at"]
+        insert_vals = [":id", ":name", "NOW()", "NOW()"]
+        params = {
+            "id": client_id,
+            "name": client_data.get("name"),
+        }
+        
+        # Добавляем колонки только если они существуют
+        if "inn" in columns:
+            insert_cols.append("inn")
+            insert_vals.append(":inn")
+            params["inn"] = client_data.get("inn") or None
+        
+        if "address" in columns:
+            insert_cols.append("address")
+            insert_vals.append(":address")
+            params["address"] = client_data.get("address") or None
+        
+        if "contact_person" in columns:
+            insert_cols.append("contact_person")
+            insert_vals.append(":contact_person")
+            params["contact_person"] = client_data.get("contact_person") or None
+        
+        if "phone" in columns:
+            insert_cols.append("phone")
+            insert_vals.append(":phone")
+            params["phone"] = client_data.get("contact_phone") or client_data.get("phone") or None
+        
+        if "email" in columns:
+            insert_cols.append("email")
+            insert_vals.append(":email")
+            params["email"] = client_data.get("contact_email") or client_data.get("email") or None
+        
+        query = text(f"""
+            INSERT INTO clients ({', '.join(insert_cols)})
+            VALUES ({', '.join(insert_vals)})
+            RETURNING id
+        """)
+        
+        result = await db.execute(query, params)
         await db.commit()
-        await db.refresh(new_client)
-        return {"id": str(new_client.id), "status": "created"}
+        
+        return {"id": str(client_id), "status": "created"}
     except Exception as e:
         await db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -5426,15 +6385,36 @@ async def create_project(project_data: dict, db: AsyncSession = Depends(get_db))
             except:
                 raise HTTPException(status_code=400, detail="Invalid client_id format")
         
+        # Преобразуем deadline в end_date если deadline указан, иначе используем end_date
+        deadline_date = None
+        if project_data.get("deadline"):
+            try:
+                deadline_date = datetime.fromisoformat(project_data.get("deadline").replace('Z', '+00:00')).date()
+            except:
+                try:
+                    deadline_date = datetime.fromisoformat(project_data.get("deadline")).date()
+                except:
+                    pass
+        
+        end_date_val = None
+        if project_data.get("end_date"):
+            try:
+                end_date_val = datetime.fromisoformat(project_data.get("end_date").replace('Z', '+00:00')).date()
+            except:
+                try:
+                    end_date_val = datetime.fromisoformat(project_data.get("end_date")).date()
+                except:
+                    pass
+        
         new_project = Project(
             client_id=client_id,
             name=project_data.get("name"),
             description=project_data.get("description"),
             status=project_data.get("status", "PLANNED"),
-            start_date=datetime.fromisoformat(project_data.get("start_date")).date() if project_data.get("start_date") else None,
-            end_date=datetime.fromisoformat(project_data.get("end_date")).date() if project_data.get("end_date") else None,
-            deadline=datetime.fromisoformat(project_data.get("deadline")).date() if project_data.get("deadline") else None,
-            budget=project_data.get("budget")
+            start_date=datetime.fromisoformat(project_data.get("start_date").replace('Z', '+00:00')).date() if project_data.get("start_date") else None,
+            end_date=end_date_val,
+            deadline=deadline_date,
+            budget=float(project_data.get("budget")) if project_data.get("budget") else None
         )
         db.add(new_project)
         await db.commit()
@@ -5662,12 +6642,31 @@ async def create_engineer(engineer_data: dict, db: AsyncSession = Depends(get_db
             email=engineer_data.get("email"),
             phone=engineer_data.get("phone"),
             qualifications=engineer_data.get("qualifications", []),
-            certifications=engineer_data.get("certifications", []),
             equipment_types=engineer_data.get("equipment_types", []),
         )
         db.add(new_engineer)
         await db.commit()
         await db.refresh(new_engineer)
+        
+        # Если есть сертификаты, создаем их отдельно
+        certifications_data = engineer_data.get("certifications", [])
+        if certifications_data:
+            from models import Certification
+            for cert_data in certifications_data:
+                cert = Certification(
+                    engineer_id=new_engineer.id,
+                    certification_type=cert_data.get("certification_type"),
+                    method=cert_data.get("method"),
+                    level=cert_data.get("level"),
+                    number=cert_data.get("number"),
+                    issued_by=cert_data.get("issued_by"),
+                    issue_date=cert_data.get("issue_date"),
+                    expiry_date=cert_data.get("expiry_date"),
+                    is_active=1
+                )
+                db.add(cert)
+            await db.commit()
+        
         return {"id": str(new_engineer.id), "status": "created"}
     except Exception as e:
         await db.rollback()
@@ -5707,6 +6706,8 @@ async def get_certifications(
                     "expiry_date": str(c.expiry_date) if c.expiry_date else None,
                     "document_number": c.document_number or None,
                     "document_date": str(c.document_date) if c.document_date else None,
+                    "method_code": c.method_code or None,
+                    "equipment_type_id": str(c.equipment_type_id) if c.equipment_type_id else None,
                     "scan_file_name": getattr(c, "scan_file_name", None),
                     "scan_file_size": getattr(c, "scan_file_size", None),
                     "scan_mime_type": getattr(c, "scan_mime_type", None),
@@ -5743,10 +6744,20 @@ async def create_certification(
         
         engineer_id = uuid_lib.UUID(certification_data.get("engineer_id"))
         
+        method_code = certification_data.get("method_code") or None
+        equipment_type_id = None
+        if certification_data.get("equipment_type_id"):
+            try:
+                equipment_type_id = uuid_lib.UUID(certification_data.get("equipment_type_id"))
+            except:
+                pass
+        
         certification = Certification(
             engineer_id=engineer_id,
             certification_type=certification_data.get("certification_type"),
             certificate_number=certification_data.get("certificate_number"),
+            method_code=method_code,
+            equipment_type_id=equipment_type_id,
             issue_date=datetime.strptime(certification_data.get("issue_date"), "%Y-%m-%d").date() if certification_data.get("issue_date") else None,
             expiry_date=datetime.strptime(certification_data.get("expiry_date"), "%Y-%m-%d").date() if certification_data.get("expiry_date") else None,
             issuing_organization=certification_data.get("issuing_organization"),
@@ -5764,6 +6775,8 @@ async def create_certification(
             "engineer_id": str(certification.engineer_id),
             "certification_type": certification.certification_type,
             "certificate_number": certification.certificate_number,
+            "method_code": certification.method_code,
+            "equipment_type_id": str(certification.equipment_type_id) if certification.equipment_type_id else None,
             "issue_date": str(certification.issue_date) if certification.issue_date else None,
             "expiry_date": str(certification.expiry_date) if certification.expiry_date else None,
             "issuing_organization": certification.issuing_organization,
@@ -5816,6 +6829,16 @@ async def update_certification(
             certification.document_number = certification_data["document_number"]
         if "document_date" in certification_data:
             certification.document_date = datetime.strptime(certification_data["document_date"], "%Y-%m-%d").date() if certification_data["document_date"] else None
+        if "method_code" in certification_data:
+            certification.method_code = certification_data["method_code"] or None
+        if "equipment_type_id" in certification_data:
+            if certification_data["equipment_type_id"]:
+                try:
+                    certification.equipment_type_id = uuid_lib.UUID(certification_data["equipment_type_id"])
+                except:
+                    certification.equipment_type_id = None
+            else:
+                certification.equipment_type_id = None
         
         await db.commit()
         await db.refresh(certification)
@@ -5825,6 +6848,8 @@ async def update_certification(
             "engineer_id": str(certification.engineer_id),
             "certification_type": certification.certification_type,
             "certificate_number": certification.certificate_number,
+            "method_code": certification.method_code,
+            "equipment_type_id": str(certification.equipment_type_id) if certification.equipment_type_id else None,
             "issue_date": str(certification.issue_date) if certification.issue_date else None,
             "expiry_date": str(certification.expiry_date) if certification.expiry_date else None,
             "issuing_organization": certification.issuing_organization,
@@ -6095,6 +7120,13 @@ async def get_reports(
             equipment_id = None
             project_id = None
             inspection = None
+            enterprise_id = None
+            enterprise_name = None
+            branch_id = None
+            branch_name = None
+            workshop_id = None
+            workshop_name = None
+            equipment_name = None
             
             # Пытаемся получить ФИО инженера из связанной инспекции
             if r.inspection_id:
@@ -6106,6 +7138,43 @@ async def get_reports(
                     # Получаем equipment_id и project_id из инспекции
                     equipment_id = str(inspection.equipment_id) if inspection.equipment_id else None
                     project_id = str(inspection.project_id) if inspection.project_id else None
+                    
+                    # Получаем информацию об оборудовании и иерархии
+                    if inspection.equipment_id:
+                        eq_result = await db.execute(
+                            select(Equipment).where(Equipment.id == inspection.equipment_id)
+                        )
+                        equipment = eq_result.scalar_one_or_none()
+                        if equipment:
+                            equipment_name = equipment.name
+                            
+                            # Получаем информацию о цехе, филиале и предприятии
+                            if equipment.workshop_id:
+                                workshop_result = await db.execute(
+                                    select(Workshop).where(Workshop.id == equipment.workshop_id)
+                                )
+                                workshop = workshop_result.scalar_one_or_none()
+                                if workshop:
+                                    workshop_id = str(workshop.id)
+                                    workshop_name = workshop.name
+                                    
+                                    # Получаем филиал
+                                    branch_result = await db.execute(
+                                        select(Branch).where(Branch.id == workshop.branch_id)
+                                    )
+                                    branch = branch_result.scalar_one_or_none()
+                                    if branch:
+                                        branch_id = str(branch.id)
+                                        branch_name = branch.name
+                                        
+                                        # Получаем предприятие
+                                        enterprise_result = await db.execute(
+                                            select(Enterprise).where(Enterprise.id == branch.enterprise_id)
+                                        )
+                                        enterprise = enterprise_result.scalar_one_or_none()
+                                        if enterprise:
+                                            enterprise_id = str(enterprise.id)
+                                            enterprise_name = enterprise.name
                     
                     if inspection.inspector_id:
                         # Получаем информацию об инженере из users
@@ -6128,7 +7197,14 @@ async def get_reports(
                 "id": str(r.id),
                 "inspection_id": str(r.inspection_id) if r.inspection_id else None,
                 "equipment_id": equipment_id,
+                "equipment_name": equipment_name,
                 "project_id": project_id,
+                "enterprise_id": enterprise_id,
+                "enterprise_name": enterprise_name,
+                "branch_id": branch_id,
+                "branch_name": branch_name,
+                "workshop_id": workshop_id,
+                "workshop_name": workshop_name,
                 "report_type": r.report_type,
                 "title": f"{r.report_type} Report" if r.report_type else "Report",
                 "file_path": r.file_path,
@@ -6139,6 +7215,7 @@ async def get_reports(
                 "inspector_name": inspector_name,
                 "inspector_position": inspector_position,
                 "created_by": str(r.created_by) if r.created_by else None,
+                "is_archived": getattr(r, "is_archived", False),
                 "created_at": r.created_at.isoformat() if r.created_at else None,
                 "word_file_path": getattr(r, "word_file_path", None),
                 "word_file_size": getattr(r, "word_file_size", None),
@@ -6173,21 +7250,102 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
         equipment = eq_result.scalar_one_or_none()
         if not equipment:
             raise HTTPException(status_code=404, detail="Equipment not found")
-        
-        # Получаем методы НК через questionnaire_id
+
+        # Данные ОПО (если оборудование привязано к ОПО)
+        opo_info = None
+        try:
+            opo = None
+            if getattr(equipment, "opo_id", None):
+                opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
+                opo = opo_result.scalar_one_or_none()
+            if opo:
+                workshop = None
+                branch = None
+                enterprise = None
+                if getattr(opo, "workshop_id", None):
+                    w_result = await db.execute(select(Workshop).where(Workshop.id == opo.workshop_id))
+                    workshop = w_result.scalar_one_or_none()
+                if workshop and getattr(workshop, "branch_id", None):
+                    b_result = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
+                    branch = b_result.scalar_one_or_none()
+                if branch and getattr(branch, "enterprise_id", None):
+                    e_result = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
+                    enterprise = e_result.scalar_one_or_none()
+
+                opo_info = {
+                    "id": str(opo.id),
+                    "name": opo.name,
+                    "code": opo.code,
+                    "description": opo.description,
+                    "survey_data": opo.survey_data or {},
+                    "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
+                    "workshop_name": workshop.name if workshop else None,
+                    "branch_id": str(branch.id) if branch else None,
+                    "branch_name": branch.name if branch else None,
+                    "enterprise_id": str(enterprise.id) if enterprise else None,
+                    "enterprise_name": enterprise.name if enterprise else None,
+                }
+        except Exception as e:
+            print(f"Warning: Could not load OPO info for preview: {e}")
+            opo_info = None
+
+        # Получаем методы НК:
+        # 1) по inspection_id
+        # 2) фолбэк по questionnaire_id
+        ndt_methods = []
+        try:
+            ndt_result = await db.execute(
+                select(NDTMethod).where(NDTMethod.inspection_id == inspection.id)
+            )
+            ndt_methods = ndt_result.scalars().all()
+        except Exception:
+            ndt_methods = []
+
         # Сначала находим questionnaire для этого inspection
         questionnaire_result = await db.execute(
             select(Questionnaire).where(Questionnaire.equipment_id == equipment.id)
             .order_by(Questionnaire.created_at.desc())
         )
         questionnaire = questionnaire_result.scalar_one_or_none()
-        
-        ndt_methods = []
-        if questionnaire:
+        if not ndt_methods and questionnaire:
             ndt_result = await db.execute(
                 select(NDTMethod).where(NDTMethod.questionnaire_id == questionnaire.id)
             )
             ndt_methods = ndt_result.scalars().all()
+
+        # Файлы документов/вложений
+        document_files = []
+        try:
+            q_query = select(Questionnaire).where(Questionnaire.equipment_id == equipment.id)
+            if getattr(inspection, "created_at", None):
+                q_query = q_query.order_by(
+                    func.abs(func.extract("epoch", Questionnaire.created_at - inspection.created_at))
+                )
+            else:
+                q_query = q_query.order_by(Questionnaire.created_at.desc())
+
+            q_result = await db.execute(q_query)
+            q_for_files = q_result.scalar_one_or_none()
+            if q_for_files:
+                questionnaire = q_for_files
+                files_result = await db.execute(
+                    select(QuestionnaireDocumentFile).where(
+                        QuestionnaireDocumentFile.questionnaire_id == q_for_files.id
+                    )
+                )
+                files = files_result.scalars().all()
+                document_files = [
+                    {
+                        "document_number": f.document_number,
+                        "file_name": f.file_name,
+                        "file_size": int(f.file_size or 0),
+                        "file_type": f.file_type,
+                        "mime_type": f.mime_type,
+                    }
+                    for f in files
+                ]
+        except Exception:
+            document_files = []
         
         # Получаем данные ресурса, если есть
         resource_data = None
@@ -6225,8 +7383,11 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
             "questionnaire": {
                 "id": str(questionnaire.id) if questionnaire else None,
             },
+            "document_files": document_files,
+            "opo": opo_info,
             "ndt_methods": [
                 {
+                    "id": str(m.id),
                     "method_code": m.method_code,
                     "method_name": m.method_name,
                     "is_performed": bool(m.is_performed),
@@ -6237,6 +7398,8 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
                     "results": m.results,
                     "defects": m.defects,
                     "conclusion": m.conclusion,
+                    "photos": m.photos or [],
+                    "additional_data": m.additional_data or {},
                 }
                 for m in ndt_methods
             ],
@@ -6355,6 +7518,56 @@ async def generate_report(
             equipment = eq_result.scalar_one_or_none()
             if not equipment:
                 raise HTTPException(status_code=404, detail="Equipment not found")
+            
+            # Get equipment type information
+            equipment_type_code = None
+            equipment_type_name = None
+            if equipment.type_id:
+                type_result = await db.execute(
+                    select(EquipmentType).where(EquipmentType.id == equipment.type_id)
+                )
+                equipment_type = type_result.scalar_one_or_none()
+                if equipment_type:
+                    equipment_type_code = equipment_type.code
+                    equipment_type_name = equipment_type.name
+
+            # Данные ОПО для отчета (если оборудование привязано к ОПО)
+            opo_info = None
+            try:
+                opo = None
+                if getattr(equipment, "opo_id", None):
+                    opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
+                    opo = opo_result.scalar_one_or_none()
+                if opo:
+                    workshop = None
+                    branch = None
+                    enterprise = None
+                    if getattr(opo, "workshop_id", None):
+                        w_result = await db.execute(select(Workshop).where(Workshop.id == opo.workshop_id))
+                        workshop = w_result.scalar_one_or_none()
+                    if workshop and getattr(workshop, "branch_id", None):
+                        b_result = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
+                        branch = b_result.scalar_one_or_none()
+                    if branch and getattr(branch, "enterprise_id", None):
+                        e_result = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
+                        enterprise = e_result.scalar_one_or_none()
+
+                    opo_info = {
+                        "id": str(opo.id),
+                        "name": opo.name,
+                        "code": opo.code,
+                        "description": opo.description,
+                        "survey_data": opo.survey_data or {},
+                        "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
+                        "workshop_name": workshop.name if workshop else None,
+                        "branch_id": str(branch.id) if branch else None,
+                        "branch_name": branch.name if branch else None,
+                        "enterprise_id": str(enterprise.id) if enterprise else None,
+                        "enterprise_name": enterprise.name if enterprise else None,
+                    }
+            except Exception as e:
+                print(f"Warning: Could not load OPO info: {e}")
+                opo_info = None
             
             # Get resource data if expertise
             resource_data = None
@@ -6600,16 +7813,61 @@ async def generate_report(
                         specialist_docs.append({"inspector_name": name, "certifications": items})
             except Exception:
                 specialist_docs = []
-            
+
+            # Подготавливаем данные для отчета и добавляем информацию об ОПО (если есть)
+            inspection_payload = {
+                "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
+                "data": inspection.data,
+                "conclusion": inspection.conclusion,
+                "status": inspection.status,
+            }
+            try:
+                data_payload = inspection_payload.get("data")
+                if isinstance(data_payload, dict) and opo_info:
+                    data_payload = dict(data_payload)
+                    survey = opo_info.get("survey_data") if isinstance(opo_info.get("survey_data"), dict) else {}
+                    if isinstance(survey, dict):
+                        docs_current = data_payload.get("documents") or {}
+                        if isinstance(docs_current, dict) and isinstance(survey.get("documents"), dict):
+                            merged_docs = dict(docs_current)
+                            for k, v in survey.get("documents").items():
+                                try:
+                                    n = int(str(k))
+                                except Exception:
+                                    continue
+                                if 1 <= n <= 9 and not merged_docs.get(str(k)):
+                                    merged_docs[str(k)] = v
+                            data_payload["documents"] = merged_docs
+                        if not data_payload.get("organization") and survey.get("organization"):
+                            data_payload["organization"] = survey.get("organization")
+                        if not data_payload.get("executors") and survey.get("executors"):
+                            data_payload["executors"] = survey.get("executors")
+                        data_payload.setdefault("opo_survey", survey)
+
+                    data_payload.setdefault("opo", opo_info)
+                    if opo_info.get("id"):
+                        data_payload.setdefault("opo_id", opo_info["id"])
+                    if opo_info.get("name"):
+                        data_payload.setdefault("opo_name", opo_info["name"])
+                    if opo_info.get("code"):
+                        data_payload.setdefault("opo_code", opo_info["code"])
+                    if opo_info.get("description"):
+                        data_payload.setdefault("opo_description", opo_info["description"])
+                    if opo_info.get("enterprise_name"):
+                        data_payload.setdefault("opo_enterprise", opo_info["enterprise_name"])
+                    if opo_info.get("branch_name"):
+                        data_payload.setdefault("opo_branch", opo_info["branch_name"])
+                    if opo_info.get("workshop_name"):
+                        data_payload.setdefault("opo_workshop", opo_info["workshop_name"])
+
+                    inspection_payload["data"] = data_payload
+            except Exception as e:
+                print(f"Warning: Could not merge OPO data into report payload: {e}")
+
             if is_docx:
                 # Генерация Word документа
                 word_generator.generate_report_word(
-                    {
-                        "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                        "data": inspection.data,
-                        "conclusion": inspection.conclusion,
-                        "status": inspection.status,
-                    },
+                    inspection_payload,
                     {
                         "id": str(equipment.id),
                         "name": equipment.name,
@@ -6617,6 +7875,8 @@ async def generate_report(
                         "location": equipment.location,
                         "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
                         "attributes": equipment.attributes or {},
+                        "type_code": equipment_type_code,
+                        "type_name": equipment_type_name,
                     },
                     ndt_methods_data,
                     str(file_path),
@@ -6630,12 +7890,7 @@ async def generate_report(
                 # Генерация PDF
                 if report_type == "EXPERTISE":
                     generator.generate_expertise_report(
-                        {
-                            "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                            "data": inspection.data,
-                            "conclusion": inspection.conclusion,
-                            "status": inspection.status,
-                        },
+                        inspection_payload,
                         {
                             "id": str(equipment.id),
                             "name": equipment.name,
@@ -6653,12 +7908,7 @@ async def generate_report(
                     )
                 else:
                     generator.generate_technical_report(
-                        {
-                            "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                            "data": inspection.data,
-                            "conclusion": inspection.conclusion,
-                            "status": inspection.status,
-                        },
+                        inspection_payload,
                         {
                             "id": str(equipment.id),
                             "name": equipment.name,
@@ -6674,10 +7924,17 @@ async def generate_report(
                         verification_equipment=verification_equipment_list,
                     )
             
+            # Генерируем номера отчета
+            from report_utils import generate_report_number, generate_registration_number
+            report_number = await generate_report_number(db, report_type)
+            registration_number = await generate_registration_number(db)
+            
             # Save report record
             new_report = Report(
                 inspection_id=inspection_id,
                 report_type=report_type,
+                report_number=report_number,
+                registration_number=registration_number,
                 file_path=str(file_path),
                 file_size=file_path.stat().st_size if file_path.exists() else 0,
                 created_by=current_user.id,
@@ -6693,6 +7950,8 @@ async def generate_report(
             
             return {
                 "id": str(new_report.id),
+                "report_number": new_report.report_number,
+                "registration_number": new_report.registration_number,
                 "file_path": str(file_path),
                 "file_size": new_report.file_size,
                 "format": "docx" if is_docx else "pdf",
@@ -6707,6 +7966,232 @@ async def generate_report(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+
+# Report Templates endpoints (работа с БД)
+@app.get("/api/report-templates-db")
+async def get_report_templates_db(
+    client_id: Optional[str] = None,
+    template_type: Optional[str] = None,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить список шаблонов отчетов из БД"""
+    try:
+        from models import ReportTemplate
+        query = select(ReportTemplate).where(ReportTemplate.is_active == 1)
+        
+        if client_id:
+            try:
+                client_uuid = uuid_lib.UUID(client_id)
+                query = query.where(ReportTemplate.client_id == client_uuid)
+            except:
+                pass
+        
+        if template_type:
+            query = query.where(ReportTemplate.template_type == template_type)
+        
+        result = await db.execute(query)
+        templates = result.scalars().all()
+        
+        items = []
+        for t in templates:
+            items.append({
+                "id": str(t.id),
+                "name": t.name,
+                "description": t.description,
+                "template_type": t.template_type,
+                "client_id": str(t.client_id) if t.client_id else None,
+                "template_config": t.template_config,
+                "is_default": t.is_default,
+                "is_active": t.is_active,
+            })
+        
+        return {"items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/report-templates-db")
+async def create_report_template_db(
+    template_data: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Создать шаблон отчета в БД"""
+    try:
+        from models import ReportTemplate
+        user_result = await db.execute(select(User).where(User.username == username))
+        current_user = user_result.scalar_one_or_none()
+        
+        client_id = None
+        if template_data.get("client_id"):
+            try:
+                client_id = uuid_lib.UUID(template_data.get("client_id"))
+            except:
+                pass
+        
+        if template_data.get("is_default"):
+            existing_defaults = await db.execute(
+                select(ReportTemplate).where(
+                    ReportTemplate.template_type == template_data.get("template_type"),
+                    ReportTemplate.is_default == True
+                )
+            )
+            for t in existing_defaults.scalars().all():
+                t.is_default = False
+        
+        template = ReportTemplate(
+            name=template_data.get("name"),
+            description=template_data.get("description"),
+            template_type=template_data.get("template_type", "TECHNICAL"),
+            client_id=client_id,
+            template_config=template_data.get("template_config", {}),
+            is_default=template_data.get("is_default", False),
+            created_by=current_user.id if current_user else None,
+        )
+        
+        db.add(template)
+        await db.commit()
+        await db.refresh(template)
+        
+        return {"id": str(template.id), "name": template.name, "status": "created"}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/report-templates-db/{template_id}")
+async def update_report_template_db(
+    template_id: str,
+    template_data: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Обновить шаблон отчета в БД"""
+    try:
+        from models import ReportTemplate
+        template_uuid = uuid_lib.UUID(template_id)
+        result = await db.execute(
+            select(ReportTemplate).where(ReportTemplate.id == template_uuid)
+        )
+        template = result.scalar_one_or_none()
+        
+        if not template:
+            raise HTTPException(status_code=404, detail="Шаблон не найден")
+        
+        if "name" in template_data:
+            template.name = template_data["name"]
+        if "description" in template_data:
+            template.description = template_data["description"]
+        if "template_type" in template_data:
+            template.template_type = template_data["template_type"]
+        if "template_config" in template_data:
+            template.template_config = template_data["template_config"]
+        if "client_id" in template_data:
+            if template_data["client_id"]:
+                try:
+                    template.client_id = uuid_lib.UUID(template_data["client_id"])
+                except:
+                    template.client_id = None
+            else:
+                template.client_id = None
+        
+        if "is_default" in template_data:
+            if template_data["is_default"]:
+                existing_defaults = await db.execute(
+                    select(ReportTemplate).where(
+                        ReportTemplate.template_type == template.template_type,
+                        ReportTemplate.is_default == True,
+                        ReportTemplate.id != template_uuid
+                    )
+                )
+                for t in existing_defaults.scalars().all():
+                    t.is_default = False
+            template.is_default = template_data["is_default"]
+        
+        await db.commit()
+        await db.refresh(template)
+        
+        return {"id": str(template.id), "name": template.name, "status": "updated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/report-templates-db/{template_id}")
+async def delete_report_template_db(
+    template_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Удалить шаблон отчета из БД"""
+    try:
+        from models import ReportTemplate
+        template_uuid = uuid_lib.UUID(template_id)
+        result = await db.execute(
+            select(ReportTemplate).where(ReportTemplate.id == template_uuid)
+        )
+        template = result.scalar_one_or_none()
+        
+        if not template:
+            raise HTTPException(status_code=404, detail="Шаблон не найден")
+        
+        template.is_active = 0
+        await db.commit()
+        
+        return {"status": "deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/reports/{report_id}/sign")
+async def sign_report(
+    report_id: str,
+    signature_data: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Подписать отчет электронной подписью"""
+    try:
+        from datetime import timezone
+        user_result = await db.execute(select(User).where(User.username == username))
+        current_user = user_result.scalar_one_or_none()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        report_uuid = uuid_lib.UUID(report_id)
+        result = await db.execute(
+            select(Report).where(Report.id == report_uuid)
+        )
+        report = result.scalar_one_or_none()
+        
+        if not report:
+            raise HTTPException(status_code=404, detail="Отчет не найден")
+        
+        report.is_signed = True
+        report.signed_at = datetime.now(timezone.utc)
+        report.signed_by = current_user.id
+        
+        await db.commit()
+        await db.refresh(report)
+        
+        return {
+            "id": str(report.id),
+            "is_signed": report.is_signed,
+            "signed_at": str(report.signed_at),
+            "status": "signed"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/api/reports/{report_id}")
@@ -8111,13 +9596,14 @@ async def create_verification_equipment(
         if current_user.get("role") not in ["admin", "chief_operator", "operator"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав")
         
+        new_id = uuid_lib.uuid4()
         scan_file_path = None
         scan_file_name = None
         scan_file_size = None
         scan_mime_type = None
         
         if scan_file:
-            upload_dir = Path("uploads/verification-scans")
+            upload_dir = Path("/app/uploads/verification_scans") / str(new_id)
             upload_dir.mkdir(parents=True, exist_ok=True)
             
             file_ext = Path(scan_file.filename).suffix
@@ -8137,6 +9623,7 @@ async def create_verification_equipment(
         next_verification_date_obj = datetime.strptime(next_verification_date, "%Y-%m-%d").date()
         
         new_equipment = VerificationEquipment(
+            id=new_id,
             name=name,
             equipment_type=equipment_type,
             category=category,
@@ -8322,7 +9809,7 @@ async def update_verification_equipment(
                 except:
                     pass
             
-            upload_dir = Path("uploads/verification-scans")
+            upload_dir = Path("/app/uploads/verification_scans") / str(item.id)
             upload_dir.mkdir(parents=True, exist_ok=True)
             
             file_ext = Path(scan_file.filename).suffix

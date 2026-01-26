@@ -130,7 +130,8 @@ class ReportGenerator:
                 textColor=colors.HexColor('#334155'),
                 alignment=TA_JUSTIFY,
                 spaceAfter=10,
-                fontName=default_font
+                fontName=default_font,
+                wordWrap='CJK'  # Включаем перенос слов для длинных строк
             )
             self.styles.add(body_style)
         else:
@@ -140,6 +141,7 @@ class ReportGenerator:
             self.styles['BodyText'].alignment = TA_JUSTIFY
             self.styles['BodyText'].spaceAfter = 10
             self.styles['BodyText'].fontName = default_font
+            self.styles['BodyText'].wordWrap = 'CJK'  # Включаем перенос слов
         
         # Заключение
         if 'Conclusion' not in self.styles.byName:
@@ -258,7 +260,10 @@ class ReportGenerator:
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
         story.append(table)
         story.append(Spacer(1, 0.5*cm))
@@ -290,7 +295,10 @@ class ReportGenerator:
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
         story.append(table2)
         story.append(Spacer(1, 0.5*cm))
@@ -309,12 +317,54 @@ class ReportGenerator:
                 story.append(Paragraph("Методы НК не указаны или не выполнены.", self.styles['BodyText']))
             else:
                 for idx, m in enumerate(performed, 1):
-                    story.append(Paragraph(f"Акт №{idx}. {m.get('method_name', 'Метод НК')}", self.styles['Heading3']))
+                    # Преобразуем код метода в русское название для заголовка
+                    method_code = str(m.get("method_code") or "").upper()
+                    method_name_ru = m.get("method_name") or ""
+                    if not method_name_ru or method_name_ru == method_code:
+                        method_mapping = {
+                            "VIK": "ВИК",
+                            "UZK": "УЗК",
+                            "UZT": "УЗТ",
+                            "PVK": "ПВК",
+                            "MK": "МК",
+                            "RK": "РК",
+                            "MPD": "МПД",
+                            "KPD": "КПД",
+                            "TVI": "ТВИ",
+                            "AK": "АК",
+                            "TK": "ТК",
+                        }
+                        method_name_ru = method_mapping.get(method_code, method_code or "Метод НК")
+                    # Преобразуем код метода в русское название для заголовка и таблицы
+                    method_code = str(m.get("method_code") or "").upper()
+                    method_name_ru = m.get("method_name") or ""
+                    if not method_name_ru or method_name_ru == method_code:
+                        method_mapping = {
+                            "VIK": "ВИК",
+                            "UZK": "УЗК",
+                            "UZT": "УЗТ",
+                            "PVK": "ПВК",
+                            "MK": "МК",
+                            "RK": "РК",
+                            "MPD": "МПД",
+                            "KPD": "КПД",
+                            "TVI": "ТВИ",
+                            "AK": "АК",
+                            "TK": "ТК",
+                        }
+                        method_name_ru = method_mapping.get(method_code, method_code or "Метод НК")
+                    story.append(Paragraph(f"Акт №{idx}. {method_name_ru}", self.styles['Heading3']))
+                    
+                    # Форматируем значения для таблицы, обрезая длинные строки
+                    equipment_val = str(m.get("equipment") or "")
+                    if len(equipment_val) > 50:
+                        equipment_val = equipment_val[:47] + "..."
+                    
                     act_rows = [
-                        ["Метод НК:", str(m.get("method_name") or "")],
-                        ["Код:", str(m.get("method_code") or "")],
+                        ["Метод НК:", method_name_ru],
+                        ["Код:", method_code],
                         ["Нормативный документ:", str(m.get("standard") or "")],
-                        ["Оборудование/прибор:", str(m.get("equipment") or "")],
+                        ["Оборудование/прибор:", equipment_val],
                         ["Дата выполнения:", str(m.get("performed_date") or inspection_data.get("date_performed") or "")],
                         ["Специалист:", str(m.get("inspector_name") or "")],
                         ["Уровень:", str(m.get("inspector_level") or "")],
@@ -327,30 +377,96 @@ class ReportGenerator:
                         ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
                         ('FONTNAME', (0, 0), (0, -1), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
                         ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                     ]))
                     story.append(t)
                     story.append(Spacer(1, 0.2*cm))
                     if m.get("results"):
-                        story.append(Paragraph(f"<b>Результаты:</b> {str(m.get('results'))}", self.styles['Normal']))
+                        results_text = str(m.get('results') or '')
+                        # Разбиваем длинные строки на параграфы
+                        if len(results_text) > 100:
+                            # Разбиваем по предложениям или запятым
+                            parts = results_text.split('. ')
+                            for part in parts:
+                                if part.strip():
+                                    story.append(Paragraph(f"<b>Результаты:</b> {part.strip()}.", self.styles['Normal']))
+                        else:
+                            story.append(Paragraph(f"<b>Результаты:</b> {results_text}", self.styles['Normal']))
                     if m.get("defects"):
-                        story.append(Paragraph(f"<b>Дефекты:</b> {str(m.get('defects'))}", self.styles['Normal']))
+                        defects_text = str(m.get('defects') or '')
+                        if len(defects_text) > 100:
+                            parts = defects_text.split('. ')
+                            for part in parts:
+                                if part.strip():
+                                    story.append(Paragraph(f"<b>Дефекты:</b> {part.strip()}.", self.styles['Normal']))
+                        else:
+                            story.append(Paragraph(f"<b>Дефекты:</b> {defects_text}", self.styles['Normal']))
                     if m.get("conclusion"):
-                        story.append(Paragraph(f"<b>Заключение:</b> {str(m.get('conclusion'))}", self.styles['Normal']))
+                        conclusion_text = str(m.get('conclusion') or '')
+                        if len(conclusion_text) > 100:
+                            parts = conclusion_text.split('. ')
+                            for part in parts:
+                                if part.strip():
+                                    story.append(Paragraph(f"<b>Заключение:</b> {part.strip()}.", self.styles['Normal']))
+                        else:
+                            story.append(Paragraph(f"<b>Заключение:</b> {conclusion_text}", self.styles['Normal']))
 
                     # Фото по методу НК
                     photos = m.get("photos") or []
-                    if isinstance(photos, list) and photos:
+                    # Также проверяем аннотированные изображения
+                    additional_data = m.get("additional_data", {})
+                    annotated_images = []
+                    if isinstance(additional_data, dict):
+                        annotated_images = additional_data.get("annotated_images", []) or []
+                    
+                    # Объединяем обычные фото и аннотированные
+                    all_photos = list(photos) if isinstance(photos, list) else []
+                    if isinstance(annotated_images, list):
+                        all_photos.extend(annotated_images)
+                    
+                    if all_photos:
                         story.append(Paragraph("Фотоматериалы:", self.styles['BodyText']))
-                        for p in photos[:10]:
-                            if isinstance(p, str) and os.path.exists(p):
+                        for p in all_photos[:10]:
+                            if not isinstance(p, str):
+                                continue
+                            
+                            # Проверяем различные варианты путей
+                            possible_paths = [p]
+                            if not os.path.isabs(p):
+                                possible_paths.extend([
+                                    f"/app/uploads/ndt_photos/{p}",
+                                    f"/app/uploads/{p}",
+                                    f"/app/reports/assets/{p}",
+                                ])
+                            
+                            # Если путь содержит только имя файла
+                            if "/" not in p or p.count("/") == 0:
+                                filename = os.path.basename(p)
+                                possible_paths.extend([
+                                    f"/app/uploads/ndt_photos/{filename}",
+                                    f"/app/uploads/{filename}",
+                                ])
+                            
+                            found_path = None
+                            for path_option in possible_paths:
+                                if os.path.exists(path_option) and os.path.isfile(path_option):
+                                    found_path = path_option
+                                    break
+                            
+                            if found_path:
                                 try:
-                                    img = Image(p)
+                                    img = Image(found_path)
                                     img.drawWidth = 16 * cm
                                     img.drawHeight = 10 * cm
                                     story.append(img)
                                     story.append(Spacer(1, 0.2*cm))
-                                except Exception:
+                                except Exception as e:
+                                    print(f"Warning: Could not add photo {found_path}: {e}")
                                     pass
                     story.append(Spacer(1, 0.4*cm))
         else:
@@ -384,19 +500,53 @@ class ReportGenerator:
                     sp = c.get("scan_file_path")
                     mt = (c.get("scan_mime_type") or "")
                     # Встраиваем изображения; PDF перечисляем строкой (встраивание страниц PDF в ReportLab не делаем)
-                    if isinstance(sp, str) and os.path.exists(sp) and ("image" in mt):
-                        try:
-                            img = Image(sp)
-                            img.drawWidth = 16 * cm
-                            img.drawHeight = 10 * cm
-                            story.append(img)
-                            story.append(Spacer(1, 0.2*cm))
-                        except Exception:
-                            pass
+                    if isinstance(sp, str) and ("image" in mt.lower()):
+                        # Проверяем различные варианты путей
+                        possible_paths = [sp]
+                        if not os.path.isabs(sp):
+                            possible_paths.extend([
+                                f"/app/uploads/{sp}",
+                                f"/app/uploads/certifications/{sp}",
+                                f"/opt/es-td-ngo/backend/uploads/{sp}",
+                            ])
+                        
+                        # Если путь содержит только имя файла
+                        if "/" not in sp or sp.count("/") == 0:
+                            filename = os.path.basename(sp)
+                            possible_paths.extend([
+                                f"/app/uploads/certifications/{filename}",
+                                f"/app/uploads/{filename}",
+                            ])
+                        
+                        found_path = None
+                        for path_option in possible_paths:
+                            if os.path.exists(path_option) and os.path.isfile(path_option):
+                                found_path = path_option
+                                break
+                        
+                        if found_path:
+                            try:
+                                img = Image(found_path)
+                                img.drawWidth = 16 * cm
+                                img.drawHeight = 10 * cm
+                                story.append(img)
+                                story.append(Spacer(1, 0.2*cm))
+                            except Exception as e:
+                                print(f"Warning: Could not add certification scan {found_path}: {e}")
+                                pass
         else:
             story.append(Paragraph("Документы специалистов НК не приложены.", self.styles['BodyText']))
         
         # Используемое оборудование для поверок
+        fallback_equipment = []
+        if not (verification_equipment and isinstance(verification_equipment, list) and len(verification_equipment) > 0):
+            for m in (ndt_methods or []):
+                name = (m.get('equipment') or '').strip()
+                if not name:
+                    continue
+                if name not in [e.get('name') for e in fallback_equipment]:
+                    fallback_equipment.append({'name': name})
+
         if verification_equipment and isinstance(verification_equipment, list) and len(verification_equipment) > 0:
             story.append(Spacer(1, 0.5*cm))
             story.append(Paragraph("7.1. Используемое оборудование для неразрушающего контроля", self.styles['Heading3']))
@@ -455,16 +605,83 @@ class ReportGenerator:
                         # Пытаемся встроить изображение (для PDF/PNG/JPG)
                         mime_type = eq.get('scan_mime_type', '')
                         if 'image' in mime_type.lower():
-                            img = Image(scan_path)
-                            img.drawWidth = 16 * cm
-                            img.drawHeight = 10 * cm
-                            story.append(img)
-                            story.append(Spacer(1, 0.2*cm))
+                            # Проверяем различные варианты путей
+                            possible_paths = [scan_path]
+                            if not os.path.isabs(scan_path):
+                                possible_paths.extend([
+                                    f"/app/uploads/verification_scans/{scan_path}",
+                                    f"/app/uploads/{scan_path}",
+                                    f"/opt/es-td-ngo/backend/uploads/verification_scans/{scan_path}",
+                                ])
+                            
+                            # Если путь содержит только имя файла
+                            if "/" not in scan_path or scan_path.count("/") == 0:
+                                filename = os.path.basename(scan_path)
+                                possible_paths.extend([
+                                    f"/app/uploads/verification_scans/{filename}",
+                                    f"/app/uploads/{filename}",
+                                ])
+                            
+                            found_path = None
+                            for path_option in possible_paths:
+                                if os.path.exists(path_option) and os.path.isfile(path_option):
+                                    found_path = path_option
+                                    break
+                            
+                            if found_path:
+                                try:
+                                    img = Image(found_path)
+                                    img.drawWidth = 16 * cm
+                                    img.drawHeight = 10 * cm
+                                    story.append(img)
+                                    story.append(Spacer(1, 0.2*cm))
+                                except Exception as e:
+                                    print(f"Warning: Could not add verification scan {found_path}: {e}")
+                                    pass
                         else:
                             # Для PDF просто указываем, что файл приложен
                             story.append(Paragraph(f"Файл: {scan_name}", self.styles['BodyText']))
                     except Exception as e:
                         story.append(Paragraph(f"Не удалось встроить изображение: {str(e)}", self.styles['BodyText']))
+        elif fallback_equipment:
+            story.append(Spacer(1, 0.5*cm))
+            story.append(Paragraph("7.1. Используемое оборудование для неразрушающего контроля", self.styles['Heading3']))
+            story.append(Paragraph(
+                "При проведении обследования использовалось следующее оборудование (из данных методов НК):",
+                self.styles['BodyText']
+            ))
+            eq_table_data = [['№', 'Наименование', 'Тип', 'Серийный номер', 'Срок поверки', 'Свидетельство']]
+            for idx, eq in enumerate(fallback_equipment, 1):
+                eq_table_data.append([
+                    str(idx),
+                    eq.get('name', ''),
+                    '—',
+                    '—',
+                    '—',
+                    '—',
+                ])
+            eq_table = Table(eq_table_data, colWidths=[0.8*cm, 5*cm, 2.5*cm, 3*cm, 3*cm, 3.7*cm])
+            eq_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
+                ('FONTNAME', (0, 0), (-1, 0), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(eq_table)
+        else:
+            # Если нет ни verification_equipment, ни fallback_equipment, показываем сообщение
+            story.append(Spacer(1, 0.5*cm))
+            story.append(Paragraph("7.1. Используемое оборудование для неразрушающего контроля", self.styles['Heading3']))
+            story.append(Paragraph("Приборы не указаны.", self.styles['BodyText']))
         
         # Подпись
         story.append(Spacer(1, 0.8*cm))
@@ -483,6 +700,21 @@ class ReportGenerator:
                     return data.get(k)
             return default
 
+        opo = data.get("opo") or data.get("opo_info") or {}
+        if not isinstance(opo, dict):
+            opo = {}
+
+        def _opo_get(*keys, default=None):
+            for k in keys:
+                if k in opo and opo.get(k) not in (None, ""):
+                    return opo.get(k)
+            for k in keys:
+                camel_key = ''.join(word.capitalize() if i > 0 else word for i, word in enumerate(k.split('_')))
+                camel_key_lower = camel_key[0].lower() + camel_key[1:] if camel_key else k
+                if camel_key_lower in opo and opo.get(camel_key_lower) not in (None, ""):
+                    return opo.get(camel_key_lower)
+            return _get(*keys, default=default)
+
         # Быстрый индекс вложений по ключу (document_number -> file_path)
         attachments: Dict[str, str] = {}
         if document_files and isinstance(document_files, list):
@@ -495,26 +727,105 @@ class ReportGenerator:
                     attachments[dn] = fp
 
         def _add_image_if_exists(title: str, path: Optional[str]):
+            """Добавить изображение в отчет, если оно существует"""
             if not path or not isinstance(path, str):
                 return
-            if not os.path.exists(path):
+            
+            # Проверяем различные варианты путей
+            possible_paths = [path]
+            
+            # Если путь относительный, пробуем абсолютные варианты
+            if not os.path.isabs(path):
+                possible_paths.extend([
+                    f"/app/uploads/{path}",
+                    f"/app/reports/assets/{path}",
+                    f"/opt/es-td-ngo/backend/uploads/{path}",
+                ])
+            
+            # Если путь содержит только имя файла, ищем в стандартных местах
+            if "/" not in path or path.count("/") == 0:
+                filename = os.path.basename(path)
+                possible_paths.extend([
+                    f"/app/uploads/{filename}",
+                    f"/app/reports/assets/{filename}",
+                    f"/opt/es-td-ngo/backend/uploads/{filename}",
+                ])
+            
+            # Ищем существующий файл
+            found_path = None
+            for p in possible_paths:
+                if os.path.exists(p) and os.path.isfile(p):
+                    found_path = p
+                    break
+            
+            if not found_path:
                 return
+            
             try:
                 story.append(Paragraph(title, self.styles['BodyText']))
-                img = Image(path)
-                # масштабируем по ширине страницы
+                img = Image(found_path)
+                # Масштабируем по ширине страницы
                 img.drawWidth = 16 * cm
                 img.drawHeight = 10 * cm
                 story.append(img)
                 story.append(Spacer(1, 0.3 * cm))
-            except Exception:
+            except Exception as e:
+                print(f"Warning: Could not add image {found_path}: {e}")
                 pass
 
+        # Сведения об ОПО (если есть)
+        opo_name = _opo_get("name", "opo_name")
+        opo_code = _opo_get("code", "opo_code")
+        opo_desc = _opo_get("description", "opo_description")
+        opo_enterprise = _opo_get("enterprise_name", "opo_enterprise")
+        opo_branch = _opo_get("branch_name", "opo_branch")
+        opo_workshop = _opo_get("workshop_name", "opo_workshop")
+        survey = data.get("opo_survey") if isinstance(data.get("opo_survey"), dict) else opo.get("survey_data")
+        if not isinstance(survey, dict):
+            survey = {}
+        opo_org = survey.get("organization")
+        opo_exec = survey.get("executors")
+
+        if any([opo_name, opo_code, opo_desc, opo_enterprise, opo_branch, opo_workshop, opo_org, opo_exec]):
+            story.append(Paragraph("Сведения об ОПО", self.styles['SectionTitle']))
+            rows = []
+            def _add_row(label, value):
+                if value is None:
+                    return
+                s = str(value).strip()
+                if not s:
+                    return
+                rows.append([label, s])
+            _add_row("Наименование ОПО", opo_name)
+            _add_row("Код ОПО", opo_code)
+            _add_row("Описание", opo_desc)
+            _add_row("Предприятие", opo_enterprise)
+            _add_row("Филиал", opo_branch)
+            _add_row("Цех", opo_workshop)
+            _add_row("Организация (опросный лист ОПО)", opo_org)
+            _add_row("Исполнители (опросный лист ОПО)", opo_exec)
+            if rows:
+                table = Table(rows, colWidths=[6*cm, 12*cm])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f1f5f9')),
+                    ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#334155')),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
+                    ('FONTNAME', (0, 0), (0, -1), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 0.4*cm))
+
         # Документы
-        if _get('documents'):
+        docs = _get('documents', default={})
+        docs_info = _get('documents_info', default={})
+        if docs or docs_info:
             story.append(Paragraph("3.1. Перечень рассмотренных документов", self.styles['SectionTitle']))
-            doc_data = [['№', 'Наименование документа', 'Наличие']]
-            docs = _get('documents', default={})
+            doc_data = [['№', 'Наименование документа', 'Номер документа', 'Дата документа', 'Наличие']]
             # Список названий документов (из мобильного приложения)
             document_names = {
                 '1': 'Лицензия на осуществление деятельности по эксплуатации взрывопожароопасных и химически опасных производственных объектов I, II и III классов опасности',
@@ -535,12 +846,58 @@ class ReportGenerator:
                 '16': 'Заключение экспертизы промышленной безопасности',
                 '17': 'Акты проведения УЗТ',
             }
+            def _doc_meta(num: str):
+                num_key = str(num)
+                present = None
+                doc_number = ""
+                doc_date = ""
+                if isinstance(docs, dict) and num_key in docs:
+                    val = docs.get(num_key)
+                    if isinstance(val, dict):
+                        present = val.get("present")
+                        if present is None:
+                            present = val.get("has") if val.get("has") is not None else val.get("value")
+                        doc_number = str(val.get("number") or val.get("doc_number") or "")
+                        doc_date = str(val.get("date") or val.get("doc_date") or "")
+                    else:
+                        if isinstance(val, str):
+                            present = val.strip().lower() in ("true", "1", "yes", "да")
+                        else:
+                            present = bool(val)
+                if isinstance(docs_info, dict) and num_key in docs_info:
+                    info = docs_info.get(num_key) or {}
+                    if isinstance(info, dict):
+                        if present is None:
+                            present = info.get("present")
+                            if present is None:
+                                present = info.get("has") if info.get("has") is not None else info.get("value")
+                        if not doc_number:
+                            doc_number = str(info.get("number") or info.get("doc_number") or "")
+                        if not doc_date:
+                            doc_date = str(info.get("date") or info.get("doc_date") or "")
+                return (present, doc_number, doc_date)
+
+            doc_keys = set()
             if isinstance(docs, dict):
-                for num, has_doc in docs.items():
-                    doc_name = document_names.get(str(num), f'Документ {num}')
-                    doc_data.append([num, doc_name, 'Да' if has_doc else 'Нет'])
+                doc_keys.update([str(k) for k in docs.keys()])
+            if isinstance(docs_info, dict):
+                doc_keys.update([str(k) for k in docs_info.keys()])
+            doc_keys = sorted(doc_keys, key=lambda x: int(x) if str(x).isdigit() else 999)
+
+            for num in doc_keys:
+                doc_name = document_names.get(str(num), f'Документ {num}')
+                present, doc_number, doc_date = _doc_meta(str(num))
+                # Исправляем отображение наличия документа
+                presence_text = 'Да' if present else '—'
+                doc_data.append([
+                    num,
+                    doc_name,
+                    doc_number or '—',
+                    doc_date or '—',
+                    presence_text
+                ])
             
-            table = Table(doc_data, colWidths=[1*cm, 12*cm, 5*cm])
+            table = Table(doc_data, colWidths=[1*cm, 9*cm, 3*cm, 3*cm, 3*cm])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -589,7 +946,18 @@ class ReportGenerator:
 
         # Фото заводской таблички (как в мобильном)
         plate_path = _get('factory_plate_photo', 'factoryPlatePhoto')
-        _add_image_if_exists("Фото заводской таблички:", attachments.get("factory_plate_photo") or plate_path)
+        # Проверяем в attachments и в данных
+        plate_to_use = attachments.get("factory_plate_photo") or plate_path
+        if not plate_to_use and inspection_data.get("data") and isinstance(inspection_data.get("data"), dict):
+            plate_to_use = inspection_data["data"].get("factory_plate_photo") or inspection_data["data"].get("factoryPlatePhoto")
+        
+        # Также проверяем в дополнительных данных
+        if not plate_to_use:
+            additional_data = inspection_data.get("additional_data", {})
+            if isinstance(additional_data, dict):
+                plate_to_use = additional_data.get("factory_plate_photo") or additional_data.get("factoryPlatePhoto")
+        
+        _add_image_if_exists("Фото заводской таблички:", plate_to_use)
 
         # Толщинометрия (УЗТ) — таблица + схема (если есть)
         thickness = _get('thickness_measurements', 'thicknessMeasurements', default=[])
@@ -618,16 +986,47 @@ class ReportGenerator:
                     ('FONTNAME', (0, 0), (-1, 0), getattr(self, "bold_font", self.default_font)),
                     ('FONTSIZE', (0, 0), (-1, 0), 8),
                     ('FONTSIZE', (0, 1), (-1, -1), 7),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                     ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ]))
                 story.append(t)
                 story.append(Spacer(1, 0.3*cm))
 
             scheme_path = _get('control_scheme_image', 'controlSchemeImage')
-            _add_image_if_exists("Схема контроля:", attachments.get("control_scheme_image") or scheme_path)
+            # Проверяем в attachments и в данных
+            scheme_to_use = attachments.get("control_scheme_image") or scheme_path
+            if not scheme_to_use:
+                # Пробуем найти в данных inspection_data
+                if inspection_data.get("data") and isinstance(inspection_data.get("data"), dict):
+                    scheme_to_use = inspection_data["data"].get("control_scheme_image") or inspection_data["data"].get("controlSchemeImage")
+            
+            # Также проверяем в дополнительных данных
+            if not scheme_to_use:
+                additional_data = inspection_data.get("additional_data", {})
+                if isinstance(additional_data, dict):
+                    scheme_to_use = additional_data.get("control_scheme_image") or additional_data.get("controlSchemeImage")
+            
+            _add_image_if_exists("Схема контроля:", scheme_to_use)
+        else:
+            scheme_path = _get('control_scheme_image', 'controlSchemeImage')
+            scheme_to_use = attachments.get("control_scheme_image") or scheme_path
+            if not scheme_to_use:
+                # Пробуем найти в данных inspection_data
+                if inspection_data.get("data") and isinstance(inspection_data.get("data"), dict):
+                    scheme_to_use = inspection_data["data"].get("control_scheme_image") or inspection_data["data"].get("controlSchemeImage")
+            
+            # Также проверяем в дополнительных данных
+            if not scheme_to_use:
+                additional_data = inspection_data.get("additional_data", {})
+                if isinstance(additional_data, dict):
+                    scheme_to_use = additional_data.get("control_scheme_image") or additional_data.get("controlSchemeImage")
+            
+            _add_image_if_exists("Схема контроля:", scheme_to_use)
 
         # ЗРА
         zra = _get('zra_items', default=[])

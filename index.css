@@ -8,6 +8,15 @@ html, body, #root {
 
 body {
   background: #0f172a;
+  transition: background-color 0.3s ease;
+}
+
+body.light {
+  background: #f8fafc;
+}
+
+body.dark {
+  background: #0f172a;
 }
 
 /* Custom Scrollbar */

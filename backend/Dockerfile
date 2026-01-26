@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/
 
 # Создание необходимых директорий
-RUN mkdir -p /app/reports /app/certs /app/uploads/certification_scans
+RUN mkdir -p /app/reports /app/certs /app/uploads/certification_scans /app/uploads/verification_scans /app/uploads/ndt_photos
 
 # Открытие порта
 EXPOSE 8000

@@ -86,16 +86,35 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           'performed_date': formData['performed_date'] != null
               ? (formData['performed_date'] as DateTime).toIso8601String()
               : null,
-          'photos': _annotatedImagePaths,
+          'photos': [],
           'additional_data': {
-            'annotated_images': _annotatedImagePaths,
+            'annotated_images': [],
           },
         };
 
-        await _apiService.addNDTMethod(
+        final created = await _apiService.addNDTMethod(
           questionnaireId: widget.questionnaireId,
           methodData: methodData,
         );
+
+        final methodId = created['id']?.toString();
+        if (methodId != null && _annotatedImagePaths.isNotEmpty) {
+          for (final path in _annotatedImagePaths) {
+            try {
+              final file = File(path);
+              if (!file.existsSync()) continue;
+              await _apiService.uploadNdtMethodPhoto(
+                questionnaireId: widget.questionnaireId,
+                methodId: methodId,
+                filePath: path,
+                annotated: true,
+              );
+            } catch (e) {
+              // Не блокируем сохранение метода из-за ошибок загрузки фото
+              print('Ошибка загрузки фото НК: $e');
+            }
+          }
+        }
 
         if (mounted) {
           Navigator.of(context).pop(true);

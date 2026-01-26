@@ -17,12 +17,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   User? _user;
   bool _isLoading = true;
   String _appVersion = 'Загрузка...';
+  bool _pinEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadUser();
     _loadAppVersion();
+    _loadPinStatus();
   }
 
   Future<void> _loadAppVersion() async {
@@ -44,6 +46,176 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _user = user;
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadPinStatus() async {
+    final enabled = await _authService.hasPin();
+    if (!mounted) return;
+    setState(() {
+      _pinEnabled = enabled;
+    });
+  }
+
+  Future<void> _showSetPinDialog({required bool requireCurrent}) async {
+    final currentController = TextEditingController();
+    final pinController = TextEditingController();
+    final confirmController = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: Text(
+          requireCurrent ? 'Изменить PIN-код' : 'Установить PIN-код',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (requireCurrent) ...[
+                TextField(
+                  controller: currentController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Текущий PIN',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+              ],
+              TextField(
+                controller: pinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Новый PIN (4-6 цифр)',
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: confirmController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Повторите PIN',
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Сохранить', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    final currentPin = currentController.text.trim();
+    final pin = pinController.text.trim();
+    final confirm = confirmController.text.trim();
+    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN должен содержать 4-6 цифр'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (pin != confirm) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN не совпадает'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (requireCurrent) {
+      final verified = await _authService.verifyPin(currentPin);
+      if (!verified) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Неверный текущий PIN'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+    }
+
+    await _authService.setPin(pin);
+    if (!mounted) return;
+    setState(() => _pinEnabled = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('PIN-код сохранен'), backgroundColor: Colors.green),
+    );
+  }
+
+  Future<void> _showRemovePinDialog() async {
+    final pinController = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Отключить PIN-код', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: pinController,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: const InputDecoration(
+            labelText: 'Введите PIN',
+            labelStyle: TextStyle(color: Colors.white70),
+          ),
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Отключить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    final pin = pinController.text.trim();
+    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN должен содержать 4-6 цифр'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    final verified = await _authService.verifyPin(pin);
+    if (!verified) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Неверный PIN'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    await _authService.clearPin();
+    if (!mounted) return;
+    setState(() => _pinEnabled = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('PIN-код отключен'), backgroundColor: Colors.green),
+    );
   }
 
   Future<void> _logout() async {
@@ -197,6 +369,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () {
                 // TODO: Переход на экран синхронизации
               },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            color: const Color(0xFF1e293b),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.lock, color: Colors.orange),
+                  title: const Text(
+                    'PIN-код',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    _pinEnabled ? 'Включен' : 'Не установлен',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white70),
+                  onTap: () {
+                    _showSetPinDialog(requireCurrent: _pinEnabled);
+                  },
+                ),
+                if (_pinEnabled)
+                  ListTile(
+                    leading: const Icon(Icons.delete, color: Colors.red),
+                    title: const Text(
+                      'Отключить PIN',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    onTap: _showRemovePinDialog,
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 8),

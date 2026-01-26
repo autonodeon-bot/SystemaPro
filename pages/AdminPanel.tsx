@@ -569,7 +569,251 @@ const AdminPanel = () => {
           )}
         </>
       )}
+
+      {/* Модальное окно добавления инженера */}
+      {showAddEngineer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddEngineer(false)}>
+          <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-white">Добавить инженера</h2>
+              <button onClick={() => setShowAddEngineer(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <AddEngineerForm onClose={() => setShowAddEngineer(false)} onSuccess={() => {
+              setShowAddEngineer(false);
+              loadData();
+            }} />
+          </div>
+        </div>
+      )}
     </div>
+  );
+};
+
+// Компонент формы добавления инженера
+const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> = ({ onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    full_name: '',
+    position: '',
+    email: '',
+    phone: '',
+    qualifications: [] as string[],
+    equipment_types: [] as string[],
+  });
+  const [qualificationInput, setQualificationInput] = useState('');
+  const [equipmentTypes, setEquipmentTypes] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const API_BASE = 'http://5.129.203.182:8000';
+
+  useEffect(() => {
+    loadEquipmentTypes();
+  }, []);
+
+  const loadEquipmentTypes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/equipment-types`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setEquipmentTypes(data.items || []);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки типов оборудования:', error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/engineers`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(formData)
+      });
+
+      if (response.ok) {
+        setFormData({
+          full_name: '',
+          position: '',
+          email: '',
+          phone: '',
+          qualifications: [],
+          equipment_types: [],
+        });
+        setQualificationInput('');
+        onSuccess();
+        alert('Инженер успешно создан');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Ошибка при создании инженера');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Ошибка при создании инженера');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
+      <div>
+        <label className="text-sm text-slate-400 block mb-1">ФИО *</label>
+        <input
+          type="text"
+          required
+          value={formData.full_name}
+          onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+          className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+          placeholder="Иванов Иван Иванович"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-400 block mb-1">Должность</label>
+        <input
+          type="text"
+          value={formData.position}
+          onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+          className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+          placeholder="Инженер-диагност"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm text-slate-400 block mb-1">Email</label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+            placeholder="ivanov@example.com"
+          />
+        </div>
+        <div>
+          <label className="text-sm text-slate-400 block mb-1">Телефон</label>
+          <input
+            type="tel"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+            placeholder="+7 (XXX) XXX-XX-XX"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-400 block mb-2">Квалификации</label>
+        <div className="flex gap-2 mb-2">
+          <input
+            type="text"
+            value={qualificationInput}
+            onChange={(e) => setQualificationInput(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (qualificationInput.trim() && !formData.qualifications.includes(qualificationInput.trim())) {
+                  setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] });
+                  setQualificationInput('');
+                }
+              }
+            }}
+            className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-white"
+            placeholder="Введите квалификацию и нажмите Enter"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (qualificationInput.trim() && !formData.qualifications.includes(qualificationInput.trim())) {
+                setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] });
+                setQualificationInput('');
+              }
+            }}
+            className="bg-accent/20 text-accent px-4 py-2 rounded hover:bg-accent/30"
+          >
+            Добавить
+          </button>
+        </div>
+        {formData.qualifications.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {formData.qualifications.map((qual, idx) => (
+              <span key={idx} className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-sm flex items-center gap-2">
+                {qual}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, qualifications: formData.qualifications.filter((_, i) => i !== idx) });
+                  }}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-400 block mb-2">Типы оборудования, с которыми работает</label>
+        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto bg-slate-900 border border-slate-700 rounded p-3">
+          {equipmentTypes.map((type) => (
+            <label key={type.id} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.equipment_types.includes(type.id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setFormData({ ...formData, equipment_types: [...formData.equipment_types, type.id] });
+                  } else {
+                    setFormData({ ...formData, equipment_types: formData.equipment_types.filter(id => id !== type.id) });
+                  }
+                }}
+                className="accent-blue-500"
+              />
+              <span className="text-white text-sm">{type.name}</span>
+            </label>
+          ))}
+        </div>
+        {equipmentTypes.length === 0 && (
+          <p className="text-xs text-yellow-400 mt-1">Типы оборудования не загружены</p>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-accent px-4 py-2 rounded-lg text-white font-bold hover:bg-accent/80 disabled:opacity-50"
+        >
+          {saving ? 'Создание...' : 'Создать'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+        >
+          Отмена
+        </button>
+      </div>
+    </form>
   );
 };
 

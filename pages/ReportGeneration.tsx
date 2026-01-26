@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, FileCheck, Sparkles, Search, Eye, X, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { FileText, Download, FileCheck, Sparkles, Search, Eye, X, CheckCircle, AlertCircle, Trash2, Archive, ArchiveRestore, ChevronDown, ChevronRight, Building2, Factory } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Inspection {
@@ -8,6 +8,13 @@ interface Inspection {
   date_performed?: string;
   status: string;
   conclusion?: string;
+  enterprise_id?: string;
+  enterprise_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+  workshop_id?: string;
+  workshop_name?: string;
+  is_archived?: boolean;
 }
 
 interface Equipment {
@@ -21,11 +28,19 @@ interface Report {
   id: string;
   inspection_id: string;
   equipment_id: string;
+  equipment_name?: string;
   report_type: string;
   title: string;
   file_path: string;
   status: string;
   created_at: string;
+  enterprise_id?: string;
+  enterprise_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+  workshop_id?: string;
+  workshop_name?: string;
+  is_archived?: boolean;
 }
 
 interface PreviewData {
@@ -43,6 +58,26 @@ interface PreviewData {
     location?: string;
     commissioning_date?: string;
     attributes?: any;
+  };
+  questionnaire?: {
+    id?: string | null;
+  };
+  document_files?: Array<{
+    document_number: string;
+    file_name?: string;
+    file_size?: number;
+    file_type?: string;
+    mime_type?: string;
+  }>;
+  opo?: {
+    id?: string;
+    name?: string;
+    code?: string;
+    description?: string;
+    enterprise_name?: string;
+    branch_name?: string;
+    workshop_name?: string;
+    survey_data?: any;
   };
   ndt_methods: Array<{
     method_code: string;
@@ -64,6 +99,15 @@ interface PreviewData {
   };
 }
 
+interface GroupedItem {
+  key: string;
+  enterprise_name?: string;
+  branch_name?: string;
+  workshop_name?: string;
+  inspections: Inspection[];
+  reports: Report[];
+}
+
 const ReportGeneration = () => {
   const navigate = useNavigate();
   const [inspections, setInspections] = useState<Inspection[]>([]);
@@ -75,12 +119,14 @@ const ReportGeneration = () => {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewType, setPreviewType] = useState<string>('');
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [showArchived, setShowArchived] = useState(false);
 
   const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [showArchived]);
 
   const loadData = async () => {
     try {
@@ -100,14 +146,72 @@ const ReportGeneration = () => {
       const eqData = await eqRes.json();
       const repData = await repRes.json();
       
-      setInspections(inspData.items || []);
+      // Фильтруем по архиву
+      let filteredInspections = inspData.items || [];
+      let filteredReports = repData.items || [];
+      
+      if (!showArchived) {
+        filteredInspections = filteredInspections.filter((i: Inspection) => !i.is_archived);
+        filteredReports = filteredReports.filter((r: Report) => !r.is_archived);
+      }
+      
+      setInspections(filteredInspections);
       setEquipment(eqData.items || []);
-      setReports(repData.items || []);
+      setReports(filteredReports);
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const groupItems = (): GroupedItem[] => {
+    const groupsMap = new Map<string, GroupedItem>();
+    
+    // Группируем инспекции
+    inspections.forEach((inspection) => {
+      const key = `${inspection.enterprise_id || 'no-enterprise'}_${inspection.branch_id || 'no-branch'}_${inspection.workshop_id || 'no-workshop'}`;
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
+          key,
+          enterprise_name: inspection.enterprise_name,
+          branch_name: inspection.branch_name,
+          workshop_name: inspection.workshop_name,
+          inspections: [],
+          reports: [],
+        });
+      }
+      groupsMap.get(key)!.inspections.push(inspection);
+    });
+    
+    // Группируем отчеты
+    reports.forEach((report) => {
+      const key = `${report.enterprise_id || 'no-enterprise'}_${report.branch_id || 'no-branch'}_${report.workshop_id || 'no-workshop'}`;
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
+          key,
+          enterprise_name: report.enterprise_name,
+          branch_name: report.branch_name,
+          workshop_name: report.workshop_name,
+          inspections: [],
+          reports: [],
+        });
+      }
+      groupsMap.get(key)!.reports.push(report);
+    });
+    
+    return Array.from(groupsMap.values()).sort((a, b) => {
+      const aName = a.enterprise_name || a.branch_name || a.workshop_name || '';
+      const bName = b.enterprise_name || b.branch_name || b.workshop_name || '';
+      return aName.localeCompare(bName);
+    });
+  };
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
   };
 
   const loadPreview = async (inspectionId: string, reportType: string) => {
@@ -136,7 +240,45 @@ const ReportGeneration = () => {
     }
   };
 
-  const generateReport = async (inspectionId: string, reportType: string, format: string = 'pdf') => {
+  const validateReportData = async (inspectionId: string): Promise<{is_complete: boolean, missing_fields: string[], warnings: string[]}> => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${API_BASE}/api/reports/validate/${inspectionId}`, { headers });
+      if (response.ok) {
+        return await response.json();
+      }
+      return { is_complete: false, missing_fields: ['Ошибка проверки'], warnings: [] };
+    } catch (error) {
+      return { is_complete: false, missing_fields: ['Ошибка проверки'], warnings: [] };
+    }
+  };
+
+  const generateReport = async (inspectionId: string, reportType: string, format: string = 'pdf', skipValidation: boolean = false) => {
+    // Проверка полноты данных перед генерацией
+    if (!skipValidation) {
+      const validation = await validateReportData(inspectionId);
+      if (!validation.is_complete) {
+        const missingText = validation.missing_fields.length > 0 
+          ? `\nОтсутствуют обязательные поля:\n${validation.missing_fields.map(f => `• ${f}`).join('\n')}`
+          : '';
+        const warningsText = validation.warnings.length > 0
+          ? `\nПредупреждения:\n${validation.warnings.map(w => `• ${w}`).join('\n')}`
+          : '';
+        
+        const shouldContinue = window.confirm(
+          `Данные обследования неполные.${missingText}${warningsText}\n\nПродолжить генерацию отчета?`
+        );
+        if (!shouldContinue) {
+          return;
+        }
+      }
+    }
+
     setGenerating(inspectionId);
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -152,6 +294,7 @@ const ReportGeneration = () => {
           inspection_id: inspectionId,
           report_type: reportType,
           format: format,
+          skip_validation: skipValidation,
           title: `${
             reportType === 'DIAGNOSTICS'
               ? 'Диагностический отчет'
@@ -164,7 +307,8 @@ const ReportGeneration = () => {
 
       if (response.ok) {
         const data = await response.json();
-        alert(`Отчет успешно сгенерирован в формате ${format.toUpperCase()}!`);
+        const reportInfo = data.report_number ? `\nНомер отчета: ${data.report_number}\nРегистрационный номер: ${data.registration_number}` : '';
+        alert(`Отчет успешно сгенерирован в формате ${format.toUpperCase()}!${reportInfo}`);
         await loadData(); // Обновляем данные после генерации
         setPreviewData(null);
       } else {
@@ -176,6 +320,93 @@ const ReportGeneration = () => {
       alert(`Ошибка генерации отчета: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
       setGenerating(null);
+    }
+  };
+
+  const archiveInspection = async (inspectionId: string, archive: boolean) => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${API_BASE}/api/inspections/bulk-archive`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          inspection_ids: [inspectionId],
+          archive: archive
+        })
+      });
+      
+      if (response.ok) {
+        await loadData();
+        alert(archive ? 'Чек-лист перемещен в архив' : 'Чек-лист восстановлен из архива');
+      } else {
+        const error = await response.json().catch(() => ({ detail: 'Ошибка' }));
+        alert(`Ошибка: ${error.detail || 'Не удалось архивировать'}`);
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  const deleteInspection = async (inspectionId: string) => {
+    if (!window.confirm('Удалить чек-лист? Это действие нельзя отменить.')) {
+      return;
+    }
+    
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${API_BASE}/api/inspections/${inspectionId}`, {
+        method: 'DELETE',
+        headers
+      });
+      
+      if (response.ok) {
+        await loadData();
+        alert('Чек-лист удален');
+      } else {
+        const error = await response.json().catch(() => ({ detail: 'Ошибка' }));
+        alert(`Ошибка: ${error.detail || 'Не удалось удалить'}`);
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  const archiveReport = async (reportId: string, archive: boolean) => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${API_BASE}/api/reports/bulk-archive`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          report_ids: [reportId],
+          archive: archive
+        })
+      });
+      
+      if (response.ok) {
+        await loadData();
+        alert(archive ? 'Отчет перемещен в архив' : 'Отчет восстановлен из архива');
+      } else {
+        const error = await response.json().catch(() => ({ detail: 'Ошибка' }));
+        alert(`Ошибка: ${error.detail || 'Не удалось архивировать'}`);
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     }
   };
 
@@ -252,10 +483,52 @@ const ReportGeneration = () => {
     return reports.find(r => r.inspection_id === inspectionId);
   };
 
+  const getGroupDisplayName = (group: GroupedItem): string => {
+    const parts: string[] = [];
+    if (group.enterprise_name) parts.push(group.enterprise_name);
+    if (group.branch_name) parts.push(group.branch_name);
+    if (group.workshop_name) parts.push(group.workshop_name);
+    return parts.length > 0 ? parts.join(' → ') : 'Без привязки';
+  };
+
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterReportType, setFilterReportType] = useState<string>('all');
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
+
   const filteredInspections = inspections.filter(ins => {
     const eqName = getEquipmentName(ins.equipment_id);
-    return eqName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = eqName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (ins.enterprise_name && ins.enterprise_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                         (ins.workshop_name && ins.workshop_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    if (!matchesSearch) return false;
+    
+    if (filterStatus !== 'all' && ins.status !== filterStatus) return false;
+    
+    if (filterDateFrom) {
+      const insDate = ins.date_performed ? new Date(ins.date_performed) : null;
+      if (!insDate || insDate < new Date(filterDateFrom)) return false;
+    }
+    
+    if (filterDateTo) {
+      const insDate = ins.date_performed ? new Date(ins.date_performed) : null;
+      if (!insDate || insDate > new Date(filterDateTo)) return false;
+    }
+    
+    return true;
   });
+
+  const groupedItems = groupItems();
+
+  const previewDocs = previewData?.document_files ?? [];
+  const questionnaireId = previewData?.questionnaire?.id;
+  const buildDocUrl = (docNumber: string) => {
+    if (!questionnaireId) return null;
+    return `${API_BASE}/api/questionnaires/${encodeURIComponent(questionnaireId)}/documents/${encodeURIComponent(docNumber)}/view`;
+  };
+  const isImageDoc = (mime?: string) => (mime || '').toLowerCase().startsWith('image/');
+  const isPdfDoc = (mime?: string) => (mime || '').toLowerCase().includes('pdf');
 
   if (loading) {
     return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
@@ -274,119 +547,270 @@ const ReportGeneration = () => {
             Редактор отчетов
           </button>
         </div>
-        <div className="relative w-full md:w-64">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Поиск по оборудованию..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 text-sm md:text-base"
-          />
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-accent focus:ring-accent"
+            />
+            <span>Показать архивные</span>
+          </label>
+          
+          {/* Расширенные фильтры */}
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            >
+              <option value="all">Все статусы</option>
+              <option value="DRAFT">Черновик</option>
+              <option value="SIGNED">Подписан</option>
+              <option value="SUBMITTED">Отправлен</option>
+              <option value="COMPLETED">Завершен</option>
+            </select>
+            
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              placeholder="Дата от"
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            />
+            
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              placeholder="Дата до"
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            />
+          </div>
+          
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+            <input
+              type="text"
+              placeholder="Поиск по оборудованию..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 text-sm md:text-base"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Список диагностик */}
-      <div className="space-y-4">
-        {filteredInspections.map((inspection) => {
-          const existingReport = getInspectionReport(inspection.id);
-          const eqName = getEquipmentName(inspection.equipment_id);
+      {/* Группированный список */}
+      <div className="space-y-2">
+        {groupedItems.map((group) => {
+          const isExpanded = expandedGroups[group.key] ?? true;
+          const totalItems = group.inspections.length + group.reports.length;
           
           return (
-            <div
-              key={inspection.id}
-              className="bg-slate-800 p-4 rounded-xl border border-slate-700"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white mb-1">{eqName}</h3>
-                  <p className="text-sm text-slate-400">
-                    {inspection.date_performed 
-                      ? new Date(inspection.date_performed).toLocaleDateString('ru-RU')
-                      : 'Дата не указана'}
-                    {' • '}
-                    Статус: {inspection.status}
-                  </p>
-                </div>
-                {existingReport && (
-                  <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
-                    Отчет создан
+            <div key={group.key} className="bg-slate-800 rounded-xl border border-slate-700">
+              {/* Заголовок группы */}
+              <button
+                onClick={() => toggleGroup(group.key)}
+                className="w-full p-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors rounded-t-xl"
+              >
+                <div className="flex items-center gap-3">
+                  {isExpanded ? (
+                    <ChevronDown className="text-slate-400" size={20} />
+                  ) : (
+                    <ChevronRight className="text-slate-400" size={20} />
+                  )}
+                  {group.enterprise_name && <Building2 className="text-slate-400" size={18} />}
+                  {group.workshop_name && <Factory className="text-slate-400" size={18} />}
+                  <span className="text-white font-bold">{getGroupDisplayName(group)}</span>
+                  <span className="text-sm text-slate-400">
+                    ({totalItems} {totalItems === 1 ? 'элемент' : totalItems < 5 ? 'элемента' : 'элементов'})
                   </span>
-                )}
-              </div>
+                </div>
+              </button>
+              
+              {/* Содержимое группы */}
+              {isExpanded && (
+                <div className="p-4 space-y-4 border-t border-slate-700">
+                  {/* Чек-листы */}
+                  {group.inspections.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-400 mb-2">Чек-листы ({group.inspections.length})</h3>
+                      <div className="space-y-3">
+                        {group.inspections.map((inspection) => {
+                          const existingReport = getInspectionReport(inspection.id);
+                          const eqName = getEquipmentName(inspection.equipment_id);
+                          
+                          return (
+                            <div
+                              key={inspection.id}
+                              className="bg-slate-900 p-4 rounded-lg border border-slate-700"
+                            >
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex-1">
+                                  <h3 className="text-lg font-bold text-white mb-1">{eqName}</h3>
+                                  <p className="text-sm text-slate-400">
+                                    {inspection.date_performed 
+                                      ? new Date(inspection.date_performed).toLocaleDateString('ru-RU')
+                                      : 'Дата не указана'}
+                                    {' • '}
+                                    Статус: {inspection.status}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {existingReport && (
+                                    <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                                      Отчет создан
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => archiveInspection(inspection.id, !inspection.is_archived)}
+                                    className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 rounded"
+                                    title={inspection.is_archived ? 'Восстановить из архива' : 'Переместить в архив'}
+                                  >
+                                    {inspection.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                                  </button>
+                                  <button
+                                    onClick={() => deleteInspection(inspection.id)}
+                                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded"
+                                    title="Удалить"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
 
-              {inspection.conclusion && (
-                <p className="text-sm text-slate-300 mb-4 line-clamp-2">{inspection.conclusion}</p>
+                              {inspection.conclusion && (
+                                <p className="text-sm text-slate-300 mb-4 line-clamp-2">{inspection.conclusion}</p>
+                              )}
+
+                              <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+                                <button
+                                  onClick={() => loadPreview(inspection.id, 'TECHNICAL_REPORT')}
+                                  disabled={loadingPreview || generating === inspection.id}
+                                  className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-purple-500/20 disabled:opacity-50"
+                                >
+                                  <Eye size={14} className="md:w-4 md:h-4" />
+                                  <span className="hidden sm:inline">Предпросмотр технического отчета</span>
+                                  <span className="sm:hidden">Предпросмотр (PDF)</span>
+                                </button>
+                                <button
+                                  onClick={() => loadPreview(inspection.id, 'EXPERTISE')}
+                                  disabled={loadingPreview || generating === inspection.id}
+                                  className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 disabled:opacity-50"
+                                >
+                                  <Eye size={14} className="md:w-4 md:h-4" />
+                                  <span className="hidden sm:inline">Предпросмотр экспертизы ПБ</span>
+                                  <span className="sm:hidden">Предпросмотр (ЭПБ)</span>
+                                </button>
+                                <button
+                                  onClick={() => handleGenerateDirectly(inspection.id, 'DIAGNOSTICS', 'docx')}
+                                  disabled={generating === inspection.id}
+                                  className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-amber-500/20 disabled:opacity-50"
+                                >
+                                  <FileText size={14} className="md:w-4 md:h-4" />
+                                  <span className="hidden sm:inline">Диагностический отчет (DOCX)</span>
+                                  <span className="sm:hidden">Диагн. DOCX</span>
+                                </button>
+                                <button
+                                  onClick={() => handleGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'pdf')}
+                                  disabled={generating === inspection.id}
+                                  className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-500/20 disabled:opacity-50"
+                                >
+                                  <FileText size={14} className="md:w-4 md:h-4" />
+                                  <span className="hidden sm:inline">Сгенерировать новый отчет (PDF)</span>
+                                  <span className="sm:hidden">PDF</span>
+                                </button>
+                                <button
+                                  onClick={() => handleGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'docx')}
+                                  disabled={generating === inspection.id}
+                                  className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20 disabled:opacity-50"
+                                >
+                                  <FileText size={14} className="md:w-4 md:h-4" />
+                                  <span className="hidden sm:inline">Сгенерировать новый отчет (DOCX)</span>
+                                  <span className="sm:hidden">DOCX</span>
+                                </button>
+                                {existingReport && (
+                                  <button
+                                    onClick={() => handleDownloadReport(existingReport.id, existingReport.file_path)}
+                                    className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20"
+                                  >
+                                    <Download size={14} className="md:w-4 md:h-4" />
+                                    <span className="hidden sm:inline">Скачать {existingReport.report_type === 'TECHNICAL_REPORT' ? 'отчет' : 'экспертизу'}</span>
+                                    <span className="sm:hidden">Скачать</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Отчеты */}
+                  {group.reports.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-400 mb-2">Отчеты ({group.reports.length})</h3>
+                      <div className="space-y-2">
+                        {group.reports.map((report) => (
+                          <div
+                            key={report.id}
+                            className="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center"
+                          >
+                            <div className="flex-1">
+                              <p className="text-white font-bold">{report.title}</p>
+                              {report.equipment_name && (
+                                <p className="text-sm text-slate-400">Оборудование: {report.equipment_name}</p>
+                              )}
+                              <p className="text-sm text-slate-400">
+                                {report.report_type === 'TECHNICAL_REPORT' ? 'Технический отчет' : 
+                                 report.report_type === 'EXPERTISE' ? 'Экспертиза ПБ' : 'Отчет'}
+                                {' • '}
+                                {new Date(report.created_at).toLocaleDateString('ru-RU')}
+                                {' • '}
+                                Статус: {report.status}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDownloadReport(report.id, report.file_path)}
+                                className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
+                              >
+                                <Download size={16} />
+                                Скачать
+                              </button>
+                              <button
+                                onClick={() => archiveReport(report.id, !report.is_archived)}
+                                className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 rounded"
+                                title={report.is_archived ? 'Восстановить из архива' : 'Переместить в архив'}
+                              >
+                                {report.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                              </button>
+                              <button
+                                onClick={() => deleteReport(report.id)}
+                                className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded"
+                                title="Удалить"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
-
-              <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-                {/* Всегда показываем кнопки предпросмотра */}
-                <button
-                  onClick={() => loadPreview(inspection.id, 'TECHNICAL_REPORT')}
-                  disabled={loadingPreview || generating === inspection.id}
-                  className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-purple-500/20 disabled:opacity-50"
-                >
-                  <Eye size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Предпросмотр технического отчета</span>
-                  <span className="sm:hidden">Предпросмотр (PDF)</span>
-                </button>
-                <button
-                  onClick={() => loadPreview(inspection.id, 'EXPERTISE')}
-                  disabled={loadingPreview || generating === inspection.id}
-                  className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 disabled:opacity-50"
-                >
-                  <Eye size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Предпросмотр экспертизы ПБ</span>
-                  <span className="sm:hidden">Предпросмотр (ЭПБ)</span>
-                </button>
-                {/* Всегда показываем кнопки генерации, даже если отчет уже создан */}
-                <button
-                  onClick={() => handleGenerateDirectly(inspection.id, 'DIAGNOSTICS', 'docx')}
-                  disabled={generating === inspection.id}
-                  className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-amber-500/20 disabled:opacity-50"
-                >
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Диагностический отчет (DOCX)</span>
-                  <span className="sm:hidden">Диагн. DOCX</span>
-                </button>
-                <button
-                  onClick={() => handleGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'pdf')}
-                  disabled={generating === inspection.id}
-                  className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-500/20 disabled:opacity-50"
-                >
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Сгенерировать новый отчет (PDF)</span>
-                  <span className="sm:hidden">PDF</span>
-                </button>
-                <button
-                  onClick={() => handleGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'docx')}
-                  disabled={generating === inspection.id}
-                  className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20 disabled:opacity-50"
-                >
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Сгенерировать новый отчет (DOCX)</span>
-                  <span className="sm:hidden">DOCX</span>
-                </button>
-                {/* Показываем кнопку скачивания, если отчет уже создан */}
-                {existingReport && (
-                  <button
-                    onClick={() => handleDownloadReport(existingReport.id, existingReport.file_path)}
-                    className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20"
-                  >
-                    <Download size={14} className="md:w-4 md:h-4" />
-                    <span className="hidden sm:inline">Скачать {existingReport.report_type === 'TECHNICAL_REPORT' ? 'отчет' : 'экспертизу'}</span>
-                    <span className="sm:hidden">Скачать</span>
-                  </button>
-                )}
-              </div>
             </div>
           );
         })}
       </div>
 
-      {filteredInspections.length === 0 && (
+      {groupedItems.length === 0 && (
         <div className="text-center text-slate-400 py-20">
-          Диагностики не найдены
+          {showArchived ? 'Архивные элементы не найдены' : 'Диагностики не найдены'}
         </div>
       )}
 
@@ -464,6 +888,120 @@ const ReportGeneration = () => {
                   )}
                 </div>
               </div>
+
+              {/* ОПО */}
+              {previewData.opo && (
+                <div className="bg-slate-900 p-4 rounded-lg">
+                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                    <Factory size={20} className="text-blue-400" />
+                    Сведения об ОПО
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    {previewData.opo.name && (
+                      <div>
+                        <span className="text-slate-400">Наименование:</span>
+                        <p className="text-white">{previewData.opo.name}</p>
+                      </div>
+                    )}
+                    {previewData.opo.code && (
+                      <div>
+                        <span className="text-slate-400">Код:</span>
+                        <p className="text-white">{previewData.opo.code}</p>
+                      </div>
+                    )}
+                    {previewData.opo.enterprise_name && (
+                      <div>
+                        <span className="text-slate-400">Предприятие:</span>
+                        <p className="text-white">{previewData.opo.enterprise_name}</p>
+                      </div>
+                    )}
+                    {previewData.opo.branch_name && (
+                      <div>
+                        <span className="text-slate-400">Филиал:</span>
+                        <p className="text-white">{previewData.opo.branch_name}</p>
+                      </div>
+                    )}
+                    {previewData.opo.workshop_name && (
+                      <div>
+                        <span className="text-slate-400">Цех:</span>
+                        <p className="text-white">{previewData.opo.workshop_name}</p>
+                      </div>
+                    )}
+                    {previewData.opo.description && (
+                      <div className="sm:col-span-2">
+                        <span className="text-slate-400">Описание:</span>
+                        <p className="text-white">{previewData.opo.description}</p>
+                      </div>
+                    )}
+                    {previewData.opo.survey_data?.organization && (
+                      <div>
+                        <span className="text-slate-400">Организация (опросный лист):</span>
+                        <p className="text-white">{previewData.opo.survey_data.organization}</p>
+                      </div>
+                    )}
+                    {previewData.opo.survey_data?.executors && (
+                      <div>
+                        <span className="text-slate-400">Исполнители (опросный лист):</span>
+                        <p className="text-white">{previewData.opo.survey_data.executors}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Вложения/фото/чертежи */}
+              {previewDocs.length > 0 && (
+                <div className="bg-slate-900 p-4 rounded-lg">
+                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                    <FileText size={20} className="text-purple-400" />
+                    Фото, чертежи и документы ({previewDocs.length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {previewDocs.map((doc, idx) => {
+                      const docUrl = buildDocUrl(String(doc.document_number));
+                      const label = doc.file_name || doc.document_number;
+                      if (isImageDoc(doc.mime_type)) {
+                        return (
+                          <div key={`${doc.document_number}-${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700">
+                            <p className="text-xs text-slate-400 mb-2">{label}</p>
+                            {docUrl ? (
+                              <a href={docUrl} target="_blank" rel="noreferrer">
+                                <img
+                                  src={docUrl}
+                                  alt={label}
+                                  className="w-full max-h-64 object-contain rounded bg-slate-950"
+                                />
+                              </a>
+                            ) : (
+                              <div className="text-slate-500 text-sm">Ссылка недоступна</div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={`${doc.document_number}-${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700 flex items-center justify-between">
+                          <div>
+                            <p className="text-white text-sm">{label}</p>
+                            {doc.mime_type && (
+                              <p className="text-xs text-slate-500">{doc.mime_type}</p>
+                            )}
+                          </div>
+                          {docUrl && (
+                            <a
+                              href={docUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-accent hover:text-accent-light"
+                            >
+                              {isPdfDoc(doc.mime_type) ? 'Открыть PDF' : 'Открыть файл'}
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Методы НК */}
               <div className="bg-slate-900 p-4 rounded-lg">
@@ -553,10 +1091,55 @@ const ReportGeneration = () => {
                 Отмена
               </button>
               <button
-                onClick={() => handleGenerateFromPreview('docx')}
-                disabled={generating === previewData.inspection.id}
-                className="px-3 md:px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+                onClick={async () => {
+                  // Проверка полноты перед генерацией
+                  if (previewData?.inspection?.id) {
+                    const validation = await validateReportData(previewData.inspection.id);
+                    if (!validation.is_complete && validation.missing_fields.length > 0) {
+                      alert(`Неполные данные:\n${validation.missing_fields.join('\n')}\n\nПродолжить?`);
+                    }
+                  }
+                }}
+                className="px-3 md:px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm md:text-base"
               >
+                Проверить полноту
+              </button>
+              <button
+                onClick={() => {
+                  const id = previewData?.inspection?.id;
+                  if (id) {
+                    setPreviewData(null);
+                    navigate(`/report-viewer/${id}`);
+                  }
+                }}
+                className="px-3 md:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm md:text-base"
+              >
+                Полный просмотр
+              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleGenerateFromPreview('pdf')}
+                  disabled={generating === previewData.inspection.id}
+                  className="px-3 md:px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+                >
+                  {generating === previewData.inspection.id ? (
+                    <>
+                      <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
+                      <span>Генерация...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={14} className="md:w-4 md:h-4" />
+                      <span className="hidden sm:inline">PDF</span>
+                      <span className="sm:hidden">PDF</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleGenerateFromPreview('docx')}
+                  disabled={generating === previewData.inspection.id}
+                  className="px-3 md:px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+                >
                 {generating === previewData.inspection.id ? (
                   <>
                     <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
@@ -570,68 +1153,68 @@ const ReportGeneration = () => {
                   </>
                 )}
               </button>
-              <button
-                onClick={() => handleGenerateFromPreview('pdf')}
-                disabled={generating === previewData.inspection.id}
-                className="px-3 md:px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
-              >
-                {generating === previewData.inspection.id ? (
-                  <>
-                    <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
-                    <span>Генерация...</span>
-                  </>
-                ) : (
-                  <>
-                    <FileText size={14} className="md:w-4 md:h-4" />
-                    <span className="hidden sm:inline">Сгенерировать PDF</span>
-                    <span className="sm:hidden">PDF</span>
-                  </>
-                )}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleGenerateFromPreview('pdf')}
+                  disabled={generating === previewData.inspection.id}
+                  className="px-3 md:px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+                >
+                  {generating === previewData.inspection.id ? (
+                    <>
+                      <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
+                      <span>Генерация...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={14} className="md:w-4 md:h-4" />
+                      <span className="hidden sm:inline">PDF</span>
+                      <span className="sm:hidden">PDF</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleGenerateFromPreview('docx')}
+                  disabled={generating === previewData.inspection.id}
+                  className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+                >
+                  <FileText size={14} className="md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">Word</span>
+                  <span className="sm:hidden">DOCX</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                      const token = localStorage.getItem('token');
+                      if (token) headers['Authorization'] = `Bearer ${token}`;
+                      
+                      const response = await fetch(`${API_BASE}/api/reports/export/${previewData.inspection.id}?format=excel`, { headers });
+                      if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `report_${previewData.inspection.id}.xlsx`;
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                      }
+                    } catch (e) {
+                      alert('Экспорт в Excel пока не реализован');
+                    }
+                  }}
+                  className="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base"
+                >
+                  <FileText size={14} className="md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">Excel</span>
+                  <span className="sm:hidden">XLSX</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
-      {/* Список всех отчетов */}
-      <div className="mt-8">
-        <h2 className="text-xl font-bold text-white mb-4">Все отчеты</h2>
-        <div className="space-y-2">
-          {reports.map((report) => (
-            <div
-              key={report.id}
-              className="bg-slate-800 p-3 rounded-lg border border-slate-700 flex justify-between items-center"
-            >
-              <div>
-                <p className="text-white font-bold">{report.title}</p>
-                <p className="text-sm text-slate-400">
-                  {report.report_type === 'TECHNICAL_REPORT' ? 'Технический отчет' : 
-                   report.report_type === 'EXPERTISE' ? 'Экспертиза ПБ' : 'Отчет'}
-                  {' • '}
-                  {new Date(report.created_at).toLocaleDateString('ru-RU')}
-                  {' • '}
-                  Статус: {report.status}
-                </p>
-              </div>
-              <button
-                onClick={() => handleDownloadReport(report.id, report.file_path)}
-                className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
-              >
-                <Download size={16} />
-                Скачать
-              </button>
-            </div>
-          ))}
-        </div>
-        {reports.length === 0 && (
-          <p className="text-slate-400 text-center py-8">Отчеты не найдены</p>
-        )}
-      </div>
     </div>
   );
 };
 
 export default ReportGeneration;
-
-
-
