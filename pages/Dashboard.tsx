@@ -99,7 +99,7 @@ const Dashboard = () => {
           <h3 className="text-white font-semibold">Что нового</h3>
         </div>
         <p className="text-slate-300 text-sm">
-          Версия системы 3.22.0 (09.02.2026) — проверка сети перед синхронизацией, выжимка контекста (CHAT-SUMMARY.md).
+          Версия системы 3.23.0 (09.02.2026) — точки УЗК на схеме, овальность по сечениям, выбор схемы контроля.
         </p>
         <a href="#/changelog" className="mt-2 inline-block text-sm text-blue-400 hover:text-blue-300">
           Открыть список изменений →

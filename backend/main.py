@@ -45,7 +45,7 @@ app = FastAPI(
 **Формат ошибок:** все ответы с ошибкой возвращают `{"detail": "текст", "code": "VALIDATION_ERROR"|"UNAUTHORIZED"|"NOT_FOUND"|..., "errors": [{"field": "...", "message": "..."}]}`.
 
 **Основные разделы:** задания, оборудование, обследования (inspections), опросные листы (questionnaires), отчёты, ОПО, пользователи.""",
-    version="3.22.0",
+    version="3.23.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -165,6 +165,8 @@ def _validate_create_inspection(data: dict) -> None:
         raise HTTPException(status_code=400, detail=err)
 
 
+from inspection_utils import create_ndt_methods_from_mobile as _create_ndt_methods_from_mobile, update_equipment_attributes_from_inspection as _update_equipment_attrs
+
 # Middleware для правильной кодировки UTF-8 и учёт запросов (метрики)
 @app.middleware("http")
 async def add_charset_header(request, call_next):
@@ -214,7 +216,7 @@ app.include_router(equipment_history_router)  # Новый роутер для �
 app.include_router(inspection_archive_router)  # Загрузка ZIP-архива обследования с мобильного
 
 # Версия мобильного приложения (должна соответствовать реально доступному APK по ссылке)
-MOBILE_APP_VERSION = "3.22.0"
+MOBILE_APP_VERSION = "3.23.0"
 MOBILE_APP_BUILD = "20"
 MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/app-release.apk"
 
@@ -2146,6 +2148,10 @@ async def create_inspection(
                 new_inspection.questionnaire_id = new_questionnaire.id
                 await db.commit()
                 await db.refresh(new_inspection)
+                _create_ndt_methods_from_mobile(
+                    db, new_inspection, new_questionnaire, equipment_id, inspection_data_dict
+                )
+                await db.commit()
         
         # Создаем запись в истории обследований (версия 3.3.0)
         assignment_id = None
@@ -2198,6 +2204,13 @@ async def create_inspection(
                     if insp_status == "SIGNED":
                         assignment.status = "COMPLETED"
                         assignment.completed_at = datetime.now()
+                        # Обновляем equipment.attributes теххарактеристикой из обследования
+                        try:
+                            data_dict = inspection_data.get("data") or {}
+                            if data_dict and isinstance(data_dict, dict):
+                                await _update_equipment_attrs(db, equipment_id, data_dict)
+                        except Exception:
+                            pass
                     elif insp_status == "DRAFT":
                         # Черновик — это "в работе"
                         if assignment.status not in ["COMPLETED", "CANCELLED"]:
@@ -4164,6 +4177,7 @@ async def generate_report(
                 if isinstance(ad, dict) and "annotated_images" in ad and isinstance(ad["annotated_images"], list):
                     ad = dict(ad)
                     ad["annotated_images"] = _resolve_photo_list(ad["annotated_images"])
+                cert_num = (ad.get("certificate_number") if isinstance(ad, dict) else None) or None
                 ndt_methods_data.append({
                     "method_code": m.method_code,
                     "method_name": m.method_name,
@@ -4172,6 +4186,7 @@ async def generate_report(
                     "equipment": m.equipment,
                     "inspector_name": m.inspector_name,
                     "inspector_level": m.inspector_level,
+                    "certificate_number": cert_num,
                     "results": m.results,
                     "defects": m.defects,
                     "conclusion": m.conclusion,
@@ -7208,6 +7223,10 @@ async def create_inspection(
                 new_inspection.questionnaire_id = new_questionnaire.id
                 await db.commit()
                 await db.refresh(new_inspection)
+                _create_ndt_methods_from_mobile(
+                    db, new_inspection, new_questionnaire, equipment_id, inspection_data_dict
+                )
+                await db.commit()
         
         # Создаем запись в истории обследований (версия 3.3.0)
         assignment_id = None
@@ -7260,6 +7279,13 @@ async def create_inspection(
                     if insp_status == "SIGNED":
                         assignment.status = "COMPLETED"
                         assignment.completed_at = datetime.now()
+                        # Обновляем equipment.attributes теххарактеристикой из обследования
+                        try:
+                            data_dict = inspection_data.get("data") or {}
+                            if data_dict and isinstance(data_dict, dict):
+                                await _update_equipment_attrs(db, equipment_id, data_dict)
+                        except Exception:
+                            pass
                     elif insp_status == "DRAFT":
                         # Черновик — это "в работе"
                         if assignment.status not in ["COMPLETED", "CANCELLED"]:
@@ -9110,6 +9136,7 @@ async def generate_report(
                 if isinstance(ad, dict) and "annotated_images" in ad and isinstance(ad["annotated_images"], list):
                     ad = dict(ad)
                     ad["annotated_images"] = _resolve_photo_list(ad["annotated_images"])
+                cert_num = (ad.get("certificate_number") if isinstance(ad, dict) else None) or None
                 ndt_methods_data.append({
                     "method_code": m.method_code,
                     "method_name": m.method_name,
@@ -9118,6 +9145,7 @@ async def generate_report(
                     "equipment": m.equipment,
                     "inspector_name": m.inspector_name,
                     "inspector_level": m.inspector_level,
+                    "certificate_number": cert_num,
                     "results": m.results,
                     "defects": m.defects,
                     "conclusion": m.conclusion,

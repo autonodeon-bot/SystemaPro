@@ -16,7 +16,9 @@ from database import get_db
 from models import (
     Inspection, Questionnaire, QuestionnaireDocumentFile,
     InspectionHistory, Assignment, User, Equipment,
+    InspectionEquipment, VerificationEquipment,
 )
+from inspection_utils import create_ndt_methods_from_mobile, update_equipment_attributes_from_inspection
 from auth import verify_token_optional
 from typing import Optional
 
@@ -106,6 +108,7 @@ async def upload_inspection_archive(
                 "status": checklist_payload.get("status") or manifest.get("status", "DRAFT"),
                 "date_performed": checklist_payload.get("date_performed") or manifest.get("date_performed"),
                 "assignment_id": checklist_payload.get("assignment_id") or manifest.get("assignment_id"),
+                "verification_equipment_ids": checklist_payload.get("verification_equipment_ids") or manifest.get("verification_equipment_ids") or [],
             }
             _validate_create_inspection(inspection_data)
             equipment_id = uuid_lib.UUID(str(inspection_data["equipment_id"]))
@@ -181,6 +184,10 @@ async def upload_inspection_archive(
                         new_inspection.questionnaire_id = new_questionnaire.id
                         await db.commit()
                         await db.refresh(new_inspection)
+                        create_ndt_methods_from_mobile(
+                            db, new_inspection, new_questionnaire, equipment_id, inspection_data_dict
+                        )
+                        await db.commit()
                     except Exception:
                         await db.rollback()
                         questionnaire_id = None
@@ -225,6 +232,35 @@ async def upload_inspection_archive(
                     if assignment and (inspection_data.get("status") or "").upper() == "SIGNED":
                         assignment.status = "COMPLETED"
                         assignment.completed_at = datetime.now(timezone.utc)
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+            # Обновляем equipment.attributes при SIGNED (независимо от наличия assignment)
+            if (inspection_data.get("status") or "").upper() == "SIGNED":
+                try:
+                    data_dict = inspection_data.get("data") or {}
+                    if data_dict and isinstance(data_dict, dict):
+                        await update_equipment_attributes_from_inspection(db, equipment_id, data_dict)
+                        await db.commit()
+                except Exception:
+                    await db.rollback()
+            # Создаём связи InspectionEquipment из verification_equipment_ids (приборы и поверки)
+            ve_ids = inspection_data.get("verification_equipment_ids") or manifest.get("verification_equipment_ids") or checklist_payload.get("verification_equipment_ids") or []
+            if isinstance(ve_ids, list) and ve_ids and new_inspection.id:
+                for eq_id in ve_ids:
+                    try:
+                        eq_uuid = uuid_lib.UUID(str(eq_id))
+                        eq_result = await db.execute(select(VerificationEquipment).where(VerificationEquipment.id == eq_uuid))
+                        if eq_result.scalar_one_or_none():
+                            ex = await db.execute(select(InspectionEquipment).where(
+                                InspectionEquipment.inspection_id == new_inspection.id,
+                                InspectionEquipment.verification_equipment_id == eq_uuid,
+                            ))
+                            if not ex.scalar_one_or_none():
+                                db.add(InspectionEquipment(inspection_id=new_inspection.id, verification_equipment_id=eq_uuid))
+                    except (ValueError, TypeError):
+                        pass
+                try:
                     await db.commit()
                 except Exception:
                     await db.rollback()

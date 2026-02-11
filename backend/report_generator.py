@@ -506,7 +506,7 @@ class ReportGenerator:
                             if found_path:
                                 try:
                                     img = Image(found_path)
-                                    max_w, max_h = 16 * cm, 10 * cm
+                                    max_w, max_h = 12.8 * cm, 8 * cm
                                     iw = getattr(img, 'imageWidth', None) or max_w
                                     ih = getattr(img, 'imageHeight', None) or max_h
                                     if iw and ih:
@@ -580,8 +580,8 @@ class ReportGenerator:
                         if found_path:
                             try:
                                 img = Image(found_path)
-                                img.drawWidth = 16 * cm
-                                img.drawHeight = 10 * cm
+                                img.drawWidth = 12.8 * cm
+                                img.drawHeight = 8 * cm
                                 story.append(img)
                                 story.append(Spacer(1, 0.2*cm))
                             except Exception as e:
@@ -684,8 +684,8 @@ class ReportGenerator:
                             if found_path:
                                 try:
                                     img = Image(found_path)
-                                    img.drawWidth = 16 * cm
-                                    img.drawHeight = 10 * cm
+                                    img.drawWidth = 12.8 * cm
+                                    img.drawHeight = 8 * cm
                                     story.append(img)
                                     story.append(Spacer(1, 0.2*cm))
                                 except Exception as e:
@@ -789,8 +789,8 @@ class ReportGenerator:
             try:
                 story.append(Paragraph(title, self.styles['BodyText']))
                 img = Image(found_path)
-                # Вписать в ширину страницы (≈16 см), сохраняя пропорции
-                max_w, max_h = 16 * cm, 12 * cm
+                # Вписать в ширину страницы (≈12.8 см после -20%), сохраняя пропорции
+                max_w, max_h = 12.8 * cm, 9.6 * cm
                 iw = getattr(img, 'imageWidth', None) or getattr(img, '_width', max_w)
                 ih = getattr(img, 'imageHeight', None) or getattr(img, '_height', max_h)
                 if iw and ih:
@@ -1004,7 +1004,7 @@ class ReportGenerator:
         thickness = _get('thickness_measurements', 'thicknessMeasurements', default=[])
         if isinstance(thickness, list) and len(thickness) > 0:
             story.append(Paragraph("3.3. УЗТ (Ультразвуковая толщинометрия)", self.styles['SectionTitle']))
-            thickness_table_data = [['№', 'Местоположение', 'Сечение', 'Толщина, мм', 'Мин. доп., мм', 'X%', 'Y%', 'Комментарий']]
+            thickness_table_data = [['№', 'Местоположение', 'Сечение', 'Толщина, мм', 'Мин. доп., мм', 'Комментарий']]
             for idx, point in enumerate(thickness, 1):
                 if not isinstance(point, dict):
                     continue
@@ -1014,13 +1014,10 @@ class ReportGenerator:
                     self._cell_text(point.get('section_number') or ''),
                     self._cell_text(point.get('thickness') or ''),
                     self._cell_text(point.get('min_allowed_thickness') or ''),
-                    self._cell_text(point.get('x_percent') or ''),
-                    self._cell_text(point.get('y_percent') or ''),
                     self._cell_text(point.get('comment') or ''),
                 ])
             if len(thickness_table_data) > 1:
-                # Сумма ширин <= 16.5 см под A4 с полями 2 см
-                t = Table(thickness_table_data, colWidths=[0.6*cm, 2.8*cm, 1.2*cm, 1.4*cm, 1.4*cm, 0.8*cm, 0.8*cm, 5.5*cm])
+                t = Table(thickness_table_data, colWidths=[0.6*cm, 2.8*cm, 1.2*cm, 1.4*cm, 1.4*cm, 6.5*cm])
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),

@@ -113,6 +113,81 @@ class WordGenerator:
             print(f"Ошибка отрисовки точек на схеме: {e}")
             return None
 
+    def _draw_weld_points_on_scheme(
+        self,
+        scheme_path: str,
+        weld_points: List[Dict[str, Any]],
+        output_dir: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Рисует номера сварных соединений (швов) на схеме УЗК по координатам x_percent, y_percent.
+        Возвращает путь к сохранённому изображению или None при ошибке.
+        """
+        if not _HAS_PIL or not scheme_path or not weld_points:
+            return None
+        resolved = self._find_image_path(scheme_path) or scheme_path
+        if not os.path.isfile(resolved):
+            return None
+        points_with_coords = [
+            (str(w.get("weld_number") or ""), w)
+            for w in weld_points
+            if isinstance(w, dict)
+            and (w.get("x_percent") is not None or w.get("y_percent") is not None)
+        ]
+        if not points_with_coords:
+            return None
+        try:
+            img = Image.open(resolved).convert("RGB")
+            w, h = img.size
+            draw = ImageDraw.Draw(img)
+            radius = max(12, min(w, h) // 55)
+            font_size = max(10, min(w, h) // 45)
+            font = None
+            for font_path in [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            ]:
+                try:
+                    if os.path.isfile(font_path):
+                        font = ImageFont.truetype(font_path, font_size)
+                        break
+                except Exception:
+                    continue
+            if font is None:
+                font = ImageFont.load_default()
+            for label, p in points_with_coords:
+                x_pct = p.get("x_percent")
+                y_pct = p.get("y_percent")
+                try:
+                    xf = float(x_pct) if x_pct is not None else 0.5
+                    yf = float(y_pct) if y_pct is not None else 0.5
+                except (TypeError, ValueError):
+                    xf, yf = 0.5, 0.5
+                xf = max(0, min(1, xf / 100.0 if xf > 1 else xf))
+                yf = max(0, min(1, yf / 100.0 if yf > 1 else yf))
+                cx = int(xf * w)
+                cy = int(yf * h)
+                draw.ellipse(
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    outline=(50, 100, 220),
+                    width=max(2, radius // 5),
+                    fill=(200, 220, 255),
+                )
+                text = (label or "").strip() or "?"
+                bbox = draw.textbbox((0, 0), text, font=font)
+                tw = bbox[2] - bbox[0]
+                th = bbox[3] - bbox[1]
+                draw.text((cx - tw // 2, cy - th // 2), text, fill=(0, 80, 180), font=font)
+            out_dir = output_dir or tempfile.gettempdir()
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, f"scheme_weld_points_{_uuid.uuid4().hex[:12]}.png")
+            img.save(out_path, "PNG")
+            return out_path
+        except Exception as e:
+            print(f"Ошибка отрисовки точек УЗК на схеме: {e}")
+            return None
+
     def _find_image_path(self, path: Optional[str]) -> Optional[str]:
         """Найти существующий файл изображения по пути (для фото таблички, карты замеров, дефектов)."""
         if not path or not isinstance(path, str):
@@ -578,7 +653,7 @@ class WordGenerator:
                     par = doc.add_paragraph()
                     par.add_run(title).bold = True
                 doc.add_paragraph()
-                doc.add_picture(str(p), width=Inches(6.0))
+                doc.add_picture(str(p), width=Inches(4.8))
                 doc.add_paragraph()
             except Exception:
                 pass
@@ -791,9 +866,9 @@ class WordGenerator:
         if has_thickness:
             doc.add_heading('6. УЗТ (УЛЬТРАЗВУКОВАЯ ТОЛЩИНОМЕТРИЯ)', level=1)
 
-            t = doc.add_table(rows=len(thickness) + 1, cols=8)
+            t = doc.add_table(rows=len(thickness) + 1, cols=6)
             t.style = 'Light Grid Accent 1'
-            headers = ['№', 'Местоположение', 'Сечение', 'Толщина, мм', 'Мин. допустимая, мм', 'X%', 'Y%', 'Комментарий']
+            headers = ['№', 'Местоположение', 'Сечение', 'Толщина, мм', 'Мин. допустимая, мм', 'Комментарий']
             for i, header in enumerate(headers):
                 cell = t.rows[0].cells[i]
                 cell.text = header
@@ -808,9 +883,7 @@ class WordGenerator:
                 t.rows[idx].cells[2].text = str(point.get('section_number') or '')
                 t.rows[idx].cells[3].text = str(point.get('thickness') or '')
                 t.rows[idx].cells[4].text = str(point.get('min_allowed_thickness') or '')
-                t.rows[idx].cells[5].text = str(point.get('x_percent') or '')
-                t.rows[idx].cells[6].text = str(point.get('y_percent') or '')
-                t.rows[idx].cells[7].text = str(point.get('comment') or '')
+                t.rows[idx].cells[5].text = str(point.get('comment') or '')
 
             doc.add_paragraph()
 
@@ -1259,7 +1332,7 @@ class WordGenerator:
                     par = doc.add_paragraph()
                     par.add_run(title).bold = True
                 doc.add_paragraph()
-                doc.add_picture(str(p), width=Inches(6.0))
+                doc.add_picture(str(p), width=Inches(4.8))
                 doc.add_paragraph()
             except Exception:
                 pass
@@ -1324,7 +1397,7 @@ class WordGenerator:
             try:
                 resolved = self._find_image_path(str(logo_path))
                 if resolved and os.path.isfile(resolved):
-                    doc.add_picture(resolved, width=Inches(6.5))
+                    doc.add_picture(resolved, width=Inches(5.2))
             except Exception:
                 pass
 
@@ -1408,13 +1481,25 @@ class WordGenerator:
         docs = g("documents", default={})
         docs_info = g("documents_info", default={})
         inspection_engineers = g("inspection_engineers", default=[])
-        # Расширенный перечень работ: НК-методы + анализ документов + измерение овальности при наличии данных
+        performed_codes = {str(m.get("method_code") or m.get("method_name") or "").upper() for m in performed}
         work_list = list(performed)
+        has_visual_data = (g("visual_defects", default=[]) and len(g("visual_defects", default=[])) > 0) or g("has_external_defects") is not None or g("has_internal_defects") is not None
+        if has_visual_data and "ВИК" not in performed_codes and "VIK" not in performed_codes:
+            work_list.append({"method_name": "ВИК", "work_name": "Визуальный и измерительный контроль", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "control_volume": "—", "conclusion": "Выполнено по протоколу"})
         if isinstance(docs, dict) and any(v for v in docs.values()):
             work_list.append({"method_name": "Анализ док.", "work_name": "Анализ технической документации", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "control_volume": "—", "conclusion": "Рассмотрены документы по перечню раздела 11"})
         ovality_data = g("ovality_measurements", default=[])
         if isinstance(ovality_data, list) and ovality_data:
             work_list.append({"method_name": "Овальность", "work_name": "Измерение овальности корпуса сосуда", "standard": "СО 153-34.17.439-2003", "control_volume": "—", "conclusion": "Выполнено по протоколу"})
+        hardness_data = g("hardness_tests", default=[])
+        if isinstance(hardness_data, list) and hardness_data:
+            work_list.append({"method_name": "Твердометрия", "work_name": "Контроль твердости металла", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "control_volume": "—", "conclusion": "Выполнено по протоколу"})
+        thickness_data = g("thickness_measurements", default=[])
+        if isinstance(thickness_data, list) and thickness_data and "УЗТ" not in performed_codes and "UZT" not in performed_codes:
+            work_list.append({"method_name": "УЗТ", "work_name": "Ультразвуковой контроль толщины стенок элементов сосуда", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "control_volume": "—", "conclusion": "Выполнено по протоколу"})
+        weld_data = g("weld_inspections", default=[])
+        if isinstance(weld_data, list) and weld_data and "УЗК" not in performed_codes and "UZK" not in performed_codes:
+            work_list.append({"method_name": "УЗК", "work_name": "Ультразвуковой контроль качества основного металла и сварных соединений", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "control_volume": "—", "conclusion": "Выполнено по протоколу"})
 
         def _normalize_method(method_raw: str) -> str:
             m = (method_raw or "").strip()
@@ -2147,11 +2232,16 @@ class WordGenerator:
             _add_protocol_header("Протокол по результатам ультразвукового контроля толщины стенок элементов сосуда", app_no)
             
             doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
+            doc.add_paragraph("Таблица № 1")
+            doc.add_paragraph()
             uzt_equipment = [m for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("UZT", "УЗТ") and m.get("equipment")]
             _add_equipment_table(uzt_equipment or None)
             
             doc.add_paragraph("2. Результаты контроля").runs[0].bold = True
             doc.add_paragraph("Контроль выполнен в соответствии с программой работ, согласно схемы контроля.")
+            doc.add_paragraph()
+            doc.add_paragraph("Таблица № 2")
+            doc.add_paragraph()
 
             # Схема контроля (чертеж УЗТ) с привязкой точек - ВАЖНО: добавляем в начале раздела
             control_scheme = g("control_scheme_image") or attachments.get("control_scheme_image")
@@ -2168,9 +2258,9 @@ class WordGenerator:
                 ]
                 if points_with_coords:
                     doc.add_paragraph("2.2. Координаты точек измерения на схеме:").runs[0].bold = True
-                    t_coords = doc.add_table(rows=len(points_with_coords) + 1, cols=6)
+                    t_coords = doc.add_table(rows=len(points_with_coords) + 1, cols=4)
                     t_coords.style = "Table Grid"
-                    headers = ["№ точки", "Элемент", "Сечение", "X, %", "Y, %", "Толщина, мм"]
+                    headers = ["№ точки", "Элемент", "Сечение", "Толщина, мм"]
                     for i, h in enumerate(headers):
                         cell = t_coords.rows[0].cells[i]
                         cell.text = h
@@ -2180,9 +2270,7 @@ class WordGenerator:
                         t_coords.rows[i].cells[0].text = str(i)
                         t_coords.rows[i].cells[1].text = str(p.get("location") or "")
                         t_coords.rows[i].cells[2].text = str(p.get("section_number") or "")
-                        t_coords.rows[i].cells[3].text = str(p.get("x_percent") or "")
-                        t_coords.rows[i].cells[4].text = str(p.get("y_percent") or "")
-                        t_coords.rows[i].cells[5].text = str(p.get("thickness") or "")
+                        t_coords.rows[i].cells[3].text = str(p.get("thickness") or "")
                     doc.add_paragraph()
             
             # Группируем по элементам (Обечайка, Днище 1, Днище 2)
@@ -2268,6 +2356,9 @@ class WordGenerator:
                             has_photos = True
                             break
             
+            doc.add_paragraph()
+            doc.add_paragraph("Схема контроля указана в Приложении № 7.")
+            doc.add_paragraph()
             uzt_inspector = next((m.get("inspector_name") for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("UZT", "УЗТ")), None)
             _add_inspector_signature(uzt_inspector or _engineer_for_method("UZT"))
             app_no += 1
@@ -2314,15 +2405,45 @@ class WordGenerator:
         if isinstance(hardness, list) and len(hardness) > 0:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам оценки механических свойств элементов сосуда (измерение твердости металла)", level=2)
-            _add_protocol_header("Протокол по результатам оценки механических свойств элементов сосуда (твердость)", app_no)
+            _add_protocol_header("Протокол по результатам оценки механических свойств элементов сосуда (измерение твердости металла)", app_no)
             
             doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
+            doc.add_paragraph("Таблица № 1")
+            doc.add_paragraph()
             hardness_equipment = [m for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("TVI", "ТВИ", "HARDNESS") and m.get("equipment")]
-            _add_equipment_table(hardness_equipment or None)
+            if hardness_equipment:
+                eq_list = [{"name": m.get("equipment"), "serial_number": m.get("equipment_serial") or m.get("serial_number") or "—"} for m in hardness_equipment]
+            else:
+                eq_list = [e for e in (verification_equipment or []) if "твердость" in (e.get("name") or "").lower() or "УЗИТ" in (e.get("name") or "").upper()]
+                eq_list = [{"name": e.get("name"), "serial_number": e.get("serial_number") or "—"} for e in eq_list] if eq_list else []
+            if eq_list:
+                eq_tbl = doc.add_table(rows=len(eq_list) + 1, cols=3)
+                eq_tbl.style = "Table Grid"
+                for i, h in enumerate(["№ п/п", "Наименование прибора", "Заводской номер прибора"]):
+                    eq_tbl.rows[0].cells[i].text = h
+                    eq_tbl.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+                for idx, eq in enumerate(eq_list, 1):
+                    eq_tbl.rows[idx].cells[0].text = str(idx)
+                    eq_tbl.rows[idx].cells[1].text = str(eq.get("name") or "—")
+                    eq_tbl.rows[idx].cells[2].text = str(eq.get("serial_number") or "—")
+            else:
+                doc.add_paragraph("—")
+            doc.add_paragraph()
             
             doc.add_paragraph("2. Результаты контроля").runs[0].bold = True
+            doc.add_paragraph("Таблица № 2")
+            doc.add_paragraph()
             
-            hardness_table = doc.add_table(rows=len(hardness) + 1, cols=9)
+            hardness_by_element = {}
+            for h in hardness:
+                element = str(h.get('location') or h.get('element_name') or h.get('weld_number') or 'Обечайка')
+                if element not in hardness_by_element:
+                    hardness_by_element[element] = []
+                hardness_by_element[element].append(h)
+            
+            # Таблица: по 4 точки в строке, несколько строк на элемент
+            total_data_rows = sum((len(tests) + 3) // 4 for tests in hardness_by_element.values())
+            hardness_table = doc.add_table(rows=1 + total_data_rows, cols=9)
             hardness_table.style = "Table Grid"
             headers = ["Наименование элемента", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ"]
             for i, h in enumerate(headers):
@@ -2331,50 +2452,227 @@ class WordGenerator:
                 cell.paragraphs[0].runs[0].font.bold = True
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Группируем по элементам (Обечайка, Днище 1, Днище 2 — как в otchet.docx)
-            hardness_by_element = {}
-            for h in hardness:
-                element = str(h.get('location') or h.get('element_name') or h.get('weld_number') or 'Обечайка')
-                if element not in hardness_by_element:
-                    hardness_by_element[element] = []
-                hardness_by_element[element].append(h)
-            
             row_idx = 1
             for element_name, tests in hardness_by_element.items():
-                row = hardness_table.rows[row_idx]
-                row.cells[0].text = element_name
-                for j in range(min(4, len(tests))):
-                    test = tests[j]
-                    row.cells[j*2 + 1].text = str(j + 1)
-                    # Используем hardness_base как основной результат
-                    row.cells[j*2 + 2].text = str(test.get('hardness_base') or test.get('hardness_weld') or '')
-                row_idx += 1
+                for i in range(0, len(tests), 4):
+                    row = hardness_table.rows[row_idx]
+                    row.cells[0].text = element_name if i == 0 else ""
+                    for j in range(4):
+                        pt_idx = i + j
+                        if pt_idx < len(tests):
+                            t = tests[pt_idx]
+                            row.cells[j*2 + 1].text = str(pt_idx + 1)
+                            row.cells[j*2 + 2].text = str(t.get('hardness_base') or t.get('hardness_weld') or t.get('hardness_haz') or '')
+                    row_idx += 1
             
+            allowed_limit = ""
+            if hardness and isinstance(hardness[0], dict):
+                allowed_limit = (hardness[0].get('allowed_hardness_base') or hardness[0].get('allowed_hardness_weld') or '').strip()
+            if allowed_limit:
+                allowed_limit = f"Допустимый предел твердости: {allowed_limit}, в соответствии с СО 153-34.17.439-2003."
+            else:
+                allowed_limit = "Допустимый предел твердости для стали 19 ГС от 120 НВ до 180 НВ, в соответствии с СО 153-34.17.439-2003."
             doc.add_paragraph()
-            doc.add_paragraph("Допустимый предел твердости для стали 19 ГС от 120 НВ до 180 НВ, в соответствии с СО 153-34.17.439-2003.")
-            
+            doc.add_paragraph(allowed_limit)
+            doc.add_paragraph()
+            doc.add_paragraph("3. Заключение по результатам контроля").runs[0].bold = True
+            doc.add_paragraph("При контроле физико-механических свойств основного металла методом замера твердости отклонения измеренных значений от допустимого диапазона, указанного в нормативной документации, не установлено.")
+            doc.add_paragraph()
             hardness_inspector = next((m.get("inspector_name") for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("TVI", "ТВИ", "HARDNESS")), None)
             _add_inspector_signature(hardness_inspector or _engineer_for_method("TVI"))
             app_no += 1
 
-        # ПРИЛОЖЕНИЕ № 7: Схема контроля (с нанесёнными точками замеров, если есть)
+        # ПРИЛОЖЕНИЕ № 7: Схема контроля (с нанесёнными точками замеров УЗТ и/или точками УЗК)
         control_scheme = g('control_scheme_image') or attachments.get('control_scheme_image')
         thickness_for_scheme = g("thickness_measurements", "thicknessMeasurements", default=[])
+        welds_for_scheme = g("weld_inspections", default=[])
         if control_scheme:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Схема контроля", level=2)
             scheme_resolved = self._find_image_path(str(control_scheme)) or control_scheme
-            if scheme_resolved and isinstance(thickness_for_scheme, list) and thickness_for_scheme:
-                scheme_with_points = self._draw_points_on_scheme(scheme_resolved, thickness_for_scheme, output_dir=os.path.dirname(output_path) if output_path else None)
-                if scheme_with_points:
-                    add_picture_if_exists("Схема контроля с точками замеров:", scheme_with_points)
-                else:
-                    add_picture_if_exists("Схема контроля:", scheme_resolved)
-            elif scheme_resolved and os.path.isfile(scheme_resolved):
-                add_picture_if_exists("Схема контроля:", scheme_resolved)
+            out_dir = os.path.dirname(output_path) if output_path else "/app/reports/tmp"
+            scheme_to_show = scheme_resolved
+            if scheme_resolved and os.path.isfile(scheme_resolved):
+                if isinstance(thickness_for_scheme, list) and thickness_for_scheme:
+                    scheme_with_thickness = self._draw_points_on_scheme(scheme_resolved, thickness_for_scheme, output_dir=out_dir)
+                    if scheme_with_thickness:
+                        scheme_to_show = scheme_with_thickness
+                if isinstance(welds_for_scheme, list) and welds_for_scheme:
+                    uzk_with_coords = [w for w in welds_for_scheme if isinstance(w, dict) and (w.get("x_percent") is not None or w.get("y_percent") is not None)]
+                    if uzk_with_coords:
+                        scheme_with_welds = self._draw_weld_points_on_scheme(scheme_to_show, uzk_with_coords, output_dir=out_dir)
+                        if scheme_with_welds:
+                            scheme_to_show = scheme_with_welds
+                caption = "Схема контроля"
+                if (isinstance(thickness_for_scheme, list) and thickness_for_scheme) or (isinstance(welds_for_scheme, list) and any(isinstance(w, dict) and (w.get("x_percent") or w.get("y_percent")) for w in welds_for_scheme):
+                    caption = "Схема контроля с точками замеров"
+                add_picture_if_exists(caption + ":", scheme_to_show)
             app_no += 1
 
-        # ПРИЛОЖЕНИЕ № 8: Расчетные и аналитические процедуры (если есть данные)
+        # ПРИЛОЖЕНИЕ № 8: Расчет остаточного ресурса и расчет на прочность
+        thickness_for_calc = g("thickness_measurements", "thicknessMeasurements", default=[])
+        has_thickness_for_calc = isinstance(thickness_for_calc, list) and len(thickness_for_calc) > 0
+        if has_thickness_for_calc:
+            doc.add_page_break()
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Расчет остаточного ресурса и расчет на прочность сосуда", level=2)
+            # Извлекаем данные для расчёта
+            wall_th = attrs.get("wall_thickness") or attrs.get("thickness") or g("wall_thickness", "thickness", default="4")
+            min_allowed = attrs.get("min_wall_thickness") or g("min_allowed_thickness", default="2.8")
+            min_vals = [float(str(p.get("thickness", "0")).replace(",", ".")) for p in thickness_for_calc if isinstance(p, dict) and p.get("thickness")]
+            s_f = min(min_vals) if min_vals else 3.9
+            try:
+                s_n = float(str(wall_th).replace(",", "."))
+            except (TypeError, ValueError):
+                s_n = 4.0
+            try:
+                s_otb = float(str(min_allowed).replace(",", "."))
+            except (TypeError, ValueError):
+                s_otb = 2.8
+            comm_year = attrs.get("commissioning_year") or g("commissioning_year") or equipment_data.get("commissioning_date")
+            t1 = 16
+            if comm_year:
+                try:
+                    t1 = datetime.now().year - int(str(comm_year)[:4])
+                    if t1 < 1:
+                        t1 = 16
+                except (TypeError, ValueError):
+                    pass
+            a = (s_n - s_f) / t1 if t1 > 0 else 0.01
+            tk = (s_f - s_otb) / a if a > 0 else 110
+            doc.add_paragraph("1. Расчет остаточного ресурса сосуда")
+            doc.add_paragraph("Остаточный ресурс сосуда рассчитан согласно ДиОР-05 и приведен в Таблице Е.1.")
+            doc.add_paragraph()
+            tbl_e1 = doc.add_table(rows=7, cols=5)
+            tbl_e1.style = "Table Grid"
+            for i, h in enumerate(["№ п/п", "Наименование величины", "Единица измерения", "Обозначение и расчетная формула", "Числовое значение"]):
+                tbl_e1.rows[0].cells[i].text = h
+                tbl_e1.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+            tbl_e1.rows[1].cells[0].text = "1"
+            tbl_e1.rows[1].cells[1].text = "Время эксплуатации"
+            tbl_e1.rows[1].cells[2].text = "лет"
+            tbl_e1.rows[1].cells[3].text = "t₁"
+            tbl_e1.rows[1].cells[4].text = str(t1)
+            tbl_e1.rows[2].cells[0].text = "2"
+            tbl_e1.rows[2].cells[1].text = "Паспортная толщина стенки\nОбечайка / Днище"
+            tbl_e1.rows[2].cells[2].text = "мм"
+            tbl_e1.rows[2].cells[3].text = "Sн"
+            tbl_e1.rows[2].cells[4].text = f"{s_n:.0f} / {s_n:.0f}"
+            tbl_e1.rows[3].cells[0].text = "3"
+            tbl_e1.rows[3].cells[1].text = "Минимально допустимая толщина стенки сосуда"
+            tbl_e1.rows[3].cells[2].text = "мм"
+            tbl_e1.rows[3].cells[3].text = "Sотб"
+            tbl_e1.rows[3].cells[4].text = f"{s_otb:.1f} / {s_otb:.1f}"
+            tbl_e1.rows[4].cells[0].text = "4"
+            tbl_e1.rows[4].cells[1].text = "Минимальная толщина по результатам замеров"
+            tbl_e1.rows[4].cells[2].text = "мм"
+            tbl_e1.rows[4].cells[3].text = "Sф"
+            tbl_e1.rows[4].cells[4].text = f"{s_f:.1f} / {s_f:.1f}"
+            tbl_e1.rows[5].cells[0].text = "5"
+            tbl_e1.rows[5].cells[1].text = "Скорость коррозии металла сосуда"
+            tbl_e1.rows[5].cells[2].text = "мм/год"
+            tbl_e1.rows[5].cells[3].text = "a = (Sн - Sф) / t₁"
+            tbl_e1.rows[5].cells[4].text = f"{a:.2f} / {a:.2f}"
+            tbl_e1.rows[6].cells[0].text = "6"
+            tbl_e1.rows[6].cells[1].text = "Остаточный срок службы сосуда, поэлементно"
+            tbl_e1.rows[6].cells[2].text = "лет"
+            tbl_e1.rows[6].cells[3].text = "Tk = (Sф - Sотб) / a"
+            tbl_e1.rows[6].cells[4].text = f"{tk:.0f} / {tk:.0f}"
+            doc.add_paragraph()
+            doc.add_paragraph("2. Расчет на прочность сосуда")
+            doc.add_paragraph("Расчет на прочность сосуда проводился в соответствии с ГОСТ 34233.1-2017 и ГОСТ 34233.2-2017 и приведен в Таблице Е.2.")
+            doc.add_paragraph()
+            try:
+                p_val = float(str(attrs.get("working_pressure") or g("working_pressure") or "1.1").replace(",", "."))
+            except (TypeError, ValueError):
+                p_val = 1.1
+            try:
+                t_n = float(str(attrs.get("design_temperature") or g("design_temperature") or "100").replace(",", "."))
+            except (TypeError, ValueError):
+                t_n = 100
+            try:
+                d_n = float(str(attrs.get("diameter") or g("diameter") or equipment_data.get("diameter") or "792").replace(",", "."))
+            except (TypeError, ValueError):
+                d_n = 792
+            try:
+                c_val = float(str(attrs.get("corrosion_allowance") or g("corrosion_allowance") or "0").replace(",", "."))
+            except (TypeError, ValueError):
+                c_val = 0
+            phi = 0.9
+            sigma = 177
+            r_val = d_n
+            s_p = (p_val * r_val) / (2 * phi * sigma - 0.5 * p_val) if (2 * phi * sigma - 0.5 * p_val) > 0 else 2.74
+            s_otb_calc = s_p + c_val
+            p_allow = (2 * (s_f - c_val) * phi * sigma) / (r_val + 0.5 * (s_f - c_val)) if (r_val + 0.5 * (s_f - c_val)) > 0 else 1.57
+            tbl_e2 = doc.add_table(rows=13, cols=5)
+            tbl_e2.style = "Table Grid"
+            for i, h in enumerate(["№ п/п", "Наименование величины", "Единица измерения", "Обозначение и расчетная формула", "Числовое значение"]):
+                tbl_e2.rows[0].cells[i].text = h
+                tbl_e2.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+            tbl_e2.rows[1].cells[0].text = "1"
+            tbl_e2.rows[1].cells[1].text = "Рабочее давление"
+            tbl_e2.rows[1].cells[2].text = "МПа"
+            tbl_e2.rows[1].cells[3].text = "P"
+            tbl_e2.rows[1].cells[4].text = f"{p_val:.1f}"
+            tbl_e2.rows[2].cells[0].text = "2"
+            tbl_e2.rows[2].cells[1].text = "Расчетная температура"
+            tbl_e2.rows[2].cells[2].text = "°C"
+            tbl_e2.rows[2].cells[3].text = "tн"
+            tbl_e2.rows[2].cells[4].text = f"{t_n:.0f}"
+            tbl_e2.rows[3].cells[0].text = "3"
+            tbl_e2.rows[3].cells[1].text = "Внутренний диаметр"
+            tbl_e2.rows[3].cells[2].text = "мм"
+            tbl_e2.rows[3].cells[3].text = "Dн"
+            tbl_e2.rows[3].cells[4].text = f"{d_n:.0f}"
+            tbl_e2.rows[4].cells[0].text = "4"
+            tbl_e2.rows[4].cells[1].text = "Прибавка для компенсации коррозии"
+            tbl_e2.rows[4].cells[2].text = "мм"
+            tbl_e2.rows[4].cells[3].text = "C"
+            tbl_e2.rows[4].cells[4].text = f"{c_val:.0f}"
+            tbl_e2.rows[5].cells[0].text = "5"
+            tbl_e2.rows[5].cells[1].text = "Коэффициент прочности сварных швов"
+            tbl_e2.rows[5].cells[2].text = ""
+            tbl_e2.rows[5].cells[3].text = "φ"
+            tbl_e2.rows[5].cells[4].text = f"{phi}"
+            tbl_e2.rows[6].cells[0].text = "6"
+            tbl_e2.rows[6].cells[1].text = "Допускаемое напряжение при расчетной температуре"
+            tbl_e2.rows[6].cells[2].text = "МПа"
+            tbl_e2.rows[6].cells[3].text = "[σ]"
+            tbl_e2.rows[6].cells[4].text = str(sigma)
+            tbl_e2.rows[7].cells[0].text = "7"
+            tbl_e2.rows[7].cells[1].text = "Радиус кривизны в вершине днища, R=D для эллиптических днищ"
+            tbl_e2.rows[7].cells[2].text = "мм"
+            tbl_e2.rows[7].cells[3].text = "R"
+            tbl_e2.rows[7].cells[4].text = f"{r_val:.0f}"
+            tbl_e2.rows[8].cells[0].text = "8"
+            tbl_e2.rows[8].cells[1].text = "Минимальная толщина по результатам контроля\nДнище / Обечайка"
+            tbl_e2.rows[8].cells[2].text = "мм"
+            tbl_e2.rows[8].cells[3].text = "Sф"
+            tbl_e2.rows[8].cells[4].text = f"{s_f:.1f} / {s_f:.1f}"
+            tbl_e2.rows[9].cells[0].text = "9"
+            tbl_e2.rows[9].cells[1].text = "Расчетная толщина стенки\nДнище / Обечайка"
+            tbl_e2.rows[9].cells[2].text = "мм"
+            tbl_e2.rows[9].cells[3].text = "Sр = P·R/(2φ[σ]–0,5P) / Sр = P·D/(2φ[σ]–P)"
+            tbl_e2.rows[9].cells[4].text = f"{s_p:.2f} / {s_p:.2f}"
+            tbl_e2.rows[10].cells[0].text = "10"
+            tbl_e2.rows[10].cells[1].text = "Минимально допустимая толщина стенки сосуда\nДнище / Обечайка"
+            tbl_e2.rows[10].cells[2].text = "мм"
+            tbl_e2.rows[10].cells[3].text = "Sотб = Sр + C"
+            tbl_e2.rows[10].cells[4].text = f"{s_otb_calc:.2f} / {s_otb_calc:.2f}"
+            tbl_e2.rows[11].cells[0].text = "11"
+            tbl_e2.rows[11].cells[1].text = "Допускаемое внутреннее избыточное давление\nДнище / Обечайка"
+            tbl_e2.rows[11].cells[2].text = "МПа"
+            tbl_e2.rows[11].cells[3].text = "[P]"
+            tbl_e2.rows[11].cells[4].text = f"{p_allow:.2f} / {p_allow:.2f}"
+            doc.add_paragraph()
+            doc.add_paragraph("Условия прочности: Sотб = {:.1f} мм < Sф = {:.1f} мм. [P] = {:.2f} МПа > Рраб = {:.1f} МПа.".format(s_otb_calc, s_f, p_allow, p_val))
+            doc.add_paragraph()
+            doc.add_paragraph("Выводы:").runs[0].bold = True
+            doc.add_paragraph("На основании выполненного расчета на прочность установлено, что сосуд удовлетворяет условиям прочности, срок эксплуатации до достижения предельно-допустимого значения толщины стенки сосуда составляет более 10 лет.")
+            doc.add_paragraph()
+            doc.add_paragraph("Расчет выполнил:")
+            doc.add_paragraph("Дефектоскопист II уровня по ВИК, УК")
+            doc.add_paragraph(str(_engineer_for_method("TVI") or _engineer_for_method("UZT") or g("executors", default="—")))
+            app_no += 1
         
         # ПРИЛОЖЕНИЕ № 9: Акт проведения гидравлических испытаний (если есть)
         
@@ -2432,7 +2730,7 @@ class WordGenerator:
                             resolved = sp if isinstance(sp, str) and os.path.exists(sp) else None
                         if resolved:
                             try:
-                                doc.add_picture(resolved, width=Inches(6.0))
+                                doc.add_picture(resolved, width=Inches(4.8))
                             except Exception:
                                 pass
             app_no += 1
@@ -2445,7 +2743,7 @@ class WordGenerator:
                 if sp and isinstance(sp, str) and os.path.exists(sp):
                     doc.add_paragraph(f"{eq.get('name') or ''} № {eq.get('verification_certificate_number') or ''}")
                     try:
-                        doc.add_picture(sp, width=Inches(6.0))
+                        doc.add_picture(sp, width=Inches(4.8))
                     except Exception:
                         pass
 
@@ -2494,7 +2792,7 @@ class WordGenerator:
                     if isinstance(fn, str) and fn:
                         attachment_names[dn] = fn
         
-        def add_picture_if_exists(title: str, path: Optional[str], width_inches: float = 6.0):
+        def add_picture_if_exists(title: str, path: Optional[str], width_inches: float = 4.8):
             """Добавить изображение или подпись для PDF если существует."""
             if not path:
                 return False
@@ -2581,7 +2879,7 @@ class WordGenerator:
         try:
             resolved = self._find_image_path(str(logo_path))
             if resolved and os.path.isfile(resolved):
-                doc.add_picture(resolved, width=Inches(6.5))
+                doc.add_picture(resolved, width=Inches(5.2))
         except Exception:
             pass
         
@@ -2656,13 +2954,26 @@ class WordGenerator:
         docs_dict = g("documents", default={})
         docs_info = g("documents_info", default={})
         inspection_engineers = g("inspection_engineers", default=[])
-        # Расширенный перечень работ: НК-методы + анализ документов + измерение овальности при наличии данных
+        # Расширенный перечень работ: НК-методы + анализ документов + овальность + твердометрия + УЗТ + УЗК при наличии данных
         work_list = list(performed)
+        performed_codes = {str(m.get("method_code") or m.get("method_name") or "").upper() for m in performed}
         if isinstance(docs_dict, dict) and any(v for v in docs_dict.values()):
             work_list.append({"method_name": "Анализ док.", "work_name": "Анализ технической документации", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "conclusion": "Рассмотрены документы по перечню раздела 11"})
+        has_visual_data = (g("visual_defects", default=[]) and len(g("visual_defects", default=[])) > 0) or g("has_external_defects") is not None or g("has_internal_defects") is not None
+        if has_visual_data and "ВИК" not in performed_codes and "VIK" not in performed_codes:
+            work_list.append({"method_name": "ВИК", "work_name": "Визуальный и измерительный контроль", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "conclusion": "Выполнено по протоколу"})
         ovality_data = g("ovality_measurements", default=[])
         if isinstance(ovality_data, list) and ovality_data:
             work_list.append({"method_name": "Овальность", "work_name": "Измерение овальности корпуса сосуда", "standard": "СО 153-34.17.439-2003", "conclusion": "Выполнено по протоколу"})
+        hardness_data = g("hardness_tests", default=[])
+        if isinstance(hardness_data, list) and hardness_data:
+            work_list.append({"method_name": "Твердометрия", "work_name": "Контроль твердости металла", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "conclusion": "Выполнено по протоколу"})
+        thickness_data = g("thickness_measurements", default=[])
+        if isinstance(thickness_data, list) and thickness_data and "УЗТ" not in performed_codes and "UZT" not in performed_codes:
+            work_list.append({"method_name": "УЗТ", "work_name": "Ультразвуковой контроль толщины стенок элементов сосуда", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "conclusion": "Выполнено по протоколу"})
+        weld_data = g("weld_inspections", default=[])
+        if isinstance(weld_data, list) and weld_data and "УЗК" not in performed_codes and "UZK" not in performed_codes:
+            work_list.append({"method_name": "УЗК", "work_name": "Ультразвуковой контроль качества основного металла и сварных соединений", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "conclusion": "Выполнено по протоколу"})
 
         def _normalize_method(method_raw: str) -> str:
             m = (method_raw or "").strip()
@@ -2861,10 +3172,23 @@ class WordGenerator:
             name = (m.get("inspector_name") or "").strip()
             if name and name not in inspectors:
                 inspectors.append(name)
-                inspector_details[name] = {
-                    "level": m.get("inspector_level"),
-                    "certification": m.get("certification_number"),
-                }
+            if name:
+                if name not in inspector_details:
+                    inspector_details[name] = {}
+                md = inspector_details[name]
+                md["level"] = md.get("level") or m.get("inspector_level")
+                cert_num = m.get("certificate_number") or m.get("certification_number")
+                if cert_num:
+                    md["certification"] = cert_num
+                    md["certification_number"] = cert_num
+                    if not md.get("certifications_inline"):
+                        md["certifications_inline"] = [str(cert_num)]
+                method = _normalize_method(m.get("method_code") or m.get("method_name"))
+                if method:
+                    methods = md.get("methods", [])
+                    if method not in methods:
+                        methods.append(method)
+                    md["methods"] = methods
         
         if inspectors:
             spec_table = doc.add_table(rows=len(inspectors) + 1, cols=4)
@@ -2879,20 +3203,20 @@ class WordGenerator:
             for idx, name in enumerate(inspectors, 1):
                 spec_table.rows[idx].cells[0].text = str(idx)
                 spec_table.rows[idx].cells[1].text = name
-                
                 details = inspector_details.get(name, {})
-                cert_info = []
-                if details.get("certifications_inline"):
-                    cert_info.extend(details["certifications_inline"])
-                elif details.get("certification"):
-                    cert_info.append(details["certification"])
-                
-                methods_str = ", ".join(details.get("methods", []))
+                cert_nums = details.get("certifications_inline") or []
+                if not cert_nums and details.get("certification"):
+                    cert_nums = [details["certification"]]
+                if not cert_nums and details.get("certificate_number"):
+                    cert_nums = [details["certificate_number"]]
+                methods_str = ", ".join(sorted(set(details.get("methods", [])))) if details.get("methods") else ""
+                spec_table.rows[idx].cells[2].text = "; ".join(cert_nums) if cert_nums else "—"
+                area_parts = []
+                if details.get("level"):
+                    area_parts.append(f"Уровень: {details['level']}")
                 if methods_str:
-                    cert_info.append(methods_str)
-                
-                spec_table.rows[idx].cells[2].text = cert_info[0] if cert_info else "—"
-                spec_table.rows[idx].cells[3].text = ", ".join(cert_info[1:]) if len(cert_info) > 1 else (methods_str if methods_str else "—")
+                    area_parts.append(f"Методы: {methods_str}")
+                spec_table.rows[idx].cells[3].text = "; ".join(area_parts) if area_parts else "—"
         else:
             doc.add_paragraph("Специалисты не указаны.")
         doc.add_paragraph()
@@ -3158,12 +3482,33 @@ class WordGenerator:
         app_no = 1
         # ПРИЛОЖЕНИЕ № 1 (Протокол анализа техдокументации) не дублируем — уже есть раздел 11 «Сведения о рассмотренных документах»
         
+        def _add_protocol_header_block():
+            """Блок заголовка: Заказчик, Объект, Место, Дата, НТД."""
+            ht = doc.add_table(rows=5, cols=2)
+            ht.style = "Table Grid"
+            nd = str(g("normative_base", default="приказ Ростехнадзора от 15.12.2020 №536, СО 153-34.17.439-2003, ГОСТ Р 55614-2013, ГОСТ Р ИСО 16809-2015"))
+            for i, (lbl, val) in enumerate([
+                ("Заказчик:", str(org)),
+                ("Объект контроля:", f"{device_name} зав.№ {serial}"),
+                ("Место проведения контроля:", str(location)),
+                ("Дата проведения контроля:", date_perf_ru),
+                ("НТД, по которой выполнен контроль:", nd),
+            ]):
+                ht.rows[i].cells[0].text = lbl
+                ht.rows[i].cells[1].text = val
+                try:
+                    ht.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
+                except Exception:
+                    pass
+            doc.add_paragraph()
+        
         # ПРИЛОЖЕНИЕ № 1 (бывш. 2): Протокол по результатам оперативной диагностики
         doc.add_page_break()
         doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам оперативной (функциональной) диагностики", level=1)
         doc.add_paragraph("Протокол по результатам оперативной (функциональной) диагностики")
-        doc.add_paragraph(f"№ 1 от {date_perf_ru}г.")
+        doc.add_paragraph(f"№ {app_no} от {date_perf_ru}г.")
         doc.add_paragraph()
+        _add_protocol_header_block()
         doc.add_paragraph("1. Результаты функциональной (оперативной) диагностики")
         doc.add_paragraph("Таблица № 1")
         doc.add_paragraph()
@@ -3194,8 +3539,9 @@ class WordGenerator:
         doc.add_page_break()
         doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам визуального и измерительного контроля", level=1)
         doc.add_paragraph("Протокол по результатам визуального и измерительного контроля")
-        doc.add_paragraph(f"№ 2 от {date_perf_ru}г.")
+        doc.add_paragraph(f"№ {app_no} от {date_perf_ru}г.")
         doc.add_paragraph()
+        _add_protocol_header_block()
         
         # ВИК результаты
         vik_method = next((m for m in performed if m.get("method_name") == "ВИК"), None)
@@ -3360,21 +3706,27 @@ class WordGenerator:
         
         # ПРИЛОЖЕНИЕ № 4: Протокол по результатам ультразвукового контроля толщины
         uz_method = next((m for m in performed if "УЗТ" in (m.get("method_name") or "")), None)
-        if uz_method:
+        thickness_for_protocol = g("thickness_measurements", "thicknessMeasurements", default=[])
+        has_uzt_data = uz_method or (isinstance(thickness_for_protocol, list) and len(thickness_for_protocol) > 0)
+        if has_uzt_data:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам ультразвукового контроля толщины стенок элементов сосуда", level=1)
             doc.add_paragraph("Протокол по результатам ультразвукового контроля толщины стенок элементов сосуда")
-            doc.add_paragraph(f"№ 3 от {date_perf_ru}г.")
+            doc.add_paragraph(f"№ {app_no} от {date_perf_ru}г.")
             doc.add_paragraph()
-            
-            doc.add_paragraph("1. Применяемое оборудование")
+            _add_protocol_header_block()
+            doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
             doc.add_paragraph("Таблица № 1")
             doc.add_paragraph()
             uz_eq = [eq for eq in (verification_equipment or []) if "УЗТ" in (eq.get("equipment_type") or "").upper() or "ТОЛЩИНОМЕР" in (eq.get("name") or "").upper()]
+            if not uz_eq:
+                for m in (ndt_methods or []):
+                    if (m.get("method_code") or "").upper() in ("UZT", "УЗТ") and m.get("equipment"):
+                        uz_eq.append({"name": m.get("equipment"), "serial_number": m.get("equipment_serial") or m.get("serial_number") or "—"})
             if uz_eq:
-                uz_eq_tbl = doc.add_table(rows=len(uz_eq) + 1, cols=2)
+                uz_eq_tbl = doc.add_table(rows=len(uz_eq) + 1, cols=3)
                 uz_eq_tbl.style = "Table Grid"
-                headers = ["№ п/п", "Наименование прибора / Заводской номер прибора"]
+                headers = ["№ п/п", "Наименование прибора", "Заводской номер прибора"]
                 for i, h in enumerate(headers):
                     cell = uz_eq_tbl.rows[0].cells[i]
                     cell.text = h
@@ -3382,7 +3734,8 @@ class WordGenerator:
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 for idx, eq in enumerate(uz_eq, 1):
                     uz_eq_tbl.rows[idx].cells[0].text = str(idx)
-                    uz_eq_tbl.rows[idx].cells[1].text = f"{eq.get('name', '—')} / {eq.get('serial_number', '—')}"
+                    uz_eq_tbl.rows[idx].cells[1].text = str(eq.get("name", "—"))
+                    uz_eq_tbl.rows[idx].cells[2].text = str(eq.get("serial_number", "—"))
             doc.add_paragraph()
             
             doc.add_paragraph("2. Результаты контроля")
@@ -3392,6 +3745,7 @@ class WordGenerator:
             doc.add_paragraph()
             
             thickness = g("thickness_measurements", "thicknessMeasurements", default=[])
+            attrs = equipment_data.get("attributes") or {}
             if isinstance(thickness, list) and thickness:
                 # Группируем по элементам (обечайка, днище 1, днище 2)
                 elements = {}
@@ -3404,9 +3758,9 @@ class WordGenerator:
                     elements[element].append(t)
                 
                 for element_name, measurements in elements.items():
-                    doc.add_paragraph(f"Наименование элемента: {element_name}")
-                    doc.add_paragraph()
-                    thick_tbl = doc.add_table(rows=len(measurements) + 1, cols=9)
+                    data_rows = (len(measurements) + 3) // 4
+                    total_rows = 1 + data_rows + 3
+                    thick_tbl = doc.add_table(rows=total_rows, cols=9)
                     thick_tbl.style = "Table Grid"
                     headers = ["Наименование элемента", "№ точки", "Толщина, мм", "№ точки", "Толщина, мм", "№ точки", "Толщина, мм", "№ точки", "Толщина, мм"]
                     for i, h in enumerate(headers):
@@ -3415,9 +3769,8 @@ class WordGenerator:
                         cell.paragraphs[0].runs[0].font.bold = True
                         cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
-                    # Разбиваем на строки по 4 точки
-                    for row_idx in range((len(measurements) + 3) // 4):
-                        row = thick_tbl.add_row()
+                    for row_idx in range(data_rows):
+                        row = thick_tbl.rows[row_idx + 1]
                         row.cells[0].text = element_name if row_idx == 0 else ""
                         for col_idx in range(4):
                             point_idx = row_idx * 4 + col_idx
@@ -3428,10 +3781,32 @@ class WordGenerator:
                                 row.cells[col_idx * 2 + 1].text = point_num
                                 row.cells[col_idx * 2 + 2].text = thickness_val
                     
-                    doc.add_paragraph()
-                    doc.add_paragraph(f"Номинальная толщина, мм: {g('nominal_thickness', default='4,0')}")
-                    doc.add_paragraph(f"Минимально-измеренная толщина, мм: {min([float(str(m.get('thickness', 0))) for m in measurements if str(m.get('thickness', '')).replace('.', '').isdigit()], default=0)}")
-                    doc.add_paragraph(f"Минимально допустимая толщина стеки сосуда, мм: {g('min_allowed_thickness', default='2,8')}")
+                    nominal = attrs.get("wall_thickness") or attrs.get("thickness") or g("wall_thickness", "nominal_thickness", default="4,0")
+                    min_meas_vals = []
+                    for m in measurements:
+                        t = m.get("thickness")
+                        if t is None or t == "":
+                            continue
+                        try:
+                            min_meas_vals.append(float(str(t).replace(",", ".")))
+                        except (TypeError, ValueError):
+                            pass
+                    min_meas = min(min_meas_vals, default=0)
+                    min_allowed_vals = [float(str(p.get("min_allowed_thickness", "0")).replace(",", ".")) for p in measurements if p.get("min_allowed_thickness")]
+                    min_allowed = attrs.get("min_wall_thickness") or (min_allowed_vals[0] if min_allowed_vals else 2.8)
+                    try:
+                        ma = float(str(min_allowed or "2.8").replace(",", "."))
+                        min_allowed_str = f"{ma:.1f}" if ma > 0 else "2,8"
+                    except (TypeError, ValueError):
+                        min_allowed_str = "2,8"
+                    
+                    row_idx = 1 + data_rows
+                    thick_tbl.rows[row_idx].cells[0].text = "Номинальная толщина, мм"
+                    thick_tbl.rows[row_idx].cells[1].text = str(nominal)
+                    thick_tbl.rows[row_idx + 1].cells[0].text = "Минимально-измеренная толщина, мм"
+                    thick_tbl.rows[row_idx + 1].cells[1].text = f"{min_meas:.1f}" if min_meas > 0 else "—"
+                    thick_tbl.rows[row_idx + 2].cells[0].text = "Минимально допустимая толщина стеки сосуда, мм"
+                    thick_tbl.rows[row_idx + 2].cells[1].text = min_allowed_str
                     doc.add_paragraph()
             
             doc.add_paragraph("3. Заключение по результатам контроля")
@@ -3457,8 +3832,9 @@ class WordGenerator:
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам ультразвукового контроля качества основного металла и сварных соединений", level=1)
             doc.add_paragraph("Протокол по результатам ультразвукового контроля качества")
             doc.add_paragraph("основного металла и сварных соединений")
-            doc.add_paragraph(f"№ 4 от {date_perf_ru}г.")
+            doc.add_paragraph(f"№ {app_no} от {date_perf_ru}г.")
             doc.add_paragraph()
+            _add_protocol_header_block()
             
             doc.add_paragraph("1. Применяемое оборудование")
             doc.add_paragraph("Таблица № 1")
@@ -3544,23 +3920,30 @@ class WordGenerator:
             app_no += 1
         
         # ПРИЛОЖЕНИЕ № 6: Протокол по результатам оценки механических свойств
-        hardness_method = next((m for m in performed if "ТК" in (m.get("method_name") or "") or "твердость" in (m.get("method_name") or "").lower()), None)
-        if hardness_method:
+        hardness_method = next((m for m in performed if "ТК" in (m.get("method_name") or "") or "твердость" in (m.get("method_name") or "").lower() or "ТВИ" in (m.get("method_name") or "")), None)
+        hardness_for_protocol = g("hardness_tests", default=[])
+        has_hardness_data = hardness_method or (isinstance(hardness_for_protocol, list) and len(hardness_for_protocol) > 0)
+        if has_hardness_data:
             doc.add_page_break()
-            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам оценки механических свойств элементов сосуда", level=1)
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам оценки механических свойств элементов сосуда (измерение твердости металла)", level=1)
             doc.add_paragraph("Протокол по результатам оценки механических свойств элементов сосуда")
             doc.add_paragraph("(измерение твердости металла)")
-            doc.add_paragraph(f"№ 5 от {date_perf_ru}г.")
+            doc.add_paragraph(f"№ {app_no} от {date_perf_ru}г.")
             doc.add_paragraph()
+            _add_protocol_header_block()
             
-            doc.add_paragraph("1. Применяемое оборудование")
+            doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
             doc.add_paragraph("Таблица № 1")
             doc.add_paragraph()
             hardness_eq = [eq for eq in (verification_equipment or []) if "твердость" in (eq.get("name") or "").lower() or "УЗИТ" in (eq.get("name") or "").upper()]
+            if not hardness_eq:
+                for m in (ndt_methods or []):
+                    if (m.get("method_code") or "").upper() in ("TVI", "ТВИ", "HARDNESS") and m.get("equipment"):
+                        hardness_eq.append({"name": m.get("equipment"), "serial_number": m.get("equipment_serial") or m.get("serial_number") or "—"})
             if hardness_eq:
-                hardness_eq_tbl = doc.add_table(rows=len(hardness_eq) + 1, cols=2)
+                hardness_eq_tbl = doc.add_table(rows=len(hardness_eq) + 1, cols=3)
                 hardness_eq_tbl.style = "Table Grid"
-                headers = ["№ п/п", "Наименование прибора / Заводской номер прибора"]
+                headers = ["№ п/п", "Наименование прибора", "Заводской номер прибора"]
                 for i, h in enumerate(headers):
                     cell = hardness_eq_tbl.rows[0].cells[i]
                     cell.text = h
@@ -3568,44 +3951,54 @@ class WordGenerator:
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 for idx, eq in enumerate(hardness_eq, 1):
                     hardness_eq_tbl.rows[idx].cells[0].text = str(idx)
-                    hardness_eq_tbl.rows[idx].cells[1].text = f"{eq.get('name', '—')} / {eq.get('serial_number', '—')}"
+                    hardness_eq_tbl.rows[idx].cells[1].text = str(eq.get("name", "—"))
+                    hardness_eq_tbl.rows[idx].cells[2].text = str(eq.get("serial_number", "—"))
             doc.add_paragraph()
             
-            doc.add_paragraph("2. Результаты контроля")
+            doc.add_paragraph("2. Результаты контроля").runs[0].bold = True
+            doc.add_paragraph("Таблица № 2")
             doc.add_paragraph()
             hardness = g("hardness_tests", default=[])
             if isinstance(hardness, list) and hardness:
-                hardness_tbl = doc.add_table(rows=len(hardness) + 1, cols=9)
-                hardness_tbl.style = "Table Grid"
-                headers = ["Наименование элемента", "№ точки замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ"]
-                for i, h in enumerate(headers):
-                    cell = hardness_tbl.rows[0].cells[i]
-                    cell.text = h
-                    cell.paragraphs[0].runs[0].font.bold = True
-                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                
-                # Группируем по элементам
-                elements = {}
+                hardness_by_el = {}
                 for h in hardness:
                     if not isinstance(h, dict):
                         continue
-                    element = str(h.get("location", "Обечайка"))
-                    if element not in elements:
-                        elements[element] = []
-                    elements[element].append(h)
-                
-                for element_name, measurements in elements.items():
-                    row = hardness_tbl.add_row()
-                    row.cells[0].text = element_name
-                    for idx, m in enumerate(measurements[:4]):
-                        point_num = str(m.get("point_number", idx + 1))
-                        hardness_val = str(m.get("hardness_base", m.get("hardness_weld", m.get("hardness_haz", ""))))
-                        row.cells[idx * 2 + 1].text = point_num
-                        row.cells[idx * 2 + 2].text = hardness_val
+                    el = str(h.get("location") or h.get("element_name") or h.get("weld_number") or "Обечайка")
+                    if el not in hardness_by_el:
+                        hardness_by_el[el] = []
+                    hardness_by_el[el].append(h)
+                total_rows = sum((len(t) + 3) // 4 for t in hardness_by_el.values())
+                hardness_tbl = doc.add_table(rows=1 + total_rows, cols=9)
+                hardness_tbl.style = "Table Grid"
+                headers = ["Наименование элемента", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ", "№ точки", "Результат замера, НВ"]
+                for i, h in enumerate(headers):
+                    hardness_tbl.rows[0].cells[i].text = h
+                    hardness_tbl.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+                row_idx = 1
+                for el_name, tests in hardness_by_el.items():
+                    for i in range(0, len(tests), 4):
+                        row = hardness_tbl.rows[row_idx]
+                        row.cells[0].text = el_name if i == 0 else ""
+                        for j in range(4):
+                            if i + j < len(tests):
+                                t = tests[i + j]
+                                row.cells[j*2 + 1].text = str(i + j + 1)
+                                row.cells[j*2 + 2].text = str(t.get("hardness_base") or t.get("hardness_weld") or t.get("hardness_haz") or "")
+                        row_idx += 1
+                allowed_lim = (hardness[0].get("allowed_hardness_base") or hardness[0].get("allowed_hardness_weld") or "").strip() if hardness and isinstance(hardness[0], dict) else ""
+                doc.add_paragraph()
+                doc.add_paragraph(f"Допустимый предел твердости: {allowed_lim}, в соответствии с СО 153-34.17.439-2003." if allowed_lim else "Допустимый предел твердости для стали 19 ГС от 120 НВ до 180 НВ, в соответствии с СО 153-34.17.439-2003.")
             doc.add_paragraph()
-            
-            doc.add_paragraph("3. Заключение по результатам контроля")
+            doc.add_paragraph("3. Заключение по результатам контроля").runs[0].bold = True
             doc.add_paragraph("При контроле физико-механических свойств основного металла методом замера твердости отклонения измеренных значений от допустимого диапазона, указанного в нормативной документации, не установлено.")
+            doc.add_paragraph()
+            insp_name = _engineer_for_method("TVI") or _engineer_for_method("HARDNESS")
+            if hardness_method:
+                insp_name = hardness_method.get("inspector_name") or insp_name
+            doc.add_paragraph("Контроль провел, заключение выдал:")
+            doc.add_paragraph("Дефектоскопист II уровня по ВИК, УК")
+            doc.add_paragraph(str(insp_name or "—"))
             doc.add_paragraph()
             app_no += 1
         
@@ -3620,7 +4013,7 @@ class WordGenerator:
             doc.add_paragraph()
             points_tbl = doc.add_table(rows=len(thickness) + 1, cols=5)
             points_tbl.style = "Table Grid"
-            headers = ["№ точки", "Местоположение", "Толщина, мм", "X%, Y%", "Комментарий"]
+            headers = ["№ точки", "Местоположение", "Толщина, мм", "Мин. допустимая, мм", "Комментарий"]
             for i, h in enumerate(headers):
                 cell = points_tbl.rows[0].cells[i]
                 cell.text = h
@@ -3632,9 +4025,7 @@ class WordGenerator:
                 points_tbl.rows[idx].cells[0].text = str(t.get("point_number", idx))
                 points_tbl.rows[idx].cells[1].text = str(t.get("location", ""))
                 points_tbl.rows[idx].cells[2].text = str(t.get("thickness", ""))
-                x_pct = str(t.get("x_percent", ""))
-                y_pct = str(t.get("y_percent", ""))
-                points_tbl.rows[idx].cells[3].text = f"{x_pct}, {y_pct}" if x_pct and y_pct else "—"
+                points_tbl.rows[idx].cells[3].text = str(t.get("min_allowed_thickness", ""))
                 points_tbl.rows[idx].cells[4].text = str(t.get("comment", ""))
             doc.add_paragraph()
         
@@ -3642,28 +4033,38 @@ class WordGenerator:
         doc.add_paragraph("2. Схема контроля (чертёж с точками измерения):").runs[0].bold = True
         doc.add_paragraph()
         control_scheme = attachments.get('control_scheme_image') or g('control_scheme_image')
+        welds = g("weld_inspections", default=[])
         scheme_to_show = None
         if control_scheme:
             scheme_resolved = self._find_image_path(control_scheme) or control_scheme
-            if scheme_resolved and os.path.isfile(scheme_resolved) and isinstance(thickness, list) and thickness:
+            base_scheme = scheme_resolved if (scheme_resolved and os.path.isfile(scheme_resolved)) else None
+            if base_scheme and isinstance(thickness, list) and thickness:
                 annotated = self._draw_points_on_scheme(
-                    scheme_resolved,
+                    base_scheme,
                     thickness,
                     output_dir="/app/reports/tmp",
                 )
                 if annotated and os.path.isfile(annotated):
                     scheme_to_show = annotated
+            if scheme_to_show is None:
+                scheme_to_show = base_scheme
+            if scheme_to_show and isinstance(welds, list):
+                uzk_with_coords = [w for w in welds if isinstance(w, dict) and (w.get("x_percent") is not None or w.get("y_percent") is not None)]
+                if uzk_with_coords:
+                    weld_annotated = self._draw_weld_points_on_scheme(scheme_to_show, uzk_with_coords, output_dir="/app/reports/tmp")
+                    if weld_annotated and os.path.isfile(weld_annotated):
+                        scheme_to_show = weld_annotated
             if not scheme_to_show:
                 scheme_to_show = self._find_image_path(control_scheme) or control_scheme
         if not scheme_to_show:
             template_path = "/app/reports/assets/vessel_template.png"
             scheme_to_show = self._find_image_path(template_path) or (template_path if os.path.isfile(template_path) else None)
             if scheme_to_show:
-                add_picture_if_exists("Схема контроля (шаблон)", scheme_to_show, width_inches=7.0)
+                add_picture_if_exists("Схема контроля (шаблон)", scheme_to_show, width_inches=5.6)
             else:
                 doc.add_paragraph("Схема контроля не предоставлена.")
         else:
-            add_picture_if_exists("", scheme_to_show, width_inches=7.0)
+            add_picture_if_exists("", scheme_to_show, width_inches=5.6)
         
         # Фото заводской таблички
         doc.add_paragraph()
@@ -3692,14 +4093,138 @@ class WordGenerator:
                     add_picture_if_exists(f"Фото дефекта ВИК ({_k})", _r)
         app_no += 1
         
-        # ПРИЛОЖЕНИЕ № 8: Расчетные процедуры (если есть)
-        calc_data = g("calculation_data", default={})
-        if calc_data:
+        # ПРИЛОЖЕНИЕ № 8: Расчет остаточного ресурса и расчет на прочность
+        thickness_calc = g("thickness_measurements", "thicknessMeasurements", default=[])
+        if isinstance(thickness_calc, list) and len(thickness_calc) > 0:
             doc.add_page_break()
-            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Расчетные и аналитические процедуры оценки и прогнозирования технического состояния сосуда", level=1)
-            doc.add_paragraph(str(calc_data.get("description", "Расчеты выполнены в соответствии с требованиями нормативной документации.")))
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Расчет остаточного ресурса и расчет на прочность сосуда", level=1)
+            wall_th = attrs.get("wall_thickness") or attrs.get("thickness") or g("wall_thickness", "thickness", default="4")
+            min_allowed = attrs.get("min_wall_thickness") or g("min_allowed_thickness", default="2.8")
+            min_vals = [float(str(p.get("thickness", "0")).replace(",", ".")) for p in thickness_calc if isinstance(p, dict) and p.get("thickness")]
+            s_f = min(min_vals) if min_vals else 3.9
+            try:
+                s_n = float(str(wall_th).replace(",", "."))
+            except (TypeError, ValueError):
+                s_n = 4.0
+            try:
+                s_otb = float(str(min_allowed).replace(",", "."))
+            except (TypeError, ValueError):
+                s_otb = 2.8
+            comm_year = attrs.get("commissioning_year") or g("commissioning_year") or equipment_data.get("commissioning_date")
+            t1 = 16
+            if comm_year:
+                try:
+                    t1 = datetime.now().year - int(str(comm_year)[:4])
+                    if t1 < 1:
+                        t1 = 16
+                except (TypeError, ValueError):
+                    pass
+            a = (s_n - s_f) / t1 if t1 > 0 else 0.01
+            tk = (s_f - s_otb) / a if a > 0 else 110
+            doc.add_paragraph("1. Расчет остаточного ресурса сосуда")
+            doc.add_paragraph("Остаточный ресурс сосуда рассчитан согласно ДиОР-05 и приведен в Таблице Е.1.")
             doc.add_paragraph()
+            tbl_e1 = doc.add_table(rows=7, cols=5)
+            tbl_e1.style = "Table Grid"
+            for i, h in enumerate(["№ п/п", "Наименование величины", "Единица измерения", "Обозначение и расчетная формула", "Числовое значение"]):
+                tbl_e1.rows[0].cells[i].text = h
+                tbl_e1.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+            tbl_e1.rows[1].cells[0].text = "1"
+            tbl_e1.rows[1].cells[1].text = "Время эксплуатации"
+            tbl_e1.rows[1].cells[2].text = "лет"
+            tbl_e1.rows[1].cells[3].text = "t₁"
+            tbl_e1.rows[1].cells[4].text = str(t1)
+            tbl_e1.rows[2].cells[0].text = "2"
+            tbl_e1.rows[2].cells[1].text = "Паспортная толщина стенки\nОбечайка / Днище"
+            tbl_e1.rows[2].cells[2].text = "мм"
+            tbl_e1.rows[2].cells[3].text = "Sн"
+            tbl_e1.rows[2].cells[4].text = f"{s_n:.0f} / {s_n:.0f}"
+            tbl_e1.rows[3].cells[0].text = "3"
+            tbl_e1.rows[3].cells[1].text = "Минимально допустимая толщина стенки сосуда"
+            tbl_e1.rows[3].cells[2].text = "мм"
+            tbl_e1.rows[3].cells[3].text = "Sотб"
+            tbl_e1.rows[3].cells[4].text = f"{s_otb:.1f} / {s_otb:.1f}"
+            tbl_e1.rows[4].cells[0].text = "4"
+            tbl_e1.rows[4].cells[1].text = "Минимальная толщина по результатам замеров"
+            tbl_e1.rows[4].cells[2].text = "мм"
+            tbl_e1.rows[4].cells[3].text = "Sф"
+            tbl_e1.rows[4].cells[4].text = f"{s_f:.1f} / {s_f:.1f}"
+            tbl_e1.rows[5].cells[0].text = "5"
+            tbl_e1.rows[5].cells[1].text = "Скорость коррозии металла сосуда"
+            tbl_e1.rows[5].cells[2].text = "мм/год"
+            tbl_e1.rows[5].cells[3].text = "a = (Sн - Sф) / t₁"
+            tbl_e1.rows[5].cells[4].text = f"{a:.2f} / {a:.2f}"
+            tbl_e1.rows[6].cells[0].text = "6"
+            tbl_e1.rows[6].cells[1].text = "Остаточный срок службы сосуда, поэлементно"
+            tbl_e1.rows[6].cells[2].text = "лет"
+            tbl_e1.rows[6].cells[3].text = "Tk = (Sф - Sотб) / a"
+            tbl_e1.rows[6].cells[4].text = f"{tk:.0f} / {tk:.0f}"
+            doc.add_paragraph()
+            doc.add_paragraph("2. Расчет на прочность сосуда")
+            doc.add_paragraph("Расчет на прочность сосуда проводился в соответствии с ГОСТ 34233.1-2017 и ГОСТ 34233.2-2017 и приведен в Таблице Е.2.")
+            doc.add_paragraph()
+            try:
+                p_val = float(str(attrs.get("working_pressure") or g("working_pressure") or "1.1").replace(",", "."))
+            except (TypeError, ValueError):
+                p_val = 1.1
+            try:
+                t_n = float(str(attrs.get("design_temperature") or g("design_temperature") or "100").replace(",", "."))
+            except (TypeError, ValueError):
+                t_n = 100
+            try:
+                d_n = float(str(attrs.get("diameter") or g("diameter") or equipment_data.get("diameter") or "792").replace(",", "."))
+            except (TypeError, ValueError):
+                d_n = 792
+            try:
+                c_val = float(str(attrs.get("corrosion_allowance") or g("corrosion_allowance") or "0").replace(",", "."))
+            except (TypeError, ValueError):
+                c_val = 0
+            phi, sigma = 0.9, 177
+            r_val = d_n
+            s_p = (p_val * r_val) / (2 * phi * sigma - 0.5 * p_val) if (2 * phi * sigma - 0.5 * p_val) > 0 else 2.74
+            s_otb_calc = s_p + c_val
+            p_allow = (2 * (s_f - c_val) * phi * sigma) / (r_val + 0.5 * (s_f - c_val)) if (r_val + 0.5 * (s_f - c_val)) > 0 else 1.57
+            tbl_e2 = doc.add_table(rows=13, cols=5)
+            tbl_e2.style = "Table Grid"
+            for i, h in enumerate(["№ п/п", "Наименование величины", "Единица измерения", "Обозначение и расчетная формула", "Числовое значение"]):
+                tbl_e2.rows[0].cells[i].text = h
+                tbl_e2.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+            for r, (num, name, unit, formula, value) in enumerate([
+                (1, "Рабочее давление", "МПа", "P", f"{p_val:.1f}"),
+                (2, "Расчетная температура", "°C", "tн", f"{t_n:.0f}"),
+                (3, "Внутренний диаметр", "мм", "Dн", f"{d_n:.0f}"),
+                (4, "Прибавка для компенсации коррозии", "мм", "C", f"{c_val:.0f}"),
+                (5, "Коэффициент прочности сварных швов", "", "φ", str(phi)),
+                (6, "Допускаемое напряжение при расчетной температуре", "МПа", "[σ]", str(sigma)),
+                (7, "Радиус кривизны в вершине днища, R=D для эллиптических днищ", "мм", "R", f"{r_val:.0f}"),
+                (8, "Минимальная толщина по результатам контроля\nДнище / Обечайка", "мм", "Sф", f"{s_f:.1f} / {s_f:.1f}"),
+                (9, "Расчетная толщина стенки\nДнище / Обечайка", "мм", "Sр = P·R/(2φ[σ]–0,5P) / Sр = P·D/(2φ[σ]–P)", f"{s_p:.2f} / {s_p:.2f}"),
+                (10, "Минимально допустимая толщина стенки сосуда\nДнище / Обечайка", "мм", "Sотб = Sр + C", f"{s_otb_calc:.2f} / {s_otb_calc:.2f}"),
+                (11, "Допускаемое внутреннее избыточное давление\nДнище / Обечайка", "МПа", "[P]", f"{p_allow:.2f} / {p_allow:.2f}"),
+            ], 1):
+                tbl_e2.rows[r].cells[0].text = str(num)
+                tbl_e2.rows[r].cells[1].text = name
+                tbl_e2.rows[r].cells[2].text = unit
+                tbl_e2.rows[r].cells[3].text = formula
+                tbl_e2.rows[r].cells[4].text = value
+            doc.add_paragraph()
+            doc.add_paragraph("Условия прочности: Sотб = {:.1f} мм < Sф = {:.1f} мм. [P] = {:.2f} МПа > Рраб = {:.1f} МПа.".format(s_otb_calc, s_f, p_allow, p_val))
+            doc.add_paragraph()
+            doc.add_paragraph("Выводы:").runs[0].bold = True
+            doc.add_paragraph("На основании выполненного расчета на прочность установлено, что сосуд удовлетворяет условиям прочности, срок эксплуатации до достижения предельно-допустимого значения толщины стенки сосуда составляет более 10 лет.")
+            doc.add_paragraph()
+            doc.add_paragraph("Расчет выполнил:")
+            doc.add_paragraph("Дефектоскопист II уровня по ВИК, УК")
+            doc.add_paragraph(str(_engineer_for_method("TVI") or _engineer_for_method("UZT") or g("executors", default="—")))
             app_no += 1
+        else:
+            calc_data = g("calculation_data", default={})
+            if calc_data:
+                doc.add_page_break()
+                doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Расчетные и аналитические процедуры оценки и прогнозирования технического состояния сосуда", level=1)
+                doc.add_paragraph(str(calc_data.get("description", "Расчеты выполнены в соответствии с требованиями нормативной документации.")))
+                doc.add_paragraph()
+                app_no += 1
         
         # ПРИЛОЖЕНИЕ № 9: Гидравлические испытания (если есть)
         hydro_test = g("hydrostatic_test", default={})

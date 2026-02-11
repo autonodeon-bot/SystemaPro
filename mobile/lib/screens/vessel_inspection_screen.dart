@@ -513,6 +513,20 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _checklist.inspectionEngineers = merged.inspectionEngineers;
         _checklist.visualDefects = merged.visualDefects;
         _checklist.conclusion = merged.conclusion;
+        if (merged is VesselChecklist) {
+          _checklist.purpose = merged.purpose;
+          _checklist.commissioningYear = merged.commissioningYear;
+          _checklist.designPressure = merged.designPressure;
+          _checklist.testPressure = merged.testPressure;
+          _checklist.workingTemperature = merged.workingTemperature;
+          _checklist.designTemperature = merged.designTemperature;
+          _checklist.workingMedium = merged.workingMedium;
+          _checklist.mediumCharacteristics = merged.mediumCharacteristics;
+          _checklist.vesselGroup = merged.vesselGroup;
+          _checklist.mediumGroup = merged.mediumGroup;
+          _checklist.corrosionAllowance = merged.corrosionAllowance;
+          _checklist.previousInspectionResult = merged.previousInspectionResult;
+        }
 
         _selectedEngineerByMethod.clear();
         for (final ie in merged.inspectionEngineers) {
@@ -595,11 +609,24 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     _checklist.organization =
         _checklist.organization ?? getAttr('organization');
 
-    // Поля специфичные для сосудов
+    // Поля специфичные для сосудов и техническая характеристика (таблица 6)
     if (!_isCompressor) {
       _checklist.diameter = getAttr('diameter');
       _checklist.workingPressure = getAttr('working_pressure');
       _checklist.wallThickness = getAttr('wall_thickness');
+      _checklist.purpose = getAttr('purpose');
+      _checklist.commissioningYear =
+          getAttr('commissioning_year') ?? widget.equipment.commissioningDate?.substring(0, 4);
+      _checklist.designPressure = getAttr('design_pressure');
+      _checklist.testPressure = getAttr('test_pressure');
+      _checklist.workingTemperature = getAttr('working_temperature');
+      _checklist.designTemperature = getAttr('design_temperature');
+      _checklist.workingMedium = getAttr('working_medium');
+      _checklist.mediumCharacteristics = getAttr('medium_characteristics');
+      _checklist.vesselGroup = getAttr('vessel_group');
+      _checklist.mediumGroup = getAttr('medium_group');
+      _checklist.corrosionAllowance = getAttr('corrosion_allowance');
+      _checklist.previousInspectionResult = getAttr('previous_inspection_result');
     } else {
       // Поля специфичные для компрессоров
       final compressorChecklist = _checklist as CompressorChecklist;
@@ -675,6 +702,23 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             _checklist.documentsInfo![entry.key] = entry.value;
           }
         }
+      }
+
+      // Техническая характеристика и анализ предыдущих обследований
+      if (!_isCompressor && _checklist is VesselChecklist) {
+        final v = _checklist as VesselChecklist;
+        if ((v.purpose == null || v.purpose!.isEmpty) && prevData['purpose'] != null) v.purpose = prevData['purpose']?.toString();
+        if ((v.commissioningYear == null || v.commissioningYear!.isEmpty) && prevData['commissioning_year'] != null) v.commissioningYear = prevData['commissioning_year']?.toString();
+        if ((v.designPressure == null || v.designPressure!.isEmpty) && prevData['design_pressure'] != null) v.designPressure = prevData['design_pressure']?.toString();
+        if ((v.testPressure == null || v.testPressure!.isEmpty) && prevData['test_pressure'] != null) v.testPressure = prevData['test_pressure']?.toString();
+        if ((v.workingTemperature == null || v.workingTemperature!.isEmpty) && prevData['working_temperature'] != null) v.workingTemperature = prevData['working_temperature']?.toString();
+        if ((v.designTemperature == null || v.designTemperature!.isEmpty) && prevData['design_temperature'] != null) v.designTemperature = prevData['design_temperature']?.toString();
+        if ((v.workingMedium == null || v.workingMedium!.isEmpty) && prevData['working_medium'] != null) v.workingMedium = prevData['working_medium']?.toString();
+        if ((v.mediumCharacteristics == null || v.mediumCharacteristics!.isEmpty) && prevData['medium_characteristics'] != null) v.mediumCharacteristics = prevData['medium_characteristics']?.toString();
+        if ((v.vesselGroup == null || v.vesselGroup!.isEmpty) && prevData['vessel_group'] != null) v.vesselGroup = prevData['vessel_group']?.toString();
+        if ((v.mediumGroup == null || v.mediumGroup!.isEmpty) && prevData['medium_group'] != null) v.mediumGroup = prevData['medium_group']?.toString();
+        if ((v.corrosionAllowance == null || v.corrosionAllowance!.isEmpty) && prevData['corrosion_allowance'] != null) v.corrosionAllowance = prevData['corrosion_allowance']?.toString();
+        if ((v.previousInspectionResult == null || v.previousInspectionResult!.isEmpty) && prevData['previous_inspection_result'] != null) v.previousInspectionResult = prevData['previous_inspection_result']?.toString();
       }
 
       // Проверки и состояния (радиокнопки и выпадающие списки) — подставляем из последней инспекции
@@ -864,6 +908,71 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ошибка выбора изображения: $e')),
       );
+    }
+  }
+
+  /// Выбор файла изображения (из документов/загрузок)
+  Future<void> _pickImageFromFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final path = result.files.single.path;
+      if (path == null || path.isEmpty) return;
+      final file = File(path);
+      if (!await file.exists()) return;
+      final finalImagePath = await _persistPickedFile(
+        sourcePath: path,
+        fileName: Path.basename(path),
+        documentNumber: 'control_scheme_image',
+      );
+      setState(() {
+        _controlSchemeImage = File(finalImagePath);
+        _checklist.controlSchemeImage = finalImagePath;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Файл выбран'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка выбора файла: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  /// Встроенный шаблон чертежа (из assets приложения)
+  Future<void> _pickBuiltInTemplate() async {
+    try {
+      final byteData = await rootBundle.load('assets/images/vessel_template.png');
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/vessel_template.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      final persistedPath = await _persistPickedFile(
+        sourcePath: file.path,
+        fileName: 'vessel_template.png',
+        documentNumber: 'control_scheme_image',
+      );
+      setState(() {
+        _controlSchemeImage = File(persistedPath);
+        _checklist.controlSchemeImage = persistedPath;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Встроенный шаблон выбран'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка загрузки шаблона: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -1200,6 +1309,18 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       initialValues['diameter'] = _checklist.diameter;
       initialValues['working_pressure'] = _checklist.workingPressure;
       initialValues['wall_thickness'] = _checklist.wallThickness;
+      initialValues['purpose'] = _checklist.purpose;
+      initialValues['commissioning_year'] = _checklist.commissioningYear;
+      initialValues['design_pressure'] = _checklist.designPressure;
+      initialValues['test_pressure'] = _checklist.testPressure;
+      initialValues['working_temperature'] = _checklist.workingTemperature;
+      initialValues['design_temperature'] = _checklist.designTemperature;
+      initialValues['working_medium'] = _checklist.workingMedium;
+      initialValues['medium_characteristics'] = _checklist.mediumCharacteristics;
+      initialValues['vessel_group'] = _checklist.vesselGroup;
+      initialValues['medium_group'] = _checklist.mediumGroup;
+      initialValues['corrosion_allowance'] = _checklist.corrosionAllowance;
+      initialValues['previous_inspection_result'] = _checklist.previousInspectionResult;
     } else {
       final compressorChecklist = _checklist as CompressorChecklist;
       initialValues['compressor_type'] = compressorChecklist.compressorType;
@@ -1491,6 +1612,20 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                     (value) {
                   _checklist.wallThickness = value;
                 }),
+                _buildSectionHeader('Краткая техническая характеристика (таблица 6)'),
+                _buildTextField('purpose', 'Назначение', (v) => _checklist.purpose = v),
+                _buildTextField('commissioning_year', 'Год ввода в эксплуатацию', (v) => _checklist.commissioningYear = v),
+                _buildTextField('design_pressure', 'Расчётное давление, МПа', (v) => _checklist.designPressure = v),
+                _buildTextField('test_pressure', 'Пробное давление гидравлического испытания, МПа', (v) => _checklist.testPressure = v),
+                _buildTextField('working_temperature', 'Допустимая рабочая температура стенки, ℃', (v) => _checklist.workingTemperature = v),
+                _buildTextField('design_temperature', 'Расчётная температура стенки, ℃', (v) => _checklist.designTemperature = v),
+                _buildTextField('working_medium', 'Наименование рабочей среды', (v) => _checklist.workingMedium = v),
+                _buildTextField('medium_characteristics', 'Характеристика рабочей среды', (v) => _checklist.mediumCharacteristics = v),
+                _buildTextField('vessel_group', 'Группа сосуда', (v) => _checklist.vesselGroup = v),
+                _buildTextField('medium_group', 'Группа рабочей среды', (v) => _checklist.mediumGroup = v),
+                _buildTextField('corrosion_allowance', 'Прибавка для компенсации коррозии, мм', (v) => _checklist.corrosionAllowance = v),
+                _buildSectionHeader('Анализ результатов предыдущих обследований'),
+                _buildMultilineField('previous_inspection_result', 'Замечания по результатам предыдущих обследований', (v) => _checklist.previousInspectionResult = v),
               ],
               // Поля для компрессоров
               if (_isCompressor) ...[
@@ -1647,12 +1782,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 final idx = e.key;
                 final m = e.value;
                 return _buildListItemCard(
-                  title: 'Овальность, участок ${m.sectionNumber}',
+                  title: 'Овальность, сечение ${m.sectionNumber}',
                   subtitle: [
                     if (m.maxDiameter != null) 'Dmax=${m.maxDiameter}',
                     if (m.minDiameter != null) 'Dmin=${m.minDiameter}',
                     if (m.deviationPercent != null) 'Δ%=${m.deviationPercent}',
                   ].join(' • '),
+                  onTap: () => _showOvalityDialog(editM: m, editIndex: idx),
                   onDelete: () => setState(
                       () => _checklist.ovalityMeasurements.removeAt(idx)),
                 );
@@ -1713,9 +1849,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                       'ПВК/МК: ${w.pvkDefect}',
                     if (w.uzkDefect != null && w.uzkDefect!.isNotEmpty)
                       'УЗК: ${w.uzkDefect}',
+                    if (w.xPercent != null && w.yPercent != null)
+                      'Схема: ${w.xPercent!.toStringAsFixed(0)}%, ${w.yPercent!.toStringAsFixed(0)}%',
                     if (w.conclusion != null && w.conclusion!.isNotEmpty)
                       'Заключение: ${w.conclusion}',
-                  ].join(' • '),
+                  ].where((s) => s.isNotEmpty).join(' • '),
+                  onTap: () => _showWeldInspectionDialog(editWeld: w, editIndex: idx),
                   onDelete: () =>
                       setState(() => _checklist.weldInspections.removeAt(idx)),
                 );
@@ -1811,39 +1950,47 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     required String title,
     required String subtitle,
     required VoidCallback onDelete,
+    VoidCallback? onTap,
   }) {
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w600)),
+                if (subtitle.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(subtitle,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12)),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete, color: Colors.redAccent),
+            tooltip: 'Удалить',
+          ),
+        ],
+      ),
+    );
     return Card(
       color: const Color(0xFF1e293b),
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600)),
-                  if (subtitle.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(subtitle,
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 12)),
-                    ),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete, color: Colors.redAccent),
-              tooltip: 'Удалить',
-            ),
-          ],
-        ),
-      ),
+      child: onTap != null
+          ? InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(8),
+              child: content,
+            )
+          : content,
     );
   }
 
@@ -1951,22 +2098,25 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
-  Future<void> _showOvalityDialog() async {
+  Future<void> _showOvalityDialog({OvalityMeasurement? editM, int? editIndex}) async {
     final section = TextEditingController(
-        text: '${_checklist.ovalityMeasurements.length + 1}');
-    final maxD = TextEditingController();
-    final minD = TextEditingController();
+        text: editM?.sectionNumber ?? '${_checklist.ovalityMeasurements.length + 1}');
+    final maxD = TextEditingController(
+        text: editM?.maxDiameter != null ? editM!.maxDiameter!.toString() : '');
+    final minD = TextEditingController(
+        text: editM?.minDiameter != null ? editM!.minDiameter!.toString() : '');
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1e293b),
-        title: const Text('Овальность', style: TextStyle(color: Colors.white)),
+        title: Text(editM != null ? 'Редактировать овальность' : 'Овальность (сечение)',
+            style: const TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _dialogTextField(section, 'Номер участка'),
+              _dialogTextField(section, 'Номер сечения (I, II, III, 1, 2...)'),
               _dialogTextField(maxD, 'Макс. диаметр (мм)',
                   keyboard: TextInputType.number),
               _dialogTextField(minD, 'Мин. диаметр (мм)',
@@ -1980,7 +2130,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               child: const Text('Отмена')),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Добавить')),
+              child: Text(editM != null ? 'Сохранить' : 'Добавить')),
         ],
       ),
     );
@@ -1993,16 +2143,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         dev = ((maxVal - minVal) / maxVal) * 100.0;
       }
       setState(() {
-        _checklist.ovalityMeasurements.add(
-          OvalityMeasurement(
-            sectionNumber: section.text.trim().isEmpty
-                ? '${_checklist.ovalityMeasurements.length + 1}'
-                : section.text.trim(),
-            maxDiameter: maxVal,
-            minDiameter: minVal,
-            deviationPercent: dev,
-          ),
+        final m = OvalityMeasurement(
+          sectionNumber: section.text.trim().isEmpty
+              ? '${_checklist.ovalityMeasurements.length + 1}'
+              : section.text.trim(),
+          maxDiameter: maxVal,
+          minDiameter: minVal,
+          deviationPercent: dev,
         );
+        if (editIndex != null) {
+          _checklist.ovalityMeasurements[editIndex] = m;
+        } else {
+          _checklist.ovalityMeasurements.add(m);
+        }
       });
     }
   }
@@ -2111,19 +2264,23 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
-  Future<void> _showWeldInspectionDialog() async {
-    final weld = TextEditingController();
-    final loc = TextEditingController();
-    final pvk = TextEditingController();
-    final uzk = TextEditingController();
-    String conclusion = ChecklistConstants.weldConclusions.first;
+  Future<void> _showWeldInspectionDialog({WeldInspection? editWeld, int? editIndex}) async {
+    final weld = TextEditingController(text: editWeld?.weldNumber ?? '');
+    final loc = TextEditingController(text: editWeld?.locationOnControlMap ?? '');
+    final pvk = TextEditingController(text: editWeld?.pvkDefect ?? '');
+    final uzk = TextEditingController(text: editWeld?.uzkDefect ?? '');
+    final xPercent = TextEditingController(
+        text: editWeld?.xPercent != null ? editWeld!.xPercent!.toStringAsFixed(1) : '');
+    final yPercent = TextEditingController(
+        text: editWeld?.yPercent != null ? editWeld!.yPercent!.toStringAsFixed(1) : '');
+    String conclusion = editWeld?.conclusion ?? ChecklistConstants.weldConclusions.first;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1e293b),
-        title: const Text('Сварное соединение',
-            style: TextStyle(color: Colors.white)),
+        title: Text(editWeld != null ? 'Редактировать сварное соединение' : 'Сварное соединение',
+            style: const TextStyle(color: Colors.white)),
         content: StatefulBuilder(
           builder: (context, setInner) => SingleChildScrollView(
             child: Column(
@@ -2133,6 +2290,26 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 _dialogTextField(loc, 'Место на карте контроля'),
                 _dialogTextField(pvk, 'Дефект (ПВК/МК)'),
                 _dialogTextField(uzk, 'Дефект (УЗК)'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _dialogTextField(
+                        xPercent,
+                        'X % на схеме',
+                        keyboard: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _dialogTextField(
+                        yPercent,
+                        'Y % на схеме',
+                        keyboard: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: conclusion,
@@ -2164,20 +2341,29 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               child: const Text('Отмена')),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Добавить')),
+              child: Text(editWeld != null ? 'Сохранить' : 'Добавить')),
         ],
       ),
     );
 
     if (ok == true && weld.text.trim().isNotEmpty) {
       setState(() {
-        final w = WeldInspection(weldNumber: weld.text.trim());
+        final w = editWeld ?? WeldInspection(weldNumber: weld.text.trim());
+        w.weldNumber = weld.text.trim();
         w.locationOnControlMap =
             loc.text.trim().isEmpty ? null : loc.text.trim();
         w.pvkDefect = pvk.text.trim().isEmpty ? null : pvk.text.trim();
         w.uzkDefect = uzk.text.trim().isEmpty ? null : uzk.text.trim();
         w.conclusion = conclusion;
-        _checklist.weldInspections.add(w);
+        final xVal = double.tryParse(xPercent.text.trim().replaceAll(',', '.'));
+        final yVal = double.tryParse(yPercent.text.trim().replaceAll(',', '.'));
+        w.xPercent = (xVal != null && xVal >= 0 && xVal <= 100) ? xVal : null;
+        w.yPercent = (yVal != null && yVal >= 0 && yVal <= 100) ? yVal : null;
+        if (editIndex != null) {
+          _checklist.weldInspections[editIndex] = w;
+        } else {
+          _checklist.weldInspections.add(w);
+        }
       });
     }
   }
@@ -2643,6 +2829,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   void _updateInspectionEngineers() {
     final result = <InspectionEngineer>[];
+    final methods = <String>[];
     for (final entry in _selectedEngineerByMethod.entries) {
       final m = entry.key;
       final e = entry.value;
@@ -2661,8 +2848,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         }
       }
       result.add(ie);
+      if (m.isNotEmpty) methods.add(m);
     }
     _checklist.inspectionEngineers = result;
+    _checklist.ndtMethods = methods;
   }
 
   Widget _buildVisualDefectsSection() {
@@ -3481,13 +3670,56 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                       ),
                       if (!isFactoryPlate) ...[
                         const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _pickImageFromFile,
+                                icon: const Icon(Icons.folder_open, color: Color(0xFF3b82f6), size: 20),
+                                label: const Text(
+                                  'Файл',
+                                  style: TextStyle(
+                                    color: Color(0xFF3b82f6),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFF3b82f6)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _pickBuiltInTemplate,
+                                icon: const Icon(Icons.dashboard_customize, color: Color(0xFF3b82f6), size: 20),
+                                label: const Text(
+                                  'Встроенный шаблон',
+                                  style: TextStyle(
+                                    color: Color(0xFF3b82f6),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFF3b82f6)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: _pickStandardDrawing,
-                            icon: const Icon(Icons.architecture, color: Color(0xFF3b82f6)),
+                            icon: const Icon(Icons.cloud_download, color: Color(0xFF3b82f6)),
                             label: const Text(
-                              'Выбрать стандартный чертёж',
+                              'Шаблон с сервера',
                               style: TextStyle(
                                 color: Color(0xFF3b82f6),
                                 fontWeight: FontWeight.w600,

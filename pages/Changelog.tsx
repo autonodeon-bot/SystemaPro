@@ -14,6 +14,16 @@ interface Version {
 const Changelog = () => {
   const versions: Version[] = [
     {
+      version: '3.23.0',
+      date: '09.02.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Точки УЗК: координаты x_percent, y_percent на схеме, отрисовка в отчёте' },
+        { type: 'added', description: 'Овальность: редактирование по сечению, улучшенные подсказки' },
+        { type: 'added', description: 'Схема контроля: выбор файла / фото / встроенный шаблон / шаблон с сервера' },
+      ],
+    },
+    {
       version: '3.22.0',
       date: '09.02.2026',
       type: 'minor',

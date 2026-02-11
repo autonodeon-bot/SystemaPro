@@ -1,7 +1,7 @@
 name: es_td_ngo_mobile
 description: Мобильное приложение инженера диагностики (ЕС ТД НГО)
 publish_to: 'none'
-version: 3.22.0+22
+version: 3.23.0+23
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -68,8 +68,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-
+  assets:
+    - assets/images/vessel_template.png
 
 
 

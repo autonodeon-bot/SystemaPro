@@ -23,6 +23,20 @@ class VesselChecklist {
   String? diameter; // Диаметр сосуда
   String? workingPressure; // Рабочее давление
   String? wallThickness; // Толщина стенки (обечайка / днище)
+  // Краткая техническая характеристика (таблица 6)
+  String? purpose; // Назначение
+  String? commissioningYear; // Год ввода в эксплуатацию
+  String? designPressure; // Расчётное давление, МПа
+  String? testPressure; // Пробное давление, МПа
+  String? workingTemperature; // Допустимая рабочая температура, ℃
+  String? designTemperature; // Расчётная температура, ℃
+  String? workingMedium; // Наименование рабочей среды
+  String? mediumCharacteristics; // Характеристика рабочей среды
+  String? vesselGroup; // Группа сосуда
+  String? mediumGroup; // Группа рабочей среды
+  String? corrosionAllowance; // Прибавка для компенсации коррозии, мм
+  // Анализ результатов предыдущих обследований
+  String? previousInspectionResult;
   
   // Фото заводской таблички
   String? factoryPlatePhoto;
@@ -141,6 +155,18 @@ class VesselChecklist {
       'diameter': diameter,
       'working_pressure': workingPressure,
       'wall_thickness': wallThickness,
+      'purpose': purpose,
+      'commissioning_year': commissioningYear,
+      'design_pressure': designPressure,
+      'test_pressure': testPressure,
+      'working_temperature': workingTemperature,
+      'design_temperature': designTemperature,
+      'working_medium': workingMedium,
+      'medium_characteristics': mediumCharacteristics,
+      'vessel_group': vesselGroup,
+      'medium_group': mediumGroup,
+      'corrosion_allowance': corrosionAllowance,
+      'previous_inspection_result': previousInspectionResult,
       'factory_plate_photo': factoryPlatePhoto,
       'matches_drawing': matchesDrawing,
       'has_thermal_insulation': hasThermalInsulation,
@@ -235,6 +261,18 @@ class VesselChecklist {
     checklist.diameter = json['diameter'] as String?;
     checklist.workingPressure = json['working_pressure'] as String?;
     checklist.wallThickness = json['wall_thickness'] as String?;
+    checklist.purpose = json['purpose'] as String?;
+    checklist.commissioningYear = json['commissioning_year'] as String?;
+    checklist.designPressure = json['design_pressure'] as String?;
+    checklist.testPressure = json['test_pressure'] as String?;
+    checklist.workingTemperature = json['working_temperature'] as String?;
+    checklist.designTemperature = json['design_temperature'] as String?;
+    checklist.workingMedium = json['working_medium'] as String?;
+    checklist.mediumCharacteristics = json['medium_characteristics'] as String?;
+    checklist.vesselGroup = json['vessel_group'] as String?;
+    checklist.mediumGroup = json['medium_group'] as String?;
+    checklist.corrosionAllowance = json['corrosion_allowance'] as String?;
+    checklist.previousInspectionResult = json['previous_inspection_result'] as String?;
 
     checklist.factoryPlatePhoto = json['factory_plate_photo'] as String?;
     checklist.controlSchemeImage = json['control_scheme_image'] as String?;
@@ -611,6 +649,7 @@ class DeflectionMeasurement {
 class HardnessTest {
   String weldNumber;
   String? areaNumber;
+  String? location; // Обечайка, Днище 1, Днище 2 — для группировки в протоколе
   String? allowedHardnessBase;
   String? allowedHardnessWeld;
   String? hardnessBase;
@@ -622,6 +661,7 @@ class HardnessTest {
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
     'area_number': areaNumber,
+    'location': location,
     'allowed_hardness_base': allowedHardnessBase,
     'allowed_hardness_weld': allowedHardnessWeld,
     'hardness_base': hardnessBase,
@@ -632,6 +672,7 @@ class HardnessTest {
   factory HardnessTest.fromJson(Map<String, dynamic> json) {
     final t = HardnessTest(weldNumber: (json['weld_number'] ?? '').toString());
     t.areaNumber = json['area_number']?.toString();
+    t.location = json['location']?.toString();
     t.allowedHardnessBase = json['allowed_hardness_base']?.toString();
     t.allowedHardnessWeld = json['allowed_hardness_weld']?.toString();
     t.hardnessBase = json['hardness_base']?.toString();
@@ -647,6 +688,8 @@ class WeldInspection {
   String? pvkDefect;
   String? uzkDefect;
   String? conclusion; // годен, ремонт и т.д.
+  double? xPercent; // Позиция на схеме X (0–100)
+  double? yPercent; // Позиция на схеме Y (0–100)
   
   WeldInspection({required this.weldNumber});
   
@@ -656,6 +699,8 @@ class WeldInspection {
     'pvk_defect': pvkDefect,
     'uzk_defect': uzkDefect,
     'conclusion': conclusion,
+    'x_percent': xPercent,
+    'y_percent': yPercent,
   };
 
   factory WeldInspection.fromJson(Map<String, dynamic> json) {
@@ -664,6 +709,8 @@ class WeldInspection {
     w.pvkDefect = json['pvk_defect']?.toString();
     w.uzkDefect = json['uzk_defect']?.toString();
     w.conclusion = json['conclusion']?.toString();
+    w.xPercent = VesselChecklist._asDouble(json['x_percent']);
+    w.yPercent = VesselChecklist._asDouble(json['y_percent']);
     return w;
   }
 }

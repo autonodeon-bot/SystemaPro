@@ -129,6 +129,7 @@ class InspectionArchiveService {
       'status': inspectionData['status'],
       'date_performed': inspectionData['date_performed'],
       'assignment_id': inspectionData['assignment_id'],
+      'verification_equipment_ids': inspectionData['verification_equipment_ids'] ?? [],
     };
     final checklistBytes = utf8.encode(json.encode(checklistPayload));
     archive.addFile(ArchiveFile(checklistName, checklistBytes.length, checklistBytes));
