@@ -1,0 +1,30 @@
+allprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin("com.android.library")) {
+            def android = project.extensions.findByName("android")
+            if (android && android.namespace == null) {
+                def manifestFile = file("${project.projectDir}/src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    def manifest = new XmlSlurper().parse(manifestFile)
+                    def pkg = manifest.@package.text()
+                    if (pkg && !pkg.isEmpty()) {
+                        android.namespace = pkg
+                    }
+                }
+            }
+            // Fix JVM target compatibility
+            if (android) {
+                android.compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+            }
+            // Fix Kotlin JVM target
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = "17"
+                }
+            }
+        }
+    }
+}

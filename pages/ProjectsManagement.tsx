@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Calendar, User, DollarSign, Filter, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText, Activity } from 'lucide-react';
+import { API_BASE } from '../constants';
 
 interface Client {
   id: string;
@@ -47,8 +48,6 @@ const ProjectsManagement = () => {
     contact_phone: '',
     contact_email: '',
   });
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadData();

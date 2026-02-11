@@ -40,33 +40,61 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
     });
 
     try {
-      // Пытаемся загрузить с сервера
-      final opos = await _apiService.getOpos();
+      // Сначала берём из офлайн-кэша (для режима без сети / PIN-вход)
+      var opos = await _syncService.getOfflineOpos();
+
+      try {
+        // Пытаемся загрузить с сервера (если есть токен)
+        final fromApi = await _apiService.getOpos();
+        opos = fromApi;
+        await _syncService.saveOposOffline(opos);
+      } catch (e) {
+        final msg = e.toString();
+        if (msg.contains('AUTH_INVALID') ||
+            msg.contains('Invalid authentication credentials') ||
+            msg.contains('401')) {
+          await _authService.logout();
+          if (!mounted) return;
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (route) => false,
+          );
+          return;
+        }
+        // 403 / Not authenticated / нет токена — офлайн: используем кэш, не показываем ошибку
+        if (msg.contains('403') ||
+            msg.contains('Not authenticated') ||
+            msg.contains('Токен авторизации не найден')) {
+          if (opos.isNotEmpty && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Режим офлайн: показаны сохранённые ОПО. При появлении интернета выполните синхронизацию.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } else if (opos.isEmpty && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Не удалось загрузить список ОПО: $e'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
         _opos = opos;
         _isLoading = false;
       });
     } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('AUTH_INVALID') ||
-          msg.contains('Invalid authentication credentials') ||
-          msg.contains('401')) {
-        await _authService.logout();
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-        return;
-      }
-      
-      // Если не удалось загрузить с сервера, показываем пустой список
       if (!mounted) return;
       setState(() {
         _opos = [];
         _isLoading = false;
       });
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Не удалось загрузить список ОПО: $e'),

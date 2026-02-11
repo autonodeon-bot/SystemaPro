@@ -16,7 +16,8 @@ class AuthService {
   static const String _prefsKeyLastLoginTime = 'last_login_time';
   static const String _prefsKeyPinHash = 'pin_hash';
   static const String _prefsKeyPinSalt = 'pin_salt';
-  
+  static const String _secureKeyPassword = 'stored_password';
+
   final _secureStorage = const FlutterSecureStorage();
   final _biometricService = BiometricService();
   final _rng = Random.secure();
@@ -43,7 +44,41 @@ class AuthService {
     // Сохраняем время последнего входа
     await prefs.setString(_prefsKeyLastLoginTime, DateTime.now().toIso8601String());
   }
-  
+
+  /// Сохранить логин и пароль для автоматического входа при синхронизации (офлайн→онлайн).
+  Future<void> saveCredentials(String username, String password) async {
+    if (username.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKeyUsername, username.trim());
+    await _secureStorage.write(key: _secureKeyPassword, value: password);
+  }
+
+  /// Получить сохранённые логин и пароль (для повторного входа при синхронизации).
+  Future<({String username, String password})?> getStoredCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString(_prefsKeyUsername);
+    if (username == null || username.isEmpty) return null;
+    try {
+      final password = await _secureStorage.read(key: _secureKeyPassword);
+      if (password == null || password.isEmpty) return null;
+      return (username: username, password: password);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Есть ли сохранённые учётные данные для авто-входа.
+  Future<bool> hasStoredCredentials() async {
+    return await getStoredCredentials() != null;
+  }
+
+  /// Привязать текущее устройство (сохранить device_id). Вызывать при включении входа по отпечатку.
+  Future<void> ensureDeviceBound() async {
+    final deviceId = await _biometricService.getDeviceId();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKeyDeviceId, deviceId);
+  }
+
   // Получить сохраненный хеш пароля
   Future<String?> getPasswordHash() async {
     try {
@@ -186,68 +221,58 @@ class AuthService {
     }
   }
 
-  // Выход
+  // Выход (токен и пароль удаляются; пользователь и логин сохраняются для кнопок «Войти офлайн» / PIN)
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyUser);
-    await prefs.remove(_prefsKeyUsername);
-    await prefs.remove(_prefsKeyDeviceId);
-    await prefs.remove(_prefsKeyBiometricEnabled);
-    await prefs.remove(_prefsKeyLastLoginTime);
-    
-    // Удаляем из безопасного хранилища
+    // Не удаляем _prefsKeyUser и _prefsKeyUsername — чтобы после выхода оставались кнопки «Войти офлайн», «Войти по PIN»
+    // await prefs.remove(_prefsKeyUser);
+    // await prefs.remove(_prefsKeyUsername);
+    // await prefs.remove(_prefsKeyDeviceId);
+    // await prefs.remove(_prefsKeyBiometricEnabled);
+    // await prefs.remove(_prefsKeyLastLoginTime);
+
+    // Удаляем только токен и пароли — сессия онлайн прекращается
     try {
       await _secureStorage.delete(key: _prefsKeyToken);
       await _secureStorage.delete(key: _prefsKeyPasswordHash);
-      await _secureStorage.delete(key: _prefsKeyPinHash);
-      await _secureStorage.delete(key: _prefsKeyPinSalt);
+      await _secureStorage.delete(key: _secureKeyPassword);
+      // PIN и биометрию не сбрасываем, чтобы можно было войти локально
+      // await _secureStorage.delete(key: _prefsKeyPinHash);
+      // await _secureStorage.delete(key: _prefsKeyPinSalt);
     } catch (e) {
       // Игнорируем ошибки при удалении
     }
-    
-    // Также удаляем из SharedPreferences для обратной совместимости
+
     await prefs.remove(_prefsKeyToken);
     await prefs.remove(_prefsKeyPasswordHash);
   }
   
-  // Аутентификация по биометрии (для офлайн-режима)
+  // Аутентификация по биометрии (для офлайн-режима). Возвращает true при успехе.
   Future<bool> authenticateWithBiometric() async {
     try {
-      // Проверяем, что пользователь привязан к устройству
       final isBound = await isUserBoundToDevice();
       if (!isBound) {
-        print('Пользователь не привязан к устройству');
         return false;
       }
-      
-      // Проверяем, что биометрия включена
       final biometricEnabled = await isBiometricEnabled();
       if (!biometricEnabled) {
-        print('Биометрическая аутентификация не включена');
         return false;
       }
-      
-      // Проверяем доступность биометрии
       final isAvailable = await _biometricService.isBiometricAvailable();
       if (!isAvailable) {
-        print('Биометрическая аутентификация недоступна');
         return false;
       }
-      
-      // Выполняем биометрическую аутентификацию
+
       final authenticated = await _biometricService.authenticate(
         reason: 'Подтвердите вход в приложение',
       );
-      
+
       if (authenticated) {
-        // Обновляем время последнего входа
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_prefsKeyLastLoginTime, DateTime.now().toIso8601String());
       }
-      
       return authenticated;
     } catch (e) {
-      print('Ошибка биометрической аутентификации: $e');
       return false;
     }
   }

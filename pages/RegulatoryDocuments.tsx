@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Search, Filter, BookOpen, Download } from 'lucide-react';
+import { API_BASE } from '../constants';
 
 interface RegulatoryDocument {
   id: string;
@@ -18,8 +19,6 @@ const RegulatoryDocuments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [selectedDoc, setSelectedDoc] = useState<RegulatoryDocument | null>(null);
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadDocuments();

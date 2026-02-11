@@ -548,7 +548,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                   children: [
                     // Предприятие
                     DropdownButtonFormField<String>(
-                        initialValue: _selectedEnterprise,
+                        value: _selectedEnterprise,
                         decoration: InputDecoration(
                           labelText: 'Предприятие',
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -590,8 +590,8 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     const SizedBox(height: 8),
                     // Фильтр по филиалу
                     if (_selectedEnterprise != null)
-                      DropdownButtonFormField<String>(
-                          initialValue: _selectedBranch,
+                          DropdownButtonFormField<String>(
+                          value: _selectedBranch,
                           decoration: InputDecoration(
                             labelText: 'Филиал',
                             labelStyle: const TextStyle(color: Colors.white70),
@@ -634,8 +634,8 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     if (_selectedEnterprise != null) const SizedBox(height: 8),
                     // Фильтр по цеху
                     if (_selectedBranch != null)
-                      DropdownButtonFormField<String>(
-                          initialValue: _selectedWorkshop,
+                          DropdownButtonFormField<String>(
+                          value: _selectedWorkshop,
                           decoration: InputDecoration(
                             labelText: 'Цех',
                             labelStyle: const TextStyle(color: Colors.white70),
@@ -677,7 +677,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     if (_selectedBranch != null) const SizedBox(height: 8),
                     // Фильтр по типу оборудования
                     DropdownButtonFormField<String>(
-                        initialValue: _selectedType,
+                        value: _selectedType,
                         decoration: InputDecoration(
                           labelText: 'Тип оборудования',
                           labelStyle: const TextStyle(color: Colors.white70),
@@ -826,14 +826,19 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                 // Группируем оборудование по иерархии
                 final groupedEquipment = _groupEquipmentByHierarchy(filtered);
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-                  itemCount: groupedEquipment.length,
-            itemBuilder: (context, index) {
-                    final group = groupedEquipment[index];
-                    return _buildGroupItem(group, 0);
-            },
-          );
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(equipmentListProvider);
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: groupedEquipment.length,
+                    itemBuilder: (context, index) {
+                      final group = groupedEquipment[index];
+                      return _buildGroupItem(group, 0);
+                    },
+                  ),
+                );
         },
         loading: () => const Center(
           child: CircularProgressIndicator(

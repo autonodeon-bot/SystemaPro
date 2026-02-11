@@ -63,8 +63,9 @@ flutter pub get
 
 Откройте `lib/services/api_service.dart` и проверьте:
 ```dart
-static const String baseUrl = 'http://5.129.203.182:8000';
+static const String baseUrl = 'http://5.129.203.182';
 ```
+Приложение должно обращаться к серверу по порту 80 (через nginx), иначе в части сетей запросы на порт 8000 блокируются и появляется «ошибка интернета».
 
 ### 3. Запуск
 
@@ -101,11 +102,14 @@ flutter devices
 ## 🔄 Интеграция с API
 
 Приложение подключается к:
-- **Backend**: `http://5.129.203.182:8000`
+- **Backend** (через nginx, порт 80): `http://5.129.203.182`
 - **Endpoints**:
   - `GET /api/equipment` - список оборудования
   - `GET /api/equipment/{id}` - оборудование по ID
   - `POST /api/inspections` - отправка чек-листа
+  - **Синхронизация инженеров по видам НК:**
+  - `GET /api/mobile/sync/engineers-by-ndt` — инженеры с сертификатами (для группировки по виду НК). Опционально: `?method_code=УЗК` (ВИК, ПВК, РК, МК и т.д.)
+  - `GET /api/certifications?method_code=УЗК` — сертификаты с фильтром по виду НК (требует Bearer token)
 
 ## 📸 Функции
 

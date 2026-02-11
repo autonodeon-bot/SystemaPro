@@ -12,10 +12,10 @@ async def generate_report_number(db: AsyncSession, report_type: str = "TECHNICAL
         current_year = datetime.now().year
         prefix = "ТР" if report_type == "TECHNICAL" else "ЭР"  # Технический отчет / Экспертиза
         
-        # Ищем последний отчет с таким префиксом за текущий год
+        # Ищем последний отчет с таким префиксом за текущий год (одна запись)
         query = select(Report).where(
             Report.report_number.like(f"{prefix}-{current_year}-%")
-        ).order_by(Report.report_number.desc())
+        ).order_by(Report.report_number.desc()).limit(1)
         
         result = await db.execute(query)
         last_report = result.scalar_one_or_none()
@@ -47,10 +47,10 @@ async def generate_registration_number(db: AsyncSession) -> str:
     """Генерирует регистрационный номер отчета"""
     try:
         current_year = datetime.now().year
-        # Ищем последний регистрационный номер за текущий год
+        # Ищем последний регистрационный номер за текущий год (одна запись)
         query = select(Report).where(
             Report.registration_number.like(f"РЕГ-{current_year}-%")
-        ).order_by(Report.registration_number.desc())
+        ).order_by(Report.registration_number.desc()).limit(1)
         
         result = await db.execute(query)
         last_report = result.scalar_one_or_none()

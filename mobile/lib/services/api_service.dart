@@ -1,16 +1,39 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import '../models/equipment.dart';
+import '../models/user.dart';
 import '../models/vessel_checklist.dart';
 import '../models/assignment.dart';
 import 'auth_service.dart';
 
 class ApiService {
-  // TODO: Заменить на реальный URL сервера
-  static const String baseUrl = 'http://5.129.203.182:8000';
+  /// URL сервера: порт 80 (через nginx), чтобы запросы проходили с любых сетей (порт 8000 часто блокируется).
+  static const String baseUrl = 'http://5.129.203.182';
+
+  /// Таймаут для отправки отчётов и загрузки файлов (секунды).
+  static const Duration requestTimeout = Duration(seconds: 120);
+
+  /// MIME-тип по расширению для загрузки файлов (сервер принимает только image/jpeg, image/png, application/pdf).
+  static MediaType? _contentTypeFromExtension(String ext) {
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return MediaType('image', 'jpeg');
+      case '.png':
+        return MediaType('image', 'png');
+      case '.pdf':
+        return MediaType('application', 'pdf');
+      default:
+        return null;
+    }
+  }
 
   // Вход в систему
   Future<Map<String, dynamic>?> login(String username, String password) async {
@@ -18,7 +41,7 @@ class ApiService {
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'username=$username&password=$password',
+        body: 'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}',
       );
 
       if (response.statusCode == 200) {
@@ -63,6 +86,35 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Ошибка входа: $e');
+    }
+  }
+
+  /// Проверить наличие токена; при отсутствии попытаться войти по сохранённым логину/паролю.
+  /// Возвращает true, если токен есть или удалось войти по сохранённым данным.
+  Future<bool> ensureValidToken() async {
+    final authService = AuthService();
+    final token = await authService.getToken();
+    if (token != null && token.isNotEmpty) return true;
+
+    final creds = await authService.getStoredCredentials();
+    if (creds == null) return false;
+
+    try {
+      final response = await login(creds.username, creds.password);
+      if (response == null || response['access_token'] == null) return false;
+      final user = User(
+        id: response['user_id']?.toString() ?? creds.username,
+        username: response['username'] ?? creds.username,
+        email: response['email'],
+        fullName: response['full_name'],
+        role: response['role'],
+        token: response['access_token'],
+      );
+      await authService.saveUser(user, passwordHash: response['password_hash']);
+      await authService.saveCredentials(creds.username, creds.password);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -299,31 +351,113 @@ class ApiService {
         body['assignment_id'] = assignmentId;
       }
       
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/inspections'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode(body),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/inspections'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: json.encode(body),
+          )
+          .timeout(requestTimeout, onTimeout: () {
+            throw TimeoutException(
+                'Сервер не ответил за ${requestTimeout.inSeconds} сек. Проверьте интернет и попробуйте снова.');
+          });
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json.decode(response.body);
       } else {
         final errorBody = response.body;
         String errorMessage =
-            'Failed to submit inspection: ${response.statusCode}';
+            'Код ${response.statusCode}';
         try {
           final errorData = json.decode(errorBody);
-          if (errorData['detail'] != null) {
-            errorMessage = errorData['detail'];
+          final detail = errorData['detail'];
+          if (detail != null) {
+            if (detail is List) {
+              errorMessage = (detail as List)
+                  .map((e) => e is Map ? (e['message'] ?? e.toString()) : e.toString())
+                  .join('; ');
+            } else {
+              errorMessage = detail.toString();
+            }
           }
         } catch (_) {}
+        if (response.statusCode == 401) {
+          errorMessage = 'Сессия истекла. Войдите в приложение заново.';
+        } else if (response.statusCode == 413) {
+          errorMessage = 'Объём данных слишком большой. Уменьшите количество фото и повторите.';
+        }
         throw Exception(errorMessage);
       }
+    } on TimeoutException {
+      rethrow;
+    } on SocketException catch (e) {
+      throw Exception(
+          'Нет связи с сервером. Проверьте интернет и доступность сервера.');
     } catch (e) {
-      throw Exception('Error submitting inspection: $e');
+      rethrow;
+    }
+  }
+
+  /// Загрузить архив обследования (ZIP). Прогресс: onProgress(sentBytes, totalBytes).
+  /// При отсутствии токена пытается войти по сохранённым логину/паролю.
+  Future<Map<String, dynamic>> uploadInspectionArchive(
+    String zipPath, {
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final authService = AuthService();
+    final hasToken = await ensureValidToken();
+    final token = await authService.getToken();
+    if (!hasToken || token == null) {
+      throw Exception('Не удалось войти. Войдите в приложение (логин и пароль сохраняются для следующей синхронизации).');
+    }
+
+    final dio = Dio(BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: requestTimeout,
+      sendTimeout: const Duration(seconds: 300),
+      receiveTimeout: requestTimeout,
+    ));
+    final file = File(zipPath);
+    if (!file.existsSync()) throw Exception('Файл архива не найден');
+
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(zipPath, filename: path.basename(zipPath)),
+    });
+
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/inspections/upload-archive',
+        data: formData,
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          responseType: ResponseType.json,
+        ),
+        onSendProgress: onProgress,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data ?? {};
+      }
+      final detail = response.data?['detail'] ?? 'Код ${response.statusCode}';
+      throw Exception(detail is List ? (detail as List).map((e) => e.toString()).join('; ') : detail.toString());
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      final data = e.response?.data;
+      dynamic detail = data is Map ? data['detail'] : null;
+      if (detail == null) {
+        detail = e.message ?? 'Ошибка сети или сервера';
+      } else if (detail is List) {
+        detail = detail.map((x) => x.toString()).join('; ');
+      } else {
+        detail = detail.toString();
+      }
+      final msg = statusCode != null
+          ? 'Сервер вернул $statusCode: $detail'
+          : detail.toString();
+      throw Exception(msg);
     }
   }
 
@@ -460,8 +594,15 @@ class ApiService {
       final request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $token';
 
-      final file = await http.MultipartFile.fromPath('file', filePath,
-          filename: fileName);
+      // Сервер проверяет Content-Type (только image/jpeg, image/png, application/pdf)
+      final ext = path.extension(filePath).toLowerCase();
+      final MediaType? contentType = _contentTypeFromExtension(ext);
+      final file = await http.MultipartFile.fromPath(
+        'file',
+        filePath,
+        filename: fileName,
+        contentType: contentType,
+      );
       request.files.add(file);
 
       final streamedResponse = await request.send();

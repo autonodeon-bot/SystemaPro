@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as Path;
+import 'package:path_provider/path_provider.dart';
 import '../models/vessel_checklist.dart';
 import '../models/compressor_checklist.dart';
 import '../models/equipment.dart';
 import '../models/assignment.dart';
 import 'api_service.dart';
+import 'inspection_archive_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
@@ -23,6 +26,12 @@ class SyncService {
   static const String _prefsKeyOfflineOpos = 'offline_opos';
 
   final ApiService _apiService = ApiService();
+
+  static String? _nonEmptyString(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    return s.isEmpty || s == 'null' ? null : s;
+  }
 
   /// Сохранить диагностику в локальное хранилище для последующей синхронизации
   Future<void> saveInspectionOffline({
@@ -71,6 +80,44 @@ class SyncService {
         // Дублируем в data: иногда полезно для предпросмотра/отладки
         checklistJson['document_files'] = structuredDocumentFiles;
       }
+      // Фото дефектов ВИК — загружаются на сервер с ключами vd_i_j для отчётов
+      final vd = checklistJson['visual_defects'];
+      if (vd is List) {
+        for (var i = 0; i < vd.length; i++) {
+          final d = vd[i];
+          if (d is Map && d['photos'] is List) {
+            final photos = d['photos'] as List;
+            for (var j = 0; j < photos.length; j++) {
+              final path = photos[j]?.toString();
+              if (path != null && path.trim().isNotEmpty) {
+                structuredDocumentFiles['vd_${i}_$j'] = {
+                  'file_path': path,
+                  'file_name': Path.basename(path),
+                };
+              }
+            }
+          }
+        }
+      }
+      // Фото замеров УЗТ (точки замера толщины) — ключи uzt_point_i_j для отчётов
+      final thickness = checklistJson['thickness_measurements'];
+      if (thickness is List) {
+        for (var i = 0; i < thickness.length; i++) {
+          final t = thickness[i];
+          if (t is Map && t['photos'] is List) {
+            final photos = t['photos'] as List;
+            for (var j = 0; j < photos.length; j++) {
+              final path = photos[j]?.toString();
+              if (path != null && path.trim().isNotEmpty) {
+                structuredDocumentFiles['uzt_point_${i}_$j'] = {
+                  'file_path': path,
+                  'file_name': Path.basename(path),
+                };
+              }
+            }
+          }
+        }
+      }
 
       final inspectionData = {
         'equipment_id': equipmentId,
@@ -112,6 +159,24 @@ class SyncService {
     }
   }
 
+  /// Ищет файл по имени в папке offline_documents (fallback при смене пути)
+  Future<String?> _findInOfflineDocuments(String fileName) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final storageDir = Directory(Path.join(dir.path, 'offline_documents'));
+      if (!await storageDir.exists()) return null;
+      final baseName = Path.basename(fileName);
+      final entities = storageDir.listSync();
+      for (final e in entities) {
+        if (e is File) {
+          final name = Path.basename(e.path);
+          if (name == baseName || name.endsWith('_$baseName')) return e.path;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Локальный статус по заданиям:
   /// - hasDraft: есть локальный черновик (DRAFT)
   /// - hasSigned: есть локально подписанное (SIGNED)
@@ -150,7 +215,11 @@ class SyncService {
     return state;
   }
 
-  /// Синхронизировать все ожидающие диагностики и загрузить оборудование
+  /// Прогресс отправки: [reportIndex] из [reportTotal], отправлено [bytesSent] из [totalBytes].
+  void Function(int reportIndex, int reportTotal, int bytesSent, int totalBytes)? onUploadProgress;
+
+  /// Синхронизировать все ожидающие диагностики и загрузить оборудование.
+  /// Каждое обследование собирается в ZIP-архив и загружается одним запросом (с прогрессом).
   Future<SyncResult> syncPendingInspections() async {
     final result = SyncResult();
 
@@ -159,6 +228,13 @@ class SyncService {
       final isConnected = await _apiService.checkConnection();
       if (!isConnected) {
         result.error = 'Нет подключения к серверу';
+        return result;
+      }
+
+      // Убедиться, что есть валидный токен (при переходе из офлайна — войти по сохранённым логину/паролю)
+      final hasToken = await _apiService.ensureValidToken();
+      if (!hasToken) {
+        result.error = 'Войдите в приложение. После входа логин и пароль сохранятся для следующей синхронизации.';
         return result;
       }
 
@@ -245,142 +321,80 @@ class SyncService {
 
       final prefs = await SharedPreferences.getInstance();
       final failedInspections = <Map<String, dynamic>>[];
-      final successfulInspections = <Map<String, dynamic>>[]; // Для удаления успешно отправленных
+      final successfulInspections = <Map<String, dynamic>>[];
 
-      for (final inspectionData in pendingInspections) {
+      final toSend = pendingInspections.where((i) => (i['status'] as String? ?? 'DRAFT') != 'DRAFT').toList();
+      final totalReports = toSend.length;
+
+      for (var reportIndex = 0; reportIndex < toSend.length; reportIndex++) {
+        final inspectionData = toSend[reportIndex];
+        String? zipPath;
         try {
-          final data = inspectionData['data'] as Map<String, dynamic>;
-
-          // Пропускаем черновики (DRAFT) - они не должны отправляться автоматически
-          final status = (inspectionData['status'] as String?) ?? 'DRAFT';
-          if (status == 'DRAFT') {
-            // Черновики не отправляем при синхронизации, только SIGNED
+          final data = inspectionData['data'] as Map<String, dynamic>? ?? {};
+          final rawEqId = inspectionData['equipment_id'];
+          final equipmentId = rawEqId != null ? rawEqId.toString().trim() : '';
+          if (equipmentId.isEmpty) {
+            result.lastFailureReason = 'Нет ID оборудования в сохранённых данных';
+            failedInspections.add(inspectionData);
+            result.failedCount++;
             continue;
           }
 
-          // Определяем тип чек-листа на основе equipment_type
-          VesselChecklist checklist;
-          final equipmentType = data['equipment_type'] as String?;
+          zipPath = await InspectionArchiveService.buildArchive(inspectionData: inspectionData);
+          final zipFile = File(zipPath);
+          final totalBytes = zipFile.lengthSync();
 
-          if (equipmentType != null &&
-              (equipmentType.toUpperCase().contains('COMPRESSOR') ||
-                  equipmentType.toUpperCase().contains('КОМПРЕССОР'))) {
-            // Используем CompressorChecklist для компрессоров
-            checklist = CompressorChecklist.fromJson(data);
-          } else {
-            checklist = VesselChecklist.fromJson(data);
-          }
-
-          DateTime? datePerformed;
-          if (inspectionData['date_performed'] != null) {
-            try {
-              datePerformed =
-                  DateTime.parse(inspectionData['date_performed'] as String);
-            } catch (e) {
-              datePerformed = DateTime.now();
-            }
-          }
-
-          // Отправляем inspection на сервер
-          final submitResult = await _apiService.submitInspection(
-            equipmentId: inspectionData['equipment_id'] as String,
-            checklist: checklist,
-            conclusion: inspectionData['conclusion'] as String?,
-            datePerformed: datePerformed,
-            assignmentId:
-                inspectionData['assignment_id'] as String?, // Версия 3.3.0
-            status: status,
+          final submitResult = await _apiService.uploadInspectionArchive(
+            zipPath,
+            onProgress: (sent, total) {
+              onUploadProgress?.call(reportIndex + 1, totalReports, sent, total > 0 ? total : totalBytes);
+            },
           );
 
-          // После отправки (при наличии связи) — обновляем карточку оборудования данными,
-          // которые инженер заполнил/дополнил в "Карте обследования".
           try {
-            await _apiService.updateEquipmentFromChecklist(
-              equipmentId: inspectionData['equipment_id'] as String,
-              checklist: checklist,
-            );
-          } catch (e) {
-            // Не блокируем синхронизацию из-за обновления оборудования
-            print('Ошибка обновления данных оборудования: $e');
+            zipFile.deleteSync();
+          } catch (_) {}
+
+          final inspectionId = submitResult['id'] as String?;
+          if (submitResult.containsKey('questionnaire_id') && submitResult['questionnaire_id'] != null) {
+            inspectionData['questionnaire_id_synced'] = submitResult['questionnaire_id'] as String;
           }
 
-          // Добавляем используемое оборудование для поверок, если оно было выбрано
-          final inspectionId = submitResult['id'] as String?;
-          final verificationEquipmentIds =
-              inspectionData['verification_equipment_ids'] as List<dynamic>?;
-          if (inspectionId != null &&
-              verificationEquipmentIds != null &&
-              verificationEquipmentIds.isNotEmpty) {
+          final checklist = data['equipment_type'] != null &&
+                  (data['equipment_type'].toString().toUpperCase().contains('COMPRESSOR') ||
+                      data['equipment_type'].toString().toUpperCase().contains('КОМПРЕССОР'))
+              ? CompressorChecklist.fromJson(data)
+              : VesselChecklist.fromJson(data);
+          try {
+            await _apiService.updateEquipmentFromChecklist(equipmentId: equipmentId, checklist: checklist);
+          } catch (e) {
+            print('Ошибка обновления данных оборудования: $e');
+          }
+          final verificationEquipmentIds = inspectionData['verification_equipment_ids'] as List<dynamic>?;
+          if (inspectionId != null && verificationEquipmentIds != null && verificationEquipmentIds.isNotEmpty) {
             try {
               final equipmentIds = verificationEquipmentIds
                   .map((id) => id.toString())
                   .where((id) => id.isNotEmpty)
                   .toList();
               if (equipmentIds.isNotEmpty) {
-                await _apiService.addEquipmentToInspection(
-                  inspectionId,
-                  equipmentIds,
-                );
+                await _apiService.addEquipmentToInspection(inspectionId, equipmentIds);
               }
             } catch (e) {
-              // Не блокируем синхронизацию из-за ошибки добавления оборудования
               print('Ошибка добавления оборудования для поверок: $e');
             }
           }
-
-          // Если есть questionnaire_id, загружаем файлы документов
-          String? questionnaireId;
-          if (submitResult.containsKey('questionnaire_id') &&
-              submitResult['questionnaire_id'] != null) {
-            questionnaireId = submitResult['questionnaire_id'] as String;
-          }
-
-          // Загружаем файлы документов, если они есть
-          final documentFiles =
-              inspectionData['document_files'] as Map<String, dynamic>?;
-          if (questionnaireId != null &&
-              documentFiles != null &&
-              documentFiles.isNotEmpty) {
-            for (var entry in documentFiles.entries) {
-              try {
-                String? filePath;
-                String? fileName;
-
-                // Поддерживаем оба формата (старый: docNumber -> "path", новый: docNumber -> {file_path, file_name})
-                final value = entry.value;
-                if (value is String) {
-                  filePath = value;
-                  fileName = Path.basename(value);
-                } else if (value is Map<String, dynamic>) {
-                  filePath = value['file_path'] as String?;
-                  fileName = value['file_name'] as String?;
-                } else if (value is Map) {
-                  // На случай, если декодер дал Map<dynamic,dynamic>
-                  final m = Map<String, dynamic>.from(value);
-                  filePath = m['file_path'] as String?;
-                  fileName = m['file_name'] as String?;
-                }
-
-                if (filePath != null && fileName != null) {
-                  await _apiService.uploadDocumentFile(
-                    questionnaireId: questionnaireId,
-                    documentNumber: entry.key,
-                    filePath: filePath,
-                    fileName: fileName,
-                  );
-                }
-              } catch (e) {
-                // Логируем ошибку, но не прерываем синхронизацию
-                print('Ошибка загрузки файла документа ${entry.key}: $e');
-              }
-            }
-          }
-
-          // Успешно отправлено - добавляем в список для удаления
           successfulInspections.add(inspectionData);
           result.syncedCount++;
-        } catch (e) {
-          // Ошибка отправки - оставляем в списке для повторной попытки
+        } catch (e, st) {
+          try {
+            if (zipPath != null) File(zipPath).deleteSync();
+          } catch (_) {}
+          result.lastFailureReason = e is Exception ? e.toString() : '$e';
+          if (result.lastFailureReason != null && result.lastFailureReason!.startsWith('Exception: ')) {
+            result.lastFailureReason = result.lastFailureReason!.substring('Exception: '.length);
+          }
+          print('Синхронизация: ошибка отправки обследования: $e');
           failedInspections.add(inspectionData);
           result.failedCount++;
         }
@@ -597,10 +611,11 @@ class SyncService {
     }
   }
 
-  /// Очистить офлайн-данные (при выходе/смене пользователя)
+  /// Очистить офлайн-данные (при выходе/смене пользователя).
+  /// Очередь неотправленных обследований (pending_inspections) НЕ очищаем,
+  /// чтобы после повторного входа можно было подключиться и синхронизировать.
   Future<void> clearOfflineCache() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyPendingInspections);
     await prefs.remove(_prefsKeyOfflineEquipment);
     await prefs.remove(_prefsKeyOfflineAssignments);
     await prefs.remove(_prefsKeyLastSync);
@@ -609,6 +624,13 @@ class SyncService {
     await prefs.remove(_prefsKeyOfflineVerificationEquipment);
     await prefs.remove(_prefsKeyOfflineOpos);
     await prefs.remove(_prefsKeyPendingOpoSurveys);
+  }
+
+  /// Полная очистка, включая очередь неотправленных обследований (только по явному запросу пользователя).
+  Future<void> clearOfflineCacheIncludingPending() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKeyPendingInspections);
+    await clearOfflineCache();
   }
 
   /// Получить список оборудования из локального хранилища
@@ -788,6 +810,8 @@ class SyncResult {
   int failedCount = 0;
   String? message;
   String? error;
+  /// Текст последней ошибки при отправке обследования (для показа пользователю).
+  String? lastFailureReason;
 }
 
 class LocalAssignmentInspectionState {

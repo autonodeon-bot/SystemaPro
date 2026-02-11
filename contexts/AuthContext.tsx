@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { API_BASE } from '../constants';
 
 interface User {
   id: string;
@@ -27,8 +28,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_BASE = 'http://5.129.203.182:8000';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -95,8 +94,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Ошибка авторизации' }));
-        throw new Error(errorData.detail || 'Неверный логин или пароль');
+        let msg = 'Неверный логин или пароль';
+        try {
+          const errorData = await response.json();
+          const d = errorData?.detail;
+          msg = Array.isArray(d) ? (d[0]?.msg || d[0] || msg) : (d || msg);
+        } catch {
+          if (response.status >= 500) msg = 'Сервер недоступен. Попробуйте позже.';
+          else if (response.status === 502 || response.status === 504) msg = 'Сервер не отвечает. Проверьте подключение.';
+        }
+        throw new Error(msg);
       }
 
       const data = await response.json();

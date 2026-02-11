@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'dart:convert';
 import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/equipment.dart';
 import '../models/vessel_checklist.dart';
 import '../models/compressor_checklist.dart';
@@ -17,7 +18,10 @@ import '../services/sync_service.dart';
 import '../services/location_service.dart';
 import '../services/auto_save_service.dart';
 import '../services/photo_annotation_service.dart';
+import '../services/image_resize_service.dart';
+import '../services/checklist_pdf_service.dart';
 import '../widgets/checklist_progress_indicator.dart';
+import 'package:printing/printing.dart';
 import '../data/checklist_constants.dart';
 import 'thickness_measurement_screen.dart';
 import 'verification_equipment_selection_screen.dart';
@@ -52,6 +56,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   bool _isAutoSaving = false;
   Map<String, double>? _gpsCoordinates;
   DateTime? _lastAutoSaveTime;
+  /// Счётчик пересоздания формы (увеличивается после загрузки черновика, чтобы подставились сохранённые значения радиокнопок/состояний)
+  int _formSeed = 0;
 
   // Определяем тип чек-листа на основе типа оборудования
   late final VesselChecklist _checklist;
@@ -77,6 +83,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   List<String> _selectedEquipmentIds = [];
   List<Map<String, dynamic>> _engineers = [];
   bool _loadingEngineers = false;
+  /// Галочка: показывать весь список специалистов (даже без удостоверения по виду НК)
+  bool _showAllEngineersList = false;
   final Map<String, Map<String, dynamic>> _selectedEngineerByMethod = {};
   // Выбранные методы контроля (галочки)
   final Map<String, bool> _selectedNdtMethods = {
@@ -108,18 +116,17 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       // Базовое автозаполнение из карточки оборудования
       _prefillFromEquipment();
 
-      // Затем пытаемся подтянуть локально сохраненный черновик/подписанный чек-лист
-      // (иначе при повторном открытии инженеру показывается пустая форма).
-      Future.microtask(_loadLocalPendingIfExists);
       Future.microtask(_loadEngineers);
-      Future.microtask(_loadOpos);
       Future.microtask(_loadOpos);
       Future.microtask(_getGpsCoordinates);
       Future.microtask(_startAutoSaveTimer);
       
-      // Расширенное автозаполнение из предыдущих обследований и ОПО
+      // Сначала локальный черновик; если его нет — подставляем из последней инспекции с сервера (проверки, состояния)
       Future.microtask(() async {
-        await _prefillFromPreviousInspections();
+        final hadLocal = await _loadLocalPendingIfExists();
+        if (!hadLocal) {
+          await _prefillFromPreviousInspections();
+        }
         await _prefillFromOpo();
       });
     } catch (e) {
@@ -291,9 +298,22 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
       
       if (!mounted) return;
+      String? lastOpoId;
+      if (_selectedOpoId == null || _selectedOpoId!.isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          lastOpoId = prefs.getString('last_opo_id');
+        } catch (_) {}
+      }
       setState(() {
         _opos = opos;
         _loadingOpos = false;
+        if ((_selectedOpoId == null || _selectedOpoId!.isEmpty) &&
+            lastOpoId != null &&
+            lastOpoId.isNotEmpty &&
+            opos.any((o) => (o['id'] as String? ?? '') == lastOpoId)) {
+          _selectedOpoId = lastOpoId;
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -343,6 +363,22 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
       
       if (!mounted) return;
+      Map<String, String> lastEngineersByMethod = {};
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final saved = prefs.getString('last_engineers_by_method');
+        if (saved != null && saved.isNotEmpty) {
+          final decoded = json.decode(saved) as Map<String, dynamic>?;
+          if (decoded != null) {
+            for (final e in decoded.entries) {
+              final id = e.value?.toString();
+              if (id != null && id.isNotEmpty) {
+                lastEngineersByMethod[e.key] = id;
+              }
+            }
+          }
+        }
+      } catch (_) {}
       setState(() {
         _engineers = engineers;
         _loadingEngineers = false;
@@ -357,6 +393,18 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             _selectedEngineerByMethod[ie.method] = match;
           }
         }
+        for (final entry in lastEngineersByMethod.entries) {
+          final method = entry.key;
+          final id = entry.value;
+          if (_selectedEngineerByMethod.containsKey(method)) continue;
+          final match = engineers.firstWhere(
+            (e) => e['id']?.toString() == id,
+            orElse: () => <String, dynamic>{},
+          );
+          if (match.isNotEmpty) {
+            _selectedEngineerByMethod[method] = match;
+          }
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -366,16 +414,17 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
-  Future<void> _loadLocalPendingIfExists() async {
+  /// Возвращает true, если был загружен и подставлен локальный черновик.
+  Future<bool> _loadLocalPendingIfExists() async {
     try {
       final pending = await _syncService.getLatestPendingInspection(
         equipmentId: widget.equipment.id,
         assignmentId: widget.assignmentId,
       );
-      if (pending == null) return;
+      if (pending == null) return false;
 
       final data = (pending['data'] as Map?)?.cast<String, dynamic>();
-      if (data == null) return;
+      if (data == null) return false;
 
       // Определяем тип по equipment_type в data (для компрессора)
       final equipmentType = data['equipment_type']?.toString();
@@ -503,17 +552,27 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           cur.airFilterState = merged.airFilterState;
         }
 
-        // файлы-объекты для UI (если путь сохранен)
-        if ((_checklist.factoryPlatePhoto ?? '').isNotEmpty) {
-          _factoryPlatePhoto = File(_checklist.factoryPlatePhoto!);
+        // Файлы для UI только если файл реально существует (путь мог устареть после перезапуска)
+        final fpPath = _checklist.factoryPlatePhoto?.trim() ?? '';
+        if (fpPath.isNotEmpty && File(fpPath).existsSync()) {
+          _factoryPlatePhoto = File(fpPath);
+        } else {
+          _factoryPlatePhoto = null;
         }
-        if ((_checklist.controlSchemeImage ?? '').isNotEmpty) {
-          _controlSchemeImage = File(_checklist.controlSchemeImage!);
+        final csPath = _checklist.controlSchemeImage?.trim() ?? '';
+        if (csPath.isNotEmpty && File(csPath).existsSync()) {
+          _controlSchemeImage = File(csPath);
+        } else {
+          _controlSchemeImage = null;
         }
+        // Пересоздаём форму, чтобы initialValues подхватили загруженные радиокнопки и состояния
+        _formSeed++;
       });
+      return true;
     } catch (e) {
       // Не роняем экран
       print('Ошибка загрузки локальных данных: $e');
+      return false;
     }
   }
 
@@ -617,8 +676,29 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           }
         }
       }
+
+      // Проверки и состояния (радиокнопки и выпадающие списки) — подставляем из последней инспекции
+      if (!_isCompressor && _checklist is VesselChecklist) {
+        final v = _checklist as VesselChecklist;
+        if (prevData['matches_drawing'] != null) v.matchesDrawing = prevData['matches_drawing'] == true;
+        if (prevData['has_thermal_insulation'] != null) v.hasThermalInsulation = prevData['has_thermal_insulation'] == true;
+        if (prevData['anticorrosion_coating_state'] != null) v.anticorrosionCoatingState = prevData['anticorrosion_coating_state']?.toString();
+        if (prevData['support_state'] != null) v.supportState = prevData['support_state']?.toString();
+        if (prevData['fasteners_state'] != null) v.fastenersState = prevData['fasteners_state']?.toString();
+        if (prevData['has_flange_misalignment'] != null) v.hasFlangeMisalignment = prevData['has_flange_misalignment'] == true;
+        if (prevData['has_nozzle_misalignment'] != null) v.hasNozzleMisalignment = prevData['has_nozzle_misalignment'] == true;
+        if (prevData['has_vessel_repairs'] != null) v.hasVesselRepairs = prevData['has_vessel_repairs'] == true;
+        if (prevData['has_tpa_repairs'] != null) v.hasTpaRepairs = prevData['has_tpa_repairs'] == true;
+        if (prevData['internal_devices_state'] != null) v.internalDevicesState = prevData['internal_devices_state']?.toString();
+        if (prevData['has_local_deformations'] != null) v.hasLocalDeformations = prevData['has_local_deformations'] == true;
+        if (prevData['has_external_defects'] != null) v.hasExternalDefects = prevData['has_external_defects'] == true;
+        if (prevData['has_internal_defects'] != null) v.hasInternalDefects = prevData['has_internal_defects'] == true;
+        if (prevData['has_armature_defects'] != null) v.hasArmatureDefects = prevData['has_armature_defects'] == true;
+      }
       
-      setState(() {});
+      if (mounted) setState(() {
+        _formSeed++;
+      });
     } catch (e) {
       print('Ошибка автозаполнения из предыдущих обследований: $e');
     }
@@ -659,6 +739,37 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   Future<void> _pickImage(ImageSource source, bool isFactoryPlate) async {
     try {
+      if (source == ImageSource.camera) {
+        final prefs = await SharedPreferences.getInstance();
+        final key = isFactoryPlate ? 'photo_factory_plate_hint_shown' : 'photo_control_scheme_hint_shown';
+        if (!(prefs.getBool(key) ?? false)) {
+          await prefs.setBool(key, true);
+          if (!mounted) return;
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF1e293b),
+              title: Text(
+                isFactoryPlate ? 'Фото заводской таблички' : 'Схема контроля',
+                style: const TextStyle(color: Colors.white),
+              ),
+              content: Text(
+                isFactoryPlate
+                    ? 'Снимите крупно заводскую табличку на корпусе оборудования, чтобы были видны все надписи.'
+                    : 'Снимите схему контроля или карту обследования крупно и чётко для нанесения точек замера.',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Понятно', style: TextStyle(color: Color(0xFF3b82f6))),
+                ),
+              ],
+            ),
+          );
+          if (!mounted) return;
+        }
+      }
       final XFile? image = await _imagePicker.pickImage(source: source);
       if (image != null) {
         // Показываем диалог для аннотации фото
@@ -724,6 +835,21 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           }
         }
 
+        // Копируем в постоянную папку приложения, чтобы фото было доступно при синхронизации
+        try {
+          if (await File(finalImagePath).exists()) {
+            final docKey = isFactoryPlate ? 'factory_plate_photo' : 'control_scheme_image';
+            final persisted = await _persistPickedFile(
+              sourcePath: finalImagePath,
+              fileName: Path.basename(finalImagePath),
+              documentNumber: docKey,
+            );
+            finalImagePath = persisted;
+          }
+        } catch (_) {
+          // Оставляем исходный путь при ошибке копирования
+        }
+
         setState(() {
           if (isFactoryPlate) {
             _factoryPlatePhoto = File(finalImagePath);
@@ -741,6 +867,95 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
+  /// Выбор стандартного чертежа сосуда с сервера (для схемы контроля)
+  Future<void> _pickStandardDrawing() async {
+    try {
+      final templates = await _apiService.getVesselTemplates();
+      if (!mounted) return;
+      if (templates.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Нет доступных шаблонов чертежей на сервере'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      final selected = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1e293b),
+          title: const Text(
+            'Выбрать стандартный чертёж',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: templates.map((t) {
+                final name = t['name'] as String? ?? '';
+                return ListTile(
+                  title: Text(name, style: const TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(context, t),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        ),
+      );
+      if (selected == null || !mounted) return;
+      final templateName = selected['name'] as String? ?? '';
+      if (templateName.isEmpty) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Загрузка чертежа...')),
+      );
+      final localPath = await _apiService.getVesselTemplate(templateName);
+      if (!mounted) return;
+      if (localPath == null || localPath.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось загрузить шаблон'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      final persistedPath = await _persistPickedFile(
+        sourcePath: localPath,
+        fileName: templateName,
+        documentNumber: 'control_scheme_image',
+      );
+      setState(() {
+        _controlSchemeImage = File(persistedPath);
+        _checklist.controlSchemeImage = persistedPath;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Стандартный чертёж выбран'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка выбора чертежа: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   String _resolveInspectionDateIso() {
     if (_checklist.inspectionDate != null &&
         _checklist.inspectionDate!.isNotEmpty) {
@@ -752,6 +967,31 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
     }
     return DateTime.now().toIso8601String();
+  }
+
+  Future<void> _exportToPdf() async {
+    try {
+      final name = widget.equipment.name ?? 'Сосуд';
+      final pdfBytes = await ChecklistPdfService.buildPdf(_checklist, name);
+      await Printing.sharePdf(
+        bytes: pdfBytes,
+        filename: 'obsledovanie_${name.replaceAll(RegExp(r'[^\w\s-]'), '_').replaceAll(RegExp(r'\s+'), '_')}.pdf',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PDF создан и готов к отправке')),
+        );
+      }
+    } catch (e, st) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка экспорта в PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _saveDraft() async {
@@ -957,6 +1197,25 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       } catch (_) {}
     }
 
+    // Проверки и состояния (радиокнопки Да/Нет и выпадающие списки) — чтобы при повторном входе выбор сохранялся
+    if (!_isCompressor) {
+      final v = _checklist as VesselChecklist;
+      initialValues['matches_drawing'] = v.matchesDrawing == true ? 'yes' : (v.matchesDrawing == false ? 'no' : null);
+      initialValues['has_thermal_insulation'] = v.hasThermalInsulation == true ? 'yes' : (v.hasThermalInsulation == false ? 'no' : null);
+      initialValues['anticorrosion_coating'] = v.anticorrosionCoatingState;
+      initialValues['support_state'] = v.supportState;
+      initialValues['fasteners_state'] = v.fastenersState;
+      initialValues['has_flange_misalignment'] = v.hasFlangeMisalignment == true ? 'yes' : (v.hasFlangeMisalignment == false ? 'no' : null);
+      initialValues['has_nozzle_misalignment'] = v.hasNozzleMisalignment == true ? 'yes' : (v.hasNozzleMisalignment == false ? 'no' : null);
+      initialValues['has_vessel_repairs'] = v.hasVesselRepairs == true ? 'yes' : (v.hasVesselRepairs == false ? 'no' : null);
+      initialValues['has_tpa_repairs'] = v.hasTpaRepairs == true ? 'yes' : (v.hasTpaRepairs == false ? 'no' : null);
+      initialValues['internal_devices_state'] = v.internalDevicesState;
+      initialValues['has_local_deformations'] = v.hasLocalDeformations == true ? 'yes' : (v.hasLocalDeformations == false ? 'no' : null);
+      initialValues['has_external_defects'] = v.hasExternalDefects == true ? 'yes' : (v.hasExternalDefects == false ? 'no' : null);
+      initialValues['has_internal_defects'] = v.hasInternalDefects == true ? 'yes' : (v.hasInternalDefects == false ? 'no' : null);
+      initialValues['has_armature_defects'] = v.hasArmatureDefects == true ? 'yes' : (v.hasArmatureDefects == false ? 'no' : null);
+    }
+
     return PopScope(
       canPop: !_hasUnsavedChanges,
       onPopInvoked: (didPop) async {
@@ -1009,32 +1268,40 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                   ),
                 ),
               )
-            else
+            else ...[
+              IconButton(
+                icon: const Icon(Icons.picture_as_pdf),
+                onPressed: _exportToPdf,
+                tooltip: 'Экспорт чек-листа в PDF',
+              ),
               IconButton(
                 icon: const Icon(Icons.save),
                 onPressed: _saveDraft,
                 tooltip:
                     'Сохранить черновик локально (отправка при синхронизации)',
               ),
+            ],
           ],
         ),
         backgroundColor: const Color(0xFF0f172a),
-        body: FormBuilder(
-          key: _formKey,
-          onChanged: () {
-            if (!_hasUnsavedChanges) {
-              setState(() {
-                _hasUnsavedChanges = true;
-              });
-            }
-          },
-          initialValue: initialValues,
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Виджет прогресса заполнения
-              _buildProgressIndicator(),
+        body: KeyedSubtree(
+          key: ValueKey(_formSeed),
+          child: FormBuilder(
+            key: _formKey,
+            onChanged: () {
+              if (!_hasUnsavedChanges) {
+                setState(() {
+                  _hasUnsavedChanges = true;
+                });
+              }
+            },
+            initialValue: initialValues,
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Виджет прогресса заполнения
+                _buildProgressIndicator(),
               const SizedBox(height: 16),
               _buildSectionHeader('1. Основная информация'),
               // Кнопка выбора оборудования для поверок
@@ -1483,12 +1750,24 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 _checklist.conclusion = value;
               }),
               const SizedBox(height: 32),
+              if (_lastAutoSaveTime != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Последнее сохранение черновика: ${DateFormat('dd.MM HH:mm').format(_lastAutoSaveTime!)}',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               _buildSubmitButton(),
               const SizedBox(height: 32),
             ],
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -1834,7 +2113,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 _dialogTextField(uzk, 'Дефект (УЗК)'),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: conclusion,
+                  value: conclusion,
                   decoration: const InputDecoration(
                     labelText: 'Заключение',
                     labelStyle: TextStyle(color: Colors.white70),
@@ -2076,23 +2355,64 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               style: TextStyle(color: Colors.white70, fontSize: 12),
             )
           else ...[
-            _buildEngineerDropdown('ВИК', 'VIK'),
-            _buildEngineerDropdown('УЗК', 'UZK'),
-            _buildEngineerDropdown('УЗТ', 'UZT'),
-            _buildEngineerDropdown('ПВК/МК', 'PVK'),
+            CheckboxListTile(
+              value: _showAllEngineersList,
+              onChanged: (v) {
+                setState(() {
+                  _showAllEngineersList = v ?? false;
+                });
+              },
+              title: const Text(
+                'Показать весь список специалистов (выбрать любого, даже без удостоверения по виду)',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              activeColor: Colors.blue,
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 12),
+            _buildEngineerRow('ВИК', 'VIK'),
+            const SizedBox(height: 10),
+            _buildEngineerRow('УЗК', 'UZK'),
+            const SizedBox(height: 10),
+            _buildEngineerRow('УЗТ', 'UZT'),
+            const SizedBox(height: 10),
+            _buildEngineerRow('ПВК/МК', 'PVK'),
           ],
         ],
       ),
     );
   }
 
+  Widget _buildEngineerRow(String label, String methodKey) {
+    final content = _buildEngineerDropdown(label, methodKey);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 72,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: content),
+      ],
+    );
+  }
+
   Widget _buildEngineerDropdown(String label, String methodKey) {
-    // Фильтруем инженеров по методу контроля - показываем только тех, у кого есть соответствующее удостоверение
     final filteredEngineers = _engineers.where((engineer) {
       var qualifications = engineer['qualifications'];
       if (qualifications == null) return false;
-
-      // Нормализуем qualifications (может быть строкой JSON)
       if (qualifications is String) {
         try {
           qualifications = json.decode(qualifications);
@@ -2100,8 +2420,6 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           return false;
         }
       }
-
-      // Проверяем, есть ли у инженера удостоверение по данному методу
       if (qualifications is List) {
         for (final qual in qualifications) {
           if (qual is Map) {
@@ -2110,8 +2428,6 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 '';
             final methodCode =
                 qual['method_code']?.toString().toUpperCase() ?? '';
-
-            // Сопоставление методов
             if (methodKey == 'VIK' &&
                 (method.contains('ВИК') ||
                     method.contains('VIK') ||
@@ -2145,9 +2461,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       return false;
     }).toList();
 
+    final engineersToShow = _showAllEngineersList ? _engineers : filteredEngineers;
     final selected = _selectedEngineerByMethod[methodKey];
 
-    if (filteredEngineers.isEmpty) {
+    if (engineersToShow.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Container(
@@ -2158,115 +2475,146 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             border: Border.all(color: Colors.orange),
           ),
           child: Text(
-            '$label: нет специалистов с соответствующим удостоверением',
+            '$label: нет специалистов с соответствующим удостоверением. Включите «Показать весь список» выше.',
             style: const TextStyle(color: Colors.orange, fontSize: 12),
           ),
         ),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: DropdownButtonFormField<Map<String, dynamic>>(
-        initialValue: selected,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: Colors.white70),
-          filled: true,
-          fillColor: const Color(0xFF0f172a),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.white24),
-          ),
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: _showAllEngineersList ? 'весь список' : null,
+        labelStyle: const TextStyle(color: Colors.white54, fontSize: 11),
+        filled: true,
+        fillColor: const Color(0xFF0f172a),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.white24),
         ),
-        dropdownColor: const Color(0xFF1e293b),
-        items: filteredEngineers.map((e) {
-          final name = (e['full_name'] ?? '').toString();
-          final position = (e['position'] ?? '').toString();
-          // Показываем информацию об удостоверении
-          final qualifications = e['qualifications'];
-          String certInfo = '';
-          if (qualifications is List && qualifications.isNotEmpty) {
-            for (final qual in qualifications) {
-              if (qual is Map) {
-                final method = qual['method']?.toString() ??
-                    qual['ndt_method']?.toString() ??
-                    '';
-                final methodCode = qual['method_code']?.toString() ?? '';
-                bool matches = false;
-                if (methodKey == 'VIK' &&
-                    (method.contains('ВИК') ||
-                        method.contains('VIK') ||
-                        methodCode == 'VIK')) {
-                  matches = true;
-                }
-                if (methodKey == 'UZK' &&
-                    (method.contains('УЗК') ||
-                        method.contains('UZK') ||
-                        methodCode == 'UZK')) {
-                  matches = true;
-                }
-                if (methodKey == 'UZT' &&
-                    (method.contains('УЗТ') ||
-                        method.contains('UZT') ||
-                        methodCode == 'UZT')) {
-                  matches = true;
-                }
-                if (methodKey == 'PVK' &&
-                    (method.contains('ПВК') ||
-                        method.contains('МК') ||
-                        method.contains('PVK') ||
-                        method.contains('MK') ||
-                        methodCode == 'PVK' ||
-                        methodCode == 'MK')) {
-                  matches = true;
-                }
-
-                if (matches) {
-                  final certNum = qual['number']?.toString() ??
-                      qual['certificate_number']?.toString() ??
-                      '';
-                  final validUntil = qual['valid_until']?.toString() ??
-                      qual['expiry_date']?.toString() ??
-                      '';
-                  if (certNum.isNotEmpty) {
-                    certInfo = ' (Удостоверение: $certNum';
-                    if (validUntil.isNotEmpty) certInfo += ', до $validUntil';
-                    certInfo += ')';
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<Map<String, dynamic>>(
+          value: selected,
+          isExpanded: true,
+          dropdownColor: const Color(0xFF1e293b),
+          selectedItemBuilder: (context) {
+            return engineersToShow.map((e) {
+              final name = (e['full_name'] ?? '').toString();
+              return Text(
+                name,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            }).toList();
+          },
+          items: engineersToShow.map((e) {
+            final name = (e['full_name'] ?? '').toString();
+            final position = (e['position'] ?? '').toString();
+            final qualifications = e['qualifications'];
+            String certInfo = '';
+            if (qualifications is List && qualifications.isNotEmpty) {
+              for (final qual in qualifications) {
+                if (qual is Map) {
+                  final method = qual['method']?.toString() ??
+                      qual['ndt_method']?.toString() ?? '';
+                  final methodCode = qual['method_code']?.toString() ?? '';
+                  bool matches = false;
+                  if (methodKey == 'VIK' &&
+                      (method.contains('ВИК') || method.contains('VIK') ||
+                          methodCode == 'VIK')) {
+                    matches = true;
                   }
-                  break;
+                  if (methodKey == 'UZK' &&
+                      (method.contains('УЗК') || method.contains('UZK') ||
+                          methodCode == 'UZK')) {
+                    matches = true;
+                  }
+                  if (methodKey == 'UZT' &&
+                      (method.contains('УЗТ') || method.contains('UZT') ||
+                          methodCode == 'UZT')) {
+                    matches = true;
+                  }
+                  if (methodKey == 'PVK' &&
+                      (method.contains('ПВК') || method.contains('МК') ||
+                          method.contains('PVK') || method.contains('MK') ||
+                          methodCode == 'PVK' || methodCode == 'MK')) {
+                    matches = true;
+                  }
+                  if (matches) {
+                    final certNum = qual['number']?.toString() ??
+                        qual['certificate_number']?.toString() ?? '';
+                    final validUntil = qual['valid_until']?.toString() ??
+                        qual['expiry_date']?.toString() ?? '';
+                    if (certNum.isNotEmpty) {
+                      certInfo = 'Удост. $certNum';
+                      if (validUntil.isNotEmpty) {
+                        certInfo += ', до $validUntil';
+                      }
+                    }
+                    break;
+                  }
                 }
               }
             }
-          }
-          return DropdownMenuItem<Map<String, dynamic>>(
-            value: e,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  position.isNotEmpty ? '$name — $position' : name,
-                  style: const TextStyle(color: Colors.white),
+            return DropdownMenuItem<Map<String, dynamic>>(
+              value: e,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      position.isNotEmpty ? '$name — $position' : name,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (certInfo.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        certInfo,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
                 ),
-                if (certInfo.isNotEmpty)
-                  Text(
-                    certInfo,
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: (value) {
-          if (value == null) return;
-          setState(() {
-            _selectedEngineerByMethod[methodKey] = value;
-            _updateInspectionEngineers();
-            _hasUnsavedChanges = true;
-          });
-        },
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              _selectedEngineerByMethod[methodKey] = value;
+              _updateInspectionEngineers();
+              _hasUnsavedChanges = true;
+            });
+            final id = value['id']?.toString();
+            if (id != null && id.isNotEmpty) {
+              SharedPreferences.getInstance().then((prefs) async {
+                try {
+                  final saved = prefs.getString('last_engineers_by_method');
+                  final map = (saved != null && saved.isNotEmpty)
+                      ? Map<String, String>.from(
+                          (json.decode(saved) as Map).map(
+                            (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+                          ))
+                      : <String, String>{};
+                  map[methodKey] = id;
+                  await prefs.setString(
+                      'last_engineers_by_method', json.encode(map));
+                } catch (_) {}
+              });
+            }
+          },
+        ),
       ),
     );
   }
@@ -2394,7 +2742,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: defectType,
+                  value: defectType,
                   decoration: const InputDecoration(labelText: 'Тип дефекта'),
                   items: defectTypes
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -2545,6 +2893,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           setState(() {
             _selectedOpoId = value;
           });
+          if (value != null && value.isNotEmpty) {
+            SharedPreferences.getInstance().then((prefs) {
+              prefs.setString('last_opo_id', value);
+            });
+          }
           // Обновляем оборудование на сервере с выбранным ОПО
           if (value != null && value.isNotEmpty) {
             _apiService.updateEquipmentOpo(
@@ -2612,9 +2965,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.photo, color: Colors.blue),
-                title:
-                    const Text('Фото', style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.camera_alt, color: Colors.blue, size: 28),
+                title: const Text(
+                  'Камера',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 onTap: () async {
                   Navigator.pop(context);
                   final image =
@@ -2625,9 +2980,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.image, color: Colors.green),
-                title: const Text('Из галереи',
-                    style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.photo_library, color: Colors.green, size: 28),
+                title: const Text(
+                  'Галерея',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 onTap: () async {
                   Navigator.pop(context);
                   final image =
@@ -2734,12 +3091,17 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       await storageDir.create(recursive: true);
     }
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final targetPath =
-        Path.join(storageDir.path, '${documentNumber}_${ts}_$fileName');
-    final targetFile = File(targetPath);
-    await targetFile.writeAsBytes(await File(sourcePath).readAsBytes(),
-        flush: true);
-    return targetFile.path;
+    final ext = Path.extension(fileName).toLowerCase();
+    final isImage = ext == '.jpg' || ext == '.jpeg' || ext == '.png';
+    final outFileName = isImage
+        ? '${documentNumber}_${ts}_${Path.basenameWithoutExtension(fileName)}.jpg'
+        : '${documentNumber}_${ts}_$fileName';
+    final targetPath = Path.join(storageDir.path, outFileName);
+    final pathToWrite = isImage
+        ? await ImageResizeService.resizeIfNeeded(sourcePath)
+        : sourcePath;
+    await File(pathToWrite).copy(targetPath);
+    return targetPath;
   }
 
   Future<void> _handleDocumentFile(
@@ -2968,16 +3330,49 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           ),
           const SizedBox(height: 8),
           if (image != null)
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(image, fit: BoxFit.cover),
+            GestureDetector(
+              onTap: () {
+                if (!image.existsSync()) return;
+                showDialog(
+                  context: context,
+                  barrierColor: Colors.black87,
+                  builder: (ctx) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    insetPadding: EdgeInsets.zero,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        InteractiveViewer(
+                          minScale: 0.5,
+                          maxScale: 4.0,
+                          child: Center(
+                            child: Image.file(image, fit: BoxFit.contain),
+                          ),
+                        ),
+                        Positioned(
+                          top: MediaQuery.of(ctx).padding.top + 8,
+                          right: 16,
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                height: 200,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(image, fit: BoxFit.cover),
+                ),
               ),
             )
           else
@@ -3019,12 +3414,20 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                             child: ElevatedButton.icon(
                               onPressed: () => _pickImage(
                                   ImageSource.camera, isFactoryPlate),
-                              icon: const Icon(Icons.camera),
-                              label: Text(isFactoryPlate
-                                  ? 'Сфотографировать табличку'
-                                  : 'Сфотографировать схему'),
+                              icon: const Icon(Icons.camera, color: Colors.white),
+                              label: Text(
+                                isFactoryPlate
+                                    ? 'Сфотографировать табличку'
+                                    : 'Сфотографировать схему',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF3b82f6),
+                                foregroundColor: Colors.white,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
                               ),
@@ -3035,12 +3438,18 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                             child: ElevatedButton.icon(
                               onPressed: () => _pickImage(
                                   ImageSource.gallery, isFactoryPlate),
-                              icon: const Icon(Icons.photo_library),
-                              label: Text(isFactoryPlate
-                                  ? 'Выбрать из галереи'
-                                  : 'Выбрать из галереи'),
+                              icon: const Icon(Icons.photo_library, color: Colors.white),
+                              label: const Text(
+                                'Выбрать из галереи',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF3b82f6),
+                                foregroundColor: Colors.white,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
                               ),
@@ -3048,6 +3457,28 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                           ),
                         ],
                       ),
+                      if (!isFactoryPlate) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _pickStandardDrawing,
+                            icon: const Icon(Icons.architecture, color: Color(0xFF3b82f6)),
+                            label: const Text(
+                              'Выбрать стандартный чертёж',
+                              style: TextStyle(
+                                color: Color(0xFF3b82f6),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF3b82f6)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -3145,66 +3576,78 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         widget.assignmentId != null && widget.assignmentId!.isNotEmpty;
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isSubmitting ? null : _saveDraft,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3b82f6),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text(
-                    'Сохранить (черновик)',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+        Semantics(
+              label: 'Сохранить черновик осмотра. Данные будут отправлены при синхронизации.',
+              button: true,
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _saveDraft,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3b82f6),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-          ),
-        ),
-        if (isAssignment) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _signAndFinish,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF22c55e),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Сохранить (черновик)',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                 ),
               ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+            ),
+        if (isAssignment) ...[
+          const SizedBox(height: 12),
+          Semantics(
+            label: 'Подписать и завершить осмотр. После подписи осмотр будет отправлен при синхронизации.',
+            button: true,
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _signAndFinish,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF22c55e),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Подписать / Завершить',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    )
-                  : const Text(
-                      'Подписать / Завершить',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              ),
             ),
           ),
         ],

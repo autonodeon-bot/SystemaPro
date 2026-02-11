@@ -1,9 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, FileText, Search, Filter, Calendar, User, AlertCircle, Upload, X, File, Image as ImageIcon, Trash2, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Download, FileText, Search, Filter, Calendar, User, AlertCircle, Upload, X, File, Image as ImageIcon, Trash2, CheckCircle2, ChevronRight, Building2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_BASE = 'http://5.129.203.182:8000';
+import { API_BASE } from '../constants';
 
 interface Report {
   id: string;
@@ -81,6 +80,10 @@ interface Questionnaire {
   created_at?: string;
 }
 
+interface Enterprise { id: string; name: string; code?: string; }
+interface Branch { id: string; enterprise_id: string; name: string; code?: string; }
+interface Workshop { id: string; branch_id: string; name: string; code?: string; }
+
 const ReportsAndExpertise = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -88,10 +91,16 @@ const ReportsAndExpertise = () => {
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
   const [equipment, setEquipment] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>('');
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<Questionnaire | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Record<string, DocumentFile[]>>({});
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
@@ -102,7 +111,49 @@ const ReportsAndExpertise = () => {
   const [groupBy, setGroupBy] = useState<string>('none'); // 'none', 'enterprise', 'branch', 'workshop', 'opo'
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
+  const loadEnterprises = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/hierarchy/enterprises`, { headers });
+      const data = await res.json().catch(() => ({}));
+      setEnterprises(data.items || data || []);
+    } catch (e) {
+      console.error('Ошибка загрузки предприятий:', e);
+    }
+  };
+
+  const loadBranches = async (enterpriseId: string) => {
+    if (!enterpriseId) { setBranches([]); return; }
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/hierarchy/branches?enterprise_id=${encodeURIComponent(enterpriseId)}`, { headers });
+      const data = await res.json().catch(() => ({}));
+      setBranches(data.items || data || []);
+    } catch (e) {
+      console.error('Ошибка загрузки филиалов:', e);
+    }
+  };
+
+  const loadWorkshops = async (branchId: string) => {
+    if (!branchId) { setWorkshops([]); return; }
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/hierarchy/workshops?branch_id=${encodeURIComponent(branchId)}`, { headers });
+      const data = await res.json().catch(() => ({}));
+      setWorkshops(data.items || data || []);
+    } catch (e) {
+      console.error('Ошибка загрузки цехов:', e);
+    }
+  };
+
   useEffect(() => {
+    loadEnterprises();
     loadData();
   }, []);
 
@@ -524,7 +575,14 @@ const ReportsAndExpertise = () => {
         (inspectorName && fullName && inspectorName === fullName);
     }
 
-    return matchesSearch && matchesType && matchesStatus && matchesMine;
+    const entId = (item as any).enterprise_id as string | undefined;
+    const brId = (item as any).branch_id as string | undefined;
+    const wsId = (item as any).workshop_id as string | undefined;
+    const matchesEnterprise = !selectedEnterpriseId || entId === selectedEnterpriseId;
+    const matchesBranch = !selectedBranchId || brId === selectedBranchId;
+    const matchesWorkshop = !selectedWorkshopId || wsId === selectedWorkshopId;
+
+    return matchesSearch && matchesType && matchesStatus && matchesMine && matchesEnterprise && matchesBranch && matchesWorkshop;
   });
 
   // Функция для получения ключа группировки
@@ -876,10 +934,32 @@ const ReportsAndExpertise = () => {
 
   return (
     <div className="p-4 sm:p-6">
+      <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4">
+        <span className="text-white font-medium">Отчёты и экспертизы</span>
+        {selectedEnterpriseId && enterprises.find(e => e.id === selectedEnterpriseId) && (
+          <>
+            <ChevronRight size={16} className="text-slate-500" />
+            <span className="text-slate-300">{enterprises.find(e => e.id === selectedEnterpriseId)?.name}</span>
+          </>
+        )}
+        {selectedBranchId && branches.find(b => b.id === selectedBranchId) && (
+          <>
+            <ChevronRight size={16} className="text-slate-500" />
+            <span className="text-slate-300">{branches.find(b => b.id === selectedBranchId)?.name}</span>
+          </>
+        )}
+        {selectedWorkshopId && workshops.find(w => w.id === selectedWorkshopId) && (
+          <>
+            <ChevronRight size={16} className="text-slate-500" />
+            <span className="text-slate-300">{workshops.find(w => w.id === selectedWorkshopId)?.name}</span>
+          </>
+        )}
+      </nav>
+
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Отчеты и Экспертизы</h1>
         <p className="text-slate-400 text-sm sm:text-base">
-          Управление техническими отчетами, экспертизами и опросными листами
+          Управление техническими отчетами, экспертизами и опросными листами по предприятиям, филиалам и цехам
         </p>
       </div>
 
@@ -977,6 +1057,64 @@ const ReportsAndExpertise = () => {
               Мои чек-листы и отчеты
             </label>
           )}
+
+          <div className="w-full flex flex-wrap gap-3 items-end pt-2 border-t border-slate-600/50 mt-2">
+            <div className="min-w-[160px]">
+              <label className="block text-xs text-slate-400 mb-1">Предприятие</label>
+              <select
+                value={selectedEnterpriseId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSelectedEnterpriseId(v);
+                  setSelectedBranchId('');
+                  setSelectedWorkshopId('');
+                  setBranches([]);
+                  setWorkshops([]);
+                  if (v) loadBranches(v);
+                }}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              >
+                <option value="">Все предприятия</option>
+                {enterprises.map((ent) => (
+                  <option key={ent.id} value={ent.id}>{ent.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[160px]">
+              <label className="block text-xs text-slate-400 mb-1">Филиал</label>
+              <select
+                value={selectedBranchId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSelectedBranchId(v);
+                  setSelectedWorkshopId('');
+                  setWorkshops([]);
+                  if (v) loadWorkshops(v);
+                }}
+                disabled={!selectedEnterpriseId}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+              >
+                <option value="">Все филиалы</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[160px]">
+              <label className="block text-xs text-slate-400 mb-1">Цех</label>
+              <select
+                value={selectedWorkshopId}
+                onChange={(e) => setSelectedWorkshopId(e.target.value)}
+                disabled={!selectedBranchId}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+              >
+                <option value="">Все цеха</option>
+                {workshops.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <select
             value={groupBy}

@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FileText, ArrowLeft, Download, Image as ImageIcon, AlertCircle } from 'lucide-react';
-
-const API_BASE = 'http://5.129.203.182:8000';
+import { API_BASE } from '../constants';
 
 interface PreviewData {
   inspection: {

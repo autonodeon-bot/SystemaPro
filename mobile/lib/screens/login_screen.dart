@@ -34,8 +34,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkOfflineAvailability();
-    _checkBiometricAvailability();
+    _checkOfflineAvailability().then((_) {
+      if (mounted) _checkBiometricAvailability();
+    });
   }
 
   @override
@@ -82,15 +83,17 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
   Future<void> _checkOfflineAvailability() async {
     final user = await _authService.getCurrentUser();
-    final offlineEquipment = await SyncService().getOfflineEquipment();
+    final offlineUsername = await _authService.getOfflineUsername();
     final hasPin = await _authService.hasPin();
     if (!mounted) return;
     setState(() {
-      _hasOfflineSession = user != null && offlineEquipment.isNotEmpty;
+      _hasOfflineSession = user != null;
       _offlineUserName = user?.fullName ?? user?.username;
-      // PIN доступен, если есть сохраненный пользователь (даже если PIN не установлен)
       _pinEnabled = user != null;
       _hasPin = hasPin;
+      if (offlineUsername != null && offlineUsername.isNotEmpty) {
+        _usernameController.text = offlineUsername;
+      }
     });
   }
 
@@ -138,9 +141,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
             token: response['access_token'],
           );
 
-          // Сохраняем пользователя с хешем пароля для офлайн-авторизации
+          // Сохраняем пользователя и учётные данные (логин/пароль) для авто-входа при синхронизации
           await _authService.saveUser(user, passwordHash: response['password_hash']);
-          
+          await _authService.saveCredentials(_usernameController.text.trim(), _passwordController.text);
+
           // Предлагаем включить биометрическую аутентификацию
           if (mounted && !_biometricEnabled) {
             final biometricAvailable = await _biometricService.isBiometricAvailable();
@@ -191,27 +195,50 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     if (!_biometricAvailable || !_biometricEnabled) {
       return;
     }
-    
+
+    final savedUser = await _authService.getCurrentUser();
+    if (savedUser == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Сначала войдите по логину и паролю, затем включите вход по отпечатку.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       final authenticated = await _authService.authenticateWithBiometric();
-      
-      if (authenticated && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
-      } else if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (authenticated) {
+        final user = await _authService.getCurrentUser();
+        if (user != null) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Данные пользователя не найдены. Войдите по логину и паролю.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Биометрическая аутентификация не удалась'),
+            content: Text('Вход по отпечатку отменён или не распознан. Попробуйте снова или войдите по паролю.'),
             backgroundColor: Colors.orange,
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -222,8 +249,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка биометрической аутентификации: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -250,7 +278,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           ),
           TextButton(
             onPressed: () async {
+              await _authService.ensureDeviceBound();
               await _authService.setBiometricEnabled(true);
+              if (!context.mounted) return;
               Navigator.of(context).pop();
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (_) => const DashboardScreen()),
@@ -264,7 +294,6 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loginOffline() async {
-    // Проверяем наличие сохраненного пользователя
     final savedUser = await _authService.getCurrentUser();
     final savedUsername = await _authService.getOfflineUsername();
     
@@ -277,6 +306,28 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         ),
       );
       return;
+    }
+    // Подсказка при первом офлайн-входе без кэша
+    final offlineEquipment = await SyncService().getOfflineEquipment();
+    final offlineAssignments = await SyncService().getOfflineAssignments();
+    if (offlineEquipment.isEmpty && offlineAssignments.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Для работы офлайн сначала войдите при подключённом интернете и откройте список заданий — данные сохранятся для офлайна.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } else if (offlineEquipment.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Нет сохранённого оборудования. Откройте задания при интернете для загрузки данных.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
     
     // Проверяем, что имя пользователя совпадает (если введено)
@@ -697,8 +748,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
-                  // Кнопка офлайн-входа (если есть офлайн-сессия и биометрия недоступна или не включена)
-                  if (_hasOfflineSession && (!_biometricEnabled || !_biometricAvailable)) ...[
+                  // Кнопка офлайн-входа — всегда показываем при сохранённом пользователе
+                  if (_hasOfflineSession) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: _isLoading ? null : _loginOffline,

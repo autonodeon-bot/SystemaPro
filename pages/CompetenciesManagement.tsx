@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Award, Calendar, Plus, AlertTriangle, CheckCircle, Edit, Trash2, X, FileText, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE } from '../constants';
 
 interface Engineer {
   id: string;
@@ -20,6 +21,8 @@ interface Certification {
   certificate_number?: string;
   number?: string;
   method_code?: string;
+  certification_area?: string | null;
+  certification_areas?: string[] | null;
   equipment_type_id?: string;
   issued_by?: string;
   issuing_organization?: string;
@@ -47,6 +50,7 @@ const CompetenciesManagement = () => {
     certification_type: '',
     certificate_number: '',
     method_code: '',
+    certification_areas: [] as string[],
     equipment_type_id: '',
     issue_date: '',
     expiry_date: '',
@@ -66,8 +70,6 @@ const CompetenciesManagement = () => {
     qualifications: [] as string[],
     equipment_types: [] as string[],
   });
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   const downloadCertScan = async (cert: Certification) => {
     try {
@@ -268,6 +270,7 @@ const CompetenciesManagement = () => {
       certification_type: '',
       certificate_number: '',
       method_code: '',
+      certification_areas: [],
       equipment_type_id: '',
       issue_date: '',
       expiry_date: '',
@@ -281,11 +284,15 @@ const CompetenciesManagement = () => {
   };
 
   const handleEditCertification = (cert: Certification) => {
+    const areas = cert.certification_areas?.length
+      ? cert.certification_areas
+      : (cert.certification_area ? [cert.certification_area] : []);
     setCertFormData({
       engineer_id: cert.engineer_id,
       certification_type: cert.certification_type || '',
       certificate_number: cert.certificate_number || cert.number || '',
       method_code: (cert as any).method_code || '',
+      certification_areas: [...areas],
       equipment_type_id: (cert as any).equipment_type_id || '',
       issue_date: cert.issue_date ? cert.issue_date.split('T')[0] : '',
       expiry_date: cert.expiry_date ? cert.expiry_date.split('T')[0] : '',
@@ -485,6 +492,70 @@ const CompetenciesManagement = () => {
     "Тепловой контроль (ТК)",
     "Ультразвуковая толщинометрия (УЗТ)"
   ];
+
+  // Области аттестации специалистов НК (по приказам Ростехнадзора и ГОСТ Р ИСО 9712)
+  const CERTIFICATION_AREAS = [
+    "А.1 — Основные требования промышленной безопасности",
+    "Б.3.1 — Оборудование металлургической промышленности (доменное)",
+    "Б.3.2 — Оборудование металлургической промышленности (сталеплавильное)",
+    "Б.3.3 — Оборудование металлургической промышленности (прокатное)",
+    "Б.3.4 — Оборудование металлургической промышленности (трубное производство)",
+    "Б.3.5 — Оборудование металлургической промышленности (коксохимическое)",
+    "Б.3.6 — Оборудование металлургической промышленности (агломерационное)",
+    "Б.3.7 — Оборудование металлургической промышленности (литейное)",
+    "Б.3.8 — Оборудование металлургической промышленности (вспомогательное)",
+    "Б.3.9 — Оборудование металлургической промышленности (прочее)",
+    "Б.3.10 — Требования к порядку работы на объектах металлургической промышленности",
+    "Б.4.1 — Сосуды, работающие под давлением",
+    "Б.4.2 — Трубопроводы пара и горячей воды",
+    "Б.4.3 — Котлы (паровые и водогрейные)",
+    "Б.4.4 — Оборудование, работающее под избыточным давлением",
+    "Б.7.1 — Гидротехнические сооружения (общие требования)",
+    "Б.7.2 — Гидротехнические сооружения водохранилищ",
+    "Б.7.3 — Гидротехнические сооружения намывных площадок",
+    "Б.7.4 — Гидротехнические сооружения водоподпорные",
+    "Б.7.5 — Гидротехнические сооружения каналов",
+    "Б.7.6 — Гидротехнические сооружения (прочие)",
+    "Сварные соединения (ГОСТ Р ИСО 9712)",
+    "Литые изделия (ГОСТ Р ИСО 9712)",
+    "Кованые изделия и штамповки (ГОСТ Р ИСО 9712)",
+    "Трубопроводы (ГОСТ Р ИСО 9712)",
+    "Металлические конструкции (ГОСТ Р ИСО 9712)",
+    "Строительные конструкции (ГОСТ Р ИСО 9712)",
+    "Оборудование нефтегазовой отрасли",
+  ];
+
+  // Группы областей для быстрого выбора «вся область»
+  const AREA_GROUPS: { label: string; areas: string[] }[] = [
+    { label: "А.1 — Основы промышленной безопасности", areas: [CERTIFICATION_AREAS[0]] },
+    { label: "Вся область Б.3 (металлургия)", areas: CERTIFICATION_AREAS.slice(1, 11) },
+    { label: "Вся область Б.4 (сосуды, котлы)", areas: CERTIFICATION_AREAS.slice(11, 15) },
+    { label: "Вся область Б.7 (гидротехнические сооружения)", areas: CERTIFICATION_AREAS.slice(15, 21) },
+    { label: "ГОСТ Р ИСО 9712 (объекты контроля)", areas: CERTIFICATION_AREAS.slice(21, 28) },
+  ];
+
+  const toggleCertificationArea = (area: string) => {
+    const cur = certFormData.certification_areas;
+    if (cur.includes(area)) {
+      setCertFormData({ ...certFormData, certification_areas: cur.filter((a) => a !== area) });
+    } else {
+      setCertFormData({ ...certFormData, certification_areas: [...cur, area] });
+    }
+  };
+
+  const addAreaGroup = (areas: string[]) => {
+    const cur = certFormData.certification_areas;
+    const next = [...new Set([...cur, ...areas])];
+    setCertFormData({ ...certFormData, certification_areas: next });
+  };
+
+  const removeAreaGroup = (areas: string[]) => {
+    const setB = new Set(areas);
+    setCertFormData({
+      ...certFormData,
+      certification_areas: certFormData.certification_areas.filter((a) => !setB.has(a)),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -744,6 +815,11 @@ const CompetenciesManagement = () => {
                             <div className="flex-1">
                               <p className="text-white font-bold">{cert.certification_type}</p>
                               <p className="text-sm text-slate-400">№ {cert.certificate_number || cert.number}</p>
+                              {(cert.certification_areas?.length || (cert.certification_area ? 1 : 0)) > 0 && (
+                                <p className="text-sm text-accent/90">
+                                  Области аттестации: {(cert.certification_areas?.length ? cert.certification_areas : [cert.certification_area]).join('; ')}
+                                </p>
+                              )}
                               <p className="text-sm text-slate-400">
                                 Выдан: {cert.issuing_organization || cert.issued_by}
                               </p>
@@ -886,6 +962,43 @@ const CompetenciesManagement = () => {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-slate-400 block mb-1">Области аттестации (можно несколько, до 10 и более)</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {AREA_GROUPS.map((gr) => {
+                      const allIn = gr.areas.every((a) => certFormData.certification_areas.includes(a));
+                      return (
+                        <span key={gr.label} className="flex gap-1 items-center flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => (allIn ? removeAreaGroup(gr.areas) : addAreaGroup(gr.areas))}
+                            className={`px-3 py-1.5 rounded text-sm font-medium border ${
+                              allIn ? 'bg-accent/20 text-accent border-accent/50' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-accent/50'
+                            }`}
+                          >
+                            {allIn ? '− ' : '+ '}{gr.label}
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="max-h-48 overflow-y-auto border border-slate-700 rounded-lg p-3 bg-slate-900 space-y-1.5">
+                    {CERTIFICATION_AREAS.map((area) => (
+                      <label key={area} className="flex items-start gap-2 cursor-pointer text-sm text-slate-200 hover:text-white">
+                        <input
+                          type="checkbox"
+                          checked={certFormData.certification_areas.includes(area)}
+                          onChange={() => toggleCertificationArea(area)}
+                          className="mt-1 rounded border-slate-600 text-accent bg-slate-800"
+                        />
+                        <span className="flex-1">{area}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {certFormData.certification_areas.length > 0 && (
+                    <p className="text-xs text-slate-500 mt-1">Выбрано: {certFormData.certification_areas.length}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm text-slate-400 block mb-1">Тип оборудования</label>

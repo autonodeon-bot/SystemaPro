@@ -1,26 +1,66 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Award, Edit, Plus, Trash2, Download, Calendar, 
-  CheckCircle, XCircle, AlertTriangle, FileText, Save, Upload
+  CheckCircle, XCircle, AlertTriangle, FileText, Save, Upload,
+  ClipboardList, Package, Gauge, User, Wrench
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE } from '../constants';
 
 interface Certification {
   id: string;
   engineer_id: string;
   certification_type: string;
   method?: string;
+  method_code?: string;
   level?: string;
   number: string;
   issued_by: string;
   issue_date?: string;
   expiry_date?: string;
   file_path?: string;
+  scan_file_name?: string;
 }
+
+interface Assignment {
+  id: string;
+  equipment_id: string;
+  equipment_name?: string;
+  status: string;
+  due_date: string | null;
+  priority: string;
+  created_at: string;
+}
+
+interface Report {
+  id: string;
+  inspection_id: string;
+  equipment_name?: string;
+  title: string;
+  created_at: string;
+  file_path?: string;
+}
+
+interface VerificationItem {
+  id: string;
+  equipment_type: string;
+  serial_number: string;
+  manufacturer?: string;
+  model?: string;
+  expiry_date?: string;
+}
+
+type EngineerTab = 'certifications' | 'assignments' | 'reports' | 'equipment' | 'instruments';
 
 const EngineerPanel = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<EngineerTab>('certifications');
   const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [verificationEquipment, setVerificationEquipment] = useState<VerificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingCert, setEditingCert] = useState<Certification | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -35,13 +75,73 @@ const EngineerPanel = () => {
     file: null as File | null
   });
 
-  const API_BASE = 'http://5.129.203.182:8000';
-
   useEffect(() => {
     if (user?.engineer_id) {
       loadCertifications();
     }
   }, [user]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !user?.id) return;
+    if (activeTab === 'assignments' || activeTab === 'equipment') loadAssignments();
+    if (activeTab === 'reports') loadMyReports();
+    if (activeTab === 'instruments') loadVerificationEquipment();
+  }, [user?.id, activeTab]);
+
+  const loadAssignments = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/assignments`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAssignments(data.items || data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMyReports = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/reports?limit=200`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReports(data.items || data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadVerificationEquipment = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/verification-equipment?is_active=true`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVerificationEquipment(data.items || data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadCertifications = async () => {
     if (!user?.engineer_id) return;
@@ -188,18 +288,57 @@ const EngineerPanel = () => {
     );
   }
 
+  const tabs: { id: EngineerTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'certifications', label: 'Сертификаты НК', icon: <Award size={18} /> },
+    { id: 'assignments', label: 'Мои задания', icon: <ClipboardList size={18} /> },
+    { id: 'reports', label: 'Мои отчёты', icon: <FileText size={18} /> },
+    { id: 'equipment', label: 'Моё оборудование', icon: <Package size={18} /> },
+    { id: 'instruments', label: 'Приборы поверки', icon: <Gauge size={18} /> },
+  ];
+
+  const uniqueEquipmentFromAssignments = Array.from(
+    new Map(assignments.map(a => [a.equipment_id, { id: a.equipment_id, name: a.equipment_name || a.equipment_id }])).values()
+  );
+
   return (
     <div className="space-y-6">
-      {/* Заголовок */}
+      <div>
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Wrench className="text-accent" size={28} />
+          Моя панель
+        </h1>
+        <p className="text-slate-400 mt-1">
+          Сертификаты, задания, отчёты и доступное оборудование
+        </p>
+      </div>
+
+      {/* Табы */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-700 pb-2">
+        {tabs.map(({ id, label, icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === id
+                ? 'bg-accent text-white'
+                : 'bg-secondary/50 text-slate-400 hover:text-white hover:bg-secondary'
+            }`}
+          >
+            {icon}
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Контент: Сертификаты */}
+      {activeTab === 'certifications' && (
+        <>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Award className="text-accent" size={28} />
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Award className="text-accent" size={22} />
             Мои сертификаты НК
-          </h1>
-          <p className="text-slate-400 mt-1">
-            Управление вашими сертификатами и допусками
-          </p>
+          </h2>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
@@ -226,7 +365,7 @@ const EngineerPanel = () => {
                   <div key={cert.id} className="text-sm text-slate-300">
                     <span className="font-medium text-white">{cert.certification_type}</span>
                     {' - '}
-                    <span>{cert.method || 'Не указан'}</span>
+                    <span>{cert.method_code || cert.method || 'Не указан'}</span>
                     {' '}
                     <span className="text-yellow-400">(уровень {cert.level || 'не указан'})</span>
                     {' - истекает через '}
@@ -322,9 +461,9 @@ const EngineerPanel = () => {
                       )}
                     </div>
                   </div>
-                  {cert.file_path && (
+                  {(cert.file_path || cert.scan_file_name) && (
                     <a
-                      href={`${API_BASE}/api/documents/${cert.id}/download`}
+                      href={`${API_BASE}/api/certifications/${cert.id}/scan`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 text-accent hover:bg-slate-700 rounded transition-colors"
@@ -508,6 +647,162 @@ const EngineerPanel = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* Мои задания */}
+      {activeTab === 'assignments' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <ClipboardList className="text-accent" size={22} />
+            Мои задания
+          </h2>
+          {loading ? (
+            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+          ) : assignments.length === 0 ? (
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+              Нет назначенных заданий
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assignments.map((a) => (
+                <div
+                  key={a.id}
+                  className="bg-secondary/50 rounded-lg p-4 border border-slate-700 flex items-center justify-between flex-wrap gap-2"
+                >
+                  <div>
+                    <p className="font-medium text-white">{a.equipment_name || a.equipment_id}</p>
+                    <p className="text-sm text-slate-400">
+                      Срок: {a.due_date ? formatDate(a.due_date) : '—'} · Приоритет: {a.priority} · {a.status}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/equipment/${a.equipment_id}`)}
+                    className="px-3 py-2 bg-accent/20 text-accent rounded-lg text-sm font-medium hover:bg-accent/30"
+                  >
+                    К оборудованию
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Мои отчёты */}
+      {activeTab === 'reports' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <FileText className="text-accent" size={22} />
+            Мои отчёты
+          </h2>
+          {loading ? (
+            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+          ) : reports.length === 0 ? (
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+              Нет отчётов
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {reports.slice(0, 100).map((r) => (
+                <div
+                  key={r.id}
+                  className="bg-secondary/50 rounded-lg p-4 border border-slate-700 flex items-center justify-between flex-wrap gap-2"
+                >
+                  <div>
+                    <p className="font-medium text-white">{r.title || r.equipment_name || r.id}</p>
+                    <p className="text-sm text-slate-400">{r.created_at ? formatDate(r.created_at) : ''}</p>
+                  </div>
+                  <a
+                    href={`${API_BASE}/api/reports/${r.id}/download`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 bg-accent/20 text-accent rounded-lg text-sm font-medium hover:bg-accent/30 flex items-center gap-1"
+                  >
+                    <Download size={16} />
+                    Скачать
+                  </a>
+                </div>
+              ))}
+              {reports.length > 100 && (
+                <p className="text-slate-400 text-sm">Показаны первые 100 из {reports.length}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Моё оборудование (из заданий) */}
+      {activeTab === 'equipment' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Package className="text-accent" size={22} />
+            Оборудование по моим заданиям
+          </h2>
+          {uniqueEquipmentFromAssignments.length === 0 ? (
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+              Загрузите задания во вкладке «Мои задания»
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {uniqueEquipmentFromAssignments.map((eq) => (
+                <div
+                  key={eq.id}
+                  className="bg-secondary/50 rounded-lg p-4 border border-slate-700 flex items-center justify-between"
+                >
+                  <p className="font-medium text-white">{eq.name || eq.id}</p>
+                  <button
+                    onClick={() => navigate(`/equipment/${eq.id}`)}
+                    className="px-3 py-2 bg-accent/20 text-accent rounded-lg text-sm font-medium hover:bg-accent/30"
+                  >
+                    Открыть
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Приборы поверки */}
+      {activeTab === 'instruments' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Gauge className="text-accent" size={22} />
+            Приборы поверки (справочник)
+          </h2>
+          {loading ? (
+            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+          ) : verificationEquipment.length === 0 ? (
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+              Нет данных
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-slate-400 border-b border-slate-700">
+                    <th className="py-2 pr-4">Тип</th>
+                    <th className="py-2 pr-4">Серийный номер</th>
+                    <th className="py-2 pr-4">Производитель</th>
+                    <th className="py-2 pr-4">Поверка до</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {verificationEquipment.map((v) => (
+                    <tr key={v.id} className="border-b border-slate-700/50">
+                      <td className="py-2 pr-4 text-white">{v.equipment_type}</td>
+                      <td className="py-2 pr-4 text-white">{v.serial_number}</td>
+                      <td className="py-2 pr-4 text-slate-300">{v.manufacturer || '—'}</td>
+                      <td className="py-2 pr-4 text-slate-300">{v.expiry_date ? formatDate(v.expiry_date) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

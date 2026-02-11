@@ -1,7 +1,7 @@
 name: es_td_ngo_mobile
 description: Мобильное приложение инженера диагностики (ЕС ТД НГО)
 publish_to: 'none'
-version: 3.15.0+16
+version: 3.21.0+21
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -14,10 +14,11 @@ dependencies:
   
   # State & Routing
   flutter_riverpod: ^3.0.3
+  state_notifier: ^1.0.0
   go_router: ^17.0.0
   
   # Forms & UI
-  flutter_form_builder: ^10.2.0
+  flutter_form_builder: ^10.1.0
   form_builder_validators: ^11.2.0
   form_builder_image_picker: ^4.3.1
   cupertino_icons: ^1.0.6
@@ -37,16 +38,16 @@ dependencies:
   pdf: ^3.10.7
   printing: ^5.12.0
   image: ^4.3.0
-  image_gallery_saver: ^2.0.3
+  image_gallery_saver_plus: ^4.0.1
   geolocator: ^13.0.1
   geocoding: ^3.0.0
   flutter_local_notifications: ^17.2.2+1
-  workmanager: ^0.5.2
+  workmanager: ^0.9.0+3
   uuid: ^4.5.1
   
   # Bluetooth для интеграции с приборами
   flutter_blue_plus: ^2.0.2
-  shared_preferences: ^2.5.4
+  shared_preferences: ^2.2.2
   intl: ^0.20.2
   package_info_plus: ^8.0.2
   crypto: ^3.0.5
@@ -54,6 +55,7 @@ dependencies:
   permission_handler: ^11.3.1
   open_filex: ^4.5.0
   local_auth: ^2.3.0
+  archive: ^3.4.10
   device_info_plus: ^11.1.0
   flutter_secure_storage: ^9.2.2
 

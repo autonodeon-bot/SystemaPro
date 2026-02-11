@@ -13,6 +13,10 @@ RUN npm install
 # Copy source files
 COPY . .
 
+# Пустой VITE_API_BASE = запросы на тот же хост (/api проксируется nginx на backend)
+ARG VITE_API_BASE=
+ENV VITE_API_BASE=$VITE_API_BASE
+
 # Build the application
 RUN npm run build
 

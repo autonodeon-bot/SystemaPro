@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn } from 'lucide-react';
+import { APP_VERSION } from '../constants';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -100,7 +101,7 @@ const Login: React.FC = () => {
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-400">
-            <p>Версия системы: v3.12.0</p>
+            <p>Версия системы: v{APP_VERSION}</p>
           </div>
         </div>
       </div>

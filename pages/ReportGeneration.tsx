@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, FileCheck, Sparkles, Search, Eye, X, CheckCircle, AlertCircle, Trash2, Archive, ArchiveRestore, ChevronDown, ChevronRight, Building2, Factory } from 'lucide-react';
+import { FileText, FileCode, Download, FileCheck, Sparkles, Search, Eye, X, CheckCircle, AlertCircle, Trash2, Archive, ArchiveRestore, ChevronDown, ChevronRight, Building2, Factory } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE } from '../constants';
 
 interface Inspection {
   id: string;
@@ -32,6 +33,7 @@ interface Report {
   report_type: string;
   title: string;
   file_path: string;
+  word_file_path?: string | null;
   status: string;
   created_at: string;
   enterprise_id?: string;
@@ -122,8 +124,6 @@ const ReportGeneration = () => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [showArchived, setShowArchived] = useState(false);
 
-  const API_BASE = 'http://5.129.203.182:8000';
-
   useEffect(() => {
     loadData();
   }, [showArchived]);
@@ -142,13 +142,20 @@ const ReportGeneration = () => {
         fetch(`${API_BASE}/api/reports`, { headers })
       ]);
       
-      const inspData = await inspRes.json();
-      const eqData = await eqRes.json();
-      const repData = await repRes.json();
+      const toItems = (res: Response, data: unknown): unknown[] => {
+        if (!res.ok) return [];
+        if (Array.isArray(data)) return data;
+        if (data && typeof data === 'object' && 'items' in data && Array.isArray((data as { items: unknown[] }).items))
+          return (data as { items: unknown[] }).items;
+        return [];
+      };
+      const inspData = await inspRes.json().catch(() => ({}));
+      const eqData = await eqRes.json().catch(() => ({}));
+      const repData = await repRes.json().catch(() => ({}));
       
-      // Фильтруем по архиву
-      let filteredInspections = inspData.items || [];
-      let filteredReports = repData.items || [];
+      let filteredInspections = toItems(inspRes, inspData) as Inspection[];
+      let filteredReports = toItems(repRes, repData) as Report[];
+      const equipmentList = toItems(eqRes, eqData);
       
       if (!showArchived) {
         filteredInspections = filteredInspections.filter((i: Inspection) => !i.is_archived);
@@ -156,7 +163,7 @@ const ReportGeneration = () => {
       }
       
       setInspections(filteredInspections);
-      setEquipment(eqData.items || []);
+      setEquipment(equipmentList);
       setReports(filteredReports);
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
@@ -252,9 +259,12 @@ const ReportGeneration = () => {
       if (response.ok) {
         return await response.json();
       }
-      return { is_complete: false, missing_fields: ['Ошибка проверки'], warnings: [] };
+      const errData = await response.json().catch(() => ({}));
+      const detail = errData.detail || `Сервер вернул ${response.status}`;
+      return { is_complete: false, missing_fields: [detail], warnings: [] };
     } catch (error) {
-      return { is_complete: false, missing_fields: ['Ошибка проверки'], warnings: [] };
+      const msg = error instanceof Error ? error.message : 'Нет связи с сервером';
+      return { is_complete: false, missing_fields: [msg], warnings: [] };
     }
   };
 
@@ -444,7 +454,7 @@ const ReportGeneration = () => {
     await generateReport(inspectionId, reportType, format);
   };
 
-  const handleDownloadReport = async (reportId: string, filePath?: string) => {
+  const handleDownloadReport = async (reportId: string, format: 'pdf' | 'docx' = 'pdf') => {
     try {
       const headers: HeadersInit = {};
       const token = localStorage.getItem('token');
@@ -452,20 +462,19 @@ const ReportGeneration = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${API_BASE}/api/reports/${reportId}/download`, { headers });
+      const url = `${API_BASE}/api/reports/${reportId}/download${format === 'docx' ? '?format=docx' : ''}`;
+      const response = await fetch(url, { headers });
       if (response.ok) {
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const objectUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        const inferredName =
-          filePath && filePath.includes('/') ? filePath.split('/').pop() : undefined;
+        a.href = objectUrl;
         const ct = response.headers.get('content-type') || '';
         const ext = ct.includes('wordprocessingml') ? '.docx' : '.pdf';
-        a.download = inferredName || `report${ext}`;
+        a.download = `report${ext}`;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(objectUrl);
         document.body.removeChild(a);
       }
     } catch (error) {
@@ -568,6 +577,7 @@ const ReportGeneration = () => {
               <option value="all">Все статусы</option>
               <option value="DRAFT">Черновик</option>
               <option value="SIGNED">Подписан</option>
+              <option value="APPROVED">Утверждён</option>
               <option value="SUBMITTED">Отправлен</option>
               <option value="COMPLETED">Завершен</option>
             </select>
@@ -774,13 +784,29 @@ const ReportGeneration = () => {
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleDownloadReport(report.id, report.file_path)}
-                                className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
-                              >
-                                <Download size={16} />
-                                Скачать
-                              </button>
+                              {report.file_path && (
+                                <button
+                                  onClick={() => handleDownloadReport(report.id, 'pdf')}
+                                  className="bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-red-500/20"
+                                  title="Скачать PDF"
+                                >
+                                  <FileText size={16} />
+                                  PDF
+                                </button>
+                              )}
+                              {report.word_file_path && (
+                                <button
+                                  onClick={() => handleDownloadReport(report.id, 'docx')}
+                                  className="bg-blue-500/10 text-blue-400 border border-blue-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-500/20"
+                                  title="Скачать DOCX"
+                                >
+                                  <FileCode size={16} />
+                                  DOCX
+                                </button>
+                              )}
+                              {!report.file_path && !report.word_file_path && (
+                                <span className="text-slate-500 text-sm">Файл не сгенерирован</span>
+                              )}
                               <button
                                 onClick={() => archiveReport(report.id, !report.is_archived)}
                                 className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 rounded"
@@ -1153,64 +1179,35 @@ const ReportGeneration = () => {
                   </>
                 )}
               </button>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => handleGenerateFromPreview('pdf')}
-                  disabled={generating === previewData.inspection.id}
-                  className="px-3 md:px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
-                >
-                  {generating === previewData.inspection.id ? (
-                    <>
-                      <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
-                      <span>Генерация...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText size={14} className="md:w-4 md:h-4" />
-                      <span className="hidden sm:inline">PDF</span>
-                      <span className="sm:hidden">PDF</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleGenerateFromPreview('docx')}
-                  disabled={generating === previewData.inspection.id}
-                  className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
-                >
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Word</span>
-                  <span className="sm:hidden">DOCX</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-                      const token = localStorage.getItem('token');
-                      if (token) headers['Authorization'] = `Bearer ${token}`;
-                      
-                      const response = await fetch(`${API_BASE}/api/reports/export/${previewData.inspection.id}?format=excel`, { headers });
-                      if (response.ok) {
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `report_${previewData.inspection.id}.xlsx`;
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                      }
-                    } catch (e) {
-                      alert('Экспорт в Excel пока не реализован');
+              <button
+                onClick={async () => {
+                  try {
+                    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                    const token = localStorage.getItem('token');
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    const response = await fetch(`${API_BASE}/api/reports/export/${previewData.inspection.id}?format=excel`, { headers });
+                    if (response.ok) {
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `report_${previewData.inspection.id}.xlsx`;
+                      a.click();
+                      window.URL.revokeObjectURL(url);
                     }
-                  }}
-                  className="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base"
-                >
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Excel</span>
-                  <span className="sm:hidden">XLSX</span>
-                </button>
-              </div>
+                  } catch (e) {
+                    alert('Экспорт в Excel пока не реализован');
+                  }
+                }}
+                className="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base"
+              >
+                <FileText size={14} className="md:w-4 md:h-4" />
+                <span className="hidden sm:inline">Excel</span>
+                <span className="sm:hidden">XLSX</span>
+              </button>
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>

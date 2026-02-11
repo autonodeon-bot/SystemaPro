@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calculator, Calendar, FileText, TrendingUp, AlertTriangle } from 'lucide-react';
+import { API_BASE } from '../constants';
 
 interface Equipment {
   id: string;
@@ -36,8 +37,6 @@ const ResourceManagement = () => {
     document_number: '',
     status: 'ACTIVE',
   });
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadData();

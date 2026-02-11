@@ -1,8 +1,9 @@
 import React from 'react';
 import { Download, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
+import { MOBILE_APK_URL, MOBILE_APP_BUILD, MOBILE_APP_VERSION } from '../constants';
 
 const MobileApp = () => {
-  const downloadUrl = 'http://5.129.203.182/mobile/app-release.apk';
+  const downloadUrl = MOBILE_APK_URL;
 
   return (
     <div className="space-y-6">
@@ -16,13 +17,13 @@ const MobileApp = () => {
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <a
             href={downloadUrl}
-            download="es-td-ngo-mobile-3.15.0-16.apk"
+            download={`es-td-ngo-mobile-${MOBILE_APP_VERSION}-${MOBILE_APP_BUILD}.apk`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-3 bg-accent hover:bg-blue-600 text-white font-bold px-6 py-4 rounded-lg transition-colors shadow-lg"
           >
             <Download size={24} />
-            <span>Скачать приложение v3.15.0 (build 16) (APK)</span>
+            <span>Скачать приложение v{MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD}) (APK)</span>
           </a>
           
           <button
@@ -47,7 +48,7 @@ const MobileApp = () => {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-white mb-2">ЕС ТД НГО - Мобильное приложение</h2>
-            <p className="text-slate-400 mb-1">Версия: 3.12.0 (build 13) от 25.01.2026 — последняя версия</p>
+            <p className="text-slate-400 mb-1">Версия: {MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD}) — последняя версия</p>
             <p className="text-sm text-green-400 mb-2">✓ Доступна новая версия для скачивания</p>
             <p className="text-slate-300">
               Мобильное приложение для инженеров диагностики. Позволяет заполнять и отправлять отчеты обследования оборудования прямо с мобильного устройства.
@@ -137,10 +138,10 @@ const MobileApp = () => {
         <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
           <div className="flex items-center gap-3 mb-3">
             <CheckCircle className="text-green-400" size={20} />
-            <h3 className="text-green-400 font-bold">Новая версия 3.12.0 доступна!</h3>
+            <h3 className="text-green-400 font-bold">Новая версия {MOBILE_APP_VERSION} доступна!</h3>
           </div>
           <p className="text-sm text-slate-300 mb-4">
-            Скачайте последнюю версию мобильного приложения (3.12.0 (build 13)) для получения всех обновлений и исправлений, включая:
+            Скачайте последнюю версию мобильного приложения ({MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD})) для получения всех обновлений и исправлений, включая:
           </p>
           <ul className="text-sm text-slate-300 space-y-1 ml-4">
             <li>• Новая генерация отчетов для сосудов с полной структурой разделов 1-15</li>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon, Shield, Wrench } from 'lucide-react';
+import { APP_VERSION } from './constants';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
 import Dashboard from './pages/Dashboard';
@@ -23,6 +24,8 @@ import UsersManagement from './pages/UsersManagement';
 import VerificationsManagement from './pages/VerificationsManagement';
 import VerificationsCalendar from './pages/VerificationsCalendar';
 import ReportTemplates from './pages/ReportTemplates';
+import AdminPanel from './pages/AdminPanel';
+import EngineerPanel from './pages/EngineerPanel';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -79,6 +82,12 @@ const Layout: React.FC = () => {
           <SidebarItem to="/verifications" icon={CheckCircle2} label={isSidebarOpen ? "Поверки" : ""} />
           <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Нормативные документы" : ""} />
           <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
+          {user?.role === 'admin' && (
+            <SidebarItem to="/admin" icon={Shield} label={isSidebarOpen ? "Админ-панель" : ""} />
+          )}
+          {user?.role === 'engineer' && (
+            <SidebarItem to="/engineer-panel" icon={Wrench} label={isSidebarOpen ? "Моя панель" : ""} />
+          )}
           {user?.role === 'admin' && (
             <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
           )}
@@ -145,7 +154,7 @@ const Layout: React.FC = () => {
                <Menu size={20} />
              </button>
              <h2 className="text-base md:text-lg font-semibold text-white">Единая цифровая платформа</h2>
-             <span className="text-xs text-slate-400 ml-2 hidden sm:inline">v3.15.0</span>
+             <span className="text-xs text-slate-400 ml-2 hidden sm:inline">v{APP_VERSION}</span>
            </div>
            <div className="flex items-center gap-4">
               <button className="relative p-2 text-slate-400 hover:text-white transition">
@@ -201,6 +210,8 @@ const App = () => {
             <Route path="/verifications-calendar" element={<VerificationsCalendar />} />
             <Route path="/regulatory" element={<RegulatoryDocuments />} />
             <Route path="/competencies" element={<CompetenciesManagement />} />
+            <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
+            <Route path="/engineer-panel" element={<EngineerPanel />} />
             <Route path="/users" element={<ProtectedRoute requiredRole="admin"><UsersManagement /></ProtectedRoute>} />
             <Route path="/report-templates" element={<ProtectedRoute requiredRole="admin"><ReportTemplates /></ProtectedRoute>} />
             <Route path="/inspection" element={<DynamicInspection />} />

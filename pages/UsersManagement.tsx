@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Key, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { API_BASE } from '../constants';
 
 interface UserData {
   id: string;
@@ -41,8 +42,6 @@ const UsersManagement = () => {
   });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   const bgClass = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
   const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';

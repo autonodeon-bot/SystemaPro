@@ -9,6 +9,7 @@ import 'assignments_screen.dart'; // Версия 3.3.0
 import 'profile_screen.dart';
 import 'sync_screen.dart';
 import 'opo_list_screen.dart';
+import '../services/sync_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,15 +23,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _appVersion = '';
   String? _updateUrl;
   final _apiService = ApiService();
+  final _syncService = SyncService();
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   BuildContext? _progressDialogContext;
+  int _pendingCount = 0;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
     _checkForUpdate();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    try {
+      final pending = await _syncService.getPendingInspections();
+      final offline = await _syncService.isOfflineMode();
+      if (mounted) {
+        setState(() {
+          _pendingCount = pending.length;
+          _isOffline = offline;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadAppVersion() async {
@@ -279,14 +297,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: const [
-          AssignmentsScreen(), // Версия 3.3.0: Задания вместо списка оборудования
-          EquipmentListScreen(), // Оборудование доступно как отдельный экран
-          OpoListScreen(), // ОПО - отдельная вкладка
-          SyncScreen(),
-          ProfileScreen(),
+      body: Column(
+        children: [
+          // Индикатор офлайн/онлайн и счётчик несинхронизированных
+          Material(
+              color: _isOffline ? Colors.orange.shade900 : const Color(0xFF0d1117),
+              child: SafeArea(
+                child: InkWell(
+                  onTap: () {
+                    setState(() => _currentIndex = 3);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isOffline ? Icons.offline_bolt : Icons.cloud_queue,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isOffline ? 'Режим офлайн' : 'Онлайн',
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        if (_pendingCount > 0) ...[
+                          const SizedBox(width: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Ожидают отправки: $_pendingCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.touch_app, color: Colors.white54, size: 16),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: const [
+                AssignmentsScreen(),
+                EquipmentListScreen(),
+                OpoListScreen(),
+                SyncScreen(),
+                ProfileScreen(),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: Column(
@@ -307,7 +379,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           BottomNavigationBar(
             currentIndex: _currentIndex,
-            onTap: (index) {
+            onTap: (index) async {
+              await _loadStatus();
               setState(() {
                 _currentIndex = index;
               });

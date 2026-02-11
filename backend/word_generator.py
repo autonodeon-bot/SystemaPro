@@ -2,7 +2,7 @@
 Генератор Word документов для отчетов и опросных листов
 """
 from docx import Document
-from docx.shared import Pt, Inches, RGBColor
+from docx.shared import Pt, Inches, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement
@@ -11,12 +11,151 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 import os
+import tempfile
+import uuid as _uuid
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
 
 class WordGenerator:
     """Генератор Word документов"""
     
     def __init__(self):
         pass
+
+    def _draw_points_on_scheme(
+        self,
+        scheme_path: str,
+        thickness_points: List[Dict[str, Any]],
+        output_dir: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Рисует номера точек замеров на схеме УЗК по координатам x_percent, y_percent.
+        Возвращает путь к сохранённому изображению или None при ошибке.
+        """
+        if not _HAS_PIL or not scheme_path or not thickness_points:
+            return None
+        resolved = self._find_image_path(scheme_path) or scheme_path
+        if not os.path.isfile(resolved):
+            return None
+        points_with_coords = [
+            (i + 1, p)
+            for i, p in enumerate(thickness_points)
+            if isinstance(p, dict)
+            and (p.get("x_percent") is not None or p.get("y_percent") is not None)
+        ]
+        # Если координат нет — рисуем легенду «Точки замеров 1, 2, 3...» внизу схемы
+        if not points_with_coords and thickness_points:
+            points_with_coords = [(i + 1, {}) for i, p in enumerate(thickness_points) if isinstance(p, dict)]
+        if not points_with_coords:
+            return None
+        try:
+            img = Image.open(resolved).convert("RGB")
+            w, h = img.size
+            draw = ImageDraw.Draw(img)
+            radius = max(14, min(w, h) // 50)
+            font_size = max(12, min(w, h) // 40)
+            font = None
+            for font_path in [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            ]:
+                try:
+                    if os.path.isfile(font_path):
+                        font = ImageFont.truetype(font_path, font_size)
+                        break
+                except Exception:
+                    continue
+            if font is None:
+                font = ImageFont.load_default()
+            n_pts = len(points_with_coords)
+            for idx, (num, p) in enumerate(points_with_coords):
+                x_pct = p.get("x_percent") if isinstance(p, dict) else None
+                y_pct = p.get("y_percent") if isinstance(p, dict) else None
+                if x_pct is not None or y_pct is not None:
+                    try:
+                        xf = float(x_pct) if x_pct is not None else 0.5
+                        yf = float(y_pct) if y_pct is not None else 0.5
+                    except (TypeError, ValueError):
+                        xf, yf = 0.5, 0.5
+                    xf = max(0, min(1, xf / 100.0 if xf > 1 else xf))
+                    yf = max(0, min(1, yf / 100.0 if yf > 1 else yf))
+                    cx = int(xf * w)
+                    cy = int(yf * h)
+                else:
+                    # Нет координат — размещаем номера точек в ряд внизу схемы (легенда)
+                    margin = w // 20
+                    step = (w - 2 * margin) // max(n_pts, 1)
+                    cx = margin + (idx * step) + step // 2
+                    cy = h - max(radius * 2, h // 15)
+                    cy = max(radius, min(h - radius, cy))
+                draw.ellipse(
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    outline=(220, 50, 50),
+                    width=max(2, radius // 5),
+                    fill=(255, 200, 200),
+                )
+                text = str(num)
+                bbox = draw.textbbox((0, 0), text, font=font)
+                tw = bbox[2] - bbox[0]
+                th = bbox[3] - bbox[1]
+                draw.text((cx - tw // 2, cy - th // 2), text, fill=(180, 0, 0), font=font)
+            out_dir = output_dir or tempfile.gettempdir()
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, f"scheme_with_points_{_uuid.uuid4().hex[:12]}.png")
+            img.save(out_path, "PNG")
+            return out_path
+        except Exception as e:
+            print(f"Ошибка отрисовки точек на схеме: {e}")
+            return None
+
+    def _find_image_path(self, path: Optional[str]) -> Optional[str]:
+        """Найти существующий файл изображения по пути (для фото таблички, карты замеров, дефектов)."""
+        if not path or not isinstance(path, str):
+            return None
+        path = path.strip().replace("\\", "/")
+        possible = [path]
+        if os.path.isabs(path) and os.path.isfile(path):
+            return path
+        bases = [
+            "/app/uploads/questionnaire_documents",
+            "/app/uploads/ndt_photos",
+            "/app/uploads/certification_scans",
+            "/app/uploads",
+            "/app/reports",
+            os.getcwd(),
+        ]
+        for base in bases:
+            possible.append(os.path.join(base, path))
+        filename = os.path.basename(path)
+        for base in bases:
+            possible.append(os.path.join(base, filename))
+        qd_base = "/app/uploads/questionnaire_documents"
+        if os.path.isdir(qd_base) and filename:
+            try:
+                for sub in os.listdir(qd_base):
+                    possible.append(os.path.join(qd_base, sub, filename))
+            except OSError:
+                pass
+        nd_base = "/app/uploads/ndt_photos"
+        if os.path.isdir(nd_base) and filename:
+            try:
+                for sub1 in os.listdir(nd_base):
+                    p1 = os.path.join(nd_base, sub1)
+                    if os.path.isdir(p1):
+                        for sub2 in os.listdir(p1):
+                            possible.append(os.path.join(p1, sub2, filename))
+                    possible.append(os.path.join(nd_base, sub1, filename))
+            except OSError:
+                pass
+        for p in possible:
+            if p and os.path.exists(p) and os.path.isfile(p):
+                return p
+        return None
     
     def generate_questionnaire_word(
         self,
@@ -418,12 +557,26 @@ class WordGenerator:
         def add_picture_if_exists(title: str, path: Optional[str]):
             if not path:
                 return
+            # PDF вставляем как подпись (Word не встраивает PDF как картинку)
+            if str(path).lower().endswith(".pdf"):
+                resolved = self._find_image_path(path) or path
+                p = Path(resolved) if resolved else None
+                if p and p.exists():
+                    if title:
+                        par = doc.add_paragraph()
+                        par.add_run(title).bold = True
+                    doc.add_paragraph()
+                    doc.add_paragraph("Приложенный документ (PDF): " + p.name)
+                    doc.add_paragraph()
+                return
+            resolved = self._find_image_path(path) or path
             try:
-                p = Path(path)
+                p = Path(resolved)
                 if not p.exists():
                     return
-                par = doc.add_paragraph()
-                par.add_run(title).bold = True
+                if title:
+                    par = doc.add_paragraph()
+                    par.add_run(title).bold = True
                 doc.add_paragraph()
                 doc.add_picture(str(p), width=Inches(6.0))
                 doc.add_paragraph()
@@ -501,6 +654,41 @@ class WordGenerator:
         else:
             doc.add_paragraph('Методы неразрушающего контроля не указаны или не выполнены.')
         
+        doc.add_paragraph()
+
+        # 4. Проверки (состояние и выбор — радиокнопки Да/Нет и выпадающие списки из мобильного приложения)
+        def _yn(val):
+            if val is True:
+                return "Да"
+            if val is False:
+                return "Нет"
+            return "—"
+        checks_rows = [
+            ("Соответствует ли сосуд чертежу", _yn(_get("matches_drawing"))),
+            ("Наличие тепловой изоляции", _yn(_get("has_thermal_insulation"))),
+            ("Состояние антикоррозионного покрытия", str(_get("anticorrosion_coating_state") or _get("anticorrosion_coating") or "—")),
+            ("Состояние опор сосуда", str(_get("support_state") or "—")),
+            ("Состояние крепежных элементов", str(_get("fasteners_state") or "—")),
+            ("Перекосы фланцевых соединений", _yn(_get("has_flange_misalignment"))),
+            ("Непрямолинейность патрубков", _yn(_get("has_nozzle_misalignment"))),
+            ("Имеются ли места ремонта сосуда", _yn(_get("has_vessel_repairs"))),
+            ("Имеются ли места ремонта ТПА", _yn(_get("has_tpa_repairs"))),
+            ("Состояние внутренних устройств", str(_get("internal_devices_state") or "—")),
+            ("Локально деформированные зоны", _yn(_get("has_local_deformations"))),
+            ("Дефекты при наружном осмотре", _yn(_get("has_external_defects"))),
+            ("Дефекты при внутреннем осмотре", _yn(_get("has_internal_defects"))),
+            ("Дефекты арматуры", _yn(_get("has_armature_defects"))),
+        ]
+        doc.add_heading("4. Проверки (результаты осмотра)", level=1)
+        checks_tbl = doc.add_table(rows=len(checks_rows) + 1, cols=2)
+        checks_tbl.style = "Table Grid"
+        checks_tbl.rows[0].cells[0].text = "Параметр"
+        checks_tbl.rows[0].cells[1].text = "Значение"
+        checks_tbl.rows[0].cells[0].paragraphs[0].runs[0].font.bold = True
+        checks_tbl.rows[0].cells[1].paragraphs[0].runs[0].font.bold = True
+        for idx, (name, value) in enumerate(checks_rows, 1):
+            checks_tbl.rows[idx].cells[0].text = name
+            checks_tbl.rows[idx].cells[1].text = value
         doc.add_paragraph()
 
         # Перечень документов (чтобы не было "Документ 1")
@@ -626,9 +814,16 @@ class WordGenerator:
 
             doc.add_paragraph()
 
+            scheme_to_show = control_scheme
+            if control_scheme and thickness:
+                scheme_resolved = self._find_image_path(control_scheme) or control_scheme
+                if scheme_resolved and os.path.isfile(scheme_resolved):
+                    annotated = self._draw_points_on_scheme(scheme_resolved, thickness, output_dir="/app/reports/tmp")
+                    if annotated and os.path.isfile(annotated):
+                        scheme_to_show = annotated
             add_picture_if_exists(
-                'Схема контроля / карта обследования',
-                control_scheme,
+                'Схема контроля / карта обследования (с точками замеров)',
+                scheme_to_show,
             )
         elif control_scheme:
             doc.add_heading('6. УЗТ (УЛЬТРАЗВУКОВАЯ ТОЛЩИНОМЕТРИЯ)', level=1)
@@ -907,15 +1102,54 @@ class WordGenerator:
             doc.add_paragraph('')
             doc.add_heading('8.3. Схемы диагностики и обследования', level=2)
             for title, path in extra_attachments:
-                if not path or not os.path.exists(path):
+                if not path:
                     continue
-                ext = str(Path(path).suffix or "").lower()
+                resolved = self._find_image_path(path) or path
+                if not resolved or not os.path.exists(resolved):
+                    continue
+                ext = str(Path(resolved).suffix or "").lower()
                 if ext in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"]:
                     doc.add_paragraph(title).runs[0].bold = True
-                    add_picture_if_exists('', path)
+                    add_picture_if_exists('', resolved)
                 else:
-                    doc.add_paragraph(f"{title}: {Path(path).name}")
+                    doc.add_paragraph(f"{title}: {Path(resolved).name}")
         
+        # 8.4. Фото заводской таблички, схема контроля, сканы документов, фото дефектов (явно по порядку)
+        doc.add_paragraph('')
+        doc.add_heading('8.4. Приложенные фото и сканы документов', level=2)
+        # Фото таблички
+        _fp = attachments.get('factory_plate_photo') or _get('factory_plate_photo')
+        if _fp:
+            doc.add_paragraph('Фото заводской таблички').runs[0].bold = True
+            add_picture_if_exists('', _fp)
+        # Схема контроля
+        _cs = attachments.get('control_scheme_image') or _get('control_scheme_image')
+        if _cs:
+            doc.add_paragraph('Схема контроля / карта обследования').runs[0].bold = True
+            add_picture_if_exists('', _cs)
+        # Сканы документов 1–17
+        _doc_names = {'1': 'Документ 1', '2': 'Документ 2', '3': 'Документ 3', '4': 'Документ 4', '5': 'Документ 5', '6': 'Документ 6', '7': 'Документ 7', '8': 'Документ 8', '9': 'Документ 9', '10': 'Паспорт сосуда', '11': 'Документ 11', '12': 'Документ 12', '13': 'Документ 13', '14': 'Документ 14', '15': 'Ремонтная документация', '16': 'Документ 16', '17': 'Документ 17'}
+        for _num in [str(i) for i in range(1, 18)]:
+            _path = attachments.get(_num)
+            if not _path:
+                continue
+            _res = self._find_image_path(_path) or _path
+            if _res and os.path.exists(_res):
+                doc.add_paragraph((_doc_names.get(_num) or f'Документ {_num}')).runs[0].bold = True
+                add_picture_if_exists('', _res)
+        # Фото дефектов ВИК (vd_0_0, vd_0_1, ...)
+        _vd_keys = sorted([k for k in attachments if isinstance(k, str) and k.startswith('vd_')], key=lambda x: (int(x.split('_')[1]) if len(x.split('_')) >= 2 else 0, int(x.split('_')[2]) if len(x.split('_')) >= 3 else 0))
+        for _vk in _vd_keys:
+            _path = attachments.get(_vk)
+            if not _path:
+                continue
+            _res = self._find_image_path(_path) or _path
+            if _res and os.path.exists(_res):
+                doc.add_paragraph(f'Фото дефекта ВИК ({_vk})').runs[0].bold = True
+                add_picture_if_exists('', _res)
+        
+        if (inspection_data.get("status") or "").upper() == "DRAFT":
+            self._add_draft_watermark(doc)
         # Сохранение
         doc.save(output_path)
         return
@@ -1005,12 +1239,25 @@ class WordGenerator:
         def add_picture_if_exists(title: str, path: Optional[str]):
             if not path:
                 return
+            if str(path).lower().endswith(".pdf"):
+                resolved = self._find_image_path(path) or path
+                p = Path(resolved) if resolved else None
+                if p and p.exists():
+                    if title:
+                        par = doc.add_paragraph()
+                        par.add_run(title).bold = True
+                    doc.add_paragraph()
+                    doc.add_paragraph("Приложенный документ (PDF): " + p.name)
+                    doc.add_paragraph()
+                return
+            resolved = self._find_image_path(path) or path
             try:
-                p = Path(path)
+                p = Path(resolved)
                 if not p.exists():
                     return
-                par = doc.add_paragraph()
-                par.add_run(title).bold = True
+                if title:
+                    par = doc.add_paragraph()
+                    par.add_run(title).bold = True
                 doc.add_paragraph()
                 doc.add_picture(str(p), width=Inches(6.0))
                 doc.add_paragraph()
@@ -1075,9 +1322,9 @@ class WordGenerator:
         if is_on("title"):
             logo_path = tdef.get("logo_path") or g("report_logo_path", default="/app/reports/assets/yutar_logo.png")
             try:
-                p = Path(str(logo_path))
-                if p.exists():
-                    doc.add_picture(str(p), width=Inches(6.5))
+                resolved = self._find_image_path(str(logo_path))
+                if resolved and os.path.isfile(resolved):
+                    doc.add_picture(resolved, width=Inches(6.5))
             except Exception:
                 pass
 
@@ -1161,6 +1408,13 @@ class WordGenerator:
         docs = g("documents", default={})
         docs_info = g("documents_info", default={})
         inspection_engineers = g("inspection_engineers", default=[])
+        # Расширенный перечень работ: НК-методы + анализ документов + измерение овальности при наличии данных
+        work_list = list(performed)
+        if isinstance(docs, dict) and any(v for v in docs.values()):
+            work_list.append({"method_name": "Анализ док.", "work_name": "Анализ технической документации", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "control_volume": "—", "conclusion": "Рассмотрены документы по перечню раздела 11"})
+        ovality_data = g("ovality_measurements", default=[])
+        if isinstance(ovality_data, list) and ovality_data:
+            work_list.append({"method_name": "Овальность", "work_name": "Измерение овальности корпуса сосуда", "standard": "СО 153-34.17.439-2003", "control_volume": "—", "conclusion": "Выполнено по протоколу"})
 
         def _normalize_method(method_raw: str) -> str:
             m = (method_raw or "").strip()
@@ -1282,17 +1536,24 @@ class WordGenerator:
                         inspectors.append(name)
                         inspector_details[name] = {}
             
-            # 2. Из ndt_methods
+            # 2. Из ndt_methods (методы по специалистам; один человек может быть в нескольких методах)
             for m in (ndt_methods or []):
                 name = (m.get("inspector_name") or "").strip()
+                method_code = (m.get("method_code") or "").strip()
                 if name and name not in inspectors:
                     inspectors.append(name)
-                    inspector_details[name] = {
-                        "level": m.get("inspector_level"),
-                        "certification": m.get("certification_number"),
-                    }
+                if name:
+                    if name not in inspector_details:
+                        inspector_details[name] = {}
+                    methods = inspector_details[name].get("methods", [])
+                    if method_code and method_code not in methods:
+                        methods.append(method_code)
+                    inspector_details[name]["methods"] = methods
+                    inspector_details[name]["level"] = m.get("inspector_level")
+                    if m.get("certificate_number"):
+                        inspector_details[name]["certification"] = m.get("certificate_number")
             
-            # 3. Из specialist_docs (если есть)
+            # 3. Из specialist_docs (сертификаты с method_code для подстановки № удостоверения по методу)
             if specialist_docs:
                 for s in specialist_docs:
                     name = (s.get("inspector_name") or "").strip()
@@ -1318,24 +1579,46 @@ class WordGenerator:
                     spec_table.rows[idx].cells[0].text = str(idx)
                     spec_table.rows[idx].cells[1].text = name
                     
-                    # Информация об удостоверениях
+                    # № удостоверения по методу: для каждого метода специалиста — номер и срок из сертификата с этим method_code
                     details = inspector_details.get(name, {})
                     cert_info = []
-                    if details.get("certifications"):
+                    methods_done = set()
+                    for method_code in (details.get("methods") or []):
+                        if not method_code or method_code in methods_done:
+                            continue
+                        methods_done.add(method_code)
+                        cert_num = ""
+                        expiry = ""
+                        for cert in (details.get("certifications") or []):
+                            if (cert.get("method_code") or "").strip() == (method_code or "").strip():
+                                cert_num = cert.get("certificate_number", "")
+                                expiry = cert.get("expiry_date", "")
+                                break
+                        if cert_num:
+                            cert_info.append(f"{method_code}: №{cert_num}" + (f" до {expiry}" if expiry else ""))
+                    if not cert_info and details.get("certifications"):
                         for cert in details["certifications"]:
                             cert_num = cert.get("certificate_number", "")
                             cert_type = cert.get("certification_type", "")
                             expiry = cert.get("expiry_date", "")
                             if cert_num:
                                 cert_info.append(f"{cert_type} №{cert_num}" + (f" до {expiry}" if expiry else ""))
-                    elif details.get("certification"):
+                    if not cert_info and details.get("certification"):
                         cert_info.append(details["certification"])
-                    elif details.get("certifications_inline"):
+                    if not cert_info and details.get("certifications_inline"):
                         cert_info.extend(details["certifications_inline"])
                     
                     spec_table.rows[idx].cells[2].text = "; ".join(cert_info) if cert_info else "—"
                     
                     areas = []
+                    cert_areas = []
+                    if details.get("certifications"):
+                        for cert in details["certifications"]:
+                            for ca in (cert.get("certification_areas") or ([cert.get("certification_area")] if cert.get("certification_area") else [])):
+                                if ca and ca not in cert_areas:
+                                    cert_areas.append(ca)
+                    if cert_areas:
+                        areas.append("Области аттестации: " + "; ".join(cert_areas))
                     methods = details.get("methods") or []
                     if methods:
                         areas.append("Методы: " + ", ".join(sorted(set([m for m in methods if m]))))
@@ -1392,12 +1675,13 @@ class WordGenerator:
                         if cert_num:
                             title_parts.append(f"№ {cert_num}")
                         doc.add_paragraph(" ".join(title_parts))
-                        if os.path.exists(scan_path):
-                            ext = str(Path(scan_path).suffix or "").lower()
+                        resolved = self._find_image_path(scan_path) or (scan_path if os.path.exists(scan_path) else None)
+                        if resolved:
+                            ext = str(Path(resolved).suffix or "").lower()
                             if ext in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"]:
-                                add_picture_if_exists("", scan_path)
+                                add_picture_if_exists("", resolved)
                             else:
-                                doc.add_paragraph(f"Файл: {Path(scan_path).name}")
+                                doc.add_paragraph(f"Файл: {Path(resolved).name}")
                         else:
                             doc.add_paragraph(f"[Файл не найден: {scan_path}]")
             elif fallback_equipment:
@@ -1464,8 +1748,8 @@ class WordGenerator:
                 tech_table.rows[i].cells[1].text = str(value)
 
             doc.add_heading("10. Перечень работ, выполненных в процессе технического освидетельствования", level=1)
-            if performed:
-                work_table = doc.add_table(rows=len(performed) + 1, cols=4)
+            if work_list:
+                work_table = doc.add_table(rows=len(work_list) + 1, cols=4)
                 work_table.style = "Table Grid"
                 headers = ["№ п/п", "Наименование работы", "Объем контроля", "Нормативная документация"]
                 for i, h in enumerate(headers):
@@ -1473,9 +1757,9 @@ class WordGenerator:
                     cell.text = h
                     cell.paragraphs[0].runs[0].font.bold = True
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                for i, m in enumerate(performed, 1):
+                for i, m in enumerate(work_list, 1):
                     work_table.rows[i].cells[0].text = str(i)
-                    work_table.rows[i].cells[1].text = str(m.get('method_name') or m.get('method_code') or 'Метод НК')
+                    work_table.rows[i].cells[1].text = str(m.get('work_name') or m.get('method_name') or m.get('method_code') or 'Метод НК')
                     work_table.rows[i].cells[2].text = str(m.get('control_volume') or m.get('volume') or '—')
                     work_table.rows[i].cells[3].text = str(m.get('standard') or '—')
             else:
@@ -1539,10 +1823,10 @@ class WordGenerator:
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             
             row_num = 1
-            # Добавляем результаты по каждому методу
-            if performed:
-                for m in performed:
-                    method_name = m.get('method_name') or m.get('method_code') or 'Метод НК'
+            # Добавляем результаты по каждому методу и дополнительным работам (анализ документов, овальность)
+            if work_list:
+                for m in work_list:
+                    method_name = m.get('work_name') or m.get('method_name') or m.get('method_code') or 'Метод НК'
                     results = m.get('results') or m.get('conclusion') or 'Выполнено'
                     row = results_table.add_row()
                     row.cells[0].text = str(row_num)
@@ -1612,83 +1896,97 @@ class WordGenerator:
             doc.add_page_break()
             doc.add_heading("ПРИЛОЖЕНИЯ", level=1)
 
+        def _add_protocol_header(protocol_title: str, protocol_no: int = 1):
+            """Блок заголовка протокола (как в otchet.docx): Заказчик, Объект, Место, Дата, НТД."""
+            doc.add_paragraph()
+            p = doc.add_paragraph(protocol_title)
+            p.runs[0].bold = True if p.runs else None
+            doc.add_paragraph(f"№ {protocol_no} от {date_perf_ru}г.")
+            doc.add_paragraph()
+            header_tbl = doc.add_table(rows=5, cols=2)
+            header_tbl.style = "Table Grid"
+            header_rows = [
+                ("Заказчик:", str(org)),
+                ("Объект контроля:", f"{device_name} зав.№ {serial}"),
+                ("Место проведения контроля:", str(location)),
+                ("Дата проведения контроля:", date_perf_ru),
+                ("НТД, по которой выполнен контроль:", str(g("normative_base", default="приказ Ростехнадзора от 15.12.2020 №536, СО 153-34.17.439-2003"))),
+            ]
+            for i, (label, val) in enumerate(header_rows):
+                header_tbl.rows[i].cells[0].text = label
+                header_tbl.rows[i].cells[1].text = val
+                try:
+                    header_tbl.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
+                except Exception:
+                    pass
+            doc.add_paragraph()
+
+        def _add_equipment_table(method_equipment: Optional[List[Dict[str, Any]]] = None):
+            """Таблица применяемого оборудования в протоколе."""
+            eq_list = []
+            if method_equipment:
+                for m in method_equipment:
+                    name = m.get("name") or m.get("equipment") or ""
+                    if name:
+                        eq_list.append({"name": name, "serial_number": m.get("serial_number") or m.get("equipment_serial") or "—"})
+            if not eq_list and verification_equipment and isinstance(verification_equipment, list):
+                eq_list = [{"name": e.get("name") or "—", "serial_number": e.get("serial_number") or "—"} for e in verification_equipment]
+            if not eq_list:
+                for m in (ndt_methods or []):
+                    eq_name = m.get("equipment") or ""
+                    if eq_name and not any(e.get("name") == eq_name for e in eq_list):
+                        eq_list.append({"name": eq_name, "serial_number": m.get("equipment_serial") or m.get("serial_number") or "—"})
+            if eq_list:
+                eq_tbl = doc.add_table(rows=len(eq_list) + 1, cols=3)
+                eq_tbl.style = "Table Grid"
+                for i, h in enumerate(["№ п/п", "Наименование прибора", "Заводской номер прибора"]):
+                    eq_tbl.rows[0].cells[i].text = h
+                    try:
+                        eq_tbl.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+                        eq_tbl.rows[0].cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    except Exception:
+                        pass
+                for idx, eq in enumerate(eq_list, 1):
+                    eq_tbl.rows[idx].cells[0].text = str(idx)
+                    eq_tbl.rows[idx].cells[1].text = str(eq.get("name") or "—")
+                    eq_tbl.rows[idx].cells[2].text = str(eq.get("serial_number") or "—")
+            else:
+                doc.add_paragraph("—")
+            doc.add_paragraph()
+
+        def _add_inspector_signature(inspector_name: str = ""):
+            """Блок подписи специалиста в конце протокола (как в otchet.docx)."""
+            name = inspector_name or g("executors", default="—")
+            if isinstance(name, list):
+                name = ", ".join(str(x) for x in name) if name else "—"
+            doc.add_paragraph()
+            sig_tbl = doc.add_table(rows=3, cols=2)
+            sig_tbl.style = "Table Grid"
+            sig_tbl.rows[0].cells[0].text = "Контроль провел, заключение выдал:"
+            sig_tbl.rows[0].cells[1].text = ""
+            sig_tbl.rows[1].cells[0].text = "Дефектоскопист II уровня по ВИК, УК"
+            sig_tbl.rows[1].cells[1].text = str(name)
+            sig_tbl.rows[2].cells[0].text = "Начальник ЛНМК"
+            sig_tbl.rows[2].cells[1].text = "__________________"
+            try:
+                sig_tbl.rows[0].cells[0].paragraphs[0].runs[0].font.bold = True
+                sig_tbl.rows[1].cells[0].paragraphs[0].runs[0].font.bold = True
+                sig_tbl.rows[2].cells[0].paragraphs[0].runs[0].font.bold = True
+            except Exception:
+                pass
+            doc.add_paragraph()
+
         app_no = 1
-        
-        # ПРИЛОЖЕНИЕ № 1: Протокол анализа технической документации
-        if isinstance(docs, dict) and docs:
-            doc.add_page_break()
-            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол анализа технической документации", level=2)
-            doc.add_paragraph("1. Сведения о рассмотренных в процессе технического освидетельствования документах")
-            
-            doc_table = doc.add_table(rows=len(docs) + 1, cols=4)
-            doc_table.style = "Table Grid"
-            headers = ["№ п/п", "Наименование документа", "Идентификационный номер документа", "Объём рассмотренных документов, листов"]
-            for i, h in enumerate(headers):
-                cell = doc_table.rows[0].cells[i]
-                cell.text = h
-                cell.paragraphs[0].runs[0].font.bold = True
-                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            document_names = {
-                '1': 'Дубликат паспорт сосуда, работающего под давлением',
-                '2': 'Приказ об организации работ при эксплуатации оборудования, работающего под давлением',
-                '3': 'Журнал проверки сосудов, работающих под давлением',
-                '4': 'Заключение технического диагностирования',
-                '5': 'Сведения об основных элементах сосуда',
-                '6': 'Сведения об основных элементах сосуда (продолжение)',
-                '7': 'Сведения об основной арматуре, КИП и приборах безопасности',
-                '8': 'Приказ о назначении ответственного лица за исправное состояние и безопасную эксплуатацию сосудов',
-                '9': 'Приказ о назначении ответственного лица за осуществление производственного контроля и соблюдение требований промышленной безопасности на ОПО',
-                '10': 'Паспорт сосуда заводской (удостоверение о качестве монтажа, сборочный чертёж, схема включения, расчёт на прочность)',
-                '11': 'Инструкция по монтажу и эксплуатации',
-                '12': 'Паспорта на предохранительные клапаны',
-                '13': 'Паспорта на запорную арматуру',
-                '14': 'Документация на контрольно-измерительные приборы',
-                '15': 'Ремонтная (исполнительная) документация',
-                '16': 'Заключение экспертизы промышленной безопасности',
-                '17': 'Акты проведения УЗТ',
-            }
-            
-            row_idx = 1
-            for num, has_doc in sorted(docs.items(), key=lambda x: int(str(x[0])) if str(x[0]).isdigit() else 999):
-                if has_doc:
-                    doc_table.rows[row_idx].cells[0].text = str(row_idx)
-                    doc_table.rows[row_idx].cells[1].text = document_names.get(str(num), f'Документ {num}')
-                    doc_table.rows[row_idx].cells[2].text = attachment_names.get(str(num), str(num))
-                    doc_table.rows[row_idx].cells[3].text = "—"  # Объем не указан в checklist
-                    row_idx += 1
-            
-            # Если таблица пустая, удаляем лишние строки
-            if row_idx == 1:
-                # Оставляем только заголовок
-                for i in range(len(docs), 0, -1):
-                    doc_table._element.remove(doc_table.rows[i]._element)
+        # ПРИЛОЖЕНИЕ № 1 (Протокол анализа техдокументации) не дублируем — уже есть раздел 11 «Сведения о рассмотренных документах»
 
-            # Приложенные копии документов (если есть файлы)
-            any_attachment = False
-            for num, has_doc in sorted(docs.items(), key=lambda x: int(str(x[0])) if str(x[0]).isdigit() else 999):
-                if not has_doc:
-                    continue
-                fp = attachments.get(str(num))
-                if not fp:
-                    continue
-                any_attachment = True
-                ext = str(Path(fp).suffix or "").lower()
-                if ext in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"]:
-                    add_picture_if_exists(f"Документ {num}: {document_names.get(str(num), '')}", fp)
-                else:
-                    doc.add_paragraph(f"Документ {num}: {document_names.get(str(num), '')}")
-                    doc.add_paragraph(f"Файл: {Path(fp).name}")
-            
-            app_no += 1
-
-        # Отдельные акты обследования по каждому методу
+        # Отдельные акты выполненных работ по каждому методу НК (как в otchet.docx)
         if performed:
             for m in performed:
                 method_name = m.get("method_name") or m.get("method_code") or "Метод НК"
                 inspector_name = m.get("inspector_name") or _engineer_for_method(m.get("method_code") or method_name)
                 doc.add_page_break()
-                doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Акт обследования ({method_name})", level=2)
+                doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Акт выполненных работ ({method_name})", level=2)
+                _add_protocol_header(f"Протокол по результатам {method_name}", app_no)
                 act_table = doc.add_table(rows=9, cols=2)
                 act_table.style = "Table Grid"
                 rows = [
@@ -1726,6 +2024,11 @@ class WordGenerator:
         if has_visual_data:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам визуального и измерительного контроля", level=2)
+            _add_protocol_header("Протокол по результатам визуального и измерительного контроля", app_no)
+            
+            doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
+            vik_equipment = [m for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("VIK", "ВИК") and m.get("equipment")]
+            _add_equipment_table(vik_equipment or None)
             
             # Фото заводской таблички (если есть)
             factory_plate = g("factory_plate_photo") or attachments.get("factory_plate_photo")
@@ -1737,7 +2040,7 @@ class WordGenerator:
             # Результаты визуального контроля
             doc.add_paragraph()
             doc.add_paragraph("2. Результаты визуального контроля").runs[0].bold = True
-            visual_table = doc.add_table(rows=10, cols=4)
+            visual_table = doc.add_table(rows=10, cols=5)
             visual_table.style = "Table Grid"
             headers = ["№ п/п", "Наименование объекта контроля", "Объем контроля", "Описание обнаруженных дефектов, их размеры", "Оценка качества"]
             for i, h in enumerate(headers):
@@ -1787,18 +2090,26 @@ class WordGenerator:
                     defect_table.rows[i].cells[3].text = str(d.get("size") or "")
                     defect_table.rows[i].cells[4].text = str(d.get("description") or "")
                 
-                # Фотографии дефектов
+                # Фотографии дефектов (пути из data или из document_files vd_i_j при синхронизации с мобильного)
                 for i, d in enumerate(visual_defects, 1):
                     if not isinstance(d, dict):
                         continue
                     photos = d.get("photos") or []
                     if isinstance(photos, list) and photos:
                         doc.add_paragraph(f"Фотографии дефекта №{i}:").runs[0].bold = True
-                        for ph in photos[:6]:
-                            if isinstance(ph, str):
+                        for j, ph in enumerate(photos[:6]):
+                            if not isinstance(ph, str):
+                                continue
+                            photo_path = self._find_image_path(ph)
+                            if not photo_path and ph and attachments.get(ph):
+                                photo_path = self._find_image_path(attachments.get(ph))
+                            if not photo_path and ph and os.path.exists(ph):
                                 photo_path = ph
-                                if not Path(photo_path).exists() and attachments.get(photo_path):
-                                    photo_path = attachments.get(photo_path)
+                            # Подстановка из загруженных document_files (vd_defectIndex_photoIndex)
+                            if not photo_path and attachments:
+                                vd_key = "vd_%d_%d" % (i - 1, j)
+                                photo_path = self._find_image_path(attachments.get(vd_key)) or (attachments.get(vd_key) if isinstance(attachments.get(vd_key), str) and os.path.exists(attachments.get(vd_key)) else None)
+                            if photo_path:
                                 add_picture_if_exists("", photo_path)
             
             # Результаты измерительного контроля - овальность
@@ -1808,20 +2119,14 @@ class WordGenerator:
                 doc.add_paragraph("4. Результаты измерительного контроля")
                 doc.add_paragraph("Определение овальности проводят измерением максимального (Dmax) и минимального (Dmin) наружного или внутреннего диаметров в одном сечении по двум перпендикулярным направлениям. Относительная овальность корпуса определяется по формуле:")
                 
-                ovality_table = doc.add_table(rows=len(ovality) + 1, cols=4)
+                ovality_table = doc.add_table(rows=len(ovality) + 1, cols=5)
                 ovality_table.style = "Table Grid"
-                headers = ["Номер сечения", "Размеры, мм", "", "Фактическая овальность, %", "Допустимая овальность, %"]
+                headers = ["Номер сечения", "Dmin", "Dmax", "Фактическая овальность, %", "Допустимая овальность, %"]
                 for i, h in enumerate(headers):
                     cell = ovality_table.rows[0].cells[i]
                     cell.text = h
                     cell.paragraphs[0].runs[0].font.bold = True
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                
-                # Объединяем ячейки для Dmin и Dmax
-                if len(ovality) > 0:
-                    # Создаем подзаголовки для Dmin и Dmax
-                    ovality_table.rows[0].cells[1].text = "Dmin"
-                    ovality_table.rows[0].cells[2].text = "Dmax"
                 
                 for idx, it in enumerate(ovality, 1):
                     ovality_table.rows[idx].cells[0].text = str(it.get('section_number') or f'I-{idx}')
@@ -1830,6 +2135,8 @@ class WordGenerator:
                     ovality_table.rows[idx].cells[3].text = str(it.get('deviation_percent') or '0')
                     ovality_table.rows[idx].cells[4].text = "1,0"
             
+            vik_inspector = next((m.get("inspector_name") for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("VIK", "ВИК")), None)
+            _add_inspector_signature(vik_inspector or _engineer_for_method("VIK"))
             app_no += 1
 
         # ПРИЛОЖЕНИЕ № 4: Протокол по результатам ультразвукового контроля толщины стенок
@@ -1837,12 +2144,13 @@ class WordGenerator:
         if isinstance(thickness, list) and len(thickness) > 0:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам ультразвукового контроля толщины стенок элементов сосуда", level=2)
+            _add_protocol_header("Протокол по результатам ультразвукового контроля толщины стенок элементов сосуда", app_no)
             
-            doc.add_paragraph("1. Применяемое оборудование")
-            # Таблица оборудования уже есть в разделе 7, можно сослаться
+            doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
+            uzt_equipment = [m for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("UZT", "УЗТ") and m.get("equipment")]
+            _add_equipment_table(uzt_equipment or None)
             
-            doc.add_paragraph()
-            doc.add_paragraph("2. Результаты контроля")
+            doc.add_paragraph("2. Результаты контроля").runs[0].bold = True
             doc.add_paragraph("Контроль выполнен в соответствии с программой работ, согласно схемы контроля.")
 
             # Схема контроля (чертеж УЗТ) с привязкой точек - ВАЖНО: добавляем в начале раздела
@@ -1888,7 +2196,10 @@ class WordGenerator:
             for element_name, points in elements.items():
                 doc.add_paragraph()
                 doc.add_paragraph(f"Элемент: {element_name}")
-                t = doc.add_table(rows=len(points) + 3, cols=9)
+                # Строк: 1 заголовок + ceil(points/4) данных + 3 итоговые
+                data_rows = (len(points) + 3) // 4 if points else 0
+                total_rows = 1 + data_rows + 3
+                t = doc.add_table(rows=total_rows, cols=9)
                 t.style = "Table Grid"
                 headers = ["Наименование элемента", "№ точки", "Толщина, мм", "№ точки", "Толщина, мм", "№ точки", "Толщина, мм", "№ точки", "Толщина, мм"]
                 for i, h in enumerate(headers):
@@ -1911,14 +2222,54 @@ class WordGenerator:
                     row_idx += 1
                 
                 # Добавляем итоговые строки
+                nominal = attrs.get("wall_thickness") or attrs.get("thickness") or g("wall_thickness", "thickness", default="4,0")
                 t.rows[row_idx].cells[0].text = "Номинальная толщина, мм"
-                t.rows[row_idx].cells[1].text = "4,0"  # Можно взять из данных
+                t.rows[row_idx].cells[1].text = str(nominal)
                 t.rows[row_idx + 1].cells[0].text = "Минимально-измеренная толщина, мм"
                 min_thickness = min([float(str(p.get('thickness') or '0').replace(',', '.')) for p in points if p.get('thickness')], default=0)
                 t.rows[row_idx + 1].cells[1].text = f"{min_thickness:.1f}" if min_thickness > 0 else "—"
                 t.rows[row_idx + 2].cells[0].text = "Минимально допустимая толщина стеки сосуда, мм"
-                t.rows[row_idx + 2].cells[1].text = "2,8"
+                min_allowed_vals = [float(str(p.get('min_allowed_thickness') or '0').replace(',', '.')) for p in points if p.get('min_allowed_thickness')]
+                min_allowed = attrs.get("min_wall_thickness") or (min_allowed_vals[0] if min_allowed_vals else 2.8)
+                try:
+                    ma = float(str(min_allowed or '2.8').replace(',', '.'))
+                    t.rows[row_idx + 2].cells[1].text = f"{ma:.1f}" if ma > 0 else "2,8"
+                except (TypeError, ValueError):
+                    t.rows[row_idx + 2].cells[1].text = "2,8"
             
+            # Фото замеров (из document_files uzt_point_i_j или thickness_measurements[].photos)
+            doc.add_paragraph()
+            doc.add_paragraph("3. Фото замеров толщины стенок").runs[0].bold = True
+            has_photos = False
+            for i, point in enumerate(thickness):
+                if not isinstance(point, dict):
+                    continue
+                ph_list = point.get("photos") or []
+                if not ph_list:
+                    continue
+                loc = point.get("location") or "Обечайка"
+                thick_val = point.get("thickness") or ""
+                for j, ph_path in enumerate(ph_list[:3]):  # до 3 фото на точку
+                    if not isinstance(ph_path, str) or not ph_path.strip():
+                        continue
+                    res_path = self._find_image_path(ph_path) or attachments.get(f"uzt_point_{i}_{j}") or ph_path
+                    if res_path and os.path.isfile(res_path):
+                        doc.add_paragraph(f"Точка {i + 1} ({loc}): толщина {thick_val} мм")
+                        add_picture_if_exists("", res_path)
+                        has_photos = True
+            if not has_photos:
+                # Пробуем из attachments напрямую
+                for k, fp in (attachments or {}).items():
+                    if isinstance(k, str) and k.startswith("uzt_point_") and fp:
+                        res = self._find_image_path(fp) or fp
+                        if res and os.path.isfile(res):
+                            doc.add_paragraph(f"Фото замера ({k})")
+                            add_picture_if_exists("", res)
+                            has_photos = True
+                            break
+            
+            uzt_inspector = next((m.get("inspector_name") for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("UZT", "УЗТ")), None)
+            _add_inspector_signature(uzt_inspector or _engineer_for_method("UZT"))
             app_no += 1
 
         # ПРИЛОЖЕНИЕ № 5: Протокол по результатам ультразвукового контроля качества основного металла и сварных соединений
@@ -1926,8 +2277,13 @@ class WordGenerator:
         if isinstance(welds, list) and len(welds) > 0:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам ультразвукового контроля качества основного металла и сварных соединений", level=2)
+            _add_protocol_header("Протокол по результатам ультразвукового контроля качества основного металла и сварных соединений", app_no)
             
-            doc.add_paragraph("3. Результаты контроля")
+            doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
+            uzk_equipment = [m for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("UZK", "УЗК") and m.get("equipment")]
+            _add_equipment_table(uzk_equipment or None)
+            
+            doc.add_paragraph("3. Результаты контроля").runs[0].bold = True
             doc.add_paragraph("Контроль выполнен согласно схемы контроля приведенной в Приложении № 7.")
             
             weld_table = doc.add_table(rows=len(welds) + 1, cols=8)
@@ -1949,6 +2305,8 @@ class WordGenerator:
                 weld_table.rows[idx].cells[6].text = str(w.get('location_on_control_map') or '')
                 weld_table.rows[idx].cells[7].text = str(w.get('conclusion') or 'годен')
             
+            uzk_inspector = next((m.get("inspector_name") for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("UZK", "УЗК")), None)
+            _add_inspector_signature(uzk_inspector or _engineer_for_method("UZK"))
             app_no += 1
 
         # ПРИЛОЖЕНИЕ № 6: Протокол по результатам оценки механических свойств элементов сосуда
@@ -1956,8 +2314,13 @@ class WordGenerator:
         if isinstance(hardness, list) and len(hardness) > 0:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам оценки механических свойств элементов сосуда (измерение твердости металла)", level=2)
+            _add_protocol_header("Протокол по результатам оценки механических свойств элементов сосуда (твердость)", app_no)
             
-            doc.add_paragraph("2. Результаты контроля")
+            doc.add_paragraph("1. Применяемое оборудование").runs[0].bold = True
+            hardness_equipment = [m for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("TVI", "ТВИ", "HARDNESS") and m.get("equipment")]
+            _add_equipment_table(hardness_equipment or None)
+            
+            doc.add_paragraph("2. Результаты контроля").runs[0].bold = True
             
             hardness_table = doc.add_table(rows=len(hardness) + 1, cols=9)
             hardness_table.style = "Table Grid"
@@ -1968,10 +2331,10 @@ class WordGenerator:
                 cell.paragraphs[0].runs[0].font.bold = True
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Группируем по элементам
+            # Группируем по элементам (Обечайка, Днище 1, Днище 2 — как в otchet.docx)
             hardness_by_element = {}
             for h in hardness:
-                element = str(h.get('weld_number') or 'Обечайка')  # Используем weld_number как идентификатор элемента
+                element = str(h.get('location') or h.get('element_name') or h.get('weld_number') or 'Обечайка')
                 if element not in hardness_by_element:
                     hardness_by_element[element] = []
                 hardness_by_element[element].append(h)
@@ -1990,19 +2353,25 @@ class WordGenerator:
             doc.add_paragraph()
             doc.add_paragraph("Допустимый предел твердости для стали 19 ГС от 120 НВ до 180 НВ, в соответствии с СО 153-34.17.439-2003.")
             
+            hardness_inspector = next((m.get("inspector_name") for m in (ndt_methods or []) if (m.get("method_code") or "").upper() in ("TVI", "ТВИ", "HARDNESS")), None)
+            _add_inspector_signature(hardness_inspector or _engineer_for_method("TVI"))
             app_no += 1
 
-        # ПРИЛОЖЕНИЕ № 7: Схема контроля
-        control_scheme = g('control_scheme_image')
+        # ПРИЛОЖЕНИЕ № 7: Схема контроля (с нанесёнными точками замеров, если есть)
+        control_scheme = g('control_scheme_image') or attachments.get('control_scheme_image')
+        thickness_for_scheme = g("thickness_measurements", "thicknessMeasurements", default=[])
         if control_scheme:
             doc.add_page_break()
             doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Схема контроля", level=2)
-            try:
-                p = Path(str(control_scheme))
-                if p.exists():
-                    doc.add_picture(str(p), width=Inches(6.0))
-            except Exception:
-                pass
+            scheme_resolved = self._find_image_path(str(control_scheme)) or control_scheme
+            if scheme_resolved and isinstance(thickness_for_scheme, list) and thickness_for_scheme:
+                scheme_with_points = self._draw_points_on_scheme(scheme_resolved, thickness_for_scheme, output_dir=os.path.dirname(output_path) if output_path else None)
+                if scheme_with_points:
+                    add_picture_if_exists("Схема контроля с точками замеров:", scheme_with_points)
+                else:
+                    add_picture_if_exists("Схема контроля:", scheme_resolved)
+            elif scheme_resolved and os.path.isfile(scheme_resolved):
+                add_picture_if_exists("Схема контроля:", scheme_resolved)
             app_no += 1
 
         # ПРИЛОЖЕНИЕ № 8: Расчетные и аналитические процедуры (если есть данные)
@@ -2057,11 +2426,15 @@ class WordGenerator:
                 for c in (s.get("certifications") or []):
                     doc.add_paragraph(f"{c.get('certification_type') or 'Удостоверение'} № {c.get('certificate_number') or '—'}")
                     sp = c.get("scan_file_path")
-                    if sp and isinstance(sp, str) and os.path.exists(sp):
-                        try:
-                            doc.add_picture(sp, width=Inches(6.0))
-                        except Exception:
-                            pass
+                    if sp:
+                        resolved = self._find_image_path(sp) if isinstance(sp, str) else None
+                        if not resolved:
+                            resolved = sp if isinstance(sp, str) and os.path.exists(sp) else None
+                        if resolved:
+                            try:
+                                doc.add_picture(resolved, width=Inches(6.0))
+                            except Exception:
+                                pass
             app_no += 1
 
         if verification_equipment:
@@ -2076,6 +2449,8 @@ class WordGenerator:
                     except Exception:
                         pass
 
+        if (inspection_data.get("status") or "").upper() == "DRAFT":
+            self._add_draft_watermark(doc)
         doc.save(output_path)
         return
     
@@ -2120,17 +2495,32 @@ class WordGenerator:
                         attachment_names[dn] = fn
         
         def add_picture_if_exists(title: str, path: Optional[str], width_inches: float = 6.0):
-            """Добавить изображение если существует"""
+            """Добавить изображение или подпись для PDF если существует."""
             if not path:
                 return False
+            if str(path).lower().endswith(".pdf"):
+                resolved = self._find_image_path(path)
+                if not resolved and path in attachments:
+                    resolved = self._find_image_path(attachments[path]) or attachments.get(path)
+                if not resolved:
+                    resolved = path
+                p = Path(resolved) if resolved else None
+                if p and p.exists():
+                    if title:
+                        par = doc.add_paragraph()
+                        par.add_run(title).bold = True
+                    doc.add_paragraph()
+                    doc.add_paragraph("Приложенный документ (PDF): " + p.name)
+                    doc.add_paragraph()
+                    return True
+                return False
+            resolved = self._find_image_path(path)
+            if not resolved and path in attachments:
+                resolved = self._find_image_path(attachments[path]) or attachments.get(path)
+            if not resolved:
+                resolved = path
             try:
-                p = Path(path)
-                if not p.exists():
-                    # Проверяем, может это ключ в attachments
-                    if path in attachments:
-                        p = Path(attachments[path])
-                    else:
-                        return False
+                p = Path(resolved)
                 if not p.exists():
                     return False
                 if title:
@@ -2189,9 +2579,9 @@ class WordGenerator:
         if not logo_path:
             logo_path = "/app/reports/assets/yutar_logo.png"
         try:
-            p = Path(str(logo_path))
-            if p.exists():
-                doc.add_picture(str(p), width=Inches(6.5))
+            resolved = self._find_image_path(str(logo_path))
+            if resolved and os.path.isfile(resolved):
+                doc.add_picture(resolved, width=Inches(6.5))
         except Exception:
             pass
         
@@ -2266,6 +2656,13 @@ class WordGenerator:
         docs_dict = g("documents", default={})
         docs_info = g("documents_info", default={})
         inspection_engineers = g("inspection_engineers", default=[])
+        # Расширенный перечень работ: НК-методы + анализ документов + измерение овальности при наличии данных
+        work_list = list(performed)
+        if isinstance(docs_dict, dict) and any(v for v in docs_dict.values()):
+            work_list.append({"method_name": "Анализ док.", "work_name": "Анализ технической документации", "standard": "приказ Ростехнадзора от 15.12.2020 №536", "conclusion": "Рассмотрены документы по перечню раздела 11"})
+        ovality_data = g("ovality_measurements", default=[])
+        if isinstance(ovality_data, list) and ovality_data:
+            work_list.append({"method_name": "Овальность", "work_name": "Измерение овальности корпуса сосуда", "standard": "СО 153-34.17.439-2003", "conclusion": "Выполнено по протоколу"})
 
         def _normalize_method(method_raw: str) -> str:
             m = (method_raw or "").strip()
@@ -2617,15 +3014,6 @@ class WordGenerator:
         doc.add_paragraph("Таблица № 6")
         doc.add_paragraph()
         
-        works_tbl = doc.add_table(rows=len(performed) + 1, cols=3)
-        works_tbl.style = "Table Grid"
-        headers = ["№ п/п", "Наименование работы", "Объем контроля / Нормативная документация"]
-        for i, h in enumerate(headers):
-            cell = works_tbl.rows[0].cells[i]
-            cell.text = h
-            cell.paragraphs[0].runs[0].font.bold = True
-            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
         work_names = {
             "ВИК": "Визуальный и измерительный контроль",
             "УЗТ": "Ультразвуковой контроль толщины стенок элементов сосуда",
@@ -2636,10 +3024,17 @@ class WordGenerator:
             "ТК": "Тепловой контроль",
             "АК": "Акустический контроль",
         }
+        works_tbl = doc.add_table(rows=len(work_list) + 1, cols=3)
+        works_tbl.style = "Table Grid"
+        headers = ["№ п/п", "Наименование работы", "Объем контроля / Нормативная документация"]
+        for i, h in enumerate(headers):
+            cell = works_tbl.rows[0].cells[i]
+            cell.text = h
+            cell.paragraphs[0].runs[0].font.bold = True
+            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        for idx, m in enumerate(performed, 1):
-            method_name = m.get("method_name", "")
-            work_name = work_names.get(method_name, method_name)
+        for idx, m in enumerate(work_list, 1):
+            work_name = m.get("work_name") or work_names.get(m.get("method_name", ""), m.get("method_name", "—"))
             standard = m.get("standard", "приказ Ростехнадзора от 15.12.2020 №536")
             works_tbl.rows[idx].cells[0].text = str(idx)
             works_tbl.rows[idx].cells[1].text = work_name
@@ -2725,7 +3120,7 @@ class WordGenerator:
         doc.add_heading("13. Результаты технического освидетельствования", level=1)
         doc.add_paragraph("Таблица № 9")
         doc.add_paragraph()
-        results_tbl = doc.add_table(rows=len(performed) + 1, cols=3)
+        results_tbl = doc.add_table(rows=len(work_list) + 1, cols=3)
         results_tbl.style = "Table Grid"
         headers = ["№ п/п", "Наименование работы", "Результаты контроля / Наименование и номер отчетной документации"]
         for i, h in enumerate(headers):
@@ -2734,9 +3129,8 @@ class WordGenerator:
             cell.paragraphs[0].runs[0].font.bold = True
             cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        for idx, m in enumerate(performed, 1):
-            method_name = m.get("method_name", "")
-            work_name = work_names.get(method_name, method_name)
+        for idx, m in enumerate(work_list, 1):
+            work_name = m.get("work_name") or work_names.get(m.get("method_name", ""), m.get("method_name", "—"))
             conclusion = m.get("conclusion", "Дефектов не обнаружено")
             results_tbl.rows[idx].cells[0].text = str(idx)
             results_tbl.rows[idx].cells[1].text = work_name
@@ -2762,47 +3156,9 @@ class WordGenerator:
         
         # --------------- ПРИЛОЖЕНИЯ ---------------
         app_no = 1
+        # ПРИЛОЖЕНИЕ № 1 (Протокол анализа техдокументации) не дублируем — уже есть раздел 11 «Сведения о рассмотренных документах»
         
-        # ПРИЛОЖЕНИЕ № 1: Протокол анализа технической документации
-        doc.add_page_break()
-        doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол анализа технической документации", level=1)
-        doc.add_paragraph("1. Сведения о рассмотренных в процессе технического освидетельствования документах")
-        doc.add_paragraph("Таблица № 1")
-        doc.add_paragraph()
-        # Повторяем таблицу документов
-        if isinstance(docs_dict, dict) or isinstance(docs_info, dict):
-            doc_keys = set()
-            if isinstance(docs_dict, dict):
-                doc_keys.update([str(k) for k in docs_dict.keys()])
-            if isinstance(docs_info, dict):
-                doc_keys.update([str(k) for k in docs_info.keys()])
-            doc_keys = sorted(doc_keys, key=lambda x: int(x) if str(x).isdigit() else 999)
-            docs_tbl2 = doc.add_table(rows=len(doc_keys) + 1, cols=3)
-            docs_tbl2.style = "Table Grid"
-            headers = ["№ п/п", "Наименование документа", "Идентификационный номер документа / Объём рассмотренных документов, листов"]
-            for i, h in enumerate(headers):
-                cell = docs_tbl2.rows[0].cells[i]
-                cell.text = h
-                cell.paragraphs[0].runs[0].font.bold = True
-                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            row_idx = 1
-            for num in doc_keys:
-                name = document_names.get(str(num), f'Документ {num}')
-                _present, doc_number, doc_date = _doc_meta(str(num))
-                ident = "—"
-                if doc_number or doc_date:
-                    ident = doc_number
-                    if doc_date:
-                        ident = f"{ident} от {doc_date}" if ident else f"от {doc_date}"
-                docs_tbl2.rows[row_idx].cells[0].text = str(num)
-                docs_tbl2.rows[row_idx].cells[1].text = name
-                docs_tbl2.rows[row_idx].cells[2].text = ident
-                row_idx += 1
-        doc.add_paragraph()
-        app_no += 1
-        
-        # ПРИЛОЖЕНИЕ № 2: Протокол по результатам оперативной диагностики
+        # ПРИЛОЖЕНИЕ № 1 (бывш. 2): Протокол по результатам оперативной диагностики
         doc.add_page_break()
         doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Протокол по результатам оперативной (функциональной) диагностики", level=1)
         doc.add_paragraph("Протокол по результатам оперативной (функциональной) диагностики")
@@ -2823,7 +3179,7 @@ class WordGenerator:
         func_items = [
             ("1", "Значения основных параметров эксплуатации сосуда", g("functional_params", default="Соответствуют")),
             ("2", "Повышенная вибрация сосуда", g("vibration", default="Не выявлена")),
-            ("3", "Состояние опор сосуда", g("supports_state", default="Работоспособное")),
+            ("3", "Состояние опор сосуда", g("support_state", default="Работоспособное")),
             ("4", "Состояние контрольно-измерительных приборов (КИП), систем автоматизации (СА) и противоаварийной защиты (ПАЗ)", g("kip_state", default="Работоспособное")),
             ("5", "Поверка манометров", g("manometer_verification", default="Соответствует")),
         ]
@@ -2910,6 +3266,39 @@ class WordGenerator:
                 vik_results_tbl.rows[idx].cells[2].text = f"{volume} / {defects}"
                 vik_results_tbl.rows[idx].cells[3].text = quality
             doc.add_paragraph()
+            # Детализация дефектов ВИК с фотографиями (в т.ч. с мобильного)
+            visual_defects_v = g("visual_defects", default=[])
+            if isinstance(visual_defects_v, list) and visual_defects_v:
+                doc.add_paragraph("Дополнительно: выявленные дефекты ВИК").runs[0].bold = True
+                defect_tbl = doc.add_table(rows=len(visual_defects_v) + 1, cols=5)
+                defect_tbl.style = "Table Grid"
+                for i, h in enumerate(["№", "Тип дефекта", "Место", "Размеры", "Описание"]):
+                    defect_tbl.rows[0].cells[i].text = h
+                    defect_tbl.rows[0].cells[i].paragraphs[0].runs[0].font.bold = True
+                for idx, d in enumerate(visual_defects_v, 1):
+                    if isinstance(d, dict):
+                        defect_tbl.rows[idx].cells[0].text = str(idx)
+                        defect_tbl.rows[idx].cells[1].text = str(d.get("defect_type") or "—")
+                        defect_tbl.rows[idx].cells[2].text = str(d.get("location") or "—")
+                        defect_tbl.rows[idx].cells[3].text = str(d.get("size") or "—")
+                        defect_tbl.rows[idx].cells[4].text = str(d.get("description") or "—")
+                doc.add_paragraph()
+                for idx, d in enumerate(visual_defects_v, 1):
+                    if not isinstance(d, dict):
+                        continue
+                    photos_v = d.get("photos") or []
+                    if isinstance(photos_v, list) and photos_v:
+                        doc.add_paragraph(f"Фотографии дефекта №{idx}:").runs[0].bold = True
+                        for j, ph in enumerate(photos_v[:6]):
+                            if not isinstance(ph, str):
+                                continue
+                            pp = self._find_image_path(ph) or (self._find_image_path(attachments.get(ph)) if attachments.get(ph) else None) or (ph if os.path.exists(ph) else None)
+                            if not pp and attachments:
+                                vd_key = "vd_%d_%d" % (idx - 1, j)
+                                pp = self._find_image_path(attachments.get(vd_key)) or (attachments.get(vd_key) if isinstance(attachments.get(vd_key), str) and os.path.exists(attachments.get(vd_key)) else None)
+                            if pp:
+                                add_picture_if_exists("", pp)
+                doc.add_paragraph()
             
             # Измерительный контроль - овальность
             doc.add_paragraph("4. Результаты измерительного контроля")
@@ -3054,8 +3443,7 @@ class WordGenerator:
             if not control_scheme:
                 # Используем шаблон чертежа сосуда
                 template_path = "/app/reports/assets/vessel_template.png"
-                if Path(template_path).exists():
-                    control_scheme = template_path
+                control_scheme = self._find_image_path(template_path) or (template_path if os.path.isfile(template_path) else None)
             
             if control_scheme:
                 doc.add_paragraph("Схема контроля указана в Приложении № 7.")
@@ -3221,33 +3609,14 @@ class WordGenerator:
             doc.add_paragraph()
             app_no += 1
         
-        # ПРИЛОЖЕНИЕ № 7: Схема контроля
+        # ПРИЛОЖЕНИЕ № 7: Точки замеров УЗТ и схема контроля
         doc.add_page_break()
-        doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Схема контроля", level=1)
+        doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Точки замера толщины и схема контроля", level=1)
         
-        # Проверяем наличие схемы контроля
-        control_scheme = attachments.get('control_scheme_image') or g('control_scheme_image')
-        if not control_scheme:
-            # Используем шаблон чертежа сосуда
-            template_path = "/app/reports/assets/vessel_template.png"
-            if Path(template_path).exists():
-                control_scheme = template_path
-                add_picture_if_exists("Схема контроля (шаблон)", control_scheme, width_inches=7.0)
-            else:
-                doc.add_paragraph("Схема контроля не предоставлена.")
-        else:
-            add_picture_if_exists("Схема контроля", control_scheme, width_inches=7.0)
-        
-        # Добавляем фото заводской таблички
-        factory_plate = attachments.get('factory_plate_photo') or g('factory_plate_photo')
-        if factory_plate:
-            add_picture_if_exists("Фото заводской таблички", factory_plate)
-        
-        # Добавляем точки УЗТ на схему если есть
         thickness = g("thickness_measurements", "thicknessMeasurements", default=[])
-        if isinstance(thickness, list) and thickness and control_scheme:
-            doc.add_paragraph()
-            doc.add_paragraph("Точки замера толщины:")
+        # Сначала таблица точек замеров (чтобы схема была «там, где точки»)
+        if isinstance(thickness, list) and thickness:
+            doc.add_paragraph("1. Точки замера толщины:").runs[0].bold = True
             doc.add_paragraph()
             points_tbl = doc.add_table(rows=len(thickness) + 1, cols=5)
             points_tbl.style = "Table Grid"
@@ -3257,7 +3626,6 @@ class WordGenerator:
                 cell.text = h
                 cell.paragraphs[0].runs[0].font.bold = True
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
             for idx, t in enumerate(thickness, 1):
                 if not isinstance(t, dict):
                     continue
@@ -3268,6 +3636,60 @@ class WordGenerator:
                 y_pct = str(t.get("y_percent", ""))
                 points_tbl.rows[idx].cells[3].text = f"{x_pct}, {y_pct}" if x_pct and y_pct else "—"
                 points_tbl.rows[idx].cells[4].text = str(t.get("comment", ""))
+            doc.add_paragraph()
+        
+        # Затем схема контроля с нанесёнными точками замеров (если есть координаты)
+        doc.add_paragraph("2. Схема контроля (чертёж с точками измерения):").runs[0].bold = True
+        doc.add_paragraph()
+        control_scheme = attachments.get('control_scheme_image') or g('control_scheme_image')
+        scheme_to_show = None
+        if control_scheme:
+            scheme_resolved = self._find_image_path(control_scheme) or control_scheme
+            if scheme_resolved and os.path.isfile(scheme_resolved) and isinstance(thickness, list) and thickness:
+                annotated = self._draw_points_on_scheme(
+                    scheme_resolved,
+                    thickness,
+                    output_dir="/app/reports/tmp",
+                )
+                if annotated and os.path.isfile(annotated):
+                    scheme_to_show = annotated
+            if not scheme_to_show:
+                scheme_to_show = self._find_image_path(control_scheme) or control_scheme
+        if not scheme_to_show:
+            template_path = "/app/reports/assets/vessel_template.png"
+            scheme_to_show = self._find_image_path(template_path) or (template_path if os.path.isfile(template_path) else None)
+            if scheme_to_show:
+                add_picture_if_exists("Схема контроля (шаблон)", scheme_to_show, width_inches=7.0)
+            else:
+                doc.add_paragraph("Схема контроля не предоставлена.")
+        else:
+            add_picture_if_exists("", scheme_to_show, width_inches=7.0)
+        
+        # Фото заводской таблички
+        doc.add_paragraph()
+        doc.add_paragraph("3. Фото заводской таблички:").runs[0].bold = True
+        factory_plate = attachments.get('factory_plate_photo') or g('factory_plate_photo')
+        if factory_plate:
+            add_picture_if_exists("", factory_plate)
+        else:
+            doc.add_paragraph("Не приложено.")
+        
+        # Сканы рассмотренных документов (1–17) и фото дефектов ВИК
+        doc.add_paragraph()
+        doc.add_paragraph("4. Сканы рассмотренных документов и фото дефектов:").runs[0].bold = True
+        _doc_nums = [str(i) for i in range(1, 18)]
+        for _n in _doc_nums:
+            _p = attachments.get(_n)
+            if _p:
+                _r = self._find_image_path(_p) or _p
+                if _r and os.path.exists(_r):
+                    add_picture_if_exists(f"Документ {_n}", _r)
+        for _k in sorted([k for k in attachments if isinstance(k, str) and k.startswith("vd_")], key=lambda x: (int(x.split("_")[1]) if len(x.split("_")) >= 2 else 0, int(x.split("_")[2]) if len(x.split("_")) >= 3 else 0)):
+            _p = attachments.get(_k)
+            if _p:
+                _r = self._find_image_path(_p) or _p
+                if _r and os.path.exists(_r):
+                    add_picture_if_exists(f"Фото дефекта ВИК ({_k})", _r)
         app_no += 1
         
         # ПРИЛОЖЕНИЕ № 8: Расчетные процедуры (если есть)
@@ -3314,11 +3736,107 @@ class WordGenerator:
         for doc_item in normative_docs:
             doc.add_paragraph(doc_item)
         
+        app_no += 1
+        # ПРИЛОЖЕНИЕ: Документы специалистов НК (сканы удостоверений в конце отчёта)
+        if specialist_docs:
+            doc.add_page_break()
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Документы специалистов НК", level=1)
+            for s in specialist_docs:
+                doc.add_heading(f"Специалист: {s.get('inspector_name') or '—'}", level=2)
+                for c in (s.get("certifications") or []):
+                    cert_type = c.get('certification_type') or 'Удостоверение'
+                    cert_num = c.get('certificate_number') or '—'
+                    method_code = c.get('method_code') or ''
+                    doc.add_paragraph(f"{cert_type}" + (f" (метод {method_code})" if method_code else "") + f" № {cert_num}")
+                    sp = c.get("scan_file_path")
+                    if sp:
+                        add_picture_if_exists("", sp)
+            app_no += 1
+        
+        # ПРИЛОЖЕНИЕ: Свидетельства о поверке оборудования
+        if verification_equipment and isinstance(verification_equipment, list) and verification_equipment:
+            doc.add_page_break()
+            doc.add_heading(f"ПРИЛОЖЕНИЕ № {app_no} Свидетельства о поверке оборудования", level=1)
+            for eq in verification_equipment:
+                doc.add_paragraph(f"{eq.get('name') or ''} — № {eq.get('verification_certificate_number') or ''}")
+                sp = eq.get("scan_file_path")
+                if sp:
+                    add_picture_if_exists("", sp)
+            app_no += 1
+        
+        if (inspection_data.get("status") or "").upper() == "DRAFT":
+            self._add_draft_watermark(doc)
         # Сохранение
         doc.save(output_path)
         return
 
     def _setup_styles(self, doc: Document):
-        """Настройка стилей документа"""
-        # Можно настроить стили по необходимости
-        pass
+        """Настройка стилей документа: поля, шрифты, заголовки для аккуратного DOCX."""
+        # Поля страницы (А4)
+        for section in doc.sections:
+            section.top_margin = Cm(1.5)
+            section.bottom_margin = Cm(1.5)
+            section.left_margin = Cm(1.75)
+            section.right_margin = Cm(1.75)
+        # Стиль обычного текста
+        try:
+            normal = doc.styles["Normal"]
+            normal.font.name = "Times New Roman"
+            normal.font.size = Pt(11)
+            normal.paragraph_format.space_after = Pt(6)
+            normal.paragraph_format.line_spacing = 1.15
+        except (KeyError, Exception):
+            pass
+        # Заголовок 1 уровня
+        try:
+            h1 = doc.styles["Heading 1"]
+            h1.font.name = "Times New Roman"
+            h1.font.size = Pt(14)
+            h1.font.bold = True
+            if h1.font.color is not None:
+                h1.font.color.rgb = RGBColor(0x1a, 0x36, 0x5d)
+            h1.paragraph_format.space_before = Pt(12)
+            h1.paragraph_format.space_after = Pt(6)
+            h1.paragraph_format.keep_with_next = True
+        except (KeyError, Exception):
+            pass
+        # Заголовок 2 уровня
+        try:
+            h2 = doc.styles["Heading 2"]
+            h2.font.name = "Times New Roman"
+            h2.font.size = Pt(12)
+            h2.font.bold = True
+            h2.paragraph_format.space_before = Pt(8)
+            h2.paragraph_format.space_after = Pt(4)
+            h2.paragraph_format.keep_with_next = True
+        except (KeyError, Exception):
+            pass
+        # Заголовок 3 уровня
+        try:
+            h3 = doc.styles["Heading 3"]
+            h3.font.name = "Times New Roman"
+            h3.font.size = Pt(11)
+            h3.font.bold = True
+            h3.paragraph_format.space_before = Pt(6)
+            h3.paragraph_format.space_after = Pt(2)
+        except (KeyError, Exception):
+            pass
+
+    def _add_draft_watermark(self, doc: Document):
+        """Добавить водяной знак «ЧЕРНОВИК» в нижний колонтитул каждой страницы."""
+        try:
+            for section in doc.sections:
+                footer = section.footer
+                if footer.paragraphs:
+                    p = footer.paragraphs[0]
+                else:
+                    p = footer.add_paragraph()
+                p.clear()
+                run = p.add_run("ЧЕРНОВИК")
+                run.bold = True
+                run.font.size = Pt(14)
+                if run.font.color is not None:
+                    run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        except Exception:
+            pass

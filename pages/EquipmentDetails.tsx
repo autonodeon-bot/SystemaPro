@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, FileText, Info, MapPin, Package, Users, Wrench, Eye, X, Sparkles, Download, Trash2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_BASE = 'http://5.129.203.182:8000';
+import { API_BASE } from '../constants';
 
 const EquipmentDetails = () => {
   const { id } = useParams();
@@ -608,6 +607,26 @@ const EquipmentDetails = () => {
                 </div>
                 {previewData?.inspection?.conclusion && <div className="text-sm text-slate-200 mt-2">{previewData.inspection.conclusion}</div>}
               </div>
+
+              {previewData?.document_files && previewData.document_files.length > 0 && (
+                <div className="bg-slate-900 rounded-lg border border-slate-700 p-4">
+                  <div className="text-slate-300 text-sm mb-2">Приложенные файлы (документы, сканы, фото НК)</div>
+                  <div className="flex flex-wrap gap-2">
+                    {previewData.document_files.map((f: { document_number: string; file_name?: string; view_url?: string }) => (
+                      <a
+                        key={f.document_number}
+                        href={f.view_url ? `${API_BASE}${f.view_url}` : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm"
+                      >
+                        <FileText size={16} />
+                        {f.file_name || f.document_number}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="bg-slate-900 rounded-lg border border-slate-700 p-4">
                 <div className="text-slate-300 text-sm mb-2">Сырые данные (JSON)</div>

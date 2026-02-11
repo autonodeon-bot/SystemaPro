@@ -6,6 +6,7 @@ import {
   CheckCircle, XCircle, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE } from '../constants';
 
 interface User {
   id: string;
@@ -69,7 +70,6 @@ const AdminPanel = () => {
     pendingReports: 0,
   });
 
-  const API_BASE = 'http://5.129.203.182:8000';
   const { user, hasRole } = useAuth();
 
   useEffect(() => {
@@ -603,7 +603,6 @@ const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> 
   const [equipmentTypes, setEquipmentTypes] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadEquipmentTypes();

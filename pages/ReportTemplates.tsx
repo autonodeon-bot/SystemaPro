@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Edit, Trash2, Save, X, CheckCircle } from 'lucide-react';
+import { API_BASE } from '../constants';
 
 interface ReportTemplate {
   id: string;
@@ -42,8 +43,6 @@ const ReportTemplates = () => {
     },
     is_default: false,
   });
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadTemplates();

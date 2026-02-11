@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:image/image.dart' as img;
 import '../models/vessel_checklist.dart';
 import '../services/api_service.dart';
 import '../models/equipment.dart';
@@ -27,20 +28,35 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   final ImagePicker _imagePicker = ImagePicker();
   final ApiService _apiService = ApiService();
   File? _schemeImage;
+  Size? _imageSize; // размер изображения для координат при зуме/сдвиге
   List<ThicknessMeasurement> _measurements = [];
   ThicknessMeasurement? _selectedPoint;
   bool _loadingTemplate = false;
+  Offset? _pendingTapPosition; // позиция для добавления точки по onTap (чтобы не добавлять при сдвиге)
 
   @override
   void initState() {
     super.initState();
     _schemeImage = widget.schemeImage;
     _measurements = widget.existingMeasurements ?? [];
-    
+    if (_schemeImage != null) _loadImageSize();
     // Если нет фото схемы и оборудование - сосуд/ресивер, загружаем шаблон
     if (_schemeImage == null && _isVessel()) {
       _loadTemplate();
     }
+  }
+
+  Future<void> _loadImageSize() async {
+    if (_schemeImage == null) return;
+    try {
+      final bytes = await _schemeImage!.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null && mounted) {
+        setState(() {
+          _imageSize = Size(decoded.width.toDouble(), decoded.height.toDouble());
+        });
+      }
+    } catch (_) {}
   }
 
   bool _isVessel() {
@@ -66,6 +82,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
           _schemeImage = File(templatePath);
           _loadingTemplate = false;
         });
+        _loadImageSize();
       } else {
         setState(() {
           _loadingTemplate = false;
@@ -84,22 +101,17 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     if (image != null) {
       setState(() {
         _schemeImage = File(image.path);
+        _imageSize = null;
       });
+      _loadImageSize();
     }
   }
 
-  void _handleImageTap(TapDownDetails details, Size imageSize) {
+  void _handleImageTapAtLocal(Offset localPosition, Size imageSize) {
     if (_schemeImage == null) return;
 
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset localPosition = renderBox.globalToLocal(details.globalPosition);
-    
-    // Находим контейнер изображения
-    final imageContainer = _getImageContainerBounds();
-    if (imageContainer == null) return;
-
-    final double xPercent = ((localPosition.dx - imageContainer.left) / imageContainer.width) * 100;
-    final double yPercent = ((localPosition.dy - imageContainer.top) / imageContainer.height) * 100;
+    final double xPercent = (localPosition.dx / imageSize.width) * 100;
+    final double yPercent = (localPosition.dy / imageSize.height) * 100;
 
     if (xPercent < 0 || xPercent > 100 || yPercent < 0 || yPercent > 100) return;
 
@@ -115,12 +127,6 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     });
 
     _showPointDialog(newPoint);
-  }
-
-  Rect? _getImageContainerBounds() {
-    // Упрощенная версия - используем размер экрана
-    final size = MediaQuery.of(context).size;
-    return Rect.fromLTWH(16, 100, size.width - 32, size.height - 400);
   }
 
   void _showPointDialog(ThicknessMeasurement point) {
@@ -228,6 +234,62 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 maxLines: 3,
                 onChanged: (value) => point.comment = value,
               ),
+              const SizedBox(height: 12),
+              const Text(
+                'Фото замеров (для отчёта)',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...point.photos.asMap().entries.map((e) => Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(e.value),
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              point.photos.removeAt(e.key);
+                            });
+                          },
+                          child: const Icon(Icons.close, color: Colors.red, size: 20),
+                        ),
+                      ),
+                    ],
+                  )),
+                  GestureDetector(
+                    onTap: () async {
+                      final img = await _imagePicker.pickImage(source: ImageSource.camera);
+                      if (img != null && mounted) {
+                        setState(() {
+                          point.photos.add(img.path);
+                        });
+                      }
+                    },
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white24),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.add_a_photo, color: Colors.white54, size: 28),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -257,11 +319,109 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     _showPointDialog(point);
   }
 
+  Widget _buildZoomableScheme() {
+    final w = _imageSize?.width ?? MediaQuery.of(context).size.width - 32;
+    final h = _imageSize?.height ?? (MediaQuery.of(context).size.height - 200) * 0.6;
+    final imageSize = Size(w, h);
+
+    Widget content = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SizedBox(
+          width: w,
+          height: h,
+          child: Image.file(
+            _schemeImage!,
+            fit: BoxFit.fill,
+          ),
+        ),
+        ..._measurements.map((point) {
+          final hasBoth = point.thickness != null && point.minAllowedThickness != null;
+          final isCritical = hasBoth && point.thickness! < point.minAllowedThickness!;
+          final isOk = hasBoth && point.thickness! >= point.minAllowedThickness!;
+          final color = isCritical
+              ? Colors.red
+              : isOk
+                  ? const Color(0xFF3b82f6)
+                  : Colors.grey;
+          final left = point.xPercent != null ? (point.xPercent! / 100) * w - 12 : 0.0;
+          final top = point.yPercent != null ? (point.yPercent! / 100) * h - 12 : 0.0;
+          return Positioned(
+            left: left.clamp(0.0, w - 24),
+            top: top.clamp(0.0, h - 24),
+            child: GestureDetector(
+              onTap: () => _editPoint(point),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.0),
+                ),
+                child: Center(
+                  child: Text(
+                    '${_measurements.indexOf(point) + 1}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) {
+              _pendingTapPosition = details.localPosition;
+            },
+            onTap: () {
+              if (_pendingTapPosition != null) {
+                _handleImageTapAtLocal(_pendingTapPosition!, imageSize);
+                _pendingTapPosition = null;
+              }
+            },
+            onTapCancel: () => _pendingTapPosition = null,
+          ),
+        ),
+      ],
+    );
+
+    if (_imageSize != null) {
+      content = InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4.0,
+        panEnabled: true,
+        scaleEnabled: true,
+        child: content,
+      );
+    } else {
+      content = content;
+    }
+
+    return content;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('УЗТ - Толщинометрия'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('УЗТ - Толщинометрия'),
+            if (_schemeImage != null && _imageSize != null)
+              const Text(
+                'Масштаб и сдвиг: двумя пальцами',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.white70),
+              ),
+          ],
+        ),
         backgroundColor: const Color(0xFF0f172a),
         foregroundColor: Colors.white,
         actions: [
@@ -329,59 +489,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                         ],
                       ),
                     )
-                  : GestureDetector(
-                      onTapDown: (details) {
-                        final size = MediaQuery.of(context).size;
-                        final containerWidth = size.width - 32;
-                        final containerHeight = (size.height - 200) * 0.6;
-                        _handleImageTap(details, Size(containerWidth, containerHeight));
-                      },
-                      child: Stack(
-                        children: [
-                          Center(
-                            child: Image.file(
-                              _schemeImage!,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                          ..._measurements.map((point) {
-                            final isCritical = point.thickness != null &&
-                                point.minAllowedThickness != null &&
-                                point.thickness! < point.minAllowedThickness!;
-                            return Positioned(
-                              left: point.xPercent != null
-                                  ? (MediaQuery.of(context).size.width - 32) * (point.xPercent! / 100) - 12
-                                  : 0,
-                              top: point.yPercent != null
-                                  ? ((MediaQuery.of(context).size.height - 200) * 0.6) * (point.yPercent! / 100) - 12
-                                  : 0,
-                              child: GestureDetector(
-                                onTap: () => _editPoint(point),
-                                child: Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: isCritical ? Colors.red : const Color(0xFF3b82f6),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2.0),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${_measurements.indexOf(point) + 1}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
+                  : _buildZoomableScheme(),
             ),
           ),
           // Список точек
@@ -427,9 +535,10 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                             itemCount: _measurements.length,
                             itemBuilder: (context, index) {
                               final point = _measurements[index];
-                              final isCritical = point.thickness != null &&
-                                  point.minAllowedThickness != null &&
-                                  point.thickness! < point.minAllowedThickness!;
+                              final hasBoth = point.thickness != null && point.minAllowedThickness != null;
+                              final isCritical = hasBoth && point.thickness! < point.minAllowedThickness!;
+                              final isOk = hasBoth && point.thickness! >= point.minAllowedThickness!;
+                              final bgColor = isCritical ? Colors.red : (isOk ? const Color(0xFF3b82f6) : Colors.grey);
                               return Card(
                                 color: isCritical
                                     ? Colors.red.withValues(alpha: 0.2)
@@ -437,8 +546,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor:
-                                        isCritical ? Colors.red : const Color(0xFF3b82f6),
+                                    backgroundColor: bgColor,
                                     child: Text('${index + 1}'),
                                   ),
                                   title: Text(

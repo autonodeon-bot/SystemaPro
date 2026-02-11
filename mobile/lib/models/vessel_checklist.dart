@@ -96,6 +96,9 @@ class VesselChecklist {
   // Заключение
   String? conclusion;
   
+  // Дополнительные данные (JSON)
+  Map<String, dynamic>? additionalData;
+  
   VesselChecklist();
 
   static bool? _asBool(dynamic v) {
@@ -170,6 +173,7 @@ class VesselChecklist {
       'visual_defects': visualDefects.map((e) => e.toJson()).toList(),
       'control_scheme_image': controlSchemeImage,
       'conclusion': conclusion,
+      'additional_data': additionalData,
     };
   }
   
@@ -354,6 +358,11 @@ class VesselChecklist {
     }
 
     checklist.conclusion = json['conclusion'] as String?;
+    
+    final adRaw = json['additional_data'];
+    if (adRaw is Map) {
+      checklist.additionalData = Map<String, dynamic>.from(adRaw);
+    }
 
     return checklist;
   }
@@ -667,12 +676,13 @@ class ThicknessMeasurement {
   String? comment;
   double? xPercent; // Позиция на схеме X
   double? yPercent; // Позиция на схеме Y
-  
+  List<String> photos = []; // Фото замеров для отчёта
+
   ThicknessMeasurement({
     required this.location,
     required this.sectionNumber,
   });
-  
+
   Map<String, dynamic> toJson() => {
     'location': location,
     'section_number': sectionNumber,
@@ -681,6 +691,7 @@ class ThicknessMeasurement {
     'comment': comment,
     'x_percent': xPercent,
     'y_percent': yPercent,
+    'photos': photos,
   };
 
   factory ThicknessMeasurement.fromJson(Map<String, dynamic> json) {
@@ -693,6 +704,10 @@ class ThicknessMeasurement {
     t.comment = json['comment']?.toString();
     t.xPercent = VesselChecklist._asDouble(json['x_percent']);
     t.yPercent = VesselChecklist._asDouble(json['y_percent']);
+    final ph = json['photos'];
+    if (ph is List) {
+      t.photos = ph.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    }
     return t;
   }
 }

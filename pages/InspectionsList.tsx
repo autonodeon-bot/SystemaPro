@@ -1,13 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Filter, FileText, Package, Calendar, User, MapPin, Eye, Download, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, FileText, Package, Calendar, User, MapPin, Eye, Download, Trash2, CheckCircle2, Building2, ChevronDown, ChevronRight } from 'lucide-react';
 import { checklistDocumentNames } from './checklistDocumentNames';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE } from '../constants';
 
 interface Inspection {
   id: string;
   equipment_id: string;
   equipment_name?: string;
   equipment_location?: string;
+  enterprise_id?: string;
+  enterprise_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+  workshop_id?: string;
+  workshop_name?: string;
   data: any;
   conclusion?: string;
   status: string;
@@ -38,14 +45,26 @@ interface Equipment {
   location?: string;
 }
 
+interface Enterprise { id: string; name: string; code?: string; }
+interface Branch { id: string; enterprise_id: string; name: string; code?: string; }
+interface Workshop { id: string; branch_id: string; name: string; code?: string; }
+
 const InspectionsList = () => {
   const { user } = useAuth();
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>('');
+  const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop'>('none');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [questionnaireInfo, setQuestionnaireInfo] = useState<Record<string, InspectionQuestionnaireInfo>>({});
@@ -54,10 +73,9 @@ const InspectionsList = () => {
   const [selectedInspections, setSelectedInspections] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const API_BASE = 'http://5.129.203.182:8000';
-
   useEffect(() => {
     const init = async () => {
+      await loadEnterprises();
       await loadEquipment();
       await loadInspections();
     };
@@ -66,7 +84,60 @@ const InspectionsList = () => {
 
   useEffect(() => {
     loadInspections();
-  }, [selectedEquipment, selectedStatus]);
+  }, [selectedEquipment, selectedStatus, selectedEnterpriseId, selectedBranchId, selectedWorkshopId]);
+
+  useEffect(() => {
+    if (selectedEnterpriseId) {
+      loadBranches(selectedEnterpriseId);
+    } else {
+      setBranches([]);
+      setSelectedBranchId('');
+    }
+    setSelectedWorkshopId('');
+    setWorkshops([]);
+  }, [selectedEnterpriseId]);
+
+  useEffect(() => {
+    if (selectedBranchId) {
+      loadWorkshops(selectedBranchId);
+    } else {
+      setWorkshops([]);
+    }
+    setSelectedWorkshopId('');
+  }, [selectedBranchId]);
+
+  const loadEnterprises = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/hierarchy/enterprises`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const data = await res.json();
+      setEnterprises(data.items || data || []);
+    } catch (e) {
+      console.error('Ошибка загрузки предприятий:', e);
+    }
+  };
+
+  const loadBranches = async (enterpriseId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/hierarchy/branches?enterprise_id=${enterpriseId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const data = await res.json();
+      setBranches(data.items || data || []);
+    } catch (e) {
+      console.error('Ошибка загрузки филиалов:', e);
+    }
+  };
+
+  const loadWorkshops = async (branchId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/hierarchy/workshops?branch_id=${branchId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const data = await res.json();
+      setWorkshops(data.items || data || []);
+    } catch (e) {
+      console.error('Ошибка загрузки цехов:', e);
+    }
+  };
 
   const loadEquipment = async () => {
     try {
@@ -88,6 +159,12 @@ const InspectionsList = () => {
       let url = `${API_BASE}/api/inspections?limit=1000`;
       if (selectedEquipment !== 'all') {
         url += `&equipment_id=${selectedEquipment}`;
+      } else if (selectedWorkshopId) {
+        url += `&workshop_id=${selectedWorkshopId}`;
+      } else if (selectedBranchId) {
+        url += `&branch_id=${selectedBranchId}`;
+      } else if (selectedEnterpriseId) {
+        url += `&enterprise_id=${selectedEnterpriseId}`;
       }
 
       const headers: HeadersInit = {};
@@ -98,13 +175,10 @@ const InspectionsList = () => {
       const data = await response.json();
       let inspectionsList = data.items || [];
 
-      // Фильтрация по статусу
       if (selectedStatus !== 'all') {
         inspectionsList = inspectionsList.filter((insp: Inspection) => insp.status === selectedStatus);
       }
 
-      // Обогащение данными об оборудовании (API уже возвращает equipment_name и equipment_location)
-      // Но если их нет, используем локальный кэш
       for (const insp of inspectionsList) {
         if (!insp.equipment_name || !insp.equipment_location) {
           const eq = equipment.find(e => e.id === insp.equipment_id);
@@ -343,12 +417,45 @@ const InspectionsList = () => {
   };
 
   const filteredInspections = inspections.filter(insp => {
-    const matchesSearch = 
-      insp.equipment_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      insp.conclusion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      insp.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      insp.equipment_name?.toLowerCase().includes(term) ||
+      insp.equipment_location?.toLowerCase().includes(term) ||
+      insp.enterprise_name?.toLowerCase().includes(term) ||
+      insp.branch_name?.toLowerCase().includes(term) ||
+      insp.workshop_name?.toLowerCase().includes(term) ||
+      insp.conclusion?.toLowerCase().includes(term) ||
+      insp.id.toLowerCase().includes(term)
+    );
   });
+
+  const getGroupKey = (insp: Inspection): string => {
+    if (groupBy === 'enterprise') return insp.enterprise_name || 'Без предприятия';
+    if (groupBy === 'branch') return [insp.enterprise_name, insp.branch_name].filter(Boolean).join(' / ') || 'Без филиала';
+    if (groupBy === 'workshop') return [insp.enterprise_name, insp.branch_name, insp.workshop_name].filter(Boolean).join(' / ') || 'Без цеха';
+    return '';
+  };
+
+  const groupedInspections = useMemo(() => {
+    if (groupBy === 'none') return null;
+    const map = new Map<string, Inspection[]>();
+    for (const insp of filteredInspections) {
+      const key = getGroupKey(insp);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(insp);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [groupBy, filteredInspections]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -391,6 +498,109 @@ const InspectionsList = () => {
       return dateString;
     }
   };
+
+  const hierarchySubtitle = (insp: Inspection) => {
+    const parts = [insp.enterprise_name, insp.branch_name, insp.workshop_name].filter(Boolean);
+    return parts.length ? parts.join(' / ') : null;
+  };
+
+  const renderInspectionCard = (insp: Inspection) => (
+    <div
+      key={insp.id}
+      className="bg-secondary/50 rounded-lg p-4 hover:bg-secondary/70 transition-colors border border-slate-700"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <input
+          type="checkbox"
+          checked={selectedInspections.has(insp.id)}
+          onChange={(e) => {
+            e.stopPropagation();
+            setSelectedInspections(prev => {
+              const newSet = new Set(prev);
+              if (newSet.has(insp.id)) newSet.delete(insp.id);
+              else newSet.add(insp.id);
+              return newSet;
+            });
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="mt-1 rounded"
+        />
+        <div
+          className="flex-1 cursor-pointer"
+          onClick={() => {
+            setSelectedInspection(insp);
+            setShowDetails(true);
+            loadInspectionQuestionnaireInfo(insp.id);
+          }}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Package className="text-accent" size={20} />
+            <h3 className="font-semibold text-white">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
+            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${getStatusColor(insp.status)}`}>
+              {getStatusLabel(insp.status)}
+            </span>
+          </div>
+          {hierarchySubtitle(insp) && (
+            <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
+              <Building2 size={12} />
+              {hierarchySubtitle(insp)}
+            </p>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            {insp.equipment_location && (
+              <div className="flex items-center gap-2 text-slate-400">
+                <MapPin size={14} />
+                <span>{insp.equipment_location}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-slate-400">
+              <Calendar size={14} />
+              <span>{formatDate(insp.date_performed)}</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-400">
+              <FileText size={14} />
+              <span>ID: {insp.id.substring(0, 8)}...</span>
+            </div>
+            {insp.conclusion && (
+              <div className="text-slate-300 truncate">
+                {insp.conclusion.substring(0, 50)}...
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {canApprove && String(insp.status || '').toUpperCase() !== 'APPROVED' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); approveInspection(insp.id); }}
+              className="p-2 rounded-lg text-green-300 hover:bg-green-500/10 border border-green-500/20"
+              title="Утвердить чек-лист"
+            >
+              <CheckCircle2 size={16} />
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); deleteInspection(insp.id); }}
+            className="p-2 rounded-lg text-red-300 hover:bg-red-500/10 border border-red-500/20"
+            title="Удалить чек-лист"
+          >
+            <Trash2 size={16} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedInspection(insp);
+              setShowDetails(true);
+              loadInspectionQuestionnaireInfo(insp.id);
+            }}
+            className="p-2 text-slate-400 hover:text-accent hover:bg-secondary rounded transition-colors"
+            title="Просмотр деталей"
+          >
+            <Eye size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const renderInspectionDetails = (insp: Inspection) => {
     const data = insp.data || {};
@@ -643,6 +853,29 @@ const InspectionsList = () => {
 
   return (
     <div className="space-y-6">
+      {/* Навигация: хлебные крошки */}
+      <nav className="flex items-center gap-2 text-sm text-slate-400">
+        <span className="text-white font-medium">Чек-листы</span>
+        {selectedEnterpriseId && enterprises.find(e => e.id === selectedEnterpriseId) && (
+          <>
+            <ChevronRight size={16} className="text-slate-500" />
+            <span className="text-slate-300">{enterprises.find(e => e.id === selectedEnterpriseId)?.name}</span>
+          </>
+        )}
+        {selectedBranchId && branches.find(b => b.id === selectedBranchId) && (
+          <>
+            <ChevronRight size={16} className="text-slate-500" />
+            <span className="text-slate-300">{branches.find(b => b.id === selectedBranchId)?.name}</span>
+          </>
+        )}
+        {selectedWorkshopId && workshops.find(w => w.id === selectedWorkshopId) && (
+          <>
+            <ChevronRight size={16} className="text-slate-500" />
+            <span className="text-slate-300">{workshops.find(w => w.id === selectedWorkshopId)?.name}</span>
+          </>
+        )}
+      </nav>
+
       {/* Заголовок */}
       <div className="flex items-center justify-between">
         <div>
@@ -650,7 +883,7 @@ const InspectionsList = () => {
             <FileText className="text-accent" size={28} />
             Чек-листы диагностики
           </h1>
-          <p className="text-slate-400 mt-1">Просмотр всех чек-листов, отправленных из мобильного приложения</p>
+          <p className="text-slate-400 mt-1">Просмотр и управление чек-листами по предприятиям, филиалам и цехам</p>
         </div>
       </div>
 
@@ -728,6 +961,78 @@ const InspectionsList = () => {
             </select>
           </div>
 
+          {/* Предприятие / Филиал / Цех / Группировка */}
+          <div className="w-full flex flex-wrap gap-4 pt-2 border-t border-slate-600/50 mt-2">
+            <div className="min-w-[180px]">
+              <label className="block text-xs text-slate-400 mb-1">Предприятие</label>
+              <select
+                value={selectedEnterpriseId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSelectedEnterpriseId(v);
+                  setSelectedBranchId('');
+                  setSelectedWorkshopId('');
+                  setBranches([]);
+                  setWorkshops([]);
+                  if (v) loadBranches(v);
+                }}
+                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+              >
+                <option value="">Все предприятия</option>
+                {enterprises.map((ent) => (
+                  <option key={ent.id} value={ent.id}>{ent.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[180px]">
+              <label className="block text-xs text-slate-400 mb-1">Филиал</label>
+              <select
+                value={selectedBranchId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSelectedBranchId(v);
+                  setSelectedWorkshopId('');
+                  setWorkshops([]);
+                  if (v) loadWorkshops(v);
+                }}
+                disabled={!selectedEnterpriseId}
+                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+              >
+                <option value="">Все филиалы</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[180px]">
+              <label className="block text-xs text-slate-400 mb-1">Цех</label>
+              <select
+                value={selectedWorkshopId}
+                onChange={(e) => setSelectedWorkshopId(e.target.value)}
+                disabled={!selectedBranchId}
+                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+              >
+                <option value="">Все цеха</option>
+                {workshops.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[160px]">
+              <label className="block text-xs text-slate-400 mb-1">Группировка</label>
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value as 'none' | 'enterprise' | 'branch' | 'workshop')}
+                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+              >
+                <option value="none">Без группировки</option>
+                <option value="enterprise">По предприятию</option>
+                <option value="branch">По филиалу</option>
+                <option value="workshop">По цеху</option>
+              </select>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2 sm:ml-auto">
             <select
               value={cleanupInspectionsDays}
@@ -764,109 +1069,35 @@ const InspectionsList = () => {
           <FileText className="mx-auto text-slate-400 mb-4" size={48} />
           <p className="text-slate-400">Чек-листы не найдены</p>
         </div>
+      ) : groupBy !== 'none' && groupedInspections && groupedInspections.length > 0 ? (
+        <div className="space-y-4">
+          {groupedInspections.map(([groupKey, items]) => {
+            const isCollapsed = expandedGroups.has(groupKey);
+            const isExpanded = expandedGroups.size === 0 || !isCollapsed;
+            return (
+              <div key={groupKey} className="rounded-lg border border-slate-700 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(groupKey)}
+                  className="w-full flex items-center gap-2 px-4 py-3 bg-secondary/70 hover:bg-secondary text-left text-white font-medium"
+                >
+                  {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  <Building2 size={18} className="text-accent" />
+                  <span>{groupKey}</span>
+                  <span className="text-slate-400 text-sm font-normal">({items.length})</span>
+                </button>
+                {isExpanded && (
+                  <div className="p-2 space-y-2 bg-secondary/30">
+                    {items.map((insp) => renderInspectionCard(insp))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="space-y-3">
-          {filteredInspections.map((insp) => (
-            <div
-              key={insp.id}
-              className="bg-secondary/50 rounded-lg p-4 hover:bg-secondary/70 transition-colors border border-slate-700"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <input
-                  type="checkbox"
-                  checked={selectedInspections.has(insp.id)}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setSelectedInspections(prev => {
-                      const newSet = new Set(prev);
-                      if (newSet.has(insp.id)) {
-                        newSet.delete(insp.id);
-                      } else {
-                        newSet.add(insp.id);
-                      }
-                      return newSet;
-                    });
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="mt-1 rounded"
-                />
-                <div
-                  className="flex-1 cursor-pointer"
-                  onClick={() => {
-                    setSelectedInspection(insp);
-                    setShowDetails(true);
-                    loadInspectionQuestionnaireInfo(insp.id);
-                  }}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <Package className="text-accent" size={20} />
-                    <h3 className="font-semibold text-white">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${getStatusColor(insp.status)}`}>
-                      {getStatusLabel(insp.status)}
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    {insp.equipment_location && (
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <MapPin size={14} />
-                        <span>{insp.equipment_location}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Calendar size={14} />
-                      <span>{formatDate(insp.date_performed)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <FileText size={14} />
-                      <span>ID: {insp.id.substring(0, 8)}...</span>
-                    </div>
-                    {insp.conclusion && (
-                      <div className="text-slate-300 truncate">
-                        {insp.conclusion.substring(0, 50)}...
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {canApprove && String(insp.status || '').toUpperCase() !== 'APPROVED' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        approveInspection(insp.id);
-                      }}
-                      className="p-2 rounded-lg text-green-300 hover:bg-green-500/10 border border-green-500/20"
-                      title="Утвердить чек-лист"
-                    >
-                      <CheckCircle2 size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteInspection(insp.id);
-                    }}
-                    className="p-2 rounded-lg text-red-300 hover:bg-red-500/10 border border-red-500/20"
-                    title="Удалить чек-лист"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedInspection(insp);
-                      setShowDetails(true);
-                      loadInspectionQuestionnaireInfo(insp.id);
-                    }}
-                    className="p-2 text-slate-400 hover:text-accent hover:bg-secondary rounded transition-colors"
-                    title="Просмотр деталей"
-                  >
-                    <Eye size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+          {filteredInspections.map((insp) => renderInspectionCard(insp))}
         </div>
       )}
 

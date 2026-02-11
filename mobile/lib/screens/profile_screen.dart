@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../services/sync_service.dart';
+import '../providers/theme_provider.dart';
 import 'login_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _authService = AuthService();
   User? _user;
   bool _isLoading = true;
@@ -54,6 +56,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _pinEnabled = enabled;
     });
+  }
+
+  static String _themeModeSubtitle(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return 'Светлая';
+      case ThemeMode.dark:
+        return 'Тёмная';
+      case ThemeMode.system:
+        return 'Как в системе';
+    }
+  }
+
+  static void _showThemeDialog(BuildContext context, WidgetRef ref) {
+    final current = ref.read(themeModeProvider);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+        title: Text(
+          'Тема',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Светлая')),
+                ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Тёмная')),
+                ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.brightness_auto), label: Text('Система')),
+              ],
+              selected: {current},
+              onSelectionChanged: (Set<ThemeMode> selection) {
+                ref.read(themeModeProvider.notifier).setThemeMode(selection.first);
+                Navigator.of(ctx).pop();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showSetPinDialog({required bool requireCurrent}) async {
@@ -218,6 +262,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _clearOfflineCache() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text(
+          'Очистить локальный кэш',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Будут удалены сохранённые для офлайна задания и оборудование. '
+          'Несохранённые черновики обследований останутся. Продолжить?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Очистить', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      try {
+        await SyncService().clearOfflineCache();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Кэш очищен. При следующем входе в сеть загрузите задания заново.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -356,6 +447,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildInfoCard('Роль', _getRoleName(_user!.role!)),
           const SizedBox(height: 16),
           _buildInfoCard('Версия приложения', _appVersion),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Внешний вид',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: ListTile(
+              leading: Icon(Icons.palette_outlined, color: Theme.of(context).colorScheme.primary),
+              title: Text(
+                'Тема',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              ),
+              subtitle: Text(
+                _themeModeSubtitle(ref.watch(themeModeProvider)),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 12),
+              ),
+              trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+              onTap: () => _showThemeDialog(context, ref),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'О приложении',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            color: const Color(0xFF1e293b),
+            child: ListTile(
+              leading: const Icon(Icons.info_outline, color: Colors.white70),
+              title: const Text(
+                'ЕС ТД НГО — мобильное приложение инженера диагностики',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'Заполнение чек-листов, офлайн-режим, синхронизация с сервером',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            color: const Color(0xFF1e293b),
+            child: ListTile(
+              leading: const Icon(Icons.delete_sweep, color: Colors.orange),
+              title: const Text(
+                'Очистить локальный кэш',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                'Удалить сохранённые задания и оборудование. Черновики не трогаются.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white70),
+              onTap: _clearOfflineCache,
+            ),
+          ),
           const SizedBox(height: 24),
           Card(
             color: const Color(0xFF1e293b),
@@ -367,7 +531,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               trailing: const Icon(Icons.chevron_right, color: Colors.white70),
               onTap: () {
-                // TODO: Переход на экран синхронизации
+                // Переход на вкладку «Синхронизация» — через главный экран
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
             ),
           ),

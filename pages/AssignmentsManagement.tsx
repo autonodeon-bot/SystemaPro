@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, Download, Edit, Trash2, ArrowUpDown, Calendar, User, Building2, MapPin, Settings, FileText, Eye } from 'lucide-react';
+import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, Download, Edit, Trash2, ArrowUpDown, Calendar, User, Building2, MapPin, Settings, FileText, Eye, Archive, Trash } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE } from '../constants';
 
 interface Assignment {
   id: string;
@@ -44,6 +45,7 @@ const AssignmentsManagement = () => {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterEngineer, setFilterEngineer] = useState<string>('all');
   const [filterEnterprise, setFilterEnterprise] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'list' | 'hierarchy'>('hierarchy');
@@ -63,7 +65,6 @@ const AssignmentsManagement = () => {
   const [serverSummary, setServerSummary] = useState<Record<string, AssignmentServerSummary>>({});
 
   useEffect(() => {
-    loadAssignments();
     loadEquipment();
     loadEngineers();
     loadStatistics();
@@ -73,7 +74,6 @@ const AssignmentsManagement = () => {
   const loadStatistics = async () => {
     try {
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       const response = await fetch(`${API_BASE}/api/assignments/statistics/engineers`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -92,8 +92,7 @@ const AssignmentsManagement = () => {
   const loadAssignments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
-      const response = await fetch(`${API_BASE}/api/assignments`, {
+      const response = await fetch(`${API_BASE}/api/assignments?include_cancelled=${showArchived}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -116,11 +115,53 @@ const AssignmentsManagement = () => {
     }
   };
 
+  useEffect(() => {
+    loadAssignments();
+  }, [showArchived]);
+
+  const handleArchiveAssignment = async (assignmentId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}/archive`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, status: 'CANCELLED' } : a));
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Ошибка архивации');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка архивации задания');
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    if (!window.confirm('Удалить задание безвозвратно? Связи с обследованиями будут сняты.')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/assignments/${assignmentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Ошибка удаления');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка удаления задания');
+    }
+  };
+
   const loadServerSummary = async (items: Assignment[]) => {
     try {
       if (!items || items.length === 0) return;
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       const ids = items.map((a) => a.id);
       const response = await fetch(`${API_BASE}/api/assignments/status-summary`, {
         method: 'POST',
@@ -142,7 +183,6 @@ const AssignmentsManagement = () => {
   const loadEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       const response = await fetch(`${API_BASE}/api/equipment?limit=1000`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -161,7 +201,6 @@ const AssignmentsManagement = () => {
   const loadEngineers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       const response = await fetch(`${API_BASE}/api/users?role=engineer`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -180,7 +219,6 @@ const AssignmentsManagement = () => {
   const handleViewChecklist = async (assignmentId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       const response = await fetch(`${API_BASE}/api/assignments/${assignmentId}/inspection`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -214,7 +252,6 @@ const AssignmentsManagement = () => {
     try {
       setGeneratingReport(assignmentId);
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       // Подбираем шаблон (MVP): по типу оборудования, иначе дефолт
       let resolvedReportType = 'DIAGNOSTICS';
       let resolvedFormat = 'docx';
@@ -289,7 +326,6 @@ const AssignmentsManagement = () => {
 
   const downloadReport = async (reportId: string, format: string = 'docx') => {
     const token = localStorage.getItem('token');
-    const API_BASE = 'http://5.129.203.182:8000';
     const url = `${API_BASE}/api/reports/${reportId}/download?format=${encodeURIComponent(format)}`;
     const res = await fetch(url, {
       headers: {
@@ -331,7 +367,6 @@ const AssignmentsManagement = () => {
   const loadObjectStatistics = async () => {
     try {
       const token = localStorage.getItem('token');
-      const API_BASE = 'http://5.129.203.182:8000';
       const response = await fetch(`${API_BASE}/api/assignments/statistics/objects`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -766,6 +801,16 @@ const AssignmentsManagement = () => {
                 <option key={ent.id} value={ent.id}>{ent.name}</option>
               ))}
             </select>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="rounded bg-slate-900 border-slate-600 text-accent focus:ring-accent"
+              />
+              <span className="text-slate-300 text-sm">Показать архивные</span>
+            </label>
           </div>
         )}
 
@@ -850,6 +895,8 @@ const AssignmentsManagement = () => {
                       onViewChecklist={handleViewChecklist}
                       onGenerateReport={handleGenerateReport}
                       onDownloadReport={handleDownloadReport}
+                      onArchive={handleArchiveAssignment}
+                      onDelete={handleDeleteAssignment}
                       generatingReport={generatingReport}
                       serverSummary={serverSummary[assignment.id]}
                     />
@@ -859,7 +906,6 @@ const AssignmentsManagement = () => {
             </div>
           ))
         ) : (
-          // Обычный список
           filteredAssignments.map((assignment) => (
             <AssignmentCard
               key={assignment.id}
@@ -883,6 +929,8 @@ const AssignmentsManagement = () => {
               onViewChecklist={handleViewChecklist}
               onGenerateReport={handleGenerateReport}
               onDownloadReport={handleDownloadReport}
+              onArchive={handleArchiveAssignment}
+              onDelete={handleDeleteAssignment}
               generatingReport={generatingReport}
               serverSummary={serverSummary[assignment.id]}
             />
@@ -931,8 +979,6 @@ const CreateAssignmentModal: React.FC<{
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [equipmentByWorkshop, setEquipmentByWorkshop] = useState<Record<string, any[]>>({});
   const [loadingHierarchy, setLoadingHierarchy] = useState(true);
-  const API_BASE = 'http://5.129.203.182:8000';
-
   useEffect(() => {
     loadHierarchy();
   }, []);
@@ -1505,9 +1551,11 @@ const AssignmentCard: React.FC<{
   onViewChecklist?: (assignmentId: string) => void;
   onGenerateReport?: (assignmentId: string) => void;
   onDownloadReport?: (assignmentId: string) => void;
+  onArchive?: (assignmentId: string) => void;
+  onDelete?: (assignmentId: string) => void;
   generatingReport?: string | null;
   serverSummary?: AssignmentServerSummary;
-}> = ({ assignment, isSelected, onSelect, getStatusIcon, getStatusLabel, getTypeLabel, getPriorityColor, onViewChecklist, onGenerateReport, generatingReport, serverSummary }) => {
+}> = ({ assignment, isSelected, onSelect, getStatusIcon, getStatusLabel, getTypeLabel, getPriorityColor, onViewChecklist, onGenerateReport, onDownloadReport, onArchive, onDelete, generatingReport, serverSummary }) => {
   const isOverdue = assignment.due_date && new Date(assignment.due_date) < new Date() && assignment.status !== 'COMPLETED';
   const isCompleted = assignment.status === 'COMPLETED';
   const server = serverSummary;
@@ -1615,8 +1663,35 @@ const AssignmentCard: React.FC<{
         </div>
       )}
       
+      <div className="flex flex-wrap items-center gap-2 mt-3 ml-7 pt-3 border-t border-slate-700">
+        {assignment.status !== 'CANCELLED' && onArchive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive(assignment.id);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded transition-colors"
+            title="Перенести в архив"
+          >
+            <Archive size={16} />
+            В архив
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(assignment.id);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white text-sm rounded transition-colors"
+            title="Удалить задание"
+          >
+            <Trash size={16} />
+            Удалить
+          </button>
+        )}
       {isCompleted && (
-        <div className="flex items-center gap-2 mt-3 ml-7 pt-3 border-t border-slate-700">
+        <>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1660,8 +1735,9 @@ const AssignmentCard: React.FC<{
               Скачать
             </button>
           )}
-        </div>
-      )}
+        </>
+        )}
+      </div>
     </div>
   );
 };

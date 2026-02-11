@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, FileText, Calendar, MapPin, Search, Filter } from 'lucide-react';
+import { API_BASE } from '../constants';
 
 interface Equipment {
   id: string;
@@ -34,8 +35,6 @@ const ClientPortal = () => {
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadData();

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ChevronRight, ChevronDown, UserPlus, Users, Building2, Network, Factory, Box } from 'lucide-react';
+import { API_BASE } from '../constants';
 
 interface Enterprise {
   id: string;
@@ -60,8 +61,6 @@ const EquipmentHierarchy = () => {
     name: string;
   } | null>(null);
   const [selectedEngineers, setSelectedEngineers] = useState<string[]>([]);
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadData();

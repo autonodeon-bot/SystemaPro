@@ -1,5 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
+import 'api_service.dart';
+import 'sync_service.dart';
 
 /// Сервис для уведомлений и напоминаний
 class NotificationService {
@@ -31,6 +33,14 @@ class NotificationService {
     await Workmanager().initialize(
       callbackDispatcher,
       isInDebugMode: false,
+    );
+
+    // Периодическая синхронизация в фоне (п.16): каждые 15 мин при наличии сети
+    await Workmanager().registerPeriodicTask(
+      'periodic_sync',
+      'periodicSync',
+      frequency: const Duration(minutes: 15),
+      constraints: Constraints(networkType: NetworkType.connected),
     );
 
     _initialized = true;
@@ -122,6 +132,24 @@ void callbackDispatcher() {
         title: 'Напоминание о поверке',
         body: 'Срок поверки оборудования истекает: ${inputData?['equipment_name'] ?? 'Оборудование'}',
       );
+    } else if (task == 'periodicSync') {
+      final apiService = ApiService();
+      final hasConnection = await apiService.checkConnection();
+      if (!hasConnection) return Future.value(true); // Не тратим попытки без сети
+      final syncService = SyncService();
+      final result = await syncService.syncPendingInspections();
+      if (result.syncedCount > 0 || result.failedCount > 0) {
+        final body = result.syncedCount > 0 && result.failedCount == 0
+            ? 'Отправлено обследований: ${result.syncedCount}.'
+            : result.failedCount > 0
+                ? 'Не удалось отправить: ${result.failedCount}. Проверьте интернет.'
+                : result.error ?? 'Синхронизация завершена.';
+        await notificationService.showNotification(
+          id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          title: 'Синхронизация',
+          body: body,
+        );
+      }
     }
 
     return Future.value(true);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ChevronRight, ChevronDown, Building2, Network, Factory, Box, Edit, Trash2, MapPin, Search, X, Users, UserCheck, Info, FileText, Wrench, Calendar, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE } from '../constants';
 
 interface Enterprise {
   id: string;
@@ -92,8 +93,6 @@ const EquipmentManagement = () => {
     location: '',
     commissioning_date: '',
   });
-
-  const API_BASE = 'http://5.129.203.182:8000';
 
   useEffect(() => {
     loadData();
@@ -696,6 +695,24 @@ const EquipmentManagement = () => {
                                         </button>
                                         <Box className="text-yellow-400" size={14} />
                                         <span className="text-slate-300 text-sm">{type.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => {
+                                            // Создание из типа: фиксируем type_id, но сохраняем контекст цеха,
+                                            // чтобы новое оборудование точно появилось в текущей ветке.
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              type_id: type.id,
+                                              workshop_id: workshop.id,
+                                            }));
+                                            handleCreateClick('equipment', workshop.id, workshop.name);
+                                          }}
+                                          className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                                          title="Создать оборудование в этом типе"
+                                        >
+                                          <Plus size={14} />
+                                        </button>
                                       </div>
                                     </div>
 

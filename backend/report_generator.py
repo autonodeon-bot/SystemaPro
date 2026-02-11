@@ -14,6 +14,13 @@ from typing import Dict, Any, Optional, List
 import os
 import io
 
+# Экранирование для Paragraph (избегаем краша на <, >, &)
+def _escape_para(s: str) -> str:
+    if not s:
+        return ""
+    s = str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return s
+
 class ReportGenerator:
     """Генератор PDF отчетов"""
     
@@ -154,6 +161,67 @@ class ReportGenerator:
                 spaceAfter=15,
                 fontName=bold_font
             ))
+        # Стиль для ячеек таблиц (перенос текста)
+        if 'TableCell' not in self.styles.byName:
+            self.styles.add(ParagraphStyle(
+                name='TableCell',
+                parent=self.styles['Normal'],
+                fontSize=8,
+                textColor=colors.HexColor('#334155'),
+                alignment=TA_LEFT,
+                fontName=default_font,
+                wordWrap='CJK',
+                leading=10,
+            ))
+    
+    def _cell_text(self, text: Any, style_name: str = 'TableCell') -> Paragraph:
+        """Текст ячейки таблицы с переносом (Paragraph)."""
+        style = self.styles.get(style_name, self.styles['Normal'])
+        return Paragraph(_escape_para(str(text) if text is not None else ""), style)
+    
+    def _find_image_path(self, path: Optional[str]) -> Optional[str]:
+        """Найти существующий файл изображения по пути (для фото таблички, карты замеров, дефектов)."""
+        if not path or not isinstance(path, str):
+            return None
+        path = path.strip().replace("\\", "/")
+        possible = [path]
+        if os.path.isabs(path) and os.path.isfile(path):
+            return path
+        bases = [
+            "/app/uploads/questionnaire_documents",
+            "/app/uploads/ndt_photos",
+            "/app/uploads/certification_scans",
+            "/app/uploads",
+            "/app/reports",
+            os.getcwd(),
+        ]
+        for base in bases:
+            possible.append(os.path.join(base, path))
+        filename = os.path.basename(path)
+        for base in bases:
+            possible.append(os.path.join(base, filename))
+        qd_base = "/app/uploads/questionnaire_documents"
+        if os.path.isdir(qd_base) and filename:
+            try:
+                for sub in os.listdir(qd_base):
+                    possible.append(os.path.join(qd_base, sub, filename))
+            except OSError:
+                pass
+        nd_base = "/app/uploads/ndt_photos"
+        if os.path.isdir(nd_base) and filename:
+            try:
+                for sub1 in os.listdir(nd_base):
+                    p1 = os.path.join(nd_base, sub1)
+                    if os.path.isdir(p1):
+                        for sub2 in os.listdir(p1):
+                            possible.append(os.path.join(p1, sub2, filename))
+                    possible.append(os.path.join(nd_base, sub1, filename))
+            except OSError:
+                pass
+        for p in possible:
+            if p and os.path.exists(p) and os.path.isfile(p):
+                return p
+        return None
     
     def generate_technical_report(
         self,
@@ -430,43 +498,28 @@ class ReportGenerator:
                         all_photos.extend(annotated_images)
                     
                     if all_photos:
-                        story.append(Paragraph("Фотоматериалы:", self.styles['BodyText']))
-                        for p in all_photos[:10]:
+                        story.append(Paragraph("Фотоматериалы (карта замеров, фото дефектов):", self.styles['BodyText']))
+                        for p in all_photos[:15]:
                             if not isinstance(p, str):
                                 continue
-                            
-                            # Проверяем различные варианты путей
-                            possible_paths = [p]
-                            if not os.path.isabs(p):
-                                possible_paths.extend([
-                                    f"/app/uploads/ndt_photos/{p}",
-                                    f"/app/uploads/{p}",
-                                    f"/app/reports/assets/{p}",
-                                ])
-                            
-                            # Если путь содержит только имя файла
-                            if "/" not in p or p.count("/") == 0:
-                                filename = os.path.basename(p)
-                                possible_paths.extend([
-                                    f"/app/uploads/ndt_photos/{filename}",
-                                    f"/app/uploads/{filename}",
-                                ])
-                            
-                            found_path = None
-                            for path_option in possible_paths:
-                                if os.path.exists(path_option) and os.path.isfile(path_option):
-                                    found_path = path_option
-                                    break
-                            
+                            found_path = self._find_image_path(p)
                             if found_path:
                                 try:
                                     img = Image(found_path)
-                                    img.drawWidth = 16 * cm
-                                    img.drawHeight = 10 * cm
+                                    max_w, max_h = 16 * cm, 10 * cm
+                                    iw = getattr(img, 'imageWidth', None) or max_w
+                                    ih = getattr(img, 'imageHeight', None) or max_h
+                                    if iw and ih:
+                                        ratio = min(max_w / float(iw), max_h / float(ih), 1.0)
+                                        img.drawWidth = iw * ratio
+                                        img.drawHeight = ih * ratio
+                                    else:
+                                        img.drawWidth = max_w
+                                        img.drawHeight = max_h
                                     story.append(img)
                                     story.append(Spacer(1, 0.2*cm))
                                 except Exception as e:
-                                    print(f"Warning: Could not add photo {found_path}: {e}")
+                                    print(f"Warning: Could not add NDT photo {found_path}: {e}")
                                     pass
                     story.append(Spacer(1, 0.4*cm))
         else:
@@ -730,43 +783,23 @@ class ReportGenerator:
             """Добавить изображение в отчет, если оно существует"""
             if not path or not isinstance(path, str):
                 return
-            
-            # Проверяем различные варианты путей
-            possible_paths = [path]
-            
-            # Если путь относительный, пробуем абсолютные варианты
-            if not os.path.isabs(path):
-                possible_paths.extend([
-                    f"/app/uploads/{path}",
-                    f"/app/reports/assets/{path}",
-                    f"/opt/es-td-ngo/backend/uploads/{path}",
-                ])
-            
-            # Если путь содержит только имя файла, ищем в стандартных местах
-            if "/" not in path or path.count("/") == 0:
-                filename = os.path.basename(path)
-                possible_paths.extend([
-                    f"/app/uploads/{filename}",
-                    f"/app/reports/assets/{filename}",
-                    f"/opt/es-td-ngo/backend/uploads/{filename}",
-                ])
-            
-            # Ищем существующий файл
-            found_path = None
-            for p in possible_paths:
-                if os.path.exists(p) and os.path.isfile(p):
-                    found_path = p
-                    break
-            
+            found_path = self._find_image_path(path)
             if not found_path:
                 return
-            
             try:
                 story.append(Paragraph(title, self.styles['BodyText']))
                 img = Image(found_path)
-                # Масштабируем по ширине страницы
-                img.drawWidth = 16 * cm
-                img.drawHeight = 10 * cm
+                # Вписать в ширину страницы (≈16 см), сохраняя пропорции
+                max_w, max_h = 16 * cm, 12 * cm
+                iw = getattr(img, 'imageWidth', None) or getattr(img, '_width', max_w)
+                ih = getattr(img, 'imageHeight', None) or getattr(img, '_height', max_h)
+                if iw and ih:
+                    ratio = min(max_w / float(iw), max_h / float(ih), 1.0)
+                    img.drawWidth = iw * ratio
+                    img.drawHeight = ih * ratio
+                else:
+                    img.drawWidth = max_w
+                    img.drawHeight = max_h
                 story.append(img)
                 story.append(Spacer(1, 0.3 * cm))
             except Exception as e:
@@ -805,16 +838,23 @@ class ReportGenerator:
             _add_row("Организация (опросный лист ОПО)", opo_org)
             _add_row("Исполнители (опросный лист ОПО)", opo_exec)
             if rows:
-                table = Table(rows, colWidths=[6*cm, 12*cm])
+                # Ячейки со значениями — Paragraph для переноса длинного текста
+                table_rows = []
+                for r in rows:
+                    table_rows.append([self._cell_text(r[0]), self._cell_text(r[1])])
+                table = Table(table_rows, colWidths=[5*cm, 11*cm])
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f1f5f9')),
                     ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#334155')),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                     ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
                     ('FONTNAME', (0, 0), (0, -1), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
-                    ('FONTSIZE', (0, 0), (-1, -1), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                     ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
                 ]))
                 story.append(table)
@@ -887,26 +927,27 @@ class ReportGenerator:
             for num in doc_keys:
                 doc_name = document_names.get(str(num), f'Документ {num}')
                 present, doc_number, doc_date = _doc_meta(str(num))
-                # Исправляем отображение наличия документа
                 presence_text = 'Да' if present else '—'
                 doc_data.append([
-                    num,
-                    doc_name,
-                    doc_number or '—',
-                    doc_date or '—',
-                    presence_text
+                    self._cell_text(num),
+                    self._cell_text(doc_name),
+                    self._cell_text(doc_number or '—'),
+                    self._cell_text(doc_date or '—'),
+                    self._cell_text(presence_text)
                 ])
-            
-            table = Table(doc_data, colWidths=[1*cm, 9*cm, 3*cm, 3*cm, 3*cm])
+            table = Table(doc_data, colWidths=[0.8*cm, 7*cm, 2.5*cm, 2.5*cm, 1.5*cm])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
                 ('FONTNAME', (0, 0), (-1, 0), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
             ]))
@@ -963,22 +1004,23 @@ class ReportGenerator:
         thickness = _get('thickness_measurements', 'thicknessMeasurements', default=[])
         if isinstance(thickness, list) and len(thickness) > 0:
             story.append(Paragraph("3.3. УЗТ (Ультразвуковая толщинометрия)", self.styles['SectionTitle']))
-            thickness_table_data = [['№', 'Местоположение', 'Сечение', 'Толщина, мм', 'Мин. допустимая, мм', 'X%', 'Y%', 'Комментарий']]
+            thickness_table_data = [['№', 'Местоположение', 'Сечение', 'Толщина, мм', 'Мин. доп., мм', 'X%', 'Y%', 'Комментарий']]
             for idx, point in enumerate(thickness, 1):
                 if not isinstance(point, dict):
                     continue
                 thickness_table_data.append([
-                    str(idx),
-                    str(point.get('location', '') or ''),
-                    str(point.get('section_number', '') or ''),
-                    str(point.get('thickness', '') or ''),
-                    str(point.get('min_allowed_thickness', '') or ''),
-                    str(point.get('x_percent', '') or ''),
-                    str(point.get('y_percent', '') or ''),
-                    str(point.get('comment', '') or ''),
+                    self._cell_text(idx),
+                    self._cell_text(point.get('location') or ''),
+                    self._cell_text(point.get('section_number') or ''),
+                    self._cell_text(point.get('thickness') or ''),
+                    self._cell_text(point.get('min_allowed_thickness') or ''),
+                    self._cell_text(point.get('x_percent') or ''),
+                    self._cell_text(point.get('y_percent') or ''),
+                    self._cell_text(point.get('comment') or ''),
                 ])
             if len(thickness_table_data) > 1:
-                t = Table(thickness_table_data, colWidths=[0.8*cm, 3.0*cm, 1.6*cm, 1.9*cm, 2.3*cm, 1.1*cm, 1.1*cm, 6.0*cm])
+                # Сумма ширин <= 16.5 см под A4 с полями 2 см
+                t = Table(thickness_table_data, colWidths=[0.6*cm, 2.8*cm, 1.2*cm, 1.4*cm, 1.4*cm, 0.8*cm, 0.8*cm, 5.5*cm])
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1032,26 +1074,30 @@ class ReportGenerator:
         zra = _get('zra_items', default=[])
         if isinstance(zra, list) and zra:
             story.append(Paragraph("3.4. ЗРА (запорно-регулирующая арматура)", self.styles['SectionTitle']))
-            rows = [['№', 'Кол-во', 'Типоразмер', 'Тех. №', 'Зав. №', 'Место на схеме']]
+            zra_rows = [['№', 'Кол-во', 'Типоразмер', 'Тех. №', 'Зав. №', 'Место на схеме']]
             for i, it in enumerate(zra, 1):
                 if not isinstance(it, dict):
                     continue
-                rows.append([
-                    str(i),
-                    str(it.get('quantity', '') or ''),
-                    str(it.get('type_size', '') or ''),
-                    str(it.get('tech_number', '') or ''),
-                    str(it.get('serial_number', '') or ''),
-                    str(it.get('location_on_scheme', '') or ''),
+                zra_rows.append([
+                    self._cell_text(i),
+                    self._cell_text(it.get('quantity') or ''),
+                    self._cell_text(it.get('type_size') or ''),
+                    self._cell_text(it.get('tech_number') or ''),
+                    self._cell_text(it.get('serial_number') or ''),
+                    self._cell_text(it.get('location_on_scheme') or ''),
                 ])
-            t = Table(rows, colWidths=[0.8*cm, 1.3*cm, 3.0*cm, 2.0*cm, 2.0*cm, 8.0*cm])
+            t = Table(zra_rows, colWidths=[0.6*cm, 1*cm, 2.5*cm, 2*cm, 2*cm, 6.5*cm])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
                 ('FONTNAME', (0, 0), (-1, 0), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
                 ('FONTSIZE', (0, 0), (-1, 0), 8),
-                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
             ]))
@@ -1062,26 +1108,30 @@ class ReportGenerator:
         sppk = _get('sppk_items', default=[])
         if isinstance(sppk, list) and sppk:
             story.append(Paragraph("3.5. СППК (предохранительные клапаны)", self.styles['SectionTitle']))
-            rows = [['№', 'Кол-во', 'Типоразмер', 'Тех. №', 'Зав. №', 'Место на схеме']]
+            sppk_rows = [['№', 'Кол-во', 'Типоразмер', 'Тех. №', 'Зав. №', 'Место на схеме']]
             for i, it in enumerate(sppk, 1):
                 if not isinstance(it, dict):
                     continue
-                rows.append([
-                    str(i),
-                    str(it.get('quantity', '') or ''),
-                    str(it.get('type_size', '') or ''),
-                    str(it.get('tech_number', '') or ''),
-                    str(it.get('serial_number', '') or ''),
-                    str(it.get('location_on_scheme', '') or ''),
+                sppk_rows.append([
+                    self._cell_text(i),
+                    self._cell_text(it.get('quantity') or ''),
+                    self._cell_text(it.get('type_size') or ''),
+                    self._cell_text(it.get('tech_number') or ''),
+                    self._cell_text(it.get('serial_number') or ''),
+                    self._cell_text(it.get('location_on_scheme') or ''),
                 ])
-            t = Table(rows, colWidths=[0.8*cm, 1.3*cm, 3.0*cm, 2.0*cm, 2.0*cm, 8.0*cm])
+            t = Table(sppk_rows, colWidths=[0.6*cm, 1*cm, 2.5*cm, 2*cm, 2*cm, 6.5*cm])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('FONTNAME', (0, 0), (-1, -1), getattr(self, "default_font", "Helvetica")),
                 ('FONTNAME', (0, 0), (-1, 0), getattr(self, "bold_font", getattr(self, "default_font", "Helvetica"))),
                 ('FONTSIZE', (0, 0), (-1, 0), 8),
-                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
             ]))
