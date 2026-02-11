@@ -41,14 +41,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadStatus() async {
     try {
       final pending = await _syncService.getPendingInspections();
-      final offline = await _syncService.isOfflineMode();
+      final offlineMode = await _syncService.isOfflineMode();
+      final hasConnection = await _apiService.checkConnection();
       if (mounted) {
         setState(() {
           _pendingCount = pending.length;
-          _isOffline = offline;
+          _isOffline = offlineMode || !hasConnection;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _isOffline = true);
+    }
   }
 
   Future<void> _loadAppVersion() async {

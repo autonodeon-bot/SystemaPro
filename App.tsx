@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon, Shield, Wrench } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon, Shield, Wrench, HelpCircle } from 'lucide-react';
 import { APP_VERSION } from './constants';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
@@ -19,6 +19,7 @@ import ReportViewer from './pages/ReportViewer';
 import InspectionsList from './pages/InspectionsList';
 import MobileApp from './pages/MobileApp';
 import Changelog from './pages/Changelog';
+import Glossary from './pages/Glossary';
 import AssignmentsManagement from './pages/AssignmentsManagement';
 import UsersManagement from './pages/UsersManagement';
 import VerificationsManagement from './pages/VerificationsManagement';
@@ -95,6 +96,7 @@ const Layout: React.FC = () => {
             <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
           )}
           <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
+          <SidebarItem to="/glossary" icon={HelpCircle} label={isSidebarOpen ? "Глоссарий" : ""} />
           <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? "Мобильное приложение" : ""} />
           <div className="my-4 border-t border-slate-700"></div>
           <SidebarItem to="/changelog" icon={Sparkles} label={isSidebarOpen ? "Что нового?" : ""} />
@@ -216,6 +218,7 @@ const App = () => {
             <Route path="/report-templates" element={<ProtectedRoute requiredRole="admin"><ReportTemplates /></ProtectedRoute>} />
             <Route path="/inspection" element={<DynamicInspection />} />
             <Route path="/specs" element={<TechSpecs />} />
+            <Route path="/glossary" element={<Glossary />} />
             <Route path="/mobile-app" element={<MobileApp />} />
             <Route path="/changelog" element={<Changelog />} />
             <Route path="/assignments" element={<AssignmentsManagement />} />

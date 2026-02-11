@@ -14,6 +14,22 @@ interface Version {
 const Changelog = () => {
   const versions: Version[] = [
     {
+      version: '3.22.0',
+      date: '09.02.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Toast-уведомления (ToastContext) вместо alert' },
+        { type: 'added', description: 'Модальные подтверждения (ConfirmModal) для критичных действий' },
+        { type: 'added', description: 'Скелетоны загрузки (Skeleton, SkeletonCard, SkeletonTable)' },
+        { type: 'added', description: 'Глоссарий терминов (ВИК, УЗТ, ОПО и др.) — страница /glossary' },
+        { type: 'added', description: 'Панель статистики на дашборде: обследования, отчёты, задания за период (API /api/stats)' },
+        { type: 'added', description: 'Подсказки (Tooltip) для сложных полей' },
+        { type: 'added', description: 'Утилиты: fetchWithRetry (повтор при сетевых ошибках), cache (localStorage)' },
+        { type: 'added', description: 'Мобильное: явный офлайн-статус при отсутствии сети' },
+        { type: 'added', description: 'Мобильное: краткая сводка перед подписанием чек-листа' },
+      ],
+    },
+    {
       version: '3.21.0',
       date: '09.02.2026',
       type: 'minor',

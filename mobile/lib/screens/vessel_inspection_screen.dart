@@ -1082,13 +1082,37 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       return;
     }
 
+    final inspectionDateStr = _resolveInspectionDateIso();
+    final summary = [
+      'Оборудование: ${widget.equipment.name}',
+      'Дата: $inspectionDateStr',
+      if (_checklist.conclusion?.isNotEmpty ?? false) 'Заключение: ${_checklist.conclusion!.length > 80 ? "${_checklist.conclusion!.substring(0, 80)}…" : _checklist.conclusion}',
+      'Оборудование для поверок: ${_selectedEquipmentIds.length}',
+    ].join('\n');
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Подписать и завершить?'),
-        content: const Text(
-          'После синхронизации на сервере задание будет отмечено как выполненное. '
-          'Вы сможете скачать/сформировать отчет в веб-версии.',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Краткая сводка перед подписанием:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(summary, style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 12),
+              const Text(
+                'После синхронизации задание будет отмечено как выполненное. '
+                'Вы сможете сформировать отчёт в веб-версии.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1105,8 +1129,6 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
     setState(() => _isSubmitting = true);
     try {
-      final inspectionDateStr = _resolveInspectionDateIso();
-
       // Обновляем ОПО оборудования, если было выбрано
       if (_selectedOpoId != null && _selectedOpoId!.isNotEmpty) {
         try {

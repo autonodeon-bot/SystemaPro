@@ -38,6 +38,7 @@ scp -r nginx/* "${dest}/nginx/"
 scp -r pages/* "${dest}/pages/"
 if (Test-Path "components") { scp -r components/* "${dest}/components/" }
 if (Test-Path "contexts") { scp -r contexts/* "${dest}/contexts/" }
+if (Test-Path "utils") { scp -r utils/* "${dest}/utils/" }
 
 $rootFiles = @(
     "docker-compose.yml", "frontend.Dockerfile", "App.tsx", "index.html", "index.tsx", "index.css",

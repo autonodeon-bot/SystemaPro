@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
-import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles, BarChart2, FileText, ClipboardList } from 'lucide-react';
 import { INSPECTION_TASKS, API_BASE } from '../constants';
 import { RiskLevel } from '../types';
 
@@ -46,10 +46,30 @@ const Dashboard = () => {
     warning7: number;
     warning30: number;
   }>({ expired: 0, warning7: 0, warning30: 0 });
+  const [stats, setStats] = useState<{
+    inspections: number;
+    reports: number;
+    assignments: number;
+    period_days: number;
+    by_month: { month: string; count: number }[];
+  } | null>(null);
 
   useEffect(() => {
     loadVerificationAlerts();
+    loadStats();
   }, []);
+
+  const loadStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/stats?days=30`, { headers });
+      if (res.ok) setStats(await res.json());
+    } catch (e) {
+      console.error('Ошибка загрузки статистики:', e);
+    }
+  };
 
   const loadVerificationAlerts = async () => {
     try {
@@ -79,7 +99,7 @@ const Dashboard = () => {
           <h3 className="text-white font-semibold">Что нового</h3>
         </div>
         <p className="text-slate-300 text-sm">
-          Версия системы 3.21.0 (09.02.2026) — проверка сети перед синхронизацией, выжимка контекста (CHAT-SUMMARY.md).
+          Версия системы 3.22.0 (09.02.2026) — проверка сети перед синхронизацией, выжимка контекста (CHAT-SUMMARY.md).
         </p>
         <a href="#/changelog" className="mt-2 inline-block text-sm text-blue-400 hover:text-blue-300">
           Открыть список изменений →
@@ -130,10 +150,43 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Панель статистики по периодам */}
+      {stats && (
+        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart2 className="text-accent" size={20} />
+            <h3 className="text-white font-semibold">Статистика за {stats.period_days} дней</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
+              <Activity className="text-blue-400" size={24} />
+              <div>
+                <div className="text-xl font-bold text-white">{stats.inspections}</div>
+                <div className="text-xs text-slate-400">Обследований</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
+              <FileText className="text-green-400" size={24} />
+              <div>
+                <div className="text-xl font-bold text-white">{stats.reports}</div>
+                <div className="text-xs text-slate-400">Отчётов</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
+              <ClipboardList className="text-yellow-400" size={24} />
+              <div>
+                <div className="text-xl font-bold text-white">{stats.assignments}</div>
+                <div className="text-xs text-slate-400">Заданий</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard title="Всего объектов" value="1,248" sub="+12 новых за месяц" icon={Activity} color="text-blue-500" />
         <StatCard title="Критические дефекты" value="3" sub="Требуют немедленного внимания" icon={AlertTriangle} color="text-red-500" />
-        <StatCard title="Проверено (мес)" value="86" sub="98% выполнение плана" icon={CheckCircle} color="text-green-500" />
+        <StatCard title="Проверено (мес)" value={stats?.inspections?.toString() ?? "86"} sub="За период" icon={CheckCircle} color="text-green-500" />
         <StatCard title="В работе" value="14" sub="Текущие инспекции" icon={Clock} color="text-yellow-500" />
       </div>
 

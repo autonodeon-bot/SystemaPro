@@ -270,11 +270,11 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null) ? String(_envApiBase) : 'http://5.129.203.182:8000';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.21.0';
+export const APP_VERSION = '3.22.0';
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.21.0';
-export const MOBILE_APP_BUILD = '21';
+export const MOBILE_APP_VERSION = '3.22.0';
+export const MOBILE_APP_BUILD = '22';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOBILE_APK_URL) || 'http://5.129.203.182/mobile/app-release.apk';

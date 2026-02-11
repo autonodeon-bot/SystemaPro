@@ -45,7 +45,7 @@ app = FastAPI(
 **Формат ошибок:** все ответы с ошибкой возвращают `{"detail": "текст", "code": "VALIDATION_ERROR"|"UNAUTHORIZED"|"NOT_FOUND"|..., "errors": [{"field": "...", "message": "..."}]}`.
 
 **Основные разделы:** задания, оборудование, обследования (inspections), опросные листы (questionnaires), отчёты, ОПО, пользователи.""",
-    version="3.21.0",
+    version="3.22.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -214,7 +214,7 @@ app.include_router(equipment_history_router)  # Новый роутер для �
 app.include_router(inspection_archive_router)  # Загрузка ZIP-архива обследования с мобильного
 
 # Версия мобильного приложения (должна соответствовать реально доступному APK по ссылке)
-MOBILE_APP_VERSION = "3.21.0"
+MOBILE_APP_VERSION = "3.22.0"
 MOBILE_APP_BUILD = "20"
 MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/app-release.apk"
 
@@ -893,6 +893,49 @@ async def metrics():
         f"es_td_ngo_report_generation_count {_metrics.get('report_generation_count', 0)}",
     ]
     return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; charset=utf-8")
+
+
+@app.get("/api/stats")
+async def api_stats(
+    days: int = 30,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Панель статистики: обследования, отчёты, задания по периодам."""
+    from datetime import timedelta
+    cutoff = date.today() - timedelta(days=days)
+    # Обследования
+    ins_res = await db.execute(
+        select(func.count(Inspection.id)).where(Inspection.created_at >= cutoff)
+    )
+    inspections_count = ins_res.scalar() or 0
+    # Отчёты
+    rep_res = await db.execute(
+        select(func.count(Report.id)).where(Report.created_at >= cutoff)
+    )
+    reports_count = rep_res.scalar() or 0
+    # Задания
+    ass_res = await db.execute(
+        select(func.count(Assignment.id)).where(Assignment.created_at >= cutoff)
+    )
+    assignments_count = ass_res.scalar() or 0
+    # По месяцам
+    month_col = func.date_trunc('month', Inspection.created_at)
+    months_res = await db.execute(
+        select(month_col, func.count(Inspection.id))
+        .where(Inspection.created_at >= cutoff)
+        .group_by(month_col)
+        .order_by(month_col)
+    )
+    rows = months_res.all()
+    by_month = [{"month": str(r[0])[:7] if r[0] else "", "count": r[1] or 0} for r in rows]
+    return {
+        "inspections": inspections_count,
+        "reports": reports_count,
+        "assignments": assignments_count,
+        "period_days": days,
+        "by_month": by_month,
+    }
 
 # Pydantic models for request/response
 class EquipmentCreate(BaseModel):
