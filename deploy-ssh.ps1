@@ -27,7 +27,7 @@ Write-Host "  OK" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[2/7] Creating remote directories..." -ForegroundColor Yellow
-ssh $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/components $REMOTE/contexts $REMOTE/mobile-apk"
+ssh $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/components $REMOTE/contexts $REMOTE/utils $REMOTE/styles $REMOTE/mobile-apk"
 Write-Host "  Done" -ForegroundColor Green
 Write-Host ""
 
@@ -39,6 +39,7 @@ scp -r pages/* "${dest}/pages/"
 if (Test-Path "components") { scp -r components/* "${dest}/components/" }
 if (Test-Path "contexts") { scp -r contexts/* "${dest}/contexts/" }
 if (Test-Path "utils") { scp -r utils/* "${dest}/utils/" }
+if (Test-Path "styles") { scp -r styles/* "${dest}/styles/" }
 
 $rootFiles = @(
     "docker-compose.yml", "frontend.Dockerfile", "App.tsx", "index.html", "index.tsx", "index.css",
