@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' as intl;
 import 'dart:io';
 import 'package:image/image.dart' as img;
 import '../models/vessel_checklist.dart';
@@ -249,30 +249,35 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ...point.photos.asMap().entries.map((e) => Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(e.value),
-                          width: 64,
-                          height: 64,
-                          fit: BoxFit.cover,
+                  ...point.photos.asMap().entries.map((e) => SizedBox(
+                    width: 64,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(e.value),
+                            width: 64,
+                            height: 64,
+                            fit: BoxFit.cover,
+                          ),
                         ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: GestureDetector(
+                        const SizedBox(height: 2),
+                        InkWell(
                           onTap: () {
                             setState(() {
                               point.photos.removeAt(e.key);
                             });
                           },
-                          child: const Icon(Icons.close, color: Colors.red, size: 20),
+                          borderRadius: BorderRadius.circular(10),
+                          child: const Padding(
+                            padding: EdgeInsets.all(2),
+                            child: Icon(Icons.close, color: Colors.red, size: 18),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   )),
                   GestureDetector(
                     onTap: () async {
@@ -359,7 +364,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     if (confirmed != true || !mounted) return imagePath;
 
     final now = DateTime.now();
-    final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    final dateStr = intl.DateFormat('dd.MM.yyyy HH:mm').format(now);
     Map<String, double>? coords;
     try {
       coords = await _locationService.getCurrentLocation();

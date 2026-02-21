@@ -1743,6 +1743,10 @@ async def get_inspections(
     enterprise_id: Optional[str] = None,
     branch_id: Optional[str] = None,
     workshop_id: Optional[str] = None,
+    inspection_type: Optional[str] = None,
+    inspection_method: Optional[str] = None,
+    inspection_category: Optional[str] = None,
+    group_by: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     username: str = Depends(verify_token),
@@ -1798,6 +1802,62 @@ async def get_inspections(
                 except Exception:
                     raise HTTPException(status_code=400, detail="Invalid enterprise_id format")
             query = query.where(Inspection.equipment_id.in_(subq))
+
+        if inspection_type:
+            query = query.where(Inspection.inspection_type == inspection_type)
+        if inspection_method:
+            query = query.where(Inspection.inspection_method == inspection_method)
+        if inspection_category:
+            query = query.where(Inspection.inspection_category == inspection_category)
+
+        if group_by in {"type", "method", "category", "type_method"}:
+            grouped_query = query.order_by(
+                nulls_last(Inspection.date_performed.desc()),
+                nulls_last(Inspection.created_at.desc()),
+            )
+            grouped_result = await db.execute(grouped_query)
+            grouped_inspections = grouped_result.scalars().all()
+            groups: Dict[str, list] = {}
+            for ins in grouped_inspections:
+                if group_by == "type":
+                    key = str(ins.inspection_type or "UNSPECIFIED")
+                elif group_by == "method":
+                    key = str(ins.inspection_method or "UNSPECIFIED")
+                elif group_by == "category":
+                    key = str(ins.inspection_category or "UNSPECIFIED")
+                else:
+                    key = f"{ins.inspection_type or 'UNSPECIFIED'}::{ins.inspection_method or 'UNSPECIFIED'}"
+                groups.setdefault(key, []).append(ins)
+
+            items = []
+            for key, group_items in groups.items():
+                sliced = group_items[skip : skip + limit]
+                items.append(
+                    {
+                        "key": key,
+                        "count": len(group_items),
+                        "items": [
+                            {
+                                "id": str(ins.id),
+                                "equipment_id": str(ins.equipment_id),
+                                "date_performed": ins.date_performed.isoformat() if ins.date_performed else None,
+                                "status": ins.status,
+                                "inspection_type": ins.inspection_type,
+                                "inspection_method": ins.inspection_method,
+                                "inspection_category": ins.inspection_category,
+                                "created_at": ins.created_at.isoformat() if ins.created_at else None,
+                            }
+                            for ins in sliced
+                        ],
+                    }
+                )
+            return {
+                "grouped": True,
+                "group_by": group_by,
+                "groups": items,
+                "total_groups": len(groups),
+                "total": len(grouped_inspections),
+            }
         # Сортировка: сначала по date_performed (если есть), затем по created_at, с учетом NULL
         query = query.order_by(
             nulls_last(Inspection.date_performed.desc()),
@@ -1891,6 +1951,9 @@ async def get_inspections(
                     "data": ins.data,
                     "conclusion": ins.conclusion,
                     "status": ins.status,
+                    "inspection_type": getattr(ins, "inspection_type", None),
+                    "inspection_method": getattr(ins, "inspection_method", None),
+                    "inspection_category": getattr(ins, "inspection_category", None),
                     "is_archived": getattr(ins, "is_archived", False),
                     "created_at": ins.created_at.isoformat() if ins.created_at else None,
                 }
@@ -1906,6 +1969,59 @@ async def get_inspections(
         print(f"❌ Error in get_inspections: {error_detail}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка при получении чеклистов: {error_detail}")
+
+
+@app.get("/api/inspections/groups")
+async def get_inspection_groups(
+    group_by: str = "type",
+    inspection_type: Optional[str] = None,
+    inspection_method: Optional[str] = None,
+    inspection_category: Optional[str] = None,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Сводка по группам обследований без полного payload."""
+    valid_group_by = {"type", "method", "category", "type_method"}
+    if group_by not in valid_group_by:
+        raise HTTPException(status_code=400, detail=f"group_by must be one of {sorted(valid_group_by)}")
+
+    user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
+    current_user = user_result.scalar_one_or_none()
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    query = select(Inspection)
+    if current_user.role == "engineer":
+        query = query.where(or_(Inspection.inspector_id == current_user.id, Inspection.performed_by == current_user.id))
+
+    if inspection_type:
+        query = query.where(Inspection.inspection_type == inspection_type)
+    if inspection_method:
+        query = query.where(Inspection.inspection_method == inspection_method)
+    if inspection_category:
+        query = query.where(Inspection.inspection_category == inspection_category)
+
+    result = await db.execute(query)
+    rows = result.scalars().all()
+    grouped: Dict[str, int] = {}
+    for ins in rows:
+        if group_by == "type":
+            key = str(ins.inspection_type or "UNSPECIFIED")
+        elif group_by == "method":
+            key = str(ins.inspection_method or "UNSPECIFIED")
+        elif group_by == "category":
+            key = str(ins.inspection_category or "UNSPECIFIED")
+        else:
+            key = f"{ins.inspection_type or 'UNSPECIFIED'}::{ins.inspection_method or 'UNSPECIFIED'}"
+        grouped[key] = grouped.get(key, 0) + 1
+
+    return {
+        "grouped": True,
+        "group_by": group_by,
+        "groups": [{"key": k, "count": v} for k, v in sorted(grouped.items(), key=lambda x: x[0])],
+        "total_groups": len(grouped),
+        "total": len(rows),
+    }
 
 
 def _validate_create_inspection(data: dict) -> None:
@@ -2077,6 +2193,29 @@ async def create_inspection(
             # Не блокируем создание инспекции из-за мерджа ОПО
             pass
         
+        inspection_payload_data = inspection_data.get("data", {}) if isinstance(inspection_data.get("data", {}), dict) else {}
+        inspection_type_value = (
+            inspection_data.get("inspection_type")
+            or inspection_payload_data.get("inspection_type")
+        )
+        if not inspection_type_value:
+            if inspection_payload_data.get("weld_inspections") or inspection_payload_data.get("thickness_measurements"):
+                inspection_type_value = "NDT"
+            elif inspection_payload_data.get("documents") or inspection_payload_data.get("questionnaire"):
+                inspection_type_value = "QUESTIONNAIRE"
+            else:
+                inspection_type_value = "VISUAL"
+
+        inspection_method_value = (
+            inspection_data.get("inspection_method")
+            or inspection_payload_data.get("inspection_method")
+            or inspection_payload_data.get("method_code")
+        )
+        inspection_category_value = (
+            inspection_data.get("inspection_category")
+            or inspection_payload_data.get("inspection_category")
+        )
+
         new_inspection = Inspection(
             equipment_id=equipment_id,
             project_id=project_id,
@@ -2084,6 +2223,9 @@ async def create_inspection(
             conclusion=inspection_data.get("conclusion"),
             status=inspection_data.get("status", "DRAFT"),
             date_performed=date_performed,
+            inspection_type=inspection_type_value,
+            inspection_method=inspection_method_value,
+            inspection_category=inspection_category_value,
             is_archived=False,  # Явно устанавливаем значение
             created_by=created_by_id,
         )
@@ -7152,6 +7294,29 @@ async def create_inspection(
             # Не блокируем создание инспекции из-за мерджа ОПО
             pass
         
+        inspection_payload_data = inspection_data.get("data", {}) if isinstance(inspection_data.get("data", {}), dict) else {}
+        inspection_type_value = (
+            inspection_data.get("inspection_type")
+            or inspection_payload_data.get("inspection_type")
+        )
+        if not inspection_type_value:
+            if inspection_payload_data.get("weld_inspections") or inspection_payload_data.get("thickness_measurements"):
+                inspection_type_value = "NDT"
+            elif inspection_payload_data.get("documents") or inspection_payload_data.get("questionnaire"):
+                inspection_type_value = "QUESTIONNAIRE"
+            else:
+                inspection_type_value = "VISUAL"
+
+        inspection_method_value = (
+            inspection_data.get("inspection_method")
+            or inspection_payload_data.get("inspection_method")
+            or inspection_payload_data.get("method_code")
+        )
+        inspection_category_value = (
+            inspection_data.get("inspection_category")
+            or inspection_payload_data.get("inspection_category")
+        )
+
         new_inspection = Inspection(
             equipment_id=equipment_id,
             project_id=project_id,
@@ -7159,6 +7324,9 @@ async def create_inspection(
             conclusion=inspection_data.get("conclusion"),
             status=inspection_data.get("status", "DRAFT"),
             date_performed=date_performed,
+            inspection_type=inspection_type_value,
+            inspection_method=inspection_method_value,
+            inspection_category=inspection_category_value,
             is_archived=False,  # Явно устанавливаем значение
             created_by=created_by_id,
         )

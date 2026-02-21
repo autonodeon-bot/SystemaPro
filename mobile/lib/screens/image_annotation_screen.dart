@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' as intl;
 import 'dart:typed_data';
 import '../services/location_service.dart';
 import '../services/photo_annotation_service.dart';
@@ -127,7 +127,7 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
     if (confirmed != true || !mounted) return imagePath;
 
     final now = DateTime.now();
-    final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    final dateStr = intl.DateFormat('dd.MM.yyyy HH:mm').format(now);
     Map<String, double>? coords;
     try {
       coords = await _locationService.getCurrentLocation();
@@ -225,7 +225,7 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<AnnotationType>(
-                initialValue: annotation.type,
+                value: annotation.type,
                 decoration: const InputDecoration(
                   labelText: 'Тип аннотации',
                   labelStyle: TextStyle(color: Colors.white70),
@@ -387,8 +387,9 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
         ],
       ),
       backgroundColor: const Color(0xFF0f172a),
-      body: Column(
-        children: [
+      body: SafeArea(
+        child: Column(
+          children: [
           // Панель инструментов
           Container(
             padding: const EdgeInsets.all(8),
@@ -499,7 +500,10 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
           // Список аннотаций
           if (_annotations.isNotEmpty)
             Container(
-              height: 120,
+              constraints: BoxConstraints(
+                minHeight: 110,
+                maxHeight: MediaQuery.of(context).size.height * 0.22,
+              ),
               color: const Color(0xFF1e293b),
               child: Column(
                 children: [
@@ -567,7 +571,8 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
                 ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

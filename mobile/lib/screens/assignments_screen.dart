@@ -84,6 +84,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   final Map<String, bool> _opoHasData = {}; // opo_id -> есть ли данные ОПО (локально или на сервере)
   bool _isLoading = true;
   String _selectedStatus = 'all';
+  String _selectedAssignmentType = 'all';
   String _selectedSort = 'due_date'; // due_date, priority, created_at, equipment_name
   bool _sortAscending = false;
   String _searchQuery = '';
@@ -128,6 +129,79 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       await prefs.setString('assignments_filter_sort', _selectedSort);
       await prefs.setBool('assignments_filter_asc', _sortAscending);
     } catch (_) {}
+  }
+
+  String _defaultInspectionTypeFromAssignment(String assignmentType) {
+    switch (assignmentType.toUpperCase()) {
+      case 'EXPERTISE':
+        return 'EXPERTISE';
+      case 'INSPECTION':
+        return 'VISUAL';
+      case 'DIAGNOSTICS':
+      default:
+        return 'NDT';
+    }
+  }
+
+  Future<String?> _selectInspectionType({String? initialType}) async {
+    String selected = initialType ?? 'NDT';
+    return showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setInner) => AlertDialog(
+          backgroundColor: const Color(0xFF1e293b),
+          title: const Text('Тип обследования', style: TextStyle(color: Colors.white)),
+          content: DropdownButtonFormField<String>(
+            value: selected,
+            decoration: const InputDecoration(
+              labelText: 'Выберите тип',
+              labelStyle: TextStyle(color: Colors.white70),
+            ),
+            dropdownColor: const Color(0xFF1e293b),
+            items: const [
+              DropdownMenuItem(value: 'VISUAL', child: Text('VISUAL', style: TextStyle(color: Colors.white))),
+              DropdownMenuItem(value: 'NDT', child: Text('NDT', style: TextStyle(color: Colors.white))),
+              DropdownMenuItem(value: 'QUESTIONNAIRE', child: Text('QUESTIONNAIRE', style: TextStyle(color: Colors.white))),
+              DropdownMenuItem(value: 'EXPERTISE', child: Text('EXPERTISE', style: TextStyle(color: Colors.white))),
+            ],
+            onChanged: (v) => setInner(() => selected = v ?? selected),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, selected),
+              child: const Text('Продолжить', style: TextStyle(color: Color(0xFF3b82f6))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openInspectionScreen({
+    required Equipment equipment,
+    required String assignmentId,
+    String? existingInspectionId,
+    required String assignmentType,
+  }) async {
+    final selectedType = await _selectInspectionType(
+      initialType: _defaultInspectionTypeFromAssignment(assignmentType),
+    );
+    if (!mounted || selectedType == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VesselInspectionScreen(
+          equipment: equipment,
+          assignmentId: assignmentId,
+          existingInspectionId: existingInspectionId,
+          inspectionType: selectedType,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadAssignments() async {
@@ -441,6 +515,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     if (_selectedStatus != 'all') {
       filtered = filtered.where((a) => a.status == _selectedStatus).toList();
     }
+    // Фильтр по типу задания/обследования
+    if (_selectedAssignmentType != 'all') {
+      filtered = filtered.where((a) => a.assignmentType == _selectedAssignmentType).toList();
+    }
     
     // Поиск
     if (_searchQuery.isNotEmpty) {
@@ -606,19 +684,14 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   equipmentId: eq.id,
                   title: assignment.equipmentName,
                 );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => VesselInspectionScreen(
-                      equipment: eq,
-                      assignmentId: assignment.id,
-                      existingInspectionId: existingInspection!['id'] as String,
-                    ),
-                  ),
-                ).then((_) {
-                  _loadAssignments();
-                  _loadRecent();
-                });
+                await _openInspectionScreen(
+                  equipment: eq,
+                  assignmentId: assignment.id,
+                  existingInspectionId: existingInspection!['id'] as String,
+                  assignmentType: assignment.assignmentType,
+                );
+                _loadAssignments();
+                _loadRecent();
               }
             } else {
               // Инспекция не найдена, создаем новую
@@ -628,35 +701,25 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   equipmentId: eq.id,
                   title: assignment.equipmentName,
                 );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => VesselInspectionScreen(
-                      equipment: eq,
-                      assignmentId: assignment.id,
-                    ),
-                  ),
-                ).then((_) {
-                  _loadAssignments();
-                  _loadRecent();
-                });
+                await _openInspectionScreen(
+                  equipment: eq,
+                  assignmentId: assignment.id,
+                  assignmentType: assignment.assignmentType,
+                );
+                _loadAssignments();
+                _loadRecent();
               }
             }
           } catch (e) {
             // Если не удалось загрузить инспекции, просто открываем новый экран
             if (mounted) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => VesselInspectionScreen(
-                    equipment: eq,
-                    assignmentId: assignment.id,
-                  ),
-                ),
-              ).then((_) {
-                _loadAssignments();
-                _loadRecent();
-              });
+              await _openInspectionScreen(
+                equipment: eq,
+                assignmentId: assignment.id,
+                assignmentType: assignment.assignmentType,
+              );
+              _loadAssignments();
+              _loadRecent();
               _recentService.addRecent(
                 assignmentId: assignment.id,
                 equipmentId: eq.id,
@@ -667,18 +730,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         } else if (choice == 'restart') {
           // Пройти заново - создаем новую инспекцию, статус остается COMPLETED
           if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => VesselInspectionScreen(
-                  equipment: eq,
-                  assignmentId: assignment.id,
-                ),
-              ),
-            ).then((_) {
-              _loadAssignments();
-              _loadRecent();
-            });
+            await _openInspectionScreen(
+              equipment: eq,
+              assignmentId: assignment.id,
+              assignmentType: assignment.assignmentType,
+            );
+            _loadAssignments();
+            _loadRecent();
             _recentService.addRecent(
               assignmentId: assignment.id,
               equipmentId: eq.id,
@@ -787,27 +845,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           equipmentId: equipment!.id,
           title: assignment.equipmentName,
         );
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VesselInspectionScreen(
-              equipment: equipment!,
-              assignmentId: assignment.id,
-            ),
-          ),
-        ).then((_) {
-          _loadAssignments();
-          _loadRecent();
-        }).catchError((error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Ошибка открытия экрана обследования: $error'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        });
+        await _openInspectionScreen(
+          equipment: equipment!,
+          assignmentId: assignment.id,
+          assignmentType: assignment.assignmentType,
+        );
+        _loadAssignments();
+        _loadRecent();
       }
     } catch (e) {
       if (mounted) {
@@ -910,6 +954,36 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                               _filterAssignments();
                             });
                             _saveFilterToPrefs();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Фильтр по типу задания/обследования
+                  Row(
+                    children: [
+                      const Text('Тип:', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: _selectedAssignmentType,
+                          isExpanded: true,
+                          dropdownColor: const Color(0xFF1e293b),
+                          style: const TextStyle(color: Colors.white),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('Все типы')),
+                            DropdownMenuItem(value: 'DIAGNOSTICS', child: Text('DIAGNOSTICS')),
+                            DropdownMenuItem(value: 'INSPECTION', child: Text('INSPECTION')),
+                            DropdownMenuItem(value: 'EXPERTISE', child: Text('EXPERTISE')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedAssignmentType = value;
+                                _filterAssignments();
+                              });
+                            }
                           },
                         ),
                       ),
@@ -1104,18 +1178,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       }
       return;
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VesselInspectionScreen(
-          equipment: equipment!,
-          assignmentId: item.assignmentId,
-        ),
-      ),
-    ).then((_) {
-      _loadAssignments();
-      _loadRecent();
-    });
+    await _openInspectionScreen(
+      equipment: equipment!,
+      assignmentId: item.assignmentId,
+      assignmentType: 'DIAGNOSTICS',
+    );
+    _loadAssignments();
+    _loadRecent();
   }
 
   Widget _buildHierarchicalList() {

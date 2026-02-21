@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' as intl;
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
@@ -30,12 +30,14 @@ class VesselInspectionScreen extends StatefulWidget {
   final Equipment equipment;
   final String? assignmentId; // ID задания (версия 3.3.0)
   final String? existingInspectionId; // ID существующей инспекции для редактирования
+  final String? inspectionType; // VISUAL, NDT, QUESTIONNAIRE, EXPERTISE
 
   const VesselInspectionScreen({
     super.key,
     required this.equipment,
     this.assignmentId,
     this.existingInspectionId,
+    this.inspectionType,
   });
 
   @override
@@ -107,6 +109,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     try {
       // Создаем чек-лист в зависимости от типа оборудования
       _checklist = _isCompressor ? CompressorChecklist() : VesselChecklist();
+      _checklist.inspectionType = widget.inspectionType;
 
       // Инициализация документов
       for (var doc in ChecklistConstants.documents) {
@@ -132,6 +135,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     } catch (e) {
       // Если ошибка при инициализации, создаем базовый чек-лист
       _checklist = VesselChecklist();
+      _checklist.inspectionType = widget.inspectionType;
       for (var doc in ChecklistConstants.documents) {
         _checklist.documents[doc['number']!] = false;
       }
@@ -816,7 +820,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     if (confirmed != true || !mounted) return imagePath;
 
     final now = DateTime.now();
-    final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    final dateStr = intl.DateFormat('dd.MM.yyyy HH:mm').format(now);
     Map<String, double>? coords;
     try {
       coords = await _locationService.getCurrentLocation();
@@ -1971,7 +1975,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    'Последнее сохранение черновика: ${DateFormat('dd.MM HH:mm').format(_lastAutoSaveTime!)}',
+                    'Последнее сохранение черновика: ${intl.DateFormat('dd.MM HH:mm').format(_lastAutoSaveTime!)}',
                     style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 12,
@@ -2529,7 +2533,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       child: FormBuilderDateTimePicker(
         name: name,
         inputType: InputType.date,
-        format: DateFormat('yyyy-MM-dd'),
+        format: intl.DateFormat('yyyy-MM-dd'),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(color: Colors.white70),

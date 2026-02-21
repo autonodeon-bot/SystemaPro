@@ -31,15 +31,15 @@ connect_args = {}
 # Для самоподписанных сертификатов всегда используем режим без проверки
 # asyncpg поддерживает либо строку "require" (SSL без проверки), либо SSLContext
 # Используем SSLContext с отключенной проверкой для самоподписанных сертификатов
-print(f"🔐 SSL Mode: {DB_SSLMODE}")
+print(f"[DB] SSL Mode: {DB_SSLMODE}")
 if DB_SSLMODE in ["verify-full", "require", "prefer"]:
     # Для самоподписанных сертификатов используем контекст без проверки
     connect_args["ssl"] = get_ssl_context()
-    print("✅ Using SSL without certificate verification (self-signed cert)")
+    print("[DB] Using SSL without certificate verification (self-signed cert)")
 else:
     # Default: require SSL but don't verify certificate
     connect_args["ssl"] = "require"
-    print("✅ Using SSL require mode")
+    print("[DB] Using SSL require mode")
 
 engine = create_async_engine(
     DATABASE_URL,

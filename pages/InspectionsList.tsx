@@ -22,6 +22,9 @@ interface Inspection {
   created_at: string;
   inspector_id?: string;
   inspector_name?: string;
+  inspection_type?: string;
+  inspection_method?: string;
+  inspection_category?: string;
 }
 
 interface DocumentFile {
@@ -60,10 +63,11 @@ const InspectionsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedInspectionType, setSelectedInspectionType] = useState<string>('all');
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>('');
-  const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop' | 'inspection_type'>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -75,6 +79,18 @@ const InspectionsList = () => {
 
   useEffect(() => {
     const init = async () => {
+      try {
+        const saved = localStorage.getItem('inspections_filters_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.selectedEquipment) setSelectedEquipment(parsed.selectedEquipment);
+          if (parsed.selectedStatus) setSelectedStatus(parsed.selectedStatus);
+          if (parsed.selectedInspectionType) setSelectedInspectionType(parsed.selectedInspectionType);
+          if (parsed.groupBy) setGroupBy(parsed.groupBy);
+        }
+      } catch (_) {
+        // ignore bad local storage payload
+      }
       await loadEnterprises();
       await loadEquipment();
       await loadInspections();
@@ -83,8 +99,24 @@ const InspectionsList = () => {
   }, []);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(
+        'inspections_filters_v1',
+        JSON.stringify({
+          selectedEquipment,
+          selectedStatus,
+          selectedInspectionType,
+          groupBy,
+        }),
+      );
+    } catch (_) {
+      // ignore
+    }
+  }, [selectedEquipment, selectedStatus, selectedInspectionType, groupBy]);
+
+  useEffect(() => {
     loadInspections();
-  }, [selectedEquipment, selectedStatus, selectedEnterpriseId, selectedBranchId, selectedWorkshopId]);
+  }, [selectedEquipment, selectedStatus, selectedInspectionType, selectedEnterpriseId, selectedBranchId, selectedWorkshopId]);
 
   useEffect(() => {
     if (selectedEnterpriseId) {
@@ -165,6 +197,9 @@ const InspectionsList = () => {
         url += `&branch_id=${selectedBranchId}`;
       } else if (selectedEnterpriseId) {
         url += `&enterprise_id=${selectedEnterpriseId}`;
+      }
+      if (selectedInspectionType !== 'all') {
+        url += `&inspection_type=${encodeURIComponent(selectedInspectionType)}`;
       }
 
       const headers: HeadersInit = {};
@@ -430,10 +465,56 @@ const InspectionsList = () => {
     );
   });
 
+  const exportFilteredToCsv = () => {
+    const rows = filteredInspections.map((insp) => ({
+      id: insp.id,
+      equipment: insp.equipment_name ?? '',
+      location: insp.equipment_location ?? '',
+      enterprise: insp.enterprise_name ?? '',
+      branch: insp.branch_name ?? '',
+      workshop: insp.workshop_name ?? '',
+      status: insp.status ?? '',
+      inspection_type: insp.inspection_type ?? '',
+      method: insp.inspection_method ?? '',
+      category: insp.inspection_category ?? '',
+      date_performed: insp.date_performed ?? '',
+      created_at: insp.created_at ?? '',
+      conclusion: (insp.conclusion ?? '').replaceAll('\n', ' ').replaceAll(';', ','),
+    }));
+
+    if (rows.length === 0) {
+      alert('Нет данных для экспорта');
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(';'),
+      ...rows.map((row) =>
+        headers
+          .map((header) => `"${String((row as any)[header] ?? '').replaceAll('"', '""')}"`)
+          .join(';'),
+      ),
+    ].join('\n');
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const now = new Date();
+    const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    link.href = url;
+    link.download = `inspections-${datePart}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const getGroupKey = (insp: Inspection): string => {
     if (groupBy === 'enterprise') return insp.enterprise_name || 'Без предприятия';
     if (groupBy === 'branch') return [insp.enterprise_name, insp.branch_name].filter(Boolean).join(' / ') || 'Без филиала';
     if (groupBy === 'workshop') return [insp.enterprise_name, insp.branch_name, insp.workshop_name].filter(Boolean).join(' / ') || 'Без цеха';
+    if (groupBy === 'inspection_type') return insp.inspection_type || 'UNSPECIFIED';
     return '';
   };
 
@@ -538,6 +619,9 @@ const InspectionsList = () => {
             <h3 className="font-semibold text-white">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
             <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${getStatusColor(insp.status)}`}>
               {getStatusLabel(insp.status)}
+            </span>
+            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-blue-500/40 text-blue-300 bg-blue-500/10">
+              {insp.inspection_type || 'UNSPECIFIED'}
             </span>
           </div>
           {hierarchySubtitle(insp) && (
@@ -961,6 +1045,21 @@ const InspectionsList = () => {
             </select>
           </div>
 
+          {/* Фильтр по типу обследования */}
+          <div className="min-w-[180px]">
+            <select
+              value={selectedInspectionType}
+              onChange={(e) => setSelectedInspectionType(e.target.value)}
+              className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+            >
+              <option value="all">Все типы обследования</option>
+              <option value="VISUAL">VISUAL</option>
+              <option value="NDT">NDT</option>
+              <option value="QUESTIONNAIRE">QUESTIONNAIRE</option>
+              <option value="EXPERTISE">EXPERTISE</option>
+            </select>
+          </div>
+
           {/* Предприятие / Филиал / Цех / Группировка */}
           <div className="w-full flex flex-wrap gap-4 pt-2 border-t border-slate-600/50 mt-2">
             <div className="min-w-[180px]">
@@ -1022,18 +1121,27 @@ const InspectionsList = () => {
               <label className="block text-xs text-slate-400 mb-1">Группировка</label>
               <select
                 value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as 'none' | 'enterprise' | 'branch' | 'workshop')}
+                onChange={(e) => setGroupBy(e.target.value as 'none' | 'enterprise' | 'branch' | 'workshop' | 'inspection_type')}
                 className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
               >
                 <option value="none">Без группировки</option>
                 <option value="enterprise">По предприятию</option>
                 <option value="branch">По филиалу</option>
                 <option value="workshop">По цеху</option>
+                <option value="inspection_type">По типу обследования</option>
               </select>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:ml-auto">
+            <button
+              onClick={exportFilteredToCsv}
+              className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent rounded-lg text-sm font-semibold"
+              title="Экспорт текущей выборки в CSV"
+            >
+              <Download size={16} />
+              <span className="hidden sm:inline">Экспорт CSV</span>
+            </button>
             <select
               value={cleanupInspectionsDays}
               onChange={(e) => setCleanupInspectionsDays(parseInt(e.target.value, 10))}

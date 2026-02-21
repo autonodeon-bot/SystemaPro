@@ -278,6 +278,9 @@ class Inspection(Base):
     inspector_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     date_performed = Column(DateTime(timezone=True))
     performed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    inspection_type = Column(String(50), nullable=True, index=True)  # QUESTIONNAIRE, NDT, VISUAL, EXPERTISE
+    inspection_method = Column(String(50), nullable=True, index=True)  # УЗК, ВИК, ПВК и т.д.
+    inspection_category = Column(String(100), nullable=True, index=True)  # Произвольная категория группировки
     status = Column(String(50), default="DRAFT")  # DRAFT, SIGNED, SUBMITTED, COMPLETED
     conclusion = Column(Text)
     data = Column(JSONB)  # Данные обследования в формате JSON

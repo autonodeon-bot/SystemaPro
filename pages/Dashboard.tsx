@@ -14,7 +14,7 @@ const data = [
 ];
 
 const StatCard = ({ title, value, sub, icon: Icon, color }: { title: string, value: string, sub: string, icon: any, color: string }) => (
-  <div className="bg-secondary rounded-xl p-6 border border-slate-700 shadow-lg relative overflow-hidden group">
+  <div className="bg-secondary/80 rounded-2xl p-6 border border-slate-700/70 shadow-soft relative overflow-hidden group">
     <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity ${color}`}>
         <Icon size={64} />
     </div>
@@ -93,7 +93,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+      <div className="bg-secondary/60 rounded-2xl p-4 border border-slate-700/70 shadow-soft">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="text-accent" size={20} />
           <h3 className="text-white font-semibold">Что нового</h3>
@@ -107,7 +107,7 @@ const Dashboard = () => {
       </div>
       {/* Предупреждения о поверках */}
       {(verificationAlerts.expired > 0 || verificationAlerts.warning7 > 0 || verificationAlerts.warning30 > 0) && (
-        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+        <div className="bg-secondary/60 rounded-2xl p-4 border border-slate-700/70 shadow-soft">
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle2 className="text-blue-400" size={20} />
             <h3 className="text-white font-semibold">Предупреждения о поверках оборудования</h3>
@@ -152,7 +152,7 @@ const Dashboard = () => {
 
       {/* Панель статистики по периодам */}
       {stats && (
-        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+        <div className="bg-secondary/60 rounded-2xl p-4 border border-slate-700/70 shadow-soft">
           <div className="flex items-center gap-2 mb-3">
             <BarChart2 className="text-accent" size={20} />
             <h3 className="text-white font-semibold">Статистика за {stats.period_days} дней</h3>
@@ -192,7 +192,7 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Main Chart */}
-        <div className="lg:col-span-2 bg-secondary rounded-xl p-4 sm:p-6 border border-slate-700 overflow-hidden">
+        <div className="lg:col-span-2 bg-secondary/80 rounded-2xl p-4 sm:p-6 border border-slate-700/70 shadow-soft overflow-hidden">
           <h3 className="text-base sm:text-lg font-bold text-white mb-4 sm:mb-6">Динамика выявления дефектов</h3>
           <div className="h-64 sm:h-80 w-full overflow-x-auto">
             <ResponsiveContainer width="100%" height="100%">
@@ -211,7 +211,7 @@ const Dashboard = () => {
         </div>
 
         {/* Task List */}
-        <div className="bg-secondary rounded-xl p-4 sm:p-6 border border-slate-700 flex flex-col">
+        <div className="bg-secondary/80 rounded-2xl p-4 sm:p-6 border border-slate-700/70 shadow-soft flex flex-col">
            <h3 className="text-base sm:text-lg font-bold text-white mb-4">Ближайшие инспекции</h3>
            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
              {INSPECTION_TASKS.map(task => (

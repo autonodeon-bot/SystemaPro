@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' as intl;
 import '../services/location_service.dart';
 import '../services/photo_annotation_service.dart';
 
@@ -124,7 +124,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
     if (confirmed != true || !mounted) return imagePath;
 
     final now = DateTime.now();
-    final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    final dateStr = intl.DateFormat('dd.MM.yyyy HH:mm').format(now);
     Map<String, double>? coords;
     try {
       coords = await _locationService.getCurrentLocation();
@@ -205,7 +205,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: selectedType,
+                  value: selectedType,
                   decoration: const InputDecoration(
                     labelText: 'Тип дефекта *',
                     labelStyle: TextStyle(color: Colors.white70),
@@ -390,7 +390,8 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
         ],
       ),
       backgroundColor: const Color(0xFF0f172a),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           // Панель инструментов
           Container(
@@ -499,7 +500,10 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
           // Список дефектов
           if (_defects.isNotEmpty)
             Container(
-              height: 150,
+              constraints: BoxConstraints(
+                minHeight: 110,
+                maxHeight: MediaQuery.of(context).size.height * 0.24,
+              ),
               color: const Color(0xFF1e293b),
               child: Column(
                 children: [
@@ -598,6 +602,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
               ),
             ),
         ],
+      ),
       ),
     );
   }

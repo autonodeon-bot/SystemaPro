@@ -3,6 +3,7 @@
 class VesselChecklist {
   // Основная информация
   String? inspectionDate;
+  String? inspectionType; // VISUAL, NDT, QUESTIONNAIRE, EXPERTISE
   String? executors; // Исполнители
   String? organization; // Организация (НГДУ, цех, месторождение)
   
@@ -135,6 +136,7 @@ class VesselChecklist {
     return {
       'equipment_type': 'VESSEL', // Тип оборудования для правильного определения при синхронизации
       'inspection_date': inspectionDate,
+      'inspection_type': inspectionType,
       'executors': executors,
       'organization': organization,
       'documents': documents,
@@ -207,6 +209,7 @@ class VesselChecklist {
     final checklist = VesselChecklist();
 
     checklist.inspectionDate = json['inspection_date'] as String?;
+    checklist.inspectionType = json['inspection_type'] as String?;
     checklist.executors = json['executors'] as String?;
     checklist.organization = json['organization'] as String?;
 

@@ -31,9 +31,9 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-primary p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4">
       <div className="w-full max-w-md">
-        <div className="bg-secondary/50 rounded-lg shadow-xl p-8 border border-slate-700">
+        <div className="bg-secondary/60 rounded-2xl shadow-soft p-8 border border-slate-700/70 backdrop-blur-sm">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-accent/20 rounded-full mb-4">
               <LogIn className="w-8 h-8 text-accent" />

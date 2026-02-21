@@ -25,6 +25,15 @@ export default {
         danger: '#ef4444',
         success: '#22c55e',
         warning: '#f59e0b',
+        surface: '#334155',
+        border: '#475569',
+      },
+      borderRadius: {
+        xl: '0.75rem',
+        '2xl': '1rem',
+      },
+      boxShadow: {
+        soft: '0 8px 24px rgba(2, 6, 23, 0.24)',
       },
     },
   },
