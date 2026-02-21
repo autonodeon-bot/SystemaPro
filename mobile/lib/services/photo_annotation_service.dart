@@ -8,6 +8,76 @@ import 'package:path/path.dart' as path;
 
 /// Сервис для работы с аннотациями на фотографиях
 class PhotoAnnotationService {
+  /// Добавить дату и GPS-координаты на фото (оверлей внизу)
+  Future<String?> annotatePhotoWithDateTimeAndGps({
+    required String imagePath,
+    required String dateTimeText,
+    String? gpsText,
+  }) async {
+    try {
+      final File imageFile = File(imagePath);
+      if (!await imageFile.exists()) return null;
+
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+      final ui.Codec codec = await ui.instantiateImageCodec(imageBytes);
+      final ui.FrameInfo frameInfo = await codec.getNextFrame();
+      final ui.Image image = frameInfo.image;
+
+      final ui.PictureRecorder recorder = ui.PictureRecorder();
+      final Canvas canvas = Canvas(recorder);
+      final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+
+      canvas.drawImage(image, Offset.zero, Paint());
+
+      final double fontSize = (imageSize.width * 0.04).clamp(14.0, 28.0);
+      const double padding = 12;
+      const double lineHeight = 1.3;
+
+      final lines = <String>[dateTimeText];
+      if (gpsText != null && gpsText.isNotEmpty) {
+        lines.add(gpsText);
+      }
+
+      double y = imageSize.height - padding;
+      for (var i = lines.length - 1; i >= 0; i--) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: lines[i],
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w600,
+              shadows: [
+                Shadow(color: Colors.black, blurRadius: 2, offset: const Offset(1, 1)),
+                Shadow(color: Colors.black54, blurRadius: 4, offset: const Offset(0, 1)),
+              ],
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        y -= textPainter.height;
+        final rect = Rect.fromLTWH(padding, y - 2, textPainter.width + 8, textPainter.height + 4);
+        canvas.drawRect(rect, Paint()..color = Colors.black54);
+        textPainter.paint(canvas, Offset(padding + 4, y));
+        y -= 4;
+      }
+
+      final ui.Picture picture = recorder.endRecording();
+      final ui.Image annotatedImage = await picture.toImage(image.width, image.height);
+      final ByteData? byteData = await annotatedImage.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return null;
+
+      final Directory appDir = await getApplicationDocumentsDirectory();
+      final String fileName = 'with_meta_${path.basename(imagePath)}';
+      final String newPath = path.join(appDir.path, fileName);
+      await File(newPath).writeAsBytes(byteData.buffer.asUint8List());
+      return newPath;
+    } catch (e) {
+      print('Ошибка наложения даты/GPS на фото: $e');
+      return null;
+    }
+  }
   /// Добавить аннотацию (текст, стрелки) на фото
   Future<String?> annotatePhoto({
     required String imagePath,

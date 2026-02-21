@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import '../services/location_service.dart';
+import '../services/photo_annotation_service.dart';
 
 class WeldDefect {
   Offset position;
@@ -36,6 +39,8 @@ class WeldDefectAnnotationScreen extends StatefulWidget {
 
 class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen> {
   final ImagePicker _imagePicker = ImagePicker();
+  final LocationService _locationService = LocationService();
+  final PhotoAnnotationService _photoAnnotationService = PhotoAnnotationService();
   File? _imageFile;
   final List<WeldDefect> _defects = [];
 
@@ -62,9 +67,10 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
       source: ImageSource.camera,
       imageQuality: 90,
     );
-    if (image != null) {
+    if (image != null && mounted) {
+      final path = await _maybeAddDateTimeGpsToPhoto(image.path);
       setState(() {
-        _imageFile = File(image.path);
+        _imageFile = File(path);
         _defects.clear();
       });
     }
@@ -75,12 +81,64 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
       source: ImageSource.gallery,
       imageQuality: 90,
     );
-    if (image != null) {
+    if (image != null && mounted) {
+      final path = await _maybeAddDateTimeGpsToPhoto(image.path);
       setState(() {
-        _imageFile = File(image.path);
+        _imageFile = File(path);
         _defects.clear();
       });
     }
+  }
+
+  Future<String> _maybeAddDateTimeGpsToPhoto(String imagePath) async {
+    bool addMeta = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setInner) => AlertDialog(
+          backgroundColor: const Color(0xFF1e293b),
+          title: const Text('Добавить на фото?', style: TextStyle(color: Colors.white)),
+          content: CheckboxListTile(
+            value: addMeta,
+            onChanged: (v) => setInner(() => addMeta = v ?? true),
+            title: const Text(
+              'Добавить дату и GPS-координаты',
+              style: TextStyle(color: Colors.white, fontSize: 15),
+            ),
+            activeColor: const Color(0xFF3b82f6),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, addMeta),
+              child: const Text('ОК', style: TextStyle(color: Color(0xFF3b82f6))),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return imagePath;
+
+    final now = DateTime.now();
+    final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    Map<String, double>? coords;
+    try {
+      coords = await _locationService.getCurrentLocation();
+    } catch (_) {}
+    final gpsStr = coords != null
+        ? '${coords['latitude']!.toStringAsFixed(6)}, ${coords['longitude']!.toStringAsFixed(6)}'
+        : null;
+
+    final result = await _photoAnnotationService.annotatePhotoWithDateTimeAndGps(
+      imagePath: imagePath,
+      dateTimeText: dateStr,
+      gpsText: gpsStr,
+    );
+    return result ?? imagePath;
   }
 
   void _handleImageTap(TapDownDetails details) {

@@ -2504,7 +2504,13 @@ class WordGenerator:
                         if scheme_with_welds:
                             scheme_to_show = scheme_with_welds
                 caption = "Схема контроля"
-                if (isinstance(thickness_for_scheme, list) and thickness_for_scheme) or (isinstance(welds_for_scheme, list) and any(isinstance(w, dict) and (w.get("x_percent") or w.get("y_percent")) for w in welds_for_scheme):
+                has_weld_coords = False
+                if isinstance(welds_for_scheme, list):
+                    has_weld_coords = any(
+                        isinstance(w, dict) and (w.get("x_percent") is not None or w.get("y_percent") is not None)
+                        for w in welds_for_scheme
+                    )
+                if (isinstance(thickness_for_scheme, list) and thickness_for_scheme) or has_weld_coords:
                     caption = "Схема контроля с точками замеров"
                 add_picture_if_exists(caption + ":", scheme_to_show)
             app_no += 1

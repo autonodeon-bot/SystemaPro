@@ -781,6 +781,58 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
+  /// Показывает диалог с чекбоксом «Добавить дату и GPS на фото», при подтверждении накладывает оверлей
+  Future<String> _maybeAddDateTimeGpsToPhoto(String imagePath) async {
+    bool addMeta = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setInner) => AlertDialog(
+          backgroundColor: const Color(0xFF1e293b),
+          title: const Text('Добавить на фото?', style: TextStyle(color: Colors.white)),
+          content: CheckboxListTile(
+            value: addMeta,
+            onChanged: (v) => setInner(() => addMeta = v ?? true),
+            title: const Text(
+              'Добавить дату и GPS-координаты',
+              style: TextStyle(color: Colors.white, fontSize: 15),
+            ),
+            activeColor: const Color(0xFF3b82f6),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, addMeta),
+              child: const Text('ОК', style: TextStyle(color: Color(0xFF3b82f6))),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return imagePath;
+
+    final now = DateTime.now();
+    final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    Map<String, double>? coords;
+    try {
+      coords = await _locationService.getCurrentLocation();
+    } catch (_) {}
+    final gpsStr = coords != null
+        ? '${coords['latitude']!.toStringAsFixed(6)}, ${coords['longitude']!.toStringAsFixed(6)}'
+        : null;
+
+    final result = await _photoAnnotationService.annotatePhotoWithDateTimeAndGps(
+      imagePath: imagePath,
+      dateTimeText: dateStr,
+      gpsText: gpsStr,
+    );
+    return result ?? imagePath;
+  }
+
   Future<void> _pickImage(ImageSource source, bool isFactoryPlate) async {
     try {
       if (source == ImageSource.camera) {
@@ -816,27 +868,31 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
       final XFile? image = await _imagePicker.pickImage(source: source);
       if (image != null) {
-        // Показываем диалог для аннотации фото
+        String finalImagePath = await _maybeAddDateTimeGpsToPhoto(image.path);
+
+        // Показываем диалог для текстовой аннотации
         final shouldAnnotate = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Добавить аннотацию?'),
-            content: const Text('Хотите добавить текст или пометки на фото?'),
+            backgroundColor: const Color(0xFF1e293b),
+            title: const Text('Добавить текст на фото?', style: TextStyle(color: Colors.white)),
+            content: const Text(
+              'Хотите добавить текст или пометки на фото?',
+              style: TextStyle(color: Colors.white70),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Пропустить'),
+                child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Добавить'),
+                child: const Text('Добавить', style: TextStyle(color: Color(0xFF3b82f6))),
               ),
             ],
           ),
         );
 
-        String finalImagePath = image.path;
-        
         if (shouldAnnotate == true) {
           // Показываем диалог для ввода текста аннотации
           final annotationText = await showDialog<String>(
@@ -868,9 +924,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           );
 
           if (annotationText != null && annotationText.isNotEmpty) {
-            // Добавляем аннотацию к фото
+            // Добавляем текстовую аннотацию к фото
             final annotatedPath = await _photoAnnotationService.annotatePhoto(
-              imagePath: image.path,
+              imagePath: finalImagePath,
               annotationText: annotationText,
             );
             if (annotatedPath != null) {
@@ -3039,9 +3095,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       final picked =
           await _imagePicker.pickImage(source: source, imageQuality: 80);
       if (picked == null) return null;
+      final withMeta = await _maybeAddDateTimeGpsToPhoto(picked.path);
       final persistedPath = await _persistPickedFile(
-        sourcePath: picked.path,
-        fileName: Path.basename(picked.path),
+        sourcePath: withMeta,
+        fileName: Path.basename(withMeta),
         documentNumber: 'vik_defect',
       );
       return persistedPath;
