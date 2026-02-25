@@ -54,11 +54,19 @@ interface PreviewData {
   }>;
 }
 
+interface ReportValidationResult {
+  is_complete: boolean;
+  missing_fields: string[];
+  warnings: string[];
+  can_generate?: boolean;
+}
+
 const ReportViewer: React.FC = () => {
   const { inspectionId } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<PreviewData | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
+  const [validation, setValidation] = useState<ReportValidationResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   const buildDocUrl = (docNumber: string) => {
@@ -68,6 +76,12 @@ const ReportViewer: React.FC = () => {
   };
 
   const isImageDoc = (mime?: string) => (mime || '').toLowerCase().startsWith('image/');
+  const formatDateRu = (value?: string | null) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat('ru-RU').format(date);
+  };
   const buildNdtPhotoUrl = (methodId?: string, path?: string) => {
     if (!methodId || !path) return null;
     const fileName = path.split('/').pop();
@@ -83,9 +97,10 @@ const ReportViewer: React.FC = () => {
       if (token) headers['Authorization'] = `Bearer ${token}`;
       try {
         setLoading(true);
-        const [previewRes, reportRes] = await Promise.all([
+        const [previewRes, reportRes, validationRes] = await Promise.all([
           fetch(`${API_BASE}/api/inspections/${inspectionId}/preview`, { headers }),
           fetch(`${API_BASE}/api/reports?inspection_id=${inspectionId}`, { headers }),
+          fetch(`${API_BASE}/api/reports/validate/${inspectionId}`, { headers }),
         ]);
         if (previewRes.ok) {
           const preview = await previewRes.json();
@@ -95,6 +110,12 @@ const ReportViewer: React.FC = () => {
           const reportData = await reportRes.json();
           const item = (reportData.items || [])[0];
           if (item?.id) setReportId(item.id);
+        }
+        if (validationRes.ok) {
+          const validationData = await validationRes.json();
+          setValidation(validationData);
+        } else {
+          setValidation(null);
         }
       } finally {
         setLoading(false);
@@ -160,8 +181,8 @@ const ReportViewer: React.FC = () => {
         )}
       </div>
 
-      <div className="bg-slate-900 p-4 rounded-lg">
-        <h3 className="text-lg font-bold text-white mb-2">Оборудование</h3>
+      <div className="sp-card">
+        <h3 className="sp-section-title text-lg mb-2">Оборудование</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
             <span className="text-slate-400">Название:</span>
@@ -182,9 +203,49 @@ const ReportViewer: React.FC = () => {
         </div>
       </div>
 
+      {validation && (
+        <div className="sp-card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-white">Проверка полноты</h3>
+            <span
+              className={`px-2 py-1 rounded text-xs font-semibold ${
+                validation.is_complete
+                  ? 'bg-green-500/20 text-green-300'
+                  : 'bg-yellow-500/20 text-yellow-300'
+              }`}
+            >
+              {validation.is_complete ? 'Готово к генерации' : 'Требуется заполнение'}
+            </span>
+          </div>
+          {validation.missing_fields.length > 0 && (
+            <div className="mb-3">
+              <p className="text-red-300 text-sm mb-1">Обязательные поля:</p>
+              <ul className="text-sm text-red-200 space-y-1">
+                {validation.missing_fields.map((item, idx) => (
+                  <li key={`missing-${idx}`}>• {item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {validation.warnings.length > 0 && (
+            <div>
+              <p className="text-amber-300 text-sm mb-1">Предупреждения:</p>
+              <ul className="text-sm text-amber-200 space-y-1">
+                {validation.warnings.map((item, idx) => (
+                  <li key={`warning-${idx}`}>• {item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {validation.missing_fields.length === 0 && validation.warnings.length === 0 && (
+            <p className="text-sm text-green-300">Критичных замечаний не найдено.</p>
+          )}
+        </div>
+      )}
+
       {data.opo && (
-        <div className="bg-slate-900 p-4 rounded-lg">
-          <h3 className="text-lg font-bold text-white mb-2">ОПО</h3>
+        <div className="sp-card">
+          <h3 className="sp-section-title text-lg mb-2">ОПО</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             {data.opo.name && (
               <div>
@@ -227,8 +288,8 @@ const ReportViewer: React.FC = () => {
       )}
 
       {documentKeys.length > 0 && (
-        <div className="bg-slate-900 p-4 rounded-lg">
-          <h3 className="text-lg font-bold text-white mb-2">Перечень документов</h3>
+        <div className="sp-card">
+          <h3 className="sp-section-title text-lg mb-2">Перечень документов</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-slate-200 border border-slate-700">
               <thead className="bg-slate-800 text-slate-300">
@@ -273,12 +334,12 @@ const ReportViewer: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-slate-900 p-4 rounded-lg">
-        <h3 className="text-lg font-bold text-white mb-2">Методы НК</h3>
+      <div className="sp-card">
+        <h3 className="sp-section-title text-lg mb-2">Методы НК</h3>
         {data.ndt_methods && data.ndt_methods.length > 0 ? (
           <div className="space-y-3">
             {data.ndt_methods.map((m, idx) => (
-              <div key={idx} className="bg-slate-800 p-3 rounded border border-slate-700">
+              <div key={idx} className="sp-card-soft p-3">
                 <div className="text-white font-semibold">{m.method_name}</div>
                 {m.inspector_name && (
                   <div className="text-sm text-slate-300">Специалист: {m.inspector_name}</div>
@@ -321,8 +382,8 @@ const ReportViewer: React.FC = () => {
       </div>
 
       {(schemeDoc || (data.inspection.data?.thickness_measurements || []).length > 0) && (
-        <div className="bg-slate-900 p-4 rounded-lg">
-          <h3 className="text-lg font-bold text-white mb-2">Схема контроля и точки замера</h3>
+        <div className="sp-card">
+          <h3 className="sp-section-title text-lg mb-2">Схема контроля и точки замера</h3>
           {schemeDoc ? (
             <div className="mb-3">
               {buildDocUrl(String(schemeDoc.document_number)) ? (
@@ -372,8 +433,8 @@ const ReportViewer: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-slate-900 p-4 rounded-lg">
-        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+      <div className="sp-card">
+        <h3 className="sp-section-title text-lg mb-2 flex items-center gap-2">
           <FileText size={18} />
           Приложения ({docFiles.length})
         </h3>
@@ -385,7 +446,7 @@ const ReportViewer: React.FC = () => {
               const docUrl = buildDocUrl(String(doc.document_number));
               if (isImageDoc(doc.mime_type)) {
                 return (
-                  <div key={`${doc.document_number}-${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700">
+                  <div key={`${doc.document_number}-${idx}`} className="sp-card-soft p-3">
                     <p className="text-xs text-slate-400 mb-2">{doc.file_name || doc.document_number}</p>
                     {docUrl ? (
                       <a href={docUrl} target="_blank" rel="noreferrer">
@@ -402,7 +463,7 @@ const ReportViewer: React.FC = () => {
                 );
               }
               return (
-                <div key={`${doc.document_number}-${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700 flex items-center gap-2">
+                <div key={`${doc.document_number}-${idx}`} className="sp-card-soft p-3 flex items-center gap-2">
                   <ImageIcon size={16} className="text-slate-400" />
                   <a
                     href={docUrl || '#'}

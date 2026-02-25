@@ -110,6 +110,15 @@ interface GroupedItem {
   reports: Report[];
 }
 
+interface ReportValidationResult {
+  is_complete: boolean;
+  missing_fields: string[];
+  warnings: string[];
+  can_generate?: boolean;
+}
+
+const REPORT_FILTERS_STORAGE_KEY = 'report_generation_filters_v1';
+
 const ReportGeneration = () => {
   const navigate = useNavigate();
   const [inspections, setInspections] = useState<Inspection[]>([]);
@@ -121,8 +130,21 @@ const ReportGeneration = () => {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewType, setPreviewType] = useState<string>('');
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [validationResult, setValidationResult] = useState<ReportValidationResult | null>(null);
+  const [validatingPreview, setValidatingPreview] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [showArchived, setShowArchived] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterReportType, setFilterReportType] = useState<string>('all');
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
+
+  const formatDateRu = (value?: string | null) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat('ru-RU').format(date);
+  };
 
   useEffect(() => {
     loadData();
@@ -172,11 +194,48 @@ const ReportGeneration = () => {
     }
   };
 
-  const groupItems = (): GroupedItem[] => {
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REPORT_FILTERS_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        searchTerm?: string;
+        filterStatus?: string;
+        filterReportType?: string;
+        filterDateFrom?: string;
+        filterDateTo?: string;
+        showArchived?: boolean;
+      };
+      if (typeof saved.searchTerm === 'string') setSearchTerm(saved.searchTerm);
+      if (typeof saved.filterStatus === 'string') setFilterStatus(saved.filterStatus);
+      if (typeof saved.filterReportType === 'string') setFilterReportType(saved.filterReportType);
+      if (typeof saved.filterDateFrom === 'string') setFilterDateFrom(saved.filterDateFrom);
+      if (typeof saved.filterDateTo === 'string') setFilterDateTo(saved.filterDateTo);
+      if (typeof saved.showArchived === 'boolean') setShowArchived(saved.showArchived);
+    } catch {
+      // ignore malformed storage
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      REPORT_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        searchTerm,
+        filterStatus,
+        filterReportType,
+        filterDateFrom,
+        filterDateTo,
+        showArchived,
+      }),
+    );
+  }, [searchTerm, filterStatus, filterReportType, filterDateFrom, filterDateTo, showArchived]);
+
+  const groupItems = (inspectionsSource: Inspection[], reportsSource: Report[]): GroupedItem[] => {
     const groupsMap = new Map<string, GroupedItem>();
     
     // Группируем инспекции
-    inspections.forEach((inspection) => {
+    inspectionsSource.forEach((inspection) => {
       const key = `${inspection.enterprise_id || 'no-enterprise'}_${inspection.branch_id || 'no-branch'}_${inspection.workshop_id || 'no-workshop'}`;
       if (!groupsMap.has(key)) {
         groupsMap.set(key, {
@@ -192,7 +251,7 @@ const ReportGeneration = () => {
     });
     
     // Группируем отчеты
-    reports.forEach((report) => {
+    reportsSource.forEach((report) => {
       const key = `${report.enterprise_id || 'no-enterprise'}_${report.branch_id || 'no-branch'}_${report.workshop_id || 'no-workshop'}`;
       if (!groupsMap.has(key)) {
         groupsMap.set(key, {
@@ -223,21 +282,31 @@ const ReportGeneration = () => {
 
   const loadPreview = async (inspectionId: string, reportType: string) => {
     setLoadingPreview(true);
+    setValidationResult(null);
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       const token = localStorage.getItem('token');
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      
-      const response = await fetch(`${API_BASE}/api/inspections/${inspectionId}/preview`, { headers });
-      if (response.ok) {
-        const data = await response.json();
+
+      const [previewResponse, validationResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/inspections/${inspectionId}/preview`, { headers }),
+        fetch(`${API_BASE}/api/reports/validate/${inspectionId}`, { headers }),
+      ]);
+
+      if (previewResponse.ok) {
+        const data = await previewResponse.json();
         setPreviewData(data);
         setPreviewType(reportType);
       } else {
-        const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-        alert(`Ошибка загрузки данных для предпросмотра: ${errorData.detail || response.statusText}`);
+        const errorData = await previewResponse.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+        alert(`Ошибка загрузки данных для предпросмотра: ${errorData.detail || previewResponse.statusText}`);
+      }
+
+      if (validationResponse.ok) {
+        const validationData = await validationResponse.json();
+        setValidationResult(validationData);
       }
     } catch (error) {
       console.error('Ошибка загрузки предпросмотра:', error);
@@ -265,6 +334,24 @@ const ReportGeneration = () => {
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Нет связи с сервером';
       return { is_complete: false, missing_fields: [msg], warnings: [] };
+    }
+  };
+
+  const refreshPreviewValidation = async (inspectionId: string) => {
+    try {
+      setValidatingPreview(true);
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/api/reports/validate/${inspectionId}`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setValidationResult(data);
+      }
+    } finally {
+      setValidatingPreview(false);
     }
   };
 
@@ -483,6 +570,37 @@ const ReportGeneration = () => {
     }
   };
 
+  const handlePreviewReport = async (reportId: string, format: 'pdf' | 'docx' = 'pdf') => {
+    try {
+      const headers: HeadersInit = {};
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const url = `${API_BASE}/api/reports/${reportId}/download${format === 'docx' ? '?format=docx' : ''}`;
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        alert('Не удалось открыть предпросмотр отчета');
+        return;
+      }
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      console.error('Ошибка предпросмотра отчета:', error);
+      alert('Ошибка открытия предпросмотра отчета');
+    }
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('all');
+    setFilterReportType('all');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
+
   const getEquipmentName = (equipmentId: string) => {
     const eq = equipment.find(e => e.id === equipmentId);
     return eq?.name || 'Неизвестное оборудование';
@@ -499,11 +617,6 @@ const ReportGeneration = () => {
     if (group.workshop_name) parts.push(group.workshop_name);
     return parts.length > 0 ? parts.join(' → ') : 'Без привязки';
   };
-
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterReportType, setFilterReportType] = useState<string>('all');
-  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
-  const [filterDateTo, setFilterDateTo] = useState<string>('');
 
   const filteredInspections = inspections.filter(ins => {
     const eqName = getEquipmentName(ins.equipment_id);
@@ -528,7 +641,12 @@ const ReportGeneration = () => {
     return true;
   });
 
-  const groupedItems = groupItems();
+  const filteredReports = reports.filter((rep) => {
+    if (filterReportType === 'all') return true;
+    return rep.report_type === filterReportType;
+  });
+
+  const groupedItems = groupItems(filteredInspections, filteredReports);
 
   const previewDocs = previewData?.document_files ?? [];
   const questionnaireId = previewData?.questionnaire?.id;
@@ -570,6 +688,17 @@ const ReportGeneration = () => {
           {/* Расширенные фильтры */}
           <div className="flex flex-wrap gap-2">
             <select
+              value={filterReportType}
+              onChange={(e) => setFilterReportType(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            >
+              <option value="all">Все типы отчетов</option>
+              <option value="DIAGNOSTICS">Диагностические</option>
+              <option value="TECHNICAL_REPORT">Технические</option>
+              <option value="EXPERTISE">Экспертиза ПБ</option>
+            </select>
+
+            <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
@@ -597,6 +726,13 @@ const ReportGeneration = () => {
               placeholder="Дата до"
               className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
             />
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white text-sm"
+            >
+              Сбросить фильтры
+            </button>
           </div>
           
           <div className="relative w-full md:w-64">
@@ -619,7 +755,7 @@ const ReportGeneration = () => {
           const totalItems = group.inspections.length + group.reports.length;
           
           return (
-            <div key={group.key} className="bg-slate-800 rounded-xl border border-slate-700">
+            <div key={group.key} className="sp-card-soft rounded-xl">
               {/* Заголовок группы */}
               <button
                 onClick={() => toggleGroup(group.key)}
@@ -655,14 +791,14 @@ const ReportGeneration = () => {
                           return (
                             <div
                               key={inspection.id}
-                              className="bg-slate-900 p-4 rounded-lg border border-slate-700"
+                              className="sp-card"
                             >
                               <div className="flex justify-between items-start mb-4">
                                 <div className="flex-1">
                                   <h3 className="text-lg font-bold text-white mb-1">{eqName}</h3>
                                   <p className="text-sm text-slate-400">
                                     {inspection.date_performed 
-                                      ? new Date(inspection.date_performed).toLocaleDateString('ru-RU')
+                                      ? formatDateRu(inspection.date_performed)
                                       : 'Дата не указана'}
                                     {' • '}
                                     Статус: {inspection.status}
@@ -743,7 +879,7 @@ const ReportGeneration = () => {
                                 </button>
                                 {existingReport && (
                                   <button
-                                    onClick={() => handleDownloadReport(existingReport.id, existingReport.file_path)}
+                                    onClick={() => handleDownloadReport(existingReport.id, 'pdf')}
                                     className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20"
                                   >
                                     <Download size={14} className="md:w-4 md:h-4" />
@@ -778,12 +914,22 @@ const ReportGeneration = () => {
                                 {report.report_type === 'TECHNICAL_REPORT' ? 'Технический отчет' : 
                                  report.report_type === 'EXPERTISE' ? 'Экспертиза ПБ' : 'Отчет'}
                                 {' • '}
-                                {new Date(report.created_at).toLocaleDateString('ru-RU')}
+                                {formatDateRu(report.created_at)}
                                 {' • '}
                                 Статус: {report.status}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
+                              {report.file_path && (
+                                <button
+                                  onClick={() => handlePreviewReport(report.id, 'pdf')}
+                                  className="bg-slate-500/10 text-slate-200 border border-slate-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-500/20"
+                                  title="Открыть PDF в браузере"
+                                >
+                                  <Eye size={16} />
+                                  Просмотр
+                                </button>
+                              )}
                               {report.file_path && (
                                 <button
                                   onClick={() => handleDownloadReport(report.id, 'pdf')}
@@ -792,6 +938,16 @@ const ReportGeneration = () => {
                                 >
                                   <FileText size={16} />
                                   PDF
+                                </button>
+                              )}
+                              {report.word_file_path && (
+                                <button
+                                  onClick={() => handlePreviewReport(report.id, 'docx')}
+                                  className="bg-slate-500/10 text-slate-200 border border-slate-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-500/20"
+                                  title="Открыть DOCX в браузере"
+                                >
+                                  <Eye size={16} />
+                                  DOCX
                                 </button>
                               )}
                               {report.word_file_path && (
@@ -843,7 +999,7 @@ const ReportGeneration = () => {
       {/* Модальное окно предпросмотра */}
       {previewData && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-2 md:p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="sp-card-soft rounded-xl w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-700">
               <h2 className="text-xl font-bold text-white">
                 Предпросмотр {previewType === 'TECHNICAL_REPORT' ? 'технического отчета' : 'экспертизы ПБ'}
@@ -859,7 +1015,7 @@ const ReportGeneration = () => {
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6">
               {/* Оборудование */}
               <div className="bg-slate-900 p-3 md:p-4 rounded-lg">
-                <h3 className="text-base md:text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <h3 className="sp-section-title text-base md:text-lg mb-3 flex items-center gap-2">
                   <CheckCircle size={18} className="md:w-5 md:h-5 text-green-400" />
                   Оборудование
                 </h3>
@@ -883,15 +1039,15 @@ const ReportGeneration = () => {
                   {previewData.equipment.commissioning_date && (
                     <div>
                       <span className="text-slate-400">Дата ввода в эксплуатацию:</span>
-                      <p className="text-white">{new Date(previewData.equipment.commissioning_date).toLocaleDateString('ru-RU')}</p>
+                        <p className="text-white">{formatDateRu(previewData.equipment.commissioning_date)}</p>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Инспекция */}
-              <div className="bg-slate-900 p-4 rounded-lg">
-                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+              <div className="sp-card">
+                <h3 className="sp-section-title text-lg mb-3 flex items-center gap-2">
                   <CheckCircle size={20} className="text-green-400" />
                   Данные диагностики
                 </h3>
@@ -899,7 +1055,7 @@ const ReportGeneration = () => {
                   {previewData.inspection.date_performed && (
                     <div>
                       <span className="text-slate-400">Дата проведения:</span>
-                      <p className="text-white">{new Date(previewData.inspection.date_performed).toLocaleDateString('ru-RU')}</p>
+                      <p className="text-white">{formatDateRu(previewData.inspection.date_performed)}</p>
                     </div>
                   )}
                   <div>
@@ -915,10 +1071,52 @@ const ReportGeneration = () => {
                 </div>
               </div>
 
+              {/* Проверка полноты перед генерацией */}
+              {validationResult && (
+                <div className="sp-card">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-white">Проверка полноты</h3>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${
+                        validationResult.is_complete
+                          ? 'bg-green-500/20 text-green-300'
+                          : 'bg-yellow-500/20 text-yellow-300'
+                      }`}
+                    >
+                      {validationResult.is_complete ? 'Готово к генерации' : 'Требуется заполнение'}
+                    </span>
+                  </div>
+                  {validationResult.missing_fields.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-red-300 text-sm mb-1">Обязательные поля:</p>
+                      <ul className="text-sm text-red-200 space-y-1">
+                        {validationResult.missing_fields.map((item, idx) => (
+                          <li key={`missing-${idx}`}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {validationResult.warnings.length > 0 && (
+                    <div>
+                      <p className="text-amber-300 text-sm mb-1">Предупреждения:</p>
+                      <ul className="text-sm text-amber-200 space-y-1">
+                        {validationResult.warnings.map((item, idx) => (
+                          <li key={`warning-${idx}`}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {validationResult.missing_fields.length === 0 &&
+                    validationResult.warnings.length === 0 && (
+                      <p className="text-sm text-green-300">Критичных замечаний не найдено.</p>
+                    )}
+                </div>
+              )}
+
               {/* ОПО */}
               {previewData.opo && (
-                <div className="bg-slate-900 p-4 rounded-lg">
-                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <div className="sp-card">
+                  <h3 className="sp-section-title text-lg mb-3 flex items-center gap-2">
                     <Factory size={20} className="text-blue-400" />
                     Сведения об ОПО
                   </h3>
@@ -977,8 +1175,8 @@ const ReportGeneration = () => {
 
               {/* Вложения/фото/чертежи */}
               {previewDocs.length > 0 && (
-                <div className="bg-slate-900 p-4 rounded-lg">
-                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <div className="sp-card">
+                  <h3 className="sp-section-title text-lg mb-3 flex items-center gap-2">
                     <FileText size={20} className="text-purple-400" />
                     Фото, чертежи и документы ({previewDocs.length})
                   </h3>
@@ -988,7 +1186,7 @@ const ReportGeneration = () => {
                       const label = doc.file_name || doc.document_number;
                       if (isImageDoc(doc.mime_type)) {
                         return (
-                          <div key={`${doc.document_number}-${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700">
+                          <div key={`${doc.document_number}-${idx}`} className="sp-card-soft p-3">
                             <p className="text-xs text-slate-400 mb-2">{label}</p>
                             {docUrl ? (
                               <a href={docUrl} target="_blank" rel="noreferrer">
@@ -1005,7 +1203,7 @@ const ReportGeneration = () => {
                         );
                       }
                       return (
-                        <div key={`${doc.document_number}-${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700 flex items-center justify-between">
+                        <div key={`${doc.document_number}-${idx}`} className="sp-card-soft p-3 flex items-center justify-between">
                           <div>
                             <p className="text-white text-sm">{label}</p>
                             {doc.mime_type && (
@@ -1030,8 +1228,8 @@ const ReportGeneration = () => {
               )}
 
               {/* Методы НК */}
-              <div className="bg-slate-900 p-4 rounded-lg">
-                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+              <div className="sp-card">
+                <h3 className="sp-section-title text-lg mb-3 flex items-center gap-2">
                   {previewData.ndt_methods.length > 0 ? (
                     <CheckCircle size={20} className="text-green-400" />
                   ) : (
@@ -1042,7 +1240,7 @@ const ReportGeneration = () => {
                 {previewData.ndt_methods.length > 0 ? (
                   <div className="space-y-3">
                     {previewData.ndt_methods.map((method, idx) => (
-                      <div key={idx} className="bg-slate-800 p-3 rounded border border-slate-700">
+                      <div key={idx} className="sp-card-soft p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <span className={`px-2 py-1 rounded text-xs ${method.is_performed ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
                             {method.is_performed ? 'Выполнен' : 'Не выполнен'}
@@ -1074,8 +1272,8 @@ const ReportGeneration = () => {
 
               {/* Ресурс (только для экспертизы) */}
               {previewType === 'EXPERTISE' && previewData.resource && (
-                <div className="bg-slate-900 p-4 rounded-lg">
-                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <div className="sp-card">
+                  <h3 className="sp-section-title text-lg mb-3 flex items-center gap-2">
                     <CheckCircle size={20} className="text-green-400" />
                     Данные ресурса
                   </h3>
@@ -1089,7 +1287,7 @@ const ReportGeneration = () => {
                     {previewData.resource.resource_end_date && (
                       <div>
                         <span className="text-slate-400">Дата окончания ресурса:</span>
-                        <p className="text-white">{new Date(previewData.resource.resource_end_date).toLocaleDateString('ru-RU')}</p>
+                        <p className="text-white">{formatDateRu(previewData.resource.resource_end_date)}</p>
                       </div>
                     )}
                     {previewData.resource.extension_years !== null && (
@@ -1101,7 +1299,7 @@ const ReportGeneration = () => {
                     {previewData.resource.extension_date && (
                       <div>
                         <span className="text-slate-400">Дата продления:</span>
-                        <p className="text-white">{new Date(previewData.resource.extension_date).toLocaleDateString('ru-RU')}</p>
+                        <p className="text-white">{formatDateRu(previewData.resource.extension_date)}</p>
                       </div>
                     )}
                   </div>
@@ -1118,17 +1316,14 @@ const ReportGeneration = () => {
               </button>
               <button
                 onClick={async () => {
-                  // Проверка полноты перед генерацией
                   if (previewData?.inspection?.id) {
-                    const validation = await validateReportData(previewData.inspection.id);
-                    if (!validation.is_complete && validation.missing_fields.length > 0) {
-                      alert(`Неполные данные:\n${validation.missing_fields.join('\n')}\n\nПродолжить?`);
-                    }
+                    await refreshPreviewValidation(previewData.inspection.id);
                   }
                 }}
+                disabled={validatingPreview}
                 className="px-3 md:px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm md:text-base"
               >
-                Проверить полноту
+                {validatingPreview ? 'Проверка...' : 'Проверить полноту'}
               </button>
               <button
                 onClick={() => {

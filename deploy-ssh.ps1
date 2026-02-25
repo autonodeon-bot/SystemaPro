@@ -55,31 +55,42 @@ if (Test-Path "package-lock.json") { scp package-lock.json "${dest}/" }
 Write-Host "  Files copied" -ForegroundColor Green
 Write-Host ""
 
-# Мобильное приложение: сборка APK (если нет) и загрузка на сервер
+# Mobile app: force build APK and upload
 $apkPath = "mobile\build\app\outputs\flutter-apk\app-release.apk"
-if (-not (Test-Path $apkPath)) {
-    Write-Host "[3.5/7] APK не найден. Пробую собрать (Flutter)..." -ForegroundColor Yellow
-    $flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
-    if ($flutterCmd) {
-        Push-Location (Join-Path $ProjectRoot "mobile")
-        flutter pub get 2>$null
+Write-Host "[3.5/7] Building mobile APK (Flutter)..." -ForegroundColor Yellow
+$flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
+if ($flutterCmd) {
+    $buildOk = $true
+    Push-Location (Join-Path $ProjectRoot "mobile")
+    try {
+        flutter pub get
+        if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed" }
         flutter build apk --release
+        if ($LASTEXITCODE -ne 0) { throw "flutter build apk failed" }
+    } catch {
+        $buildOk = $false
+        Write-Host "  Warning: APK rebuild failed. Existing file will be uploaded if present." -ForegroundColor Yellow
+    } finally {
         Pop-Location
-        if (-not (Test-Path $apkPath)) {
-            Write-Host "  Пропуск: сборка APK не удалась. Соберите вручную: mobile\build-app.bat" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "  Пропуск: Flutter не в PATH. Соберите APK: cd mobile; .\build-app.bat" -ForegroundColor Yellow
     }
+    if ($buildOk) {
+        Write-Host "  APK rebuilt successfully" -ForegroundColor Green
+    }
+} else {
+    Write-Host "  Flutter not found in PATH. Existing APK will be uploaded if present." -ForegroundColor Yellow
 }
 if (Test-Path $apkPath) {
-    Write-Host "[3.5/7] Загрузка мобильного приложения на сервер..." -ForegroundColor Yellow
+    Write-Host "[3.5/7] Uploading mobile APK to server..." -ForegroundColor Yellow
     scp $apkPath "${dest}/mobile-apk/app-release.apk"
-    $versionLine = Get-Content "mobile\pubspec.yaml" | Where-Object { $_ -match '^\s*version:\s*(.+)' } | Select-Object -First 1
-    if ($versionLine -match 'version:\s*([\d\.]+\+\d+)') {
-        $ver = $Matches[1] -replace '\+', '-'
-        $name = "es-td-ngo-$ver.apk"
-        ssh $SERVER "cp $REMOTE/mobile-apk/app-release.apk $REMOTE/mobile-apk/$name"
+    $versionLine = Get-Content "mobile\pubspec.yaml" | Where-Object { $_.TrimStart().StartsWith("version:") } | Select-Object -First 1
+    if ($versionLine) {
+        $parts = $versionLine.Split(":", 2)
+        $verRaw = if ($parts.Count -ge 2) { $parts[1].Trim() } else { "" }
+        if ($verRaw.Length -gt 0) {
+            $ver = $verRaw.Replace("+", "-")
+            $name = "es-td-ngo-$ver.apk"
+            ssh $SERVER "cp $REMOTE/mobile-apk/app-release.apk $REMOTE/mobile-apk/$name"
+        }
     }
     ssh $SERVER "chmod -R a+rX $REMOTE/mobile-apk"
     Write-Host "  APK загружен -> http://5.129.203.182/mobile/app-release.apk" -ForegroundColor Green
@@ -96,7 +107,7 @@ Write-Host "  Build done" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[5/7] Building, migrating and starting (single SSH session)..." -ForegroundColor Yellow
-ssh $SERVER "cd $REMOTE && docker-compose build --no-cache backend frontend && (docker-compose run --rm backend python add_certification_area_column.py || true) && (docker-compose run --rm backend python add_certification_areas_column.py || true) && docker-compose up -d"
+ssh $SERVER "cd $REMOTE && docker-compose build --no-cache backend frontend && (docker-compose run --rm backend python add_certification_area_column.py || true) && (docker-compose run --rm backend python add_certification_areas_column.py || true) && (docker-compose run --rm backend python add_inspection_grouping_columns.py || true) && docker-compose up -d"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build or start failed. Check output above." -ForegroundColor Red
     exit 1

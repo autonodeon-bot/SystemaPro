@@ -1172,11 +1172,16 @@ class ReportGenerator:
             for i, it in enumerate(deflection, 1):
                 if not isinstance(it, dict):
                     continue
+                raw_pct = it.get('deflection_percent', '') or ''
+                try:
+                    deflection_pct = f"{float(str(raw_pct).replace(',', '.')):.2f}"
+                except Exception:
+                    deflection_pct = str(raw_pct)
                 rows.append([
                     str(i),
                     str(it.get('section_number', '') or ''),
                     str(it.get('deflection_mm', '') or ''),
-                    str(it.get('deflection_percent', '') or ''),
+                    deflection_pct,
                 ])
             t = Table(rows, colWidths=[0.8*cm, 3.0*cm, 7.0*cm, 7.2*cm])
             t.setStyle(TableStyle([

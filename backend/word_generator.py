@@ -82,8 +82,18 @@ class WordGenerator:
                         yf = float(y_pct) if y_pct is not None else 0.5
                     except (TypeError, ValueError):
                         xf, yf = 0.5, 0.5
-                    xf = max(0, min(1, xf / 100.0 if xf > 1 else xf))
-                    yf = max(0, min(1, yf / 100.0 if yf > 1 else yf))
+                    # Поддержка и процентов (0..100), и нормализованных (0..1),
+                    # и старого формата абсолютных пикселей.
+                    if xf > 100:
+                        xf = xf / max(w, 1)
+                    else:
+                        xf = xf / 100.0 if xf > 1 else xf
+                    if yf > 100:
+                        yf = yf / max(h, 1)
+                    else:
+                        yf = yf / 100.0 if yf > 1 else yf
+                    xf = max(0, min(1, xf))
+                    yf = max(0, min(1, yf))
                     cx = int(xf * w)
                     cy = int(yf * h)
                 else:
@@ -164,8 +174,17 @@ class WordGenerator:
                     yf = float(y_pct) if y_pct is not None else 0.5
                 except (TypeError, ValueError):
                     xf, yf = 0.5, 0.5
-                xf = max(0, min(1, xf / 100.0 if xf > 1 else xf))
-                yf = max(0, min(1, yf / 100.0 if yf > 1 else yf))
+                # Поддержка процентов/нормализованных координат/пикселей из старых данных.
+                if xf > 100:
+                    xf = xf / max(w, 1)
+                else:
+                    xf = xf / 100.0 if xf > 1 else xf
+                if yf > 100:
+                    yf = yf / max(h, 1)
+                else:
+                    yf = yf / 100.0 if yf > 1 else yf
+                xf = max(0, min(1, xf))
+                yf = max(0, min(1, yf))
                 cx = int(xf * w)
                 cy = int(yf * h)
                 draw.ellipse(
@@ -984,7 +1003,11 @@ class WordGenerator:
                 t.rows[i].cells[0].text = str(i)
                 t.rows[i].cells[1].text = str(it.get('section_number') or '')
                 t.rows[i].cells[2].text = str(it.get('deflection_mm') or '')
-                t.rows[i].cells[3].text = str(it.get('deflection_percent') or '')
+                d_pct = it.get('deflection_percent')
+                try:
+                    t.rows[i].cells[3].text = f"{float(str(d_pct).replace(',', '.')):.2f}" if d_pct not in (None, '') else ''
+                except Exception:
+                    t.rows[i].cells[3].text = str(d_pct or '')
             doc.add_paragraph()
 
         hardness = _get('hardness_tests', default=[])
@@ -1156,11 +1179,7 @@ class WordGenerator:
                         doc.add_paragraph(f'[Файл не найден: {scan_path}]')
 
         # 8.3. Схемы диагностики и обследования (если есть)
-        has_thickness = isinstance(thickness, list) and len(thickness) > 0
         extra_attachments = []
-        control_scheme = attachments.get('control_scheme_image') or _get('control_scheme_image')
-        if control_scheme and not has_thickness:
-            extra_attachments.append(("Схема контроля / карта обследования", control_scheme))
 
         for key, path in attachments.items():
             if str(key).isdigit():
@@ -1195,11 +1214,6 @@ class WordGenerator:
         if _fp:
             doc.add_paragraph('Фото заводской таблички').runs[0].bold = True
             add_picture_if_exists('', _fp)
-        # Схема контроля
-        _cs = attachments.get('control_scheme_image') or _get('control_scheme_image')
-        if _cs:
-            doc.add_paragraph('Схема контроля / карта обследования').runs[0].bold = True
-            add_picture_if_exists('', _cs)
         # Сканы документов 1–17
         _doc_names = {'1': 'Документ 1', '2': 'Документ 2', '3': 'Документ 3', '4': 'Документ 4', '5': 'Документ 5', '6': 'Документ 6', '7': 'Документ 7', '8': 'Документ 8', '9': 'Документ 9', '10': 'Паспорт сосуда', '11': 'Документ 11', '12': 'Документ 12', '13': 'Документ 13', '14': 'Документ 14', '15': 'Ремонтная документация', '16': 'Документ 16', '17': 'Документ 17'}
         for _num in [str(i) for i in range(1, 18)]:
@@ -1481,6 +1495,42 @@ class WordGenerator:
         docs = g("documents", default={})
         docs_info = g("documents_info", default={})
         inspection_engineers = g("inspection_engineers", default=[])
+        additional_data = g("additional_data", default={})
+        manual_verification_equipment: List[Dict[str, Any]] = []
+        if isinstance(additional_data, dict):
+            raw_manual = additional_data.get("manual_verification_equipment") or additional_data.get("manualVerificationEquipment")
+            if isinstance(raw_manual, list):
+                for item in raw_manual:
+                    if not isinstance(item, dict):
+                        continue
+                    name = str(item.get("name") or "").strip()
+                    serial = str(item.get("serial_number") or item.get("serial") or "").strip()
+                    cert_num = str(item.get("verification_certificate_number") or item.get("certificate_number") or "").strip()
+                    next_date = str(item.get("next_verification_date") or item.get("valid_until") or item.get("expiry_date") or "").strip()
+                    if not (name or serial or cert_num or next_date):
+                        continue
+                    manual_verification_equipment.append({
+                        "name": name or "Прибор (ручной ввод)",
+                        "serial_number": serial,
+                        "verification_certificate_number": cert_num,
+                        "next_verification_date": next_date,
+                        "equipment_type": "РУЧНОЙ ВВОД",
+                    })
+
+        effective_verification_equipment: List[Dict[str, Any]] = []
+        if verification_equipment and isinstance(verification_equipment, list):
+            effective_verification_equipment.extend([e for e in verification_equipment if isinstance(e, dict)])
+        if manual_verification_equipment:
+            existing_eq_keys = {
+                f"{str(e.get('name') or '').strip().lower()}|{str(e.get('serial_number') or '').strip().lower()}|{str(e.get('verification_certificate_number') or '').strip().lower()}"
+                for e in effective_verification_equipment
+            }
+            for item in manual_verification_equipment:
+                key = f"{str(item.get('name') or '').strip().lower()}|{str(item.get('serial_number') or '').strip().lower()}|{str(item.get('verification_certificate_number') or '').strip().lower()}"
+                if key in existing_eq_keys:
+                    continue
+                effective_verification_equipment.append(item)
+                existing_eq_keys.add(key)
         performed_codes = {str(m.get("method_code") or m.get("method_name") or "").upper() for m in performed}
         work_list = list(performed)
         has_visual_data = (g("visual_defects", default=[]) and len(g("visual_defects", default=[])) > 0) or g("has_external_defects") is not None or g("has_internal_defects") is not None
@@ -1716,7 +1766,7 @@ class WordGenerator:
 
             doc.add_heading("7. Перечень приборов и оборудования", level=1)
             fallback_equipment = []
-            if not (verification_equipment and isinstance(verification_equipment, list) and verification_equipment):
+            if not effective_verification_equipment:
                 for m in (ndt_methods or []):
                     name = (m.get("equipment") or "").strip()
                     if not name:
@@ -1724,9 +1774,9 @@ class WordGenerator:
                     if name not in [e.get("name") for e in fallback_equipment]:
                         fallback_equipment.append({"name": name})
 
-            if verification_equipment and isinstance(verification_equipment, list) and verification_equipment:
+            if effective_verification_equipment:
                 # Таблица как в примере
-                eq_table = doc.add_table(rows=len(verification_equipment) + 1, cols=4)
+                eq_table = doc.add_table(rows=len(effective_verification_equipment) + 1, cols=4)
                 eq_table.style = "Table Grid"
                 headers = ["№ п/п", "Наименование прибора", "Заводской номер прибора", "Свидетельство о поверке / Действительна до"]
                 for i, h in enumerate(headers):
@@ -1735,7 +1785,7 @@ class WordGenerator:
                     cell.paragraphs[0].runs[0].font.bold = True
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 
-                for idx, eq in enumerate(verification_equipment, 1):
+                for idx, eq in enumerate(effective_verification_equipment, 1):
                     eq_table.rows[idx].cells[0].text = str(idx)
                     eq_table.rows[idx].cells[1].text = eq.get('name') or '—'
                     eq_table.rows[idx].cells[2].text = eq.get('serial_number') or '—'
@@ -1745,30 +1795,6 @@ class WordGenerator:
                     if next_date:
                         cert_info += f" до {next_date}" if cert_info else f"до {next_date}"
                     eq_table.rows[idx].cells[3].text = cert_info if cert_info else "—"
-
-                # Сканы свидетельств о поверке (если есть)
-                scans = [eq for eq in verification_equipment if eq.get("scan_file_path")]
-                if scans:
-                    doc.add_paragraph()
-                    doc.add_paragraph("Сканы свидетельств о поверке используемого оборудования:").runs[0].bold = True
-                    for idx, eq in enumerate(scans, 1):
-                        scan_path = eq.get("scan_file_path")
-                        if not scan_path:
-                            continue
-                        title_parts = [f"{idx}. {eq.get('name') or '—'}"]
-                        cert_num = eq.get("verification_certificate_number")
-                        if cert_num:
-                            title_parts.append(f"№ {cert_num}")
-                        doc.add_paragraph(" ".join(title_parts))
-                        resolved = self._find_image_path(scan_path) or (scan_path if os.path.exists(scan_path) else None)
-                        if resolved:
-                            ext = str(Path(resolved).suffix or "").lower()
-                            if ext in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"]:
-                                add_picture_if_exists("", resolved)
-                            else:
-                                doc.add_paragraph(f"Файл: {Path(resolved).name}")
-                        else:
-                            doc.add_paragraph(f"[Файл не найден: {scan_path}]")
             elif fallback_equipment:
                 eq_table = doc.add_table(rows=len(fallback_equipment) + 1, cols=4)
                 eq_table.style = "Table Grid"
@@ -3700,7 +3726,11 @@ class WordGenerator:
                     deflection_tbl.rows[idx].cells[0].text = "Обечайка"
                     deflection_tbl.rows[idx].cells[1].text = str(it.get('section_number', idx))
                     deflection_mm = str(it.get('deflection_mm', ''))
-                    deflection_pct = str(it.get('deflection_percent', ''))
+                    raw_pct = it.get('deflection_percent', '')
+                    try:
+                        deflection_pct = f"{float(str(raw_pct).replace(',', '.')):.2f}"
+                    except Exception:
+                        deflection_pct = str(raw_pct or '')
                     deflection_tbl.rows[idx].cells[2].text = f"{deflection_mm} / {deflection_pct}" if deflection_mm and deflection_pct else "—"
                     deflection_tbl.rows[idx].cells[3].text = "0,3"
             doc.add_paragraph()

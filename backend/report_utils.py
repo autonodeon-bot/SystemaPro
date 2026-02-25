@@ -2,7 +2,17 @@
 from datetime import datetime
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import Report, Inspection, Equipment, NDTMethod
+from models import Report, Inspection, Equipment, NDTMethod, Questionnaire, QuestionnaireDocumentFile
+
+
+def _has_value(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() != ""
+    if isinstance(value, (list, dict, tuple, set)):
+        return len(value) > 0
+    return True
 
 
 async def generate_report_number(db: AsyncSession, report_type: str = "TECHNICAL") -> str:
@@ -114,6 +124,66 @@ async def validate_inspection_completeness(
             if not equipment:
                 missing_fields.append("Данные оборудования")
         
+        data = inspection.data if isinstance(inspection.data, dict) else {}
+
+        # Базовые поля для шапки отчета
+        organization = data.get("organization") or data.get("inspection_organization")
+        executors = data.get("executors") or data.get("inspection_executors")
+        if not _has_value(organization):
+            missing_fields.append("Организация (карта обследования)")
+        if not _has_value(executors):
+            missing_fields.append("Исполнители (карта обследования)")
+
+        # Системные вложения: фото таблички и схема контроля
+        factory_plate = data.get("factory_plate_photo")
+        control_scheme = data.get("control_scheme_image")
+
+        # Дополнительно проверяем наличие этих файлов среди вложений опросного листа
+        has_factory_doc = False
+        has_scheme_doc = False
+        try:
+            q_query = (
+                select(Questionnaire)
+                .where(Questionnaire.equipment_id == inspection.equipment_id)
+                .order_by(Questionnaire.created_at.desc())
+                .limit(1)
+            )
+            q_result = await db.execute(q_query)
+            questionnaire = q_result.scalar_one_or_none()
+            if questionnaire:
+                files_result = await db.execute(
+                    select(QuestionnaireDocumentFile).where(
+                        QuestionnaireDocumentFile.questionnaire_id == questionnaire.id
+                    )
+                )
+                for f in files_result.scalars().all():
+                    if f.document_number == "factory_plate_photo":
+                        has_factory_doc = True
+                    if f.document_number == "control_scheme_image":
+                        has_scheme_doc = True
+        except Exception:
+            # Валидация не должна падать из-за ошибок чтения вложений
+            pass
+
+        if not (_has_value(factory_plate) or has_factory_doc):
+            missing_fields.append("Фото заводской таблички")
+        if not (_has_value(control_scheme) or has_scheme_doc):
+            missing_fields.append("Схема контроля")
+
+        # Проверяем точки замера для корректного отображения в отчете
+        thickness = data.get("thickness_measurements")
+        if isinstance(thickness, list) and len(thickness) > 0:
+            without_coordinates = 0
+            for p in thickness:
+                if not isinstance(p, dict):
+                    continue
+                if p.get("x_percent") is None or p.get("y_percent") is None:
+                    without_coordinates += 1
+            if without_coordinates > 0:
+                warnings.append(
+                    f"Точки УЗТ без координат X/Y: {without_coordinates}. Они могут отображаться неточно на схеме."
+                )
+
         # Проверяем наличие методов НК
         ndt_result = await db.execute(
             select(NDTMethod).where(NDTMethod.inspection_id == insp_uuid)
@@ -133,6 +203,21 @@ async def validate_inspection_completeness(
         # Проверяем наличие заключения
         if not inspection.conclusion or inspection.conclusion.strip() == "":
             warnings.append("Не указано заключение")
+
+        # Проверяем наличие приложений документов 1..17 (как рекомендованный минимум)
+        # Не блокируем генерацию, но предупреждаем.
+        docs = data.get("documents")
+        if isinstance(docs, dict):
+            present_count = 0
+            for _, v in docs.items():
+                if isinstance(v, dict):
+                    present = v.get("present")
+                    if present is True:
+                        present_count += 1
+                elif v is True:
+                    present_count += 1
+            if present_count == 0:
+                warnings.append("По перечню документов 1..17 не отмечено ни одного приложенного документа")
         
         return {
             "is_complete": len(missing_fields) == 0,

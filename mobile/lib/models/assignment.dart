@@ -51,6 +51,19 @@ class Assignment {
     this.opoCode,
   });
 
+  static DateTime? _parseDateTimeSafe(dynamic value, {DateTime? fallback}) {
+    if (value == null) return fallback;
+    final raw = value.toString().trim();
+    if (raw.isEmpty || raw.toLowerCase() == 'null') {
+      return fallback;
+    }
+    try {
+      return DateTime.parse(raw);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   factory Assignment.fromJson(Map<String, dynamic> json) {
     return Assignment(
       id: json['id'] as String,
@@ -63,16 +76,16 @@ class Assignment {
       assignedToName: json['assigned_to_name'] as String?,
       status: json['status'] as String,
       priority: json['priority'] as String,
-      dueDate: json['due_date'] != null 
-          ? DateTime.parse(json['due_date'] as String)
+      dueDate: json['due_date'] != null
+          ? _parseDateTimeSafe(json['due_date'], fallback: null)
           : null,
       description: json['description'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: _parseDateTimeSafe(json['created_at'], fallback: DateTime.now()) ?? DateTime.now(),
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+          ? _parseDateTimeSafe(json['updated_at'], fallback: null)
           : null,
       completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'] as String)
+          ? _parseDateTimeSafe(json['completed_at'], fallback: null)
           : null,
       enterpriseId: json['enterprise_id'] as String?,
       enterpriseName: json['enterprise_name'] as String?,

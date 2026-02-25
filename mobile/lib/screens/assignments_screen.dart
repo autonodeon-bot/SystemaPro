@@ -73,10 +73,17 @@ class AssignmentsScreen extends StatefulWidget {
 }
 
 class _AssignmentsScreenState extends State<AssignmentsScreen> {
+  static const String _prefsFilterStatus = 'assignments_filter_status';
+  static const String _prefsFilterSort = 'assignments_filter_sort';
+  static const String _prefsFilterAsc = 'assignments_filter_asc';
+  static const String _prefsFilterAssignmentType = 'assignments_filter_assignment_type';
+  static const String _prefsFilterSearch = 'assignments_filter_search';
+
   final _apiService = ApiService();
   final _syncService = SyncService();
   final _authService = AuthService();
   final _recentService = RecentService();
+  final TextEditingController _searchController = TextEditingController();
   List<Assignment> _assignments = [];
   List<Assignment> _filteredAssignments = [];
   List<RecentItem> _recentItems = [];
@@ -101,6 +108,12 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     _loadRecent();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadRecent() async {
     final list = await _recentService.getRecent();
     if (!mounted) return;
@@ -114,10 +127,14 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        _selectedStatus = prefs.getString('assignments_filter_status') ?? 'all';
-        _selectedSort = prefs.getString('assignments_filter_sort') ?? 'due_date';
-        _sortAscending = prefs.getBool('assignments_filter_asc') ?? false;
+        _selectedStatus = prefs.getString(_prefsFilterStatus) ?? 'all';
+        _selectedSort = prefs.getString(_prefsFilterSort) ?? 'due_date';
+        _sortAscending = prefs.getBool(_prefsFilterAsc) ?? false;
+        _selectedAssignmentType =
+            prefs.getString(_prefsFilterAssignmentType) ?? 'all';
+        _searchQuery = prefs.getString(_prefsFilterSearch) ?? '';
       });
+      _searchController.text = _searchQuery;
     } catch (_) {}
     await _loadAssignments();
   }
@@ -125,10 +142,31 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   Future<void> _saveFilterToPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('assignments_filter_status', _selectedStatus);
-      await prefs.setString('assignments_filter_sort', _selectedSort);
-      await prefs.setBool('assignments_filter_asc', _sortAscending);
+      await prefs.setString(_prefsFilterStatus, _selectedStatus);
+      await prefs.setString(_prefsFilterSort, _selectedSort);
+      await prefs.setBool(_prefsFilterAsc, _sortAscending);
+      await prefs.setString(_prefsFilterAssignmentType, _selectedAssignmentType);
+      await prefs.setString(_prefsFilterSearch, _searchQuery);
     } catch (_) {}
+  }
+
+  String _formatDate(DateTime date) {
+    final dd = date.day.toString().padLeft(2, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    return '$dd.$mm.${date.year}';
+  }
+
+  Future<void> _resetFilters() async {
+    setState(() {
+      _selectedStatus = 'all';
+      _selectedAssignmentType = 'all';
+      _selectedSort = 'due_date';
+      _sortAscending = false;
+      _searchQuery = '';
+      _searchController.clear();
+      _filterAssignments();
+    });
+    await _saveFilterToPrefs();
   }
 
   String _defaultInspectionTypeFromAssignment(String assignmentType) {
@@ -915,10 +953,25 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 children: [
                   // Поиск
                   TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Поиск по коду, названию, предприятию...',
                       hintStyle: TextStyle(color: Colors.grey[600]),
                       prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              tooltip: 'Очистить поиск',
+                              onPressed: () {
+                                setState(() {
+                                  _searchQuery = '';
+                                  _searchController.clear();
+                                  _filterAssignments();
+                                });
+                                _saveFilterToPrefs();
+                              },
+                              icon: const Icon(Icons.close, color: Colors.grey),
+                            )
+                          : null,
                       filled: true,
                       fillColor: const Color(0xFF0f172a),
                       border: OutlineInputBorder(
@@ -933,9 +986,22 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                         _searchQuery = value;
                         _filterAssignments();
                       });
+                      _saveFilterToPrefs();
                     },
                   ),
                   const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _resetFilters,
+                      icon: const Icon(Icons.restart_alt, color: Colors.white70),
+                      label: const Text(
+                        'Сбросить фильтры',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   // Фильтр по статусу
                   Row(
                     children: [
@@ -983,6 +1049,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                 _selectedAssignmentType = value;
                                 _filterAssignments();
                               });
+                              _saveFilterToPrefs();
                             }
                           },
                         ),
@@ -1426,7 +1493,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Срок: ${assignment.dueDate!.day}.${assignment.dueDate!.month}.${assignment.dueDate!.year}',
+                                  'Срок: ${_formatDate(assignment.dueDate!)}',
                                   style: TextStyle(
                                     color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
                                         ? Colors.red

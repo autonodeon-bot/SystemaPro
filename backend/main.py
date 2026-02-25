@@ -89,6 +89,8 @@ def _cache_invalidate(prefix: str) -> None:
 
 # Метрики для мониторинга (п.9): счётчики запросов и генерации отчётов
 _metrics = {"http_requests_total": 0, "report_generation_seconds_sum": 0.0, "report_generation_count": 0}
+ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/jpg", "image/png"}
+MAX_NDT_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
 
 # Единый формат ошибок API: { "detail", "code", "errors" }
 @app.exception_handler(HTTPException)
@@ -206,6 +208,33 @@ def _resolve_report_file_path(path: Optional[str]) -> Optional[str]:
     return path
 
 
+def _normalize_image_content_type(file: UploadFile) -> Optional[str]:
+    content_type = (file.content_type or "").lower()
+    if content_type in ALLOWED_IMAGE_MIME_TYPES:
+        return content_type
+    ext = (Path(file.filename or "").suffix or "").lower()
+    if ext in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if ext == ".png":
+        return "image/png"
+    return None
+
+
+async def _read_upload_with_limit(file: UploadFile, max_size: int) -> bytes:
+    content = b""
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        content += chunk
+        if len(content) > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Файл слишком большой. Максимум {max_size // (1024 * 1024)} МБ.",
+            )
+    return content
+
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(access_router)
@@ -216,9 +245,9 @@ app.include_router(equipment_history_router)  # Новый роутер для �
 app.include_router(inspection_archive_router)  # Загрузка ZIP-архива обследования с мобильного
 
 # Версия мобильного приложения (должна соответствовать реально доступному APK по ссылке)
-MOBILE_APP_VERSION = "3.23.0"
-MOBILE_APP_BUILD = "20"
-MOBILE_APP_DOWNLOAD_URL = "http://5.129.203.182/mobile/app-release.apk"
+MOBILE_APP_VERSION = "3.25.0"
+MOBILE_APP_BUILD = "25"
+MOBILE_APP_DOWNLOAD_URL = f"http://5.129.203.182/mobile/es-td-ngo-{MOBILE_APP_VERSION}-{MOBILE_APP_BUILD}.apk"
 
 # Endpoint для проверки версии мобильного приложения
 @app.get("/api/mobile/version")
@@ -5700,11 +5729,11 @@ async def upload_ndt_method_photo(
         if not method:
             raise HTTPException(status_code=404, detail="NDT method not found")
 
-        allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
-        if file.content_type not in allowed_types:
+        normalized_content_type = _normalize_image_content_type(file)
+        if normalized_content_type not in ALLOWED_IMAGE_MIME_TYPES:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}"
+                detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_IMAGE_MIME_TYPES))}"
             )
 
         upload_dir = Path("/app/uploads/ndt_photos") / "questionnaires" / str(q_uuid) / str(m_uuid)
@@ -5714,7 +5743,7 @@ async def upload_ndt_method_photo(
         stored_name = f"{uuid_lib.uuid4()}{file_ext}"
         stored_path = upload_dir / stored_name
 
-        content = await file.read()
+        content = await _read_upload_with_limit(file, MAX_NDT_UPLOAD_SIZE_BYTES)
         with open(stored_path, "wb") as f:
             f.write(content)
 
@@ -5861,11 +5890,11 @@ async def upload_ndt_method_photo_for_inspection(
         if not method:
             raise HTTPException(status_code=404, detail="NDT method not found")
 
-        allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
-        if file.content_type not in allowed_types:
+        normalized_content_type = _normalize_image_content_type(file)
+        if normalized_content_type not in ALLOWED_IMAGE_MIME_TYPES:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}"
+                detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_IMAGE_MIME_TYPES))}"
             )
 
         upload_dir = Path("/app/uploads/ndt_photos") / "inspections" / str(insp_uuid) / str(m_uuid)
@@ -5875,7 +5904,7 @@ async def upload_ndt_method_photo_for_inspection(
         stored_name = f"{uuid_lib.uuid4()}{file_ext}"
         stored_path = upload_dir / stored_name
 
-        content = await file.read()
+        content = await _read_upload_with_limit(file, MAX_NDT_UPLOAD_SIZE_BYTES)
         with open(stored_path, "wb") as f:
             f.write(content)
 

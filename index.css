@@ -86,4 +86,70 @@ body.dark {
   }
 }
 
+/* SystemaPro unified UI blocks (phase 1 redesign) */
+.sp-card {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.92));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  padding: 1rem;
+}
+
+.sp-card-soft {
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(71, 85, 105, 0.45);
+  border-radius: var(--radius-sm);
+}
+
+.sp-section-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.sp-muted {
+  color: var(--text-secondary);
+}
+
+.sp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.sp-badge-success {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.sp-badge-warning {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.sp-badge-danger {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.32);
+}
+
+.sp-btn-subtle {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-primary);
+  background: rgba(30, 41, 59, 0.72);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.sp-btn-subtle:hover {
+  background: rgba(51, 65, 85, 0.8);
+}
+
 

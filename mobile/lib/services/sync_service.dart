@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
@@ -26,11 +27,40 @@ class SyncService {
   static const String _prefsKeyOfflineOpos = 'offline_opos';
 
   final ApiService _apiService = ApiService();
+  static const int _uploadArchiveRetryCount = 3;
+  static const Duration _uploadArchiveRetryDelay = Duration(seconds: 2);
 
   static String? _nonEmptyString(dynamic v) {
     if (v == null) return null;
     final s = v.toString().trim();
     return s.isEmpty || s == 'null' ? null : s;
+  }
+
+  static String _normalizedStatus(Map<String, dynamic> item) {
+    return (item['status']?.toString().trim().toUpperCase() ?? 'DRAFT');
+  }
+
+  static String _queueKey(Map<String, dynamic> item) {
+    final assignmentId = _nonEmptyString(item['assignment_id']) ?? '';
+    final equipmentId = _nonEmptyString(item['equipment_id']) ?? '';
+    final datePerformed = _nonEmptyString(item['date_performed']) ?? '';
+    return '$assignmentId|$equipmentId|$datePerformed';
+  }
+
+  static bool _sameAssignmentAndEquipment(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+  ) {
+    final aAssignmentId = _nonEmptyString(a['assignment_id']);
+    final bAssignmentId = _nonEmptyString(b['assignment_id']);
+    final aEquipmentId = _nonEmptyString(a['equipment_id']);
+    final bEquipmentId = _nonEmptyString(b['equipment_id']);
+    return aAssignmentId != null &&
+        bAssignmentId != null &&
+        aEquipmentId != null &&
+        bEquipmentId != null &&
+        aAssignmentId == bAssignmentId &&
+        aEquipmentId == bEquipmentId;
   }
 
   /// Сохранить диагностику в локальное хранилище для последующей синхронизации
@@ -47,8 +77,15 @@ class SyncService {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final pendingInspections =
-          prefs.getStringList(_prefsKeyPendingInspections) ?? [];
+      final pendingRaw = prefs.getStringList(_prefsKeyPendingInspections) ?? [];
+      final pendingInspections = <Map<String, dynamic>>[];
+      for (final item in pendingRaw) {
+        try {
+          pendingInspections.add(json.decode(item) as Map<String, dynamic>);
+        } catch (_) {
+          // Игнорируем поврежденные записи в очереди.
+        }
+      }
 
       final checklistJson = checklist.toJson();
       // Добавляем информацию о файлах документов (единый формат: docNumber -> {file_path, file_name})
@@ -136,9 +173,30 @@ class SyncService {
             [], // ID выбранного оборудования для поверок
       };
 
-      pendingInspections.add(json.encode(inspectionData));
+      final newStatus = _normalizedStatus(inspectionData);
+      final cleaned = pendingInspections.where((existing) {
+        final existingStatus = _normalizedStatus(existing);
+        final sameScope = _sameAssignmentAndEquipment(existing, inspectionData);
+        if (!sameScope) {
+          return true;
+        }
+
+        // Для SIGNED оставляем только последний подписанный вариант (удаляем и старые черновики).
+        if (newStatus == 'SIGNED') {
+          return false;
+        }
+        // Для DRAFT обновляем текущий черновик по этому же заданию/оборудованию.
+        if (newStatus == 'DRAFT' && existingStatus == 'DRAFT') {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      cleaned.add(inspectionData);
       await prefs.setStringList(
-          _prefsKeyPendingInspections, pendingInspections);
+        _prefsKeyPendingInspections,
+        cleaned.map((item) => json.encode(item)).toList(),
+      );
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
     }
@@ -307,8 +365,9 @@ class SyncService {
             // Игнорируем ошибки загрузки ОПО
           }
         }
-      } catch (_) {
-        // Игнорируем: задания синхронизируются дополнительно к основному потоку
+      } catch (e) {
+        result.message = '${result.message ?? 'Синхронизация завершена'}; '
+            'не удалось обновить задания (${e.toString()})';
       }
 
       final pendingInspections = await getPendingInspections();
@@ -323,8 +382,16 @@ class SyncService {
       final failedInspections = <Map<String, dynamic>>[];
       final successfulInspections = <Map<String, dynamic>>[];
 
-      final toSend = pendingInspections.where((i) => (i['status'] as String? ?? 'DRAFT') != 'DRAFT').toList();
+      final toSend = pendingInspections
+          .where((i) => _normalizedStatus(i) != 'DRAFT')
+          .toList();
       final totalReports = toSend.length;
+      if (pendingInspections.isNotEmpty && totalReports == 0) {
+        result.success = true;
+        result.message =
+            'В очереди только черновики (DRAFT). Подписанные отчёты для отправки отсутствуют.';
+        return result;
+      }
 
       for (var reportIndex = 0; reportIndex < toSend.length; reportIndex++) {
         final inspectionData = toSend[reportIndex];
@@ -344,11 +411,11 @@ class SyncService {
           final zipFile = File(zipPath);
           final totalBytes = zipFile.lengthSync();
 
-          final submitResult = await _apiService.uploadInspectionArchive(
-            zipPath,
-            onProgress: (sent, total) {
-              onUploadProgress?.call(reportIndex + 1, totalReports, sent, total > 0 ? total : totalBytes);
-            },
+          final submitResult = await _uploadInspectionArchiveWithRetry(
+            zipPath: zipPath,
+            reportIndex: reportIndex,
+            totalReports: totalReports,
+            totalBytes: totalBytes,
           );
 
           try {
@@ -386,7 +453,7 @@ class SyncService {
           }
           successfulInspections.add(inspectionData);
           result.syncedCount++;
-        } catch (e, st) {
+        } catch (e) {
           try {
             if (zipPath != null) File(zipPath).deleteSync();
           } catch (_) {}
@@ -402,12 +469,29 @@ class SyncService {
 
       // Удаляем успешно отправленные инспекции из локального хранилища
       // Оставляем только неудачные попытки и черновики (DRAFT)
-      final remainingInspections = pendingInspections
-          .where((item) {
-            final itemJson = json.encode(item);
-            return !successfulInspections.any((s) => json.encode(s) == itemJson);
-          })
-          .toList();
+      final successfulKeys = successfulInspections.map(_queueKey).toSet();
+      final successfulAssignmentEquipment = successfulInspections
+          .where((s) => _nonEmptyString(s['assignment_id']) != null && _nonEmptyString(s['equipment_id']) != null)
+          .map((s) => '${_nonEmptyString(s['assignment_id'])}|${_nonEmptyString(s['equipment_id'])}')
+          .toSet();
+
+      final remainingInspections = pendingInspections.where((item) {
+        final key = _queueKey(item);
+        if (successfulKeys.contains(key)) {
+          return false;
+        }
+
+        // После успешной отправки подписанного отчета очищаем связанные локальные записи по тому же assignment/equipment.
+        final assignmentId = _nonEmptyString(item['assignment_id']);
+        final equipmentId = _nonEmptyString(item['equipment_id']);
+        if (assignmentId != null && equipmentId != null) {
+          final pair = '$assignmentId|$equipmentId';
+          if (successfulAssignmentEquipment.contains(pair)) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
       
       // Сохраняем только неудачные попытки и черновики
       final remainingInspectionsJson = remainingInspections
@@ -465,6 +549,38 @@ class SyncService {
     }
 
     return result;
+  }
+
+  Future<Map<String, dynamic>> _uploadInspectionArchiveWithRetry({
+    required String zipPath,
+    required int reportIndex,
+    required int totalReports,
+    required int totalBytes,
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= _uploadArchiveRetryCount; attempt++) {
+      try {
+        return await _apiService.uploadInspectionArchive(
+          zipPath,
+          onProgress: (sent, total) {
+            onUploadProgress?.call(
+              reportIndex + 1,
+              totalReports,
+              sent,
+              total > 0 ? total : totalBytes,
+            );
+          },
+        );
+      } catch (e) {
+        lastError = e;
+        if (attempt < _uploadArchiveRetryCount) {
+          await Future.delayed(_uploadArchiveRetryDelay);
+        }
+      }
+    }
+    throw Exception(
+      'Не удалось отправить архив после $_uploadArchiveRetryCount попыток: $lastError',
+    );
   }
 
   /// Получить время последней синхронизации

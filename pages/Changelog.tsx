@@ -14,13 +14,49 @@ interface Version {
 const Changelog = () => {
   const versions: Version[] = [
     {
+      version: '3.25.0',
+      date: '25.02.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Системный релиз 3.25.0: синхронизированы версии web/backend/mobile и обновлён раздел «Что нового».' },
+        { type: 'improved', description: 'Web UI-kit (phase 1): добавлены единые классы sp-card, sp-card-soft, sp-section-title, sp-badge и sp-btn-subtle для сквозного современного интерфейса.' },
+        { type: 'improved', description: 'Web отчёты: страницы ReportGeneration и ReportViewer переведены на унифицированный визуальный каркас без потери функциональности.' },
+        { type: 'added', description: 'Web отчёты: предпросмотр PDF/DOCX, сохранение/сброс фильтров, фильтр по типу отчёта и единый формат дат (ДД.ММ.ГГГГ).' },
+        { type: 'added', description: 'Проверка полноты отчёта в web: показ missing_fields/warnings в предпросмотре и просмотре отчёта перед генерацией.' },
+        { type: 'improved', description: 'Backend валидация отчётов: обязательные поля (организация, исполнители, фото таблички, схема контроля) и предупреждения по данным толщинометрии.' },
+        { type: 'improved', description: 'Backend загрузка фото НК: нормализация MIME и ограничение размера файлов для более надёжной обработки.' },
+        { type: 'improved', description: 'Mobile синхронизация: ретраи отправки архивов, индикация online/offline, сводка готовности подписанных отчётов и быстрые подсказки на экране синхронизации.' },
+        { type: 'improved', description: 'Mobile задания: сохранение фильтров/поиска, быстрый сброс фильтров, очистка поиска в одно нажатие и унифицированный формат дат.' },
+        { type: 'fixed', description: 'Mobile фото: полностью переработан штамп метаданных — дата/время и GPS в отдельных блоках, без наложения строк.' },
+        { type: 'improved', description: 'Mobile фото: размер текста для даты/GPS теперь рассчитывается пропорционально размеру изображения (~1/15) с автоподгонкой по ширине.' },
+      ],
+    },
+    {
+      version: '3.24.0',
+      date: '21.02.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Релиз 3.24: полная пересборка backend/frontend контейнеров и перезапуск на сервере' },
+        { type: 'added', description: 'Обновлён раздел «Что нового» с актуальной версией и детальным списком изменений' },
+        { type: 'improved', description: 'Стабилизирован деплой: копирование `styles/` при публикации, чтобы дизайн-токены всегда попадали в docker-сборку' },
+        { type: 'improved', description: 'Web: унифицировано отображение версии на Dashboard, Changelog и TechSpecs' },
+        { type: 'improved', description: 'Mobile: версия APK обновлена до 3.24.0+24 и повторно выложена на сервер' },
+      ],
+    },
+    {
       version: '3.23.0',
       date: '09.02.2026',
       type: 'minor',
       changes: [
+        { type: 'added', description: 'Группировка обследований по типам (VISUAL/NDT/QUESTIONNAIRE) в API и web-интерфейсе' },
+        { type: 'added', description: 'Мобильное: выбор типа обследования перед началом работы по заданию' },
         { type: 'added', description: 'Точки УЗК: координаты x_percent, y_percent на схеме, отрисовка в отчёте' },
         { type: 'added', description: 'Овальность: редактирование по сечению, улучшенные подсказки' },
         { type: 'added', description: 'Схема контроля: выбор файла / фото / встроенный шаблон / шаблон с сервера' },
+        { type: 'improved', description: 'Web-редизайн: дизайн-токены, обновленные Login/Dashboard, улучшенная читаемость и навигация' },
+        { type: 'improved', description: 'Mobile-редизайн: устранены перекрытия элементов в экранах аннотаций и фотофиксации' },
+        { type: 'added', description: 'Чек-листы (web): сохранение фильтров между сессиями и экспорт отфильтрованных данных в CSV' },
+        { type: 'fixed', description: 'Backend: устранен Windows-краш импорта (cp1251) в database.py при запуске модулей отчетов' },
       ],
     },
     {
@@ -408,7 +444,7 @@ const Changelog = () => {
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
         <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
           <h2 className="text-xl font-bold text-white mb-2">Версия системы</h2>
-          <p className="text-2xl font-bold text-accent">3.21.0 (09.02.2026)</p>
+          <p className="text-2xl font-bold text-accent">3.25.0 (25.02.2026)</p>
           <p className="text-sm text-slate-400 mt-1">Текущая версия платформы</p>
         </div>
         <p className="text-slate-300 mb-6">

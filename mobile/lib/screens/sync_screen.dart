@@ -22,6 +22,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   int _uploadReportTotal = 0;
   int _uploadBytesSent = 0;
   int _uploadBytesTotal = 0;
+  bool? _isOnline;
+  int _signedReadyCount = 0;
+  int _signedNeedsAttentionCount = 0;
 
   @override
   void initState() {
@@ -32,16 +35,25 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _loadData() async {
     final pending = await _syncService.getPendingInspections();
     final lastSync = await _syncService.getLastSyncTime();
+    await _checkConnection();
     
     // Подсчитываем черновики (DRAFT) и подписанные (SIGNED)
     int draftCount = 0;
     int signedCount = 0;
+    int signedReadyCount = 0;
+    int signedNeedsAttentionCount = 0;
     for (final item in pending) {
       final status = (item['status']?.toString().toUpperCase() ?? 'DRAFT');
       if (status == 'DRAFT') {
         draftCount += 1;
       } else if (status == 'SIGNED') {
         signedCount += 1;
+        final missing = _getSignedInspectionMissingFields(item);
+        if (missing.isEmpty) {
+          signedReadyCount += 1;
+        } else {
+          signedNeedsAttentionCount += 1;
+        }
       }
     }
     
@@ -50,13 +62,71 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       _lastSyncTime = lastSync;
       _draftCount = draftCount;
       _signedCount = signedCount;
+      _signedReadyCount = signedReadyCount;
+      _signedNeedsAttentionCount = signedNeedsAttentionCount;
     });
   }
   
   int _draftCount = 0;
   int _signedCount = 0;
 
+  Future<void> _checkConnection() async {
+    final hasConnection = await _apiService.checkConnection();
+    if (!mounted) return;
+    setState(() {
+      _isOnline = hasConnection;
+    });
+  }
+
+  List<String> _getSignedInspectionMissingFields(Map<String, dynamic> item) {
+    final missing = <String>[];
+    final data = item['data'];
+    if (data is! Map) {
+      return ['Структура данных обследования'];
+    }
+    final payload = Map<String, dynamic>.from(data);
+    final docs = item['document_files'];
+    final docsMap = docs is Map ? Map<String, dynamic>.from(docs) : <String, dynamic>{};
+
+    final organization = payload['organization']?.toString().trim() ?? '';
+    final executors = payload['executors']?.toString().trim() ?? '';
+    if (organization.isEmpty) {
+      missing.add('Организация');
+    }
+    if (executors.isEmpty) {
+      missing.add('Исполнители');
+    }
+
+    final hasFactoryPlate = (payload['factory_plate_photo']?.toString().trim().isNotEmpty ?? false) ||
+        docsMap.containsKey('factory_plate_photo');
+    final hasControlScheme = (payload['control_scheme_image']?.toString().trim().isNotEmpty ?? false) ||
+        docsMap.containsKey('control_scheme_image');
+    if (!hasFactoryPlate) {
+      missing.add('Фото заводской таблички');
+    }
+    if (!hasControlScheme) {
+      missing.add('Схема контроля');
+    }
+
+    return missing;
+  }
+
   Future<void> _syncNow() async {
+    if (_signedNeedsAttentionCount > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Есть подписанные обследования с неполными данными: $_signedNeedsAttentionCount. '
+              'Рекомендуется дозаполнить их перед синхронизацией для корректного отчета.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    }
+
     // Проверка доступности сети перед синхронизацией (не тратим попытки при отсутствии интернета)
     final hasConnection = await _apiService.checkConnection();
     if (!hasConnection) {
@@ -146,6 +216,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         });
         _syncService.onUploadProgress = null;
       }
+      await _checkConnection();
     }
   }
 
@@ -156,6 +227,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         title: const Text('Синхронизация данных'),
         backgroundColor: const Color(0xFF0f172a),
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Обновить',
+            onPressed: _isSyncing ? null : _loadData,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       backgroundColor: const Color(0xFF0f172a),
       body: Padding(
@@ -180,6 +258,43 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Состояние сети:',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _isOnline == true
+                                ? Colors.green.withValues(alpha: 0.18)
+                                : Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _isOnline == true
+                                  ? Colors.green
+                                  : Colors.orange,
+                            ),
+                          ),
+                          child: Text(
+                            _isOnline == true ? 'Онлайн' : 'Офлайн',
+                            style: TextStyle(
+                              color: _isOnline == true
+                                  ? Colors.greenAccent
+                                  : Colors.orangeAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -234,6 +349,44 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           ),
                         ],
                       ),
+                      if (_signedCount > 0) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '  • Готово к отправке:',
+                              style: TextStyle(color: Colors.white70, fontSize: 14),
+                            ),
+                            Text(
+                              '$_signedReadyCount',
+                              style: const TextStyle(
+                                color: Colors.lightGreenAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '  • Требует проверки:',
+                              style: TextStyle(color: Colors.white70, fontSize: 14),
+                            ),
+                            Text(
+                              '$_signedNeedsAttentionCount',
+                              style: const TextStyle(
+                                color: Colors.orangeAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                     const SizedBox(height: 8),
                     Row(
@@ -262,12 +415,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             const SizedBox(height: 24),
             
             if (_pendingCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
                 child: Text(
                   'Есть неотправленные обследования (в т.ч. фото). Подключитесь к интернету и нажмите кнопку ниже.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.orange, fontSize: 14),
+                  style: TextStyle(color: Colors.orange, fontSize: 14),
                 ),
               ),
             // Кнопка синхронизации
@@ -340,6 +493,43 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   style: TextStyle(color: Colors.white70),
                 ),
               ),
+            const SizedBox(height: 16),
+            Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
+              ),
+              child: const Card(
+                color: Color(0xFF1e293b),
+                child: ExpansionTile(
+                  iconColor: Colors.white70,
+                  collapsedIconColor: Colors.white54,
+                  title: Text(
+                    'Быстрая помощь',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '• Офлайн: данные сохраняются локально в очереди.\n'
+                        '• Если часть файлов не отправилась — нажмите «Синхронизировать» повторно.\n'
+                        '• При ошибке авторизации: войдите в приложение заново и повторите синхронизацию.\n'
+                        '• Для больших фото нужна стабильная сеть — лучше Wi-Fi или хороший 4G.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
