@@ -1237,6 +1237,75 @@ async def get_equipment_by_id(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/equipment/{equipment_id}/photos")
+async def get_equipment_object_photos(
+    equipment_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Список дополнительных фото объекта, сохраненных в attributes.object_photos."""
+    try:
+        result = await db.execute(
+            select(Equipment).where(Equipment.id == equipment_id)
+        )
+        eq = result.scalar_one_or_none()
+        if not eq:
+            raise HTTPException(status_code=404, detail="Equipment not found")
+        attrs = eq.attributes or {}
+        photos = attrs.get("object_photos") if isinstance(attrs, dict) else []
+        if not isinstance(photos, list):
+            photos = []
+        items = []
+        for idx, p in enumerate(photos):
+            ps = str(p or "").strip()
+            if not ps:
+                continue
+            items.append(
+                {
+                    "index": idx,
+                    "path": ps,
+                    "view_url": f"/api/equipment/{equipment_id}/photos/{idx}",
+                    "file_name": os.path.basename(ps),
+                }
+            )
+        return {"equipment_id": equipment_id, "items": items}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/equipment/{equipment_id}/photos/{photo_index}")
+async def view_equipment_object_photo(
+    equipment_id: str,
+    photo_index: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Просмотр одного дополнительного фото объекта по индексу."""
+    try:
+        result = await db.execute(
+            select(Equipment).where(Equipment.id == equipment_id)
+        )
+        eq = result.scalar_one_or_none()
+        if not eq:
+            raise HTTPException(status_code=404, detail="Equipment not found")
+        attrs = eq.attributes or {}
+        photos = attrs.get("object_photos") if isinstance(attrs, dict) else []
+        if not isinstance(photos, list):
+            photos = []
+        if photo_index < 0 or photo_index >= len(photos):
+            raise HTTPException(status_code=404, detail="Photo not found")
+        target = str(photos[photo_index] or "").strip()
+        if not target:
+            raise HTTPException(status_code=404, detail="Photo path is empty")
+        if not os.path.exists(target):
+            raise HTTPException(status_code=404, detail="Photo file not found")
+        return FileResponse(target)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/equipment")
 async def create_equipment(
     equipment_data: EquipmentCreate,

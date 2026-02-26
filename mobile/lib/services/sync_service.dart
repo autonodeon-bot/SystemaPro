@@ -47,6 +47,17 @@ class SyncService {
     return '$assignmentId|$equipmentId|$datePerformed';
   }
 
+  static String _normalizeIsoDateTime(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return DateTime.now().toIso8601String();
+    }
+    try {
+      return DateTime.parse(value.trim()).toIso8601String();
+    } catch (_) {
+      return DateTime.now().toIso8601String();
+    }
+  }
+
   static bool _sameAssignmentAndEquipment(
     Map<String, dynamic> a,
     Map<String, dynamic> b,
@@ -107,6 +118,20 @@ class SyncService {
 
       addAttachmentIfPresent('factory_plate_photo');
       addAttachmentIfPresent('control_scheme_image');
+      final additionalData = checklistJson['additional_data'];
+      if (additionalData is Map) {
+        final objectPhotos = additionalData['object_photos'];
+        if (objectPhotos is List) {
+          for (var i = 0; i < objectPhotos.length; i++) {
+            final path = objectPhotos[i]?.toString();
+            if (path == null || path.trim().isEmpty) continue;
+            structuredDocumentFiles['object_photo_$i'] = {
+              'file_path': path,
+              'file_name': Path.basename(path),
+            };
+          }
+        }
+      }
       if (documentFiles != null && documentFiles.isNotEmpty) {
         for (final entry in documentFiles.entries) {
           structuredDocumentFiles[entry.key] = {
@@ -160,7 +185,10 @@ class SyncService {
         'equipment_id': equipmentId,
         'data': checklistJson,
         'conclusion': conclusion,
-        'date_performed': inspectionDate,
+        'date_performed': _normalizeIsoDateTime(
+          _nonEmptyString(inspectionDate) ??
+              _nonEmptyString(checklistJson['inspection_date']),
+        ),
         // Статус выставляется UI (вариант Б):
         // - "Сохранить" -> DRAFT
         // - "Подписать/Завершить" -> SIGNED
@@ -382,16 +410,9 @@ class SyncService {
       final failedInspections = <Map<String, dynamic>>[];
       final successfulInspections = <Map<String, dynamic>>[];
 
-      final toSend = pendingInspections
-          .where((i) => _normalizedStatus(i) != 'DRAFT')
-          .toList();
+      // Отправляем и DRAFT, и SIGNED: офлайн-работа должна появляться на сервере после синхронизации.
+      final toSend = List<Map<String, dynamic>>.from(pendingInspections);
       final totalReports = toSend.length;
-      if (pendingInspections.isNotEmpty && totalReports == 0) {
-        result.success = true;
-        result.message =
-            'В очереди только черновики (DRAFT). Подписанные отчёты для отправки отсутствуют.';
-        return result;
-      }
 
       for (var reportIndex = 0; reportIndex < toSend.length; reportIndex++) {
         final inspectionData = toSend[reportIndex];

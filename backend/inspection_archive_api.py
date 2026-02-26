@@ -265,6 +265,7 @@ async def upload_inspection_archive(
                 except Exception:
                     await db.rollback()
             path_map = {}
+            uploaded_object_photo_paths = []
             if questionnaire_id and os.path.isdir(photos_dir):
                 q_uuid = uuid_lib.UUID(questionnaire_id)
                 documents_dir = Path("/app/uploads/questionnaire_documents") / str(q_uuid)
@@ -286,12 +287,18 @@ async def upload_inspection_archive(
                         doc_num = base
                     elif base.startswith("uzt_point_"):
                         doc_num = base
+                    elif base.startswith("object_photo_"):
+                        doc_num = base
                     else:
                         doc_num = f"photo_{base}"
                     stored_name = f"doc_{doc_num}_{uuid_lib.uuid4()}{ext or '.jpg'}"
                     stored_path = documents_dir / stored_name
                     shutil.copy2(fp, stored_path)
                     path_map[f"photos/{fn}"] = str(stored_path)
+                    if str(doc_num).startswith("object_photo_"):
+                        uploaded_object_photo_paths.append(
+                            f"/api/questionnaires/{q_uuid}/documents/{doc_num}/view"
+                        )
                     mime = "image/jpeg" if (ext or "").lower() in (".jpg", ".jpeg") else "image/png"
                     qdf = QuestionnaireDocumentFile(
                         questionnaire_id=q_uuid,
@@ -320,6 +327,24 @@ async def upload_inspection_archive(
                         await db.refresh(new_inspection)
                     except Exception:
                         await db.rollback()
+            if uploaded_object_photo_paths:
+                try:
+                    eq_result = await db.execute(select(Equipment).where(Equipment.id == equipment_id))
+                    eq = eq_result.scalar_one_or_none()
+                    if eq:
+                        attrs = eq.attributes or {}
+                        if not isinstance(attrs, dict):
+                            attrs = {}
+                        current = attrs.get("object_photos")
+                        photos = list(current) if isinstance(current, list) else []
+                        for p in uploaded_object_photo_paths:
+                            if p not in photos:
+                                photos.append(p)
+                        attrs["object_photos"] = photos
+                        eq.attributes = attrs
+                        await db.commit()
+                except Exception:
+                    await db.rollback()
             response_data["questionnaire_id"] = questionnaire_id
         finally:
             try:

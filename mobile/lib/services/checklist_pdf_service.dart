@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../models/vessel_checklist.dart';
 
 /// Формирует PDF-документ по чек-листу обследования сосуда (текстовый отчёт).
@@ -49,6 +50,15 @@ class ChecklistPdfService {
   /// Собирает PDF в байты. [equipmentName] — название оборудования для заголовка.
   static Future<Uint8List> buildPdf(VesselChecklist checklist, String equipmentName) async {
     final doc = pw.Document();
+    pw.Font? baseFont;
+    pw.Font? boldFont;
+    try {
+      // Unicode-шрифт для корректного отображения кириллицы на мобильных устройствах.
+      baseFont = await PdfGoogleFonts.notoSansRegular();
+      boldFont = await PdfGoogleFonts.notoSansBold();
+    } catch (_) {
+      // Оставляем fallback на дефолтные шрифты, если сеть недоступна.
+    }
     final List<pw.Widget> blocks = [];
 
     blocks.add(pw.Text(
@@ -132,6 +142,9 @@ class ChecklistPdfService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(24),
+        theme: (baseFont != null && boldFont != null)
+            ? pw.ThemeData.withFont(base: baseFont, bold: boldFont)
+            : null,
         build: (pw.Context context) => blocks,
       ),
     );

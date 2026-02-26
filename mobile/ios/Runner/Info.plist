@@ -51,6 +51,10 @@
 	<string>Требуется доступ к галерее для выбора фотографий</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Требуется доступ для сохранения фотографий</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Требуется доступ к геолокации для добавления GPS координат на фото</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Требуется доступ к геолокации для корректной фотофиксации с координатами</string>
 </dict>
 </plist>
 

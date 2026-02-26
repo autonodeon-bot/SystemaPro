@@ -32,6 +32,17 @@ class InspectionArchiveService {
 
     addPath(data['factory_plate_photo'] as String?, 'factory_plate.jpg');
     addPath(data['control_scheme_image'] as String?, 'control_scheme.jpg');
+    final additionalData = data['additional_data'];
+    if (additionalData is Map) {
+      final objectPhotosRaw = additionalData['object_photos'];
+      if (objectPhotosRaw is List) {
+        for (var i = 0; i < objectPhotosRaw.length; i++) {
+          final p = objectPhotosRaw[i]?.toString();
+          if (p == null || p.trim().isEmpty) continue;
+          addPath(p, 'object_photo_$i.jpg');
+        }
+      }
+    }
     for (var i = 1; i <= 17; i++) {
       final v = documentFiles[i.toString()];
       String? fp;
@@ -60,6 +71,13 @@ class InspectionArchiveService {
         if (v is String) fp = v;
         addPath(fp, '$key.jpg');
       }
+      if (key.startsWith('object_photo_')) {
+        final v = entry.value;
+        String? fp;
+        if (v is Map) fp = v['file_path'] as String?;
+        if (v is String) fp = v;
+        addPath(fp, '$key.jpg');
+      }
     }
 
     // Добавляем фото в архив (сжатые)
@@ -78,6 +96,21 @@ class InspectionArchiveService {
     }
     replacePath('factory_plate_photo', data['factory_plate_photo'] as String?);
     replacePath('control_scheme_image', data['control_scheme_image'] as String?);
+    if (dataCopy['additional_data'] is Map) {
+      final ad = Map<String, dynamic>.from(dataCopy['additional_data'] as Map);
+      final objectPhotosRaw = ad['object_photos'];
+      if (objectPhotosRaw is List) {
+        final replaced = <String>[];
+        for (final item in objectPhotosRaw) {
+          final p = item?.toString();
+          if (p == null || p.isEmpty) continue;
+          final name = pathToArcName[p];
+          replaced.add(name != null ? '$photosDir/$name' : p);
+        }
+        ad['object_photos'] = replaced;
+        dataCopy['additional_data'] = ad;
+      }
+    }
     if (dataCopy['visual_defects'] is List) {
       final vdList = List<Map<String, dynamic>>.from((dataCopy['visual_defects'] as List).map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{}));
       for (var i = 0; i < vdList.length; i++) {
@@ -108,7 +141,6 @@ class InspectionArchiveService {
       }
       dataCopy['thickness_measurements'] = tmList;
     }
-
     // 1) Manifest
     final manifest = {
       'equipment_id': inspectionData['equipment_id'],

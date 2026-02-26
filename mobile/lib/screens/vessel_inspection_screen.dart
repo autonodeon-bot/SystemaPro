@@ -76,6 +76,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   File? _factoryPlatePhoto;
   File? _controlSchemeImage;
+  List<String> _additionalObjectPhotos = [];
 
   // Храним загруженные файлы документов: document_number -> file_path
   final Map<String, String> _documentFiles = {};
@@ -226,6 +227,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
       // Сохраняем через новый сервис автосохранения
       _syncManualEquipmentToChecklist();
+      _syncObjectPhotosToChecklist();
       final checklistData = _checklist.toJson();
       checklistData['gps_coordinates'] = _gpsCoordinates;
       
@@ -469,6 +471,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 e['next_verification_date']!.isNotEmpty)
             .toList();
       }
+      final objectPhotosRaw = data['additional_data'] is Map
+          ? (data['additional_data'] as Map)['object_photos']
+          : null;
+      if (objectPhotosRaw is List) {
+        _additionalObjectPhotos = objectPhotosRaw
+            .map((e) => e?.toString() ?? '')
+            .where((p) => p.trim().isNotEmpty)
+            .toList();
+      }
 
       // Восстанавливаем пути к вложениям документов
       final docs = pending['document_files'];
@@ -540,6 +551,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _checklist.thicknessMeasurements = merged.thicknessMeasurements;
         _checklist.inspectionEngineers = merged.inspectionEngineers;
         _checklist.visualDefects = merged.visualDefects;
+        _checklist.additionalData = merged.additionalData;
         _checklist.conclusion = merged.conclusion;
         if (merged is VesselChecklist) {
           _checklist.purpose = merged.purpose;
@@ -655,6 +667,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       _checklist.mediumGroup = getAttr('medium_group');
       _checklist.corrosionAllowance = getAttr('corrosion_allowance');
       _checklist.previousInspectionResult = getAttr('previous_inspection_result');
+      final objectPhotosRaw = attrs['object_photos'];
+      if (objectPhotosRaw is List) {
+        _additionalObjectPhotos = objectPhotosRaw
+            .map((e) => e?.toString() ?? '')
+            .where((e) => e.trim().isNotEmpty)
+            .toList();
+        _syncObjectPhotosToChecklist();
+      }
     } else {
       // Поля специфичные для компрессоров
       final compressorChecklist = _checklist as CompressorChecklist;
@@ -809,39 +829,42 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
-  /// Показывает диалог с чекбоксом «Добавить дату и GPS на фото», при подтверждении накладывает оверлей
-  Future<String> _maybeAddDateTimeGpsToPhoto(String imagePath) async {
-    bool addMeta = true;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setInner) => AlertDialog(
-          backgroundColor: const Color(0xFF1e293b),
-          title: const Text('Добавить на фото?', style: TextStyle(color: Colors.white)),
-          content: CheckboxListTile(
-            value: addMeta,
-            onChanged: (v) => setInner(() => addMeta = v ?? true),
-            title: const Text(
-              'Добавить дату и GPS-координаты',
-              style: TextStyle(color: Colors.white, fontSize: 15),
+  /// Добавляет дату и GPS на фото.
+  /// Для обязательных случаев (табличка/дефекты) используем force=true.
+  Future<String> _maybeAddDateTimeGpsToPhoto(String imagePath, {bool force = false}) async {
+    if (!force) {
+      bool addMeta = true;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setInner) => AlertDialog(
+            backgroundColor: const Color(0xFF1e293b),
+            title: const Text('Добавить на фото?', style: TextStyle(color: Colors.white)),
+            content: CheckboxListTile(
+              value: addMeta,
+              onChanged: (v) => setInner(() => addMeta = v ?? true),
+              title: const Text(
+                'Добавить дату и GPS-координаты',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              activeColor: const Color(0xFF3b82f6),
+              controlAffinity: ListTileControlAffinity.leading,
             ),
-            activeColor: const Color(0xFF3b82f6),
-            controlAffinity: ListTileControlAffinity.leading,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, addMeta),
+                child: const Text('ОК', style: TextStyle(color: Color(0xFF3b82f6))),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, addMeta),
-              child: const Text('ОК', style: TextStyle(color: Color(0xFF3b82f6))),
-            ),
-          ],
         ),
-      ),
-    );
-    if (confirmed != true || !mounted) return imagePath;
+      );
+      if (confirmed != true || !mounted) return imagePath;
+    }
 
     final now = DateTime.now();
     final dateStr = intl.DateFormat('dd.MM.yyyy HH:mm').format(now);
@@ -849,6 +872,29 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     try {
       coords = await _locationService.getCurrentLocation();
     } catch (_) {}
+    coords ??= _gpsCoordinates;
+    if (coords == null) {
+      try {
+        coords = await _locationService.getLastKnownLocation();
+      } catch (_) {}
+    }
+    if (coords == null && force && mounted) {
+      final issue = await _locationService.ensureLocationAccess(openSettingsOnFailure: true);
+      if (issue != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'GPS не получен: $issue. Включите геолокацию и разрешение для приложения, затем сделайте фото повторно.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      try {
+        coords = await _locationService.getCurrentLocation();
+      } catch (_) {}
+    }
     final gpsStr = coords != null
         ? '${coords['latitude']!.toStringAsFixed(6)}, ${coords['longitude']!.toStringAsFixed(6)}'
         : null;
@@ -896,7 +942,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
       final XFile? image = await _imagePicker.pickImage(source: source);
       if (image != null) {
-        String finalImagePath = await _maybeAddDateTimeGpsToPhoto(image.path);
+        String finalImagePath = await _maybeAddDateTimeGpsToPhoto(
+          image.path,
+          force: isFactoryPlate,
+        );
 
         // Показываем диалог для текстовой аннотации
         final shouldAnnotate = await showDialog<bool>(
@@ -1243,6 +1292,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             .toList();
   }
 
+  void _syncObjectPhotosToChecklist() {
+    _checklist.additionalData ??= <String, dynamic>{};
+    _checklist.additionalData!['object_photos'] = List<String>.from(
+      _additionalObjectPhotos.where((p) => p.trim().isNotEmpty),
+    );
+  }
+
   Future<void> _exportToPdf() async {
     try {
       final name = widget.equipment.name ?? 'Сосуд';
@@ -1283,6 +1339,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     try {
       final inspectionDateStr = _resolveInspectionDateIso();
       _syncManualEquipmentToChecklist();
+      _syncObjectPhotosToChecklist();
 
       // Черновик: разрешаем сохранять даже без оборудования для поверок,
       // чтобы инженер мог заполнить часть данных и вернуться позже.
@@ -1359,6 +1416,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
     final inspectionDateStr = _resolveInspectionDateIso();
     _syncManualEquipmentToChecklist();
+    _syncObjectPhotosToChecklist();
     final summary = [
       'Оборудование: ${widget.equipment.name}',
       'Дата: $inspectionDateStr',
@@ -1606,6 +1664,176 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 ),
               );
             }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAdditionalObjectPhoto(ImageSource source) async {
+    try {
+      final picked = await _imagePicker.pickImage(source: source, imageQuality: 85);
+      if (picked == null) return;
+      final withMeta = await _maybeAddDateTimeGpsToPhoto(picked.path);
+      final persistedPath = await _persistPickedFile(
+        sourcePath: withMeta,
+        fileName: Path.basename(withMeta),
+        documentNumber: 'object_photo',
+      );
+      setState(() {
+        _additionalObjectPhotos.add(persistedPath);
+        _hasUnsavedChanges = true;
+        _syncObjectPhotosToChecklist();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка добавления фото: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildAdditionalObjectPhotosSection() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1e293b),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Дополнительные фото объекта',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Добавьте несколько фото состояния/дефектов объекта. Фото сохраняются и будут доступны в истории объекта.',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickAdditionalObjectPhoto(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Камера'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickAdditionalObjectPhoto(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Галерея'),
+                ),
+              ),
+            ],
+          ),
+          if (_additionalObjectPhotos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _additionalObjectPhotos.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final p = entry.value;
+                final f = File(p);
+                final isRemote = p.startsWith('http://') ||
+                    p.startsWith('https://') ||
+                    p.startsWith('/api/');
+                final remoteUrl = p.startsWith('/api/') ? '${ApiService.baseUrl}$p' : p;
+                return Stack(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => Dialog(
+                            backgroundColor: Colors.black,
+                            child: InteractiveViewer(
+                              child: isRemote
+                                  ? Image.network(
+                                      remoteUrl,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Padding(
+                                        padding: EdgeInsets.all(16),
+                                        child: Text(
+                                          'Не удалось загрузить фото',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    )
+                                  : f.existsSync()
+                                      ? Image.file(f, fit: BoxFit.contain)
+                                      : const Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Text(
+                                        'Файл не найден',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: isRemote
+                            ? Image.network(
+                                remoteUrl,
+                                width: 96,
+                                height: 96,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 96,
+                                  height: 96,
+                                  color: Colors.black26,
+                                  child: const Icon(Icons.broken_image, color: Colors.white54),
+                                ),
+                              )
+                            : f.existsSync()
+                                ? Image.file(f, width: 96, height: 96, fit: BoxFit.cover)
+                                : Container(
+                                width: 96,
+                                height: 96,
+                                color: Colors.black26,
+                                child: const Icon(Icons.broken_image, color: Colors.white54),
+                              ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _additionalObjectPhotos.removeAt(idx);
+                            _hasUnsavedChanges = true;
+                            _syncObjectPhotosToChecklist();
+                          });
+                        },
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.black87,
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -1995,6 +2223,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               const SizedBox(height: 16),
               _buildPhotoSection(
                   'Фото заводской таблички', _factoryPlatePhoto, true),
+              _buildAdditionalObjectPhotosSection(),
               const SizedBox(height: 24),
               _buildSectionHeader('4. Проверки'),
               _buildYesNoField(
@@ -3295,7 +3524,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       final picked =
           await _imagePicker.pickImage(source: source, imageQuality: 80);
       if (picked == null) return null;
-      final withMeta = await _maybeAddDateTimeGpsToPhoto(picked.path);
+      final withMeta = await _maybeAddDateTimeGpsToPhoto(picked.path, force: true);
       final persistedPath = await _persistPickedFile(
         sourcePath: withMeta,
         fileName: Path.basename(withMeta),
