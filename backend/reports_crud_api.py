@@ -1098,7 +1098,7 @@ async def get_report_templates_db(
     """Получить список шаблонов отчетов из БД"""
     try:
         from models import ReportTemplate
-        query = select(ReportTemplate).where(ReportTemplate.is_active == 1)
+        query = select(ReportTemplate).where(ReportTemplate.is_active == True)
         
         if client_id:
             try:

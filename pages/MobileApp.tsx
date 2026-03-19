@@ -1,4 +1,3 @@
-import React from 'react';
 import { Download, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
 import { MOBILE_APK_URL, MOBILE_APP_BUILD, MOBILE_APP_VERSION } from '../constants';
 

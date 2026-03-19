@@ -168,6 +168,76 @@ export interface HierarchyNode {
   documents?: AttachedDocument[];
 }
 
+// --- HIERARCHY API TYPES ---
+
+export interface Enterprise {
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_active?: number;
+}
+
+export interface Branch {
+  id: string;
+  enterprise_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_active?: number;
+}
+
+export interface Workshop {
+  id: string;
+  branch_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_active?: number;
+}
+
+export interface HierarchyEquipment {
+  id: string;
+  equipment_code?: string;
+  name: string;
+  type_id?: string;
+  workshop_id?: string;
+  opo_id?: string;
+  serial_number?: string;
+  location?: string;
+  manufacturer?: string;
+  model?: string;
+  attributes?: Record<string, any>;
+  is_active?: number;
+}
+
+export interface AssignmentData {
+  id: string;
+  equipment_id: string;
+  equipment_code: string;
+  equipment_name: string;
+  assignment_type: string;
+  assigned_by?: string;
+  assigned_to: string;
+  assigned_to_name?: string;
+  status: string;
+  priority: string;
+  due_date?: string;
+  description?: string;
+  created_at: string;
+  updated_at?: string;
+  completed_at?: string;
+  enterprise_id?: string;
+  enterprise_name?: string;
+  branch_id?: string;
+  branch_name?: string;
+  workshop_id?: string;
+  workshop_name?: string;
+  opo_id?: string;
+  opo_name?: string;
+  opo_code?: string;
+}
+
 // --- GIS & MONITORING TYPES ---
 
 export interface Inspector {

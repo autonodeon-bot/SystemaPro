@@ -1,43 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, Download, Edit, Trash2, ArrowUpDown, Calendar, User, Building2, MapPin, Settings, FileText, Eye, Archive, Trash } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, ArrowUpDown, User, Building2, MapPin, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../constants';
+import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
+import CreateAssignmentModal from '../components/CreateAssignmentModal';
+import EditAssignmentModal from '../components/EditAssignmentModal';
+import AssignmentCard from '../components/AssignmentCard';
+import type { Assignment, AssignmentServerSummary } from '../components/AssignmentCard';
 
-interface Assignment {
-  id: string;
-  equipment_id: string;
-  equipment_code: string;
-  equipment_name: string;
-  assignment_type: string;
-  assigned_by: string | null;
-  assigned_to: string;
-  assigned_to_name: string | null;
-  status: string;
-  priority: string;
-  due_date: string | null;
-  description: string | null;
-  created_at: string;
-  updated_at: string | null;
-  completed_at: string | null;
-  enterprise_id?: string | null;
-  enterprise_name?: string | null;
-  branch_id?: string | null;
-  branch_name?: string | null;
-  workshop_id?: string | null;
-  workshop_name?: string | null;
-}
-
-interface AssignmentServerSummary {
-  has_history: boolean;
-  has_inspection: boolean;
-  has_report: boolean;
-  inspection_id?: string | null;
-  report_id?: string | null;
-  report_file_path?: string | null;
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
 }
 
 const AssignmentsManagement = () => {
   const navigate = useNavigate();
+  const toast = useToast();
+  const { user } = useAuth();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -51,6 +35,7 @@ const AssignmentsManagement = () => {
   const [viewMode, setViewMode] = useState<'list' | 'hierarchy'>('hierarchy');
   const [expandedHierarchy, setExpandedHierarchy] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [engineersList, setEngineersList] = useState<any[]>([]);
@@ -63,6 +48,7 @@ const AssignmentsManagement = () => {
   const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop' | 'engineer' | 'status' | 'priority'>('enterprise');
   const [generatingReport, setGeneratingReport] = useState<string | null>(null);
   const [serverSummary, setServerSummary] = useState<Record<string, AssignmentServerSummary>>({});
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
 
   useEffect(() => {
     loadEquipment();
@@ -128,13 +114,14 @@ const AssignmentsManagement = () => {
       });
       if (res.ok) {
         setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, status: 'CANCELLED' } : a));
+        toast.success('Задание перемещено в архив');
       } else {
         const err = await res.json();
-        alert(err.detail || 'Ошибка архивации');
+        toast.error(err.detail || 'Ошибка архивации');
       }
     } catch (e) {
       console.error(e);
-      alert('Ошибка архивации задания');
+      toast.error('Ошибка архивации задания');
     }
   };
 
@@ -148,13 +135,14 @@ const AssignmentsManagement = () => {
       });
       if (res.ok) {
         setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+        toast.success('Задание удалено');
       } else {
         const err = await res.json();
-        alert(err.detail || 'Ошибка удаления');
+        toast.error(err.detail || 'Ошибка удаления');
       }
     } catch (e) {
       console.error(e);
-      alert('Ошибка удаления задания');
+      toast.error('Ошибка удаления задания');
     }
   };
 
@@ -228,23 +216,20 @@ const AssignmentsManagement = () => {
       if (response.ok) {
         const inspectionData = await response.json();
         if (inspectionData.inspection_id) {
-          // Переходим на страницу просмотра инспекции через EquipmentDetails
           navigate(`/equipment/${inspectionData.equipment_id}?inspection=${inspectionData.inspection_id}`);
         } else if (inspectionData.inspection_history_id) {
-          // Если inspection_id нет, но есть inspection_history_id, показываем данные из InspectionHistory
-          // Можно открыть модальное окно или перейти на страницу с данными из истории
-          alert(`Чек-лист найден в истории обследований.\nДата: ${inspectionData.date_performed || 'N/A'}\nСтатус: ${inspectionData.status || 'N/A'}\n\nПереход к оборудованию для просмотра всех чек-листов...`);
+          toast.info(`Чек-лист найден в истории обследований. Дата: ${inspectionData.date_performed || 'N/A'}`);
           navigate(`/equipment/${inspectionData.equipment_id}`);
         } else {
-          alert('Чек-лист не найден для этого задания');
+          toast.warning('Чек-лист не найден для этого задания');
         }
       } else {
         const error = await response.json();
-        alert(`Ошибка: ${error.detail || 'Не удалось загрузить чек-лист'}`);
+        toast.error(error.detail || 'Не удалось загрузить чек-лист');
       }
     } catch (error) {
       console.error('Ошибка просмотра чек-листа:', error);
-      alert('Ошибка при загрузке чек-листа');
+      toast.error('Ошибка при загрузке чек-листа');
     }
   };
 
@@ -285,7 +270,7 @@ const AssignmentsManagement = () => {
       const inspectionId = inspectionData.inspection_id;
       
       if (!inspectionId) {
-        alert('Чек-лист не найден для этого задания. Невозможно сгенерировать отчет.');
+        toast.warning('Чек-лист не найден для этого задания. Невозможно сгенерировать отчет.');
         return;
       }
       
@@ -305,20 +290,18 @@ const AssignmentsManagement = () => {
       
       if (reportResponse.ok) {
         const reportData = await reportResponse.json();
-        alert('Отчет успешно сгенерирован!');
-        // Скачивание через защищенный endpoint (с Authorization)
+        toast.success('Отчет успешно сгенерирован!');
         if (reportData.id) {
           await downloadReport(reportData.id as string, resolvedFormat);
         }
-        // Обновим сводку (появится "Отчет готов")
         loadServerSummary(assignments);
       } else {
         const error = await reportResponse.json();
-        alert(`Ошибка генерации отчета: ${error.detail || 'Неизвестная ошибка'}`);
+        toast.error(`Ошибка генерации отчета: ${error.detail || 'Неизвестная ошибка'}`);
       }
     } catch (error) {
       console.error('Ошибка генерации отчета:', error);
-      alert('Ошибка при генерации отчета');
+      toast.error('Ошибка при генерации отчета');
     } finally {
       setGeneratingReport(null);
     }
@@ -354,13 +337,13 @@ const AssignmentsManagement = () => {
     try {
       const s = serverSummary[assignmentId];
       if (!s?.report_id) {
-        alert('Отчет еще не сформирован');
+        toast.warning('Отчет еще не сформирован');
         return;
       }
       await downloadReport(s.report_id, 'docx');
     } catch (e) {
       console.error('Ошибка скачивания отчета:', e);
-      alert('Ошибка скачивания отчета');
+      toast.error('Ошибка скачивания отчета');
     }
   };
 
@@ -441,13 +424,13 @@ const AssignmentsManagement = () => {
       const matchesPriority = filterPriority === 'all' || assignment.priority === filterPriority;
       const matchesEngineer = filterEngineer === 'all' || assignment.assigned_to === filterEngineer;
       const matchesEnterprise = filterEnterprise === 'all' || assignment.enterprise_id === filterEnterprise;
-      const matchesSearch = searchQuery === '' || 
-        assignment.equipment_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        assignment.equipment_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (assignment.assigned_to_name && assignment.assigned_to_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (assignment.enterprise_name && assignment.enterprise_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (assignment.branch_name && assignment.branch_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (assignment.workshop_name && assignment.workshop_name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesSearch = debouncedSearch === '' || 
+        assignment.equipment_code.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        assignment.equipment_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (assignment.assigned_to_name && assignment.assigned_to_name.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+        (assignment.enterprise_name && assignment.enterprise_name.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+        (assignment.branch_name && assignment.branch_name.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+        (assignment.workshop_name && assignment.workshop_name.toLowerCase().includes(debouncedSearch.toLowerCase()));
       
       return matchesStatus && matchesType && matchesPriority && matchesEngineer && matchesEnterprise && matchesSearch;
     }).sort((a, b) => {
@@ -477,7 +460,7 @@ const AssignmentsManagement = () => {
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [assignments, filterStatus, filterType, filterPriority, filterEngineer, filterEnterprise, searchQuery, sortBy, sortOrder]);
+  }, [assignments, filterStatus, filterType, filterPriority, filterEngineer, filterEnterprise, debouncedSearch, sortBy, sortOrder]);
 
   // Группировка заданий для иерархического вида
   const groupedAssignments = useMemo(() => {
@@ -897,8 +880,10 @@ const AssignmentsManagement = () => {
                       onDownloadReport={handleDownloadReport}
                       onArchive={handleArchiveAssignment}
                       onDelete={handleDeleteAssignment}
+                      onEdit={setEditingAssignment}
                       generatingReport={generatingReport}
                       serverSummary={serverSummary[assignment.id]}
+                      userRole={user?.role}
                     />
                   ))}
                 </div>
@@ -931,14 +916,15 @@ const AssignmentsManagement = () => {
               onDownloadReport={handleDownloadReport}
               onArchive={handleArchiveAssignment}
               onDelete={handleDeleteAssignment}
+              onEdit={setEditingAssignment}
               generatingReport={generatingReport}
               serverSummary={serverSummary[assignment.id]}
+              userRole={user?.role}
             />
           ))
         )}
       </div>
 
-      {/* Модальное окно создания задания */}
       {showCreateModal && (
         <CreateAssignmentModal
           onClose={() => setShowCreateModal(false)}
@@ -952,795 +938,21 @@ const AssignmentsManagement = () => {
           engineersList={engineersList}
         />
       )}
-    </div>
-  );
-};
 
-// Компонент модального окна для создания задания
-const CreateAssignmentModal: React.FC<{
-  onClose: () => void;
-  onSuccess: () => void;
-  equipmentList: any[];
-  engineersList: any[];
-}> = ({ onClose, onSuccess, equipmentList, engineersList }) => {
-  const [formData, setFormData] = useState({
-    selectedEquipmentIds: [] as string[],
-    assignment_type: 'DIAGNOSTICS',
-    assigned_to: '',
-    priority: 'NORMAL',
-    due_date: '',
-    description: ''
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [enterprises, setEnterprises] = useState<any[]>([]);
-  const [branches, setBranches] = useState<Record<string, any[]>>({});
-  const [workshops, setWorkshops] = useState<Record<string, any[]>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [equipmentByWorkshop, setEquipmentByWorkshop] = useState<Record<string, any[]>>({});
-  const [loadingHierarchy, setLoadingHierarchy] = useState(true);
-  useEffect(() => {
-    loadHierarchy();
-  }, []);
-
-  const loadHierarchy = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const [enterprisesRes, equipmentRes] = await Promise.all([
-        fetch(`${API_BASE}/api/hierarchy/enterprises`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_BASE}/api/equipment?limit=10000`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ]);
-
-      if (enterprisesRes.ok) {
-        const entData = await enterprisesRes.json();
-        setEnterprises(entData.items || []);
-      }
-
-      if (equipmentRes.ok) {
-        const eqData = await equipmentRes.json();
-        // Группируем оборудование по цехам
-        const equipmentByWorkshopMap: Record<string, any[]> = {};
-        (eqData.items || []).forEach((eq: any) => {
-          if (eq.workshop_id) {
-            if (!equipmentByWorkshopMap[eq.workshop_id]) {
-              equipmentByWorkshopMap[eq.workshop_id] = [];
-            }
-            equipmentByWorkshopMap[eq.workshop_id].push(eq);
-          }
-        });
-        setEquipmentByWorkshop(equipmentByWorkshopMap);
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки иерархии:', error);
-    } finally {
-      setLoadingHierarchy(false);
-    }
-  };
-
-  const loadBranches = async (enterpriseId: string) => {
-    if (branches[enterpriseId]) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/hierarchy/branches?enterprise_id=${enterpriseId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setBranches(prev => ({ ...prev, [enterpriseId]: data.items || [] }));
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки филиалов:', error);
-    }
-  };
-
-  const loadWorkshops = async (branchId: string) => {
-    if (workshops[branchId]) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/hierarchy/workshops?branch_id=${branchId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setWorkshops(prev => ({ ...prev, [branchId]: data.items || [] }));
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки цехов:', error);
-    }
-  };
-
-  const getEquipmentForWorkshop = (workshopId: string) => {
-    return equipmentByWorkshop[workshopId] || [];
-  };
-
-  const toggleExpand = (key: string) => {
-    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
-    if (key.startsWith('enterprise-')) {
-      const enterpriseId = key.replace('enterprise-', '');
-      loadBranches(enterpriseId);
-    } else if (key.startsWith('branch-')) {
-      const branchId = key.replace('branch-', '');
-      loadWorkshops(branchId);
-    }
-  };
-
-  const toggleEquipment = (equipmentId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedEquipmentIds: prev.selectedEquipmentIds.includes(equipmentId)
-        ? prev.selectedEquipmentIds.filter(id => id !== equipmentId)
-        : [...prev.selectedEquipmentIds, equipmentId]
-    }));
-  };
-
-  // Проверка, все ли оборудование выбрано в предприятии
-  const isEnterpriseSelected = (enterpriseId: string): boolean => {
-    // Если филиалы не загружены, возвращаем false
-    const entBranches = branches[enterpriseId];
-    if (!entBranches || entBranches.length === 0) return false;
-    
-    const allEquipmentIds: string[] = [];
-    
-    entBranches.forEach((branch: any) => {
-      // Если цехи не загружены, пропускаем
-      const branchWorkshops = workshops[branch.id];
-      if (!branchWorkshops || branchWorkshops.length === 0) return;
-      
-      branchWorkshops.forEach((workshop: any) => {
-        const workshopEquipment = getEquipmentForWorkshop(workshop.id);
-        workshopEquipment.forEach((eq: any) => {
-          allEquipmentIds.push(eq.id);
-        });
-      });
-    });
-
-    if (allEquipmentIds.length === 0) return false;
-    // Проверяем, что все оборудование выбрано
-    return allEquipmentIds.every(id => formData.selectedEquipmentIds.includes(id));
-  };
-
-  // Проверка, все ли оборудование выбрано в филиале
-  const isBranchSelected = (branchId: string): boolean => {
-    // Если цехи не загружены, возвращаем false
-    if (!workshops[branchId] || workshops[branchId].length === 0) return false;
-    
-    const branchWorkshops = workshops[branchId];
-    const allEquipmentIds: string[] = [];
-    
-    branchWorkshops.forEach((workshop: any) => {
-      const workshopEquipment = getEquipmentForWorkshop(workshop.id);
-      workshopEquipment.forEach((eq: any) => {
-        allEquipmentIds.push(eq.id);
-      });
-    });
-
-    if (allEquipmentIds.length === 0) return false;
-    return allEquipmentIds.every(id => formData.selectedEquipmentIds.includes(id));
-  };
-
-  // Проверка, все ли оборудование выбрано в цехе
-  const isWorkshopSelected = (workshopId: string): boolean => {
-    const workshopEquipment = getEquipmentForWorkshop(workshopId);
-    const allEquipmentIds = workshopEquipment.map((eq: any) => eq.id);
-
-    if (allEquipmentIds.length === 0) return false;
-    return allEquipmentIds.every(id => formData.selectedEquipmentIds.includes(id));
-  };
-
-  const selectAllInEnterprise = async (enterpriseId: string, isChecked: boolean) => {
-    const enterprise = enterprises.find(e => e.id === enterpriseId);
-    if (!enterprise) return;
-
-    // Загружаем филиалы, если они не загружены
-    if (!branches[enterpriseId]) {
-      await loadBranches(enterpriseId);
-    }
-
-    const allEquipmentIds: string[] = [];
-    const entBranches = branches[enterpriseId] || [];
-    
-    // Загружаем цехи для всех филиалов параллельно
-    const loadPromises = entBranches.map(async (branch: any) => {
-      if (!workshops[branch.id]) {
-        await loadWorkshops(branch.id);
-      }
-    });
-    await Promise.all(loadPromises);
-
-    // Собираем все оборудование после загрузки
-    entBranches.forEach((branch: any) => {
-      const branchWorkshops = workshops[branch.id] || [];
-      branchWorkshops.forEach((workshop: any) => {
-        const workshopEquipment = getEquipmentForWorkshop(workshop.id);
-        workshopEquipment.forEach((eq: any) => {
-          allEquipmentIds.push(eq.id);
-        });
-      });
-    });
-
-    // Обновляем состояние сразу
-    setFormData(prev => {
-      if (isChecked) {
-        // Добавляем все
-        const newIds = [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])];
-        return {
-          ...prev,
-          selectedEquipmentIds: newIds
-        };
-      } else {
-        // Удаляем все
-        const newIds = prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id));
-        return {
-          ...prev,
-          selectedEquipmentIds: newIds
-        };
-      }
-    });
-  };
-
-  const selectAllInBranch = async (branchId: string, isChecked: boolean) => {
-    // Загружаем цехи, если они не загружены
-    if (!workshops[branchId]) {
-      await loadWorkshops(branchId);
-    }
-
-    const branchWorkshops = workshops[branchId] || [];
-    const allEquipmentIds: string[] = [];
-    
-    branchWorkshops.forEach((workshop: any) => {
-      const workshopEquipment = getEquipmentForWorkshop(workshop.id);
-      workshopEquipment.forEach((eq: any) => {
-        allEquipmentIds.push(eq.id);
-      });
-    });
-
-    // Обновляем состояние сразу
-    setFormData(prev => {
-      if (isChecked) {
-        // Добавляем все
-        const newIds = [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])];
-        return {
-          ...prev,
-          selectedEquipmentIds: newIds
-        };
-      } else {
-        // Удаляем все
-        const newIds = prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id));
-        return {
-          ...prev,
-          selectedEquipmentIds: newIds
-        };
-      }
-    });
-  };
-
-  const selectAllInWorkshop = (workshopId: string, isChecked: boolean) => {
-    const workshopEquipment = getEquipmentForWorkshop(workshopId);
-    const allEquipmentIds = workshopEquipment.map((eq: any) => eq.id);
-
-    setFormData(prev => {
-      if (isChecked) {
-        // Добавляем все
-        return {
-          ...prev,
-          selectedEquipmentIds: [...new Set([...prev.selectedEquipmentIds, ...allEquipmentIds])]
-        };
-      } else {
-        // Удаляем все
-        return {
-          ...prev,
-          selectedEquipmentIds: prev.selectedEquipmentIds.filter(id => !allEquipmentIds.includes(id))
-        };
-      }
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (formData.selectedEquipmentIds.length === 0) {
-      setError('Необходимо выбрать хотя бы одно оборудование');
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Создаем задания для каждого выбранного оборудования
-      const promises = formData.selectedEquipmentIds.map(equipmentId => {
-        const payload = {
-          equipment_id: equipmentId,
-          assignment_type: formData.assignment_type,
-          assigned_to: formData.assigned_to,
-          priority: formData.priority,
-          due_date: formData.due_date ? `${formData.due_date}T23:59:59` : null,
-          description: formData.description || null
-        };
-
-        return fetch(`${API_BASE}/api/assignments`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-      });
-
-      const results = await Promise.all(promises);
-      const failed = results.filter(r => !r.ok);
-      
-      if (failed.length > 0) {
-        const errorData = await failed[0].json();
-        setError(`Ошибка при создании заданий: ${errorData.detail || 'Неизвестная ошибка'}`);
-      } else {
-        onSuccess();
-      }
-    } catch (err) {
-      setError('Ошибка при создании заданий');
-      console.error('Ошибка:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-slate-700">
-          <h2 className="text-xl font-semibold text-white">Создать задание</h2>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Оборудование * ({formData.selectedEquipmentIds.length} выбрано)
-            </label>
-            {loadingHierarchy ? (
-              <div className="text-slate-400 text-sm">Загрузка иерархии...</div>
-            ) : (
-              <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-h-96 overflow-y-auto">
-                {enterprises.length === 0 ? (
-                  <div className="text-slate-400 text-sm">Нет доступных предприятий</div>
-                ) : (
-                  enterprises.map((enterprise) => (
-                    <div key={enterprise.id} className="mb-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpand(`enterprise-${enterprise.id}`)}
-                          className="text-slate-400 hover:text-white"
-                        >
-                          {expanded[`enterprise-${enterprise.id}`] ? '▼' : '▶'}
-                        </button>
-                        <input
-                          type="checkbox"
-                          checked={isEnterpriseSelected(enterprise.id)}
-                          onChange={async (e) => {
-                            e.stopPropagation();
-                            const newChecked = e.target.checked;
-                            // Сразу обновляем визуально, затем загружаем данные
-                            await selectAllInEnterprise(enterprise.id, newChecked);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="rounded cursor-pointer"
-                        />
-                        <span className="text-white font-semibold">{enterprise.name}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectAllInEnterprise(enterprise.id, !isEnterpriseSelected(enterprise.id));
-                          }}
-                          className="ml-auto text-xs text-accent hover:underline"
-                        >
-                          {isEnterpriseSelected(enterprise.id) ? 'Снять все' : 'Выбрать все'}
-                        </button>
-                      </div>
-                      {expanded[`enterprise-${enterprise.id}`] && (branches[enterprise.id] || []).map((branch: any) => (
-                        <div key={branch.id} className="ml-6 mt-2">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => toggleExpand(`branch-${branch.id}`)}
-                              className="text-slate-400 hover:text-white"
-                            >
-                              {expanded[`branch-${branch.id}`] ? '▼' : '▶'}
-                            </button>
-                            <input
-                              type="checkbox"
-                              checked={isBranchSelected(branch.id)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                selectAllInBranch(branch.id, e.target.checked);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="rounded"
-                            />
-                            <span className="text-slate-300">{branch.name}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                selectAllInBranch(branch.id, !isBranchSelected(branch.id));
-                              }}
-                              className="ml-auto text-xs text-accent hover:underline"
-                            >
-                              {isBranchSelected(branch.id) ? 'Снять все' : 'Выбрать все'}
-                            </button>
-                          </div>
-                          {expanded[`branch-${branch.id}`] && (workshops[branch.id] || []).map((workshop: any) => (
-                            <div key={workshop.id} className="ml-6 mt-2">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpand(`workshop-${workshop.id}`)}
-                                  className="text-slate-400 hover:text-white"
-                                >
-                                  {expanded[`workshop-${workshop.id}`] ? '▼' : '▶'}
-                                </button>
-                                <input
-                                  type="checkbox"
-                                  checked={isWorkshopSelected(workshop.id)}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    selectAllInWorkshop(workshop.id, e.target.checked);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="rounded"
-                                />
-                                <span className="text-slate-400">{workshop.name}</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    selectAllInWorkshop(workshop.id, !isWorkshopSelected(workshop.id));
-                                  }}
-                                  className="ml-auto text-xs text-accent hover:underline"
-                                >
-                                  {isWorkshopSelected(workshop.id) ? 'Снять все' : 'Выбрать все'}
-                                </button>
-                              </div>
-                              {expanded[`workshop-${workshop.id}`] && getEquipmentForWorkshop(workshop.id).map((eq: any) => (
-                                <div key={eq.id} className="ml-6 mt-1">
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={formData.selectedEquipmentIds.includes(eq.id)}
-                                      onChange={() => toggleEquipment(eq.id)}
-                                      className="rounded"
-                                    />
-                                    <span className="text-slate-400 text-sm">
-                                      {eq.equipment_code} - {eq.name}
-                                    </span>
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Тип задания *
-            </label>
-            <select
-              required
-              value={formData.assignment_type}
-              onChange={(e) => setFormData({ ...formData, assignment_type: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
-            >
-              <option value="DIAGNOSTICS">Диагностика</option>
-              <option value="EXPERTISE">Экспертиза ПБ</option>
-              <option value="INSPECTION">Обследование</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Назначить инженеру *
-            </label>
-            <select
-              required
-              value={formData.assigned_to}
-              onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
-            >
-              <option value="">Выберите инженера</option>
-              {engineersList.map((eng) => (
-                <option key={eng.id} value={eng.id}>
-                  {eng.full_name || eng.username}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Приоритет *
-            </label>
-            <select
-              required
-              value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
-            >
-              <option value="LOW">Низкий</option>
-              <option value="NORMAL">Обычный</option>
-              <option value="HIGH">Высокий</option>
-              <option value="URGENT">Срочный</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Срок выполнения
-            </label>
-            <input
-              type="date"
-              value={formData.due_date}
-              onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Описание
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={4}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
-              placeholder="Дополнительная информация о задании..."
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-slate-400 hover:text-white transition"
-              disabled={saving}
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition disabled:opacity-50"
-            >
-              {saving ? `Создание ${formData.selectedEquipmentIds.length} заданий...` : `Создать ${formData.selectedEquipmentIds.length} заданий`}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// Компонент карточки задания
-const AssignmentCard: React.FC<{
-  assignment: Assignment;
-  isSelected: boolean;
-  onSelect: (id: string) => void;
-  getStatusIcon: (status: string) => React.ReactNode;
-  getStatusLabel: (status: string) => string;
-  getTypeLabel: (type: string) => string;
-  getPriorityColor: (priority: string) => string;
-  onViewChecklist?: (assignmentId: string) => void;
-  onGenerateReport?: (assignmentId: string) => void;
-  onDownloadReport?: (assignmentId: string) => void;
-  onArchive?: (assignmentId: string) => void;
-  onDelete?: (assignmentId: string) => void;
-  generatingReport?: string | null;
-  serverSummary?: AssignmentServerSummary;
-}> = ({ assignment, isSelected, onSelect, getStatusIcon, getStatusLabel, getTypeLabel, getPriorityColor, onViewChecklist, onGenerateReport, onDownloadReport, onArchive, onDelete, generatingReport, serverSummary }) => {
-  const isOverdue = assignment.due_date && new Date(assignment.due_date) < new Date() && assignment.status !== 'COMPLETED';
-  const isCompleted = assignment.status === 'COMPLETED';
-  const server = serverSummary;
-  
-  return (
-    <div
-      className={`bg-slate-800 rounded-xl border-2 p-4 hover:border-accent/50 transition-colors ${
-        isSelected ? 'border-accent' : 'border-slate-700'
-      } ${isOverdue ? 'border-red-500/50' : ''} ${!isCompleted ? 'cursor-pointer' : ''}`}
-      onClick={() => !isCompleted && onSelect(assignment.id)}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => onSelect(assignment.id)}
-              onClick={(e) => e.stopPropagation()}
-              className="rounded"
-            />
-            <span className="px-2 py-1 bg-slate-700 rounded text-xs font-mono text-accent">
-              {assignment.equipment_code}
-            </span>
-            <h3 className="text-lg font-bold text-white flex-1">{assignment.equipment_name}</h3>
-            <span className={`px-2 py-1 rounded text-xs font-semibold ${getPriorityColor(assignment.priority)} text-white`}>
-              {assignment.priority}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 ml-7">
-            {assignment.enterprise_name && (
-              <span className="flex items-center gap-1">
-                <Building2 size={14} />
-                {assignment.enterprise_name}
-              </span>
-            )}
-            {assignment.branch_name && (
-              <span className="flex items-center gap-1">
-                <MapPin size={14} />
-                {assignment.branch_name}
-              </span>
-            )}
-            {assignment.workshop_name && (
-              <span className="flex items-center gap-1">
-                <Settings size={14} />
-                {assignment.workshop_name}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400 ml-7 mt-2">
-            <span className="flex items-center gap-1">
-              <ClipboardList size={14} />
-              {getTypeLabel(assignment.assignment_type)}
-            </span>
-            <span className="flex items-center gap-1">
-              <User size={14} />
-              {assignment.assigned_to_name || 'N/A'}
-            </span>
-            {assignment.due_date && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-400 font-semibold' : ''}`}>
-                <Calendar size={14} />
-                {new Date(assignment.due_date).toLocaleDateString('ru-RU')}
-                {isOverdue && ' (Просрочено!)'}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {getStatusIcon(assignment.status)}
-          <span className="text-sm font-semibold text-slate-300">
-            {getStatusLabel(assignment.status)}
-          </span>
-        </div>
-      </div>
-      
-      {assignment.description && (
-        <p className="text-slate-300 text-sm mb-3 ml-7">{assignment.description}</p>
+      {editingAssignment && (
+        <EditAssignmentModal
+          assignment={editingAssignment}
+          isOpen={true}
+          onClose={() => setEditingAssignment(null)}
+          onSaved={() => {
+            loadAssignments();
+            loadStatistics();
+            loadObjectStatistics();
+          }}
+        />
       )}
-      
-      <div className="flex items-center justify-between text-xs text-slate-500 ml-7">
-        <span>Создано: {new Date(assignment.created_at).toLocaleDateString('ru-RU')}</span>
-        {assignment.completed_at && (
-          <span className="text-green-400">Завершено: {new Date(assignment.completed_at).toLocaleDateString('ru-RU')}</span>
-        )}
-      </div>
-
-      {/* Индикатор: есть ли данные/отчет на сервере */}
-      {(server?.has_history || server?.has_report || (isCompleted && server && !server.has_history)) && (
-        <div className="flex flex-wrap items-center gap-2 mt-2 ml-7">
-          {server?.has_history && (
-            <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-300 border border-green-500/30">
-              Данные на сервере
-            </span>
-          )}
-          {server?.has_report && (
-            <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Отчет готов
-            </span>
-          )}
-          {isCompleted && server && !server.has_history && (
-            <span className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-300 border border-red-500/30">
-              Нет данных на сервере
-            </span>
-          )}
-        </div>
-      )}
-      
-      <div className="flex flex-wrap items-center gap-2 mt-3 ml-7 pt-3 border-t border-slate-700">
-        {assignment.status !== 'CANCELLED' && onArchive && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onArchive(assignment.id);
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded transition-colors"
-            title="Перенести в архив"
-          >
-            <Archive size={16} />
-            В архив
-          </button>
-        )}
-        {onDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(assignment.id);
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white text-sm rounded transition-colors"
-            title="Удалить задание"
-          >
-            <Trash size={16} />
-            Удалить
-          </button>
-        )}
-      {isCompleted && (
-        <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewChecklist?.(assignment.id);
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
-          >
-            <Eye size={16} />
-            Просмотреть чек-лист
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onGenerateReport?.(assignment.id);
-            }}
-            disabled={generatingReport === assignment.id}
-            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white text-sm rounded transition-colors"
-          >
-            {generatingReport === assignment.id ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Генерация...
-              </>
-            ) : (
-              <>
-                <FileText size={16} />
-                Сгенерировать отчет
-              </>
-            )}
-          </button>
-          {serverSummary?.has_report && serverSummary?.report_id && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownloadReport?.(assignment.id);
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
-              title="Скачать отчет"
-            >
-              <Download size={16} />
-              Скачать
-            </button>
-          )}
-        </>
-        )}
-      </div>
     </div>
   );
 };
 
 export default AssignmentsManagement;
-

@@ -1,12 +1,13 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon, Shield, Wrench, HelpCircle } from 'lucide-react';
+import { HashRouter, Routes, Route, NavLink, useLocation, Outlet, Navigate } from 'react-router-dom';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase } from 'lucide-react';
 import { APP_VERSION } from './constants';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
 import Login from './pages/Login';
 import Landing from './pages/Landing';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const DynamicInspection = lazy(() => import('./pages/DynamicInspection'));
@@ -31,6 +32,9 @@ const VerificationsCalendar = lazy(() => import('./pages/VerificationsCalendar')
 const ReportTemplates = lazy(() => import('./pages/ReportTemplates'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const EngineerPanel = lazy(() => import('./pages/EngineerPanel'));
+const ClientPortal = lazy(() => import('./pages/ClientPortal'));
+const PipelineMap = lazy(() => import('./pages/PipelineMap'));
+const ReportsAndExpertise = lazy(() => import('./pages/ReportsAndExpertise'));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-64">
@@ -54,7 +58,6 @@ const Layout: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false); // Закрыт по умолчанию на мобильных
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
 
   // Открываем sidebar на десктопе автоматически
   React.useEffect(() => {
@@ -82,30 +85,81 @@ const Layout: React.FC = () => {
         </div>
         
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
+          {/* Дашборд — все роли */}
           <SidebarItem to="/dashboard" icon={LayoutDashboard} label={isSidebarOpen ? "Дашборд" : ""} />
-          <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? "Оборудование" : ""} />
-          <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? "Задания" : ""} />
-          <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Чек-листы" : ""} />
-          <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
-          <SidebarItem to="/reports" icon={Sparkles} label={isSidebarOpen ? "Генерация отчетов" : ""} />
-          <SidebarItem to="/verifications" icon={CheckCircle2} label={isSidebarOpen ? "Поверки" : ""} />
-          <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Нормативные документы" : ""} />
-          <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
-          {user?.role === 'admin' && (
-            <SidebarItem to="/admin" icon={Shield} label={isSidebarOpen ? "Админ-панель" : ""} />
+
+          {/* Оборудование и Иерархия — admin, chief_operator, operator */}
+          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (
+            <>
+              <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? "Оборудование" : ""} />
+              <SidebarItem to="/equipment-hierarchy" icon={Building2} label={isSidebarOpen ? "Иерархия" : ""} />
+            </>
           )}
+
+          {/* Задания — admin, chief_operator, operator, engineer */}
+          {user?.role !== 'client' && (
+            <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? (user?.role === 'engineer' ? "Мои задания" : "Задания") : ""} />
+          )}
+
+          {/* Обследования — admin, chief_operator, operator, engineer */}
+          {user?.role !== 'client' && (
+            <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Обследования" : ""} />
+          )}
+
+          {/* Проекты — только admin */}
+          {user?.role === 'admin' && (
+            <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
+          )}
+
+          {/* Отчёты — все роли */}
+          <SidebarItem to="/reports" icon={Sparkles} label={isSidebarOpen ? "Отчёты" : ""} />
+
+          {/* Поверки — admin, chief_operator, operator */}
+          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (
+            <SidebarItem to="/verifications" icon={CheckCircle2} label={isSidebarOpen ? "Поверки" : ""} />
+          )}
+
+          {/* Нормативные документы и Компетенции — admin */}
+          {user?.role === 'admin' && (
+            <>
+              <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Нормативные документы" : ""} />
+              <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
+            </>
+          )}
+
+          {/* Админ-панель, Сотрудники, Шаблоны — admin */}
+          {user?.role === 'admin' && (
+            <>
+              <SidebarItem to="/admin" icon={Shield} label={isSidebarOpen ? "Админ-панель" : ""} />
+              <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
+              <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
+            </>
+          )}
+
+          {/* Карта трубопроводов — admin, chief_operator */}
+          {(user?.role === 'admin' || user?.role === 'chief_operator') && (
+            <SidebarItem to="/pipeline-map" icon={Map} label={isSidebarOpen ? "Карта трубопроводов" : ""} />
+          )}
+
+          {/* Моя панель — engineer */}
           {user?.role === 'engineer' && (
             <SidebarItem to="/engineer-panel" icon={Wrench} label={isSidebarOpen ? "Моя панель" : ""} />
           )}
-          {user?.role === 'admin' && (
-            <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
+
+          {/* Портал клиента — client */}
+          {user?.role === 'client' && (
+            <SidebarItem to="/client-portal" icon={Briefcase} label={isSidebarOpen ? "Мои отчёты" : ""} />
           )}
+
+          {/* Технические разделы — admin */}
           {user?.role === 'admin' && (
-            <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
+            <>
+              <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
+              <SidebarItem to="/glossary" icon={HelpCircle} label={isSidebarOpen ? "Глоссарий" : ""} />
+              <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? "Мобильное приложение" : ""} />
+            </>
           )}
-          <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
-          <SidebarItem to="/glossary" icon={HelpCircle} label={isSidebarOpen ? "Глоссарий" : ""} />
-          <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? "Мобильное приложение" : ""} />
+
           <div className="my-4 border-t border-slate-700"></div>
           <SidebarItem to="/changelog" icon={Sparkles} label={isSidebarOpen ? "Что нового?" : ""} />
           <SidebarItem to="/settings" icon={Settings} label={isSidebarOpen ? "Настройки" : ""} />
@@ -187,9 +241,11 @@ const Layout: React.FC = () => {
 
         {/* Scrollable Area */}
         <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
-          <Suspense fallback={<PageLoader />}>
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
     </div>
@@ -249,6 +305,9 @@ const App = () => {
             <Route path="/mobile-app" element={<MobileApp />} />
             <Route path="/changelog" element={<Changelog />} />
             <Route path="/assignments" element={<AssignmentsManagement />} />
+            <Route path="/client-portal" element={<ClientPortal />} />
+            <Route path="/pipeline-map" element={<PipelineMap />} />
+            <Route path="/reports-expertise" element={<ReportsAndExpertise />} />
             <Route path="*" element={<div className="text-center text-slate-500 mt-20">Раздел в разработке</div>} />
           </Route>
         </Routes>

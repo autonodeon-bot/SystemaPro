@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:go_router/go_router.dart';
 import '../data/checklist_constants.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
@@ -112,7 +113,7 @@ class _OpoSurveyScreenState extends State<OpoSurveyScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context, true);
+      context.pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,7 +139,7 @@ class _OpoSurveyScreenState extends State<OpoSurveyScreen> {
           backgroundColor: res.success ? Colors.green : Colors.red,
         ),
       );
-      Navigator.pop(context, true);
+      context.pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

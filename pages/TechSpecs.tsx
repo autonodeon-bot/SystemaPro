@@ -1,4 +1,3 @@
-import React from 'react';
 import { ARCHITECTURE_SPECS } from '../constants';
 import { Code, Terminal, Database } from 'lucide-react';
 

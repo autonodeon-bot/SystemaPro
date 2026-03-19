@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Plus, Search, Filter, Download, Calendar, FileText, Eye, Edit, Trash2, Upload, CheckCircle, XCircle, Clock, FileDown, History, BarChart3 } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, Clock, FileDown, History, BarChart3 } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface VerificationEquipment {
@@ -19,7 +19,7 @@ interface VerificationEquipment {
   scan_file_name?: string;
   is_active: boolean;
   notes?: string;
-  days_until_expiry?: number;
+  days_until_expiry: number | null;
   is_expired: boolean;
 }
 
@@ -370,7 +370,7 @@ const VerificationsManagement: React.FC = () => {
             </div>
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {usageStatistics.equipment.slice(0, 10).map((eq: any, idx: number) => (
+            {usageStatistics.equipment.slice(0, 10).map((eq: any) => (
               <div key={eq.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
                 <div className="flex items-center justify-between">
                   <div>

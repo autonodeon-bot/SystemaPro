@@ -26,7 +26,7 @@ async def get_equipment_types(db: AsyncSession = Depends(get_db)):
     if cached is not None:
         return cached
     try:
-        result = await db.execute(select(EquipmentType).where(EquipmentType.is_active == 1))
+        result = await db.execute(select(EquipmentType).where(EquipmentType.is_active == True))
         types = result.scalars().all()
         response = {
             "items": [
@@ -310,7 +310,7 @@ async def get_regulatory_documents(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        query = select(RegulatoryDocument).where(RegulatoryDocument.is_active == 1)
+        query = select(RegulatoryDocument).where(RegulatoryDocument.is_active == True)
         if document_type:
             query = query.where(RegulatoryDocument.document_type == document_type)
         result = await db.execute(query)

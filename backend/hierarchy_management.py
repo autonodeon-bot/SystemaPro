@@ -59,7 +59,7 @@ async def get_enterprises(
         
         # Затем фильтруем только активные
         result = await db.execute(
-            select(Enterprise).where(Enterprise.is_active == 1).order_by(Enterprise.name)
+            select(Enterprise).where(Enterprise.is_active == True).order_by(Enterprise.name)
         )
         enterprises = result.scalars().all()
         logger.info(f"Найдено активных предприятий: {len(enterprises)}")
@@ -137,7 +137,7 @@ async def get_branches(
 ):
     """Получить список филиалов"""
     try:
-        query = select(Branch).where(Branch.is_active == 1)
+        query = select(Branch).where(Branch.is_active == True)
         if enterprise_id:
             query = query.where(Branch.enterprise_id == uuid_lib.UUID(enterprise_id))
         
@@ -205,7 +205,7 @@ async def get_workshops(
 ):
     """Получить список цехов"""
     try:
-        query = select(Workshop).where(Workshop.is_active == 1)
+        query = select(Workshop).where(Workshop.is_active == True)
         if branch_id:
             query = query.where(Workshop.branch_id == uuid_lib.UUID(branch_id))
         

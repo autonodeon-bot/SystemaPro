@@ -27,7 +27,7 @@ async def get_engineers(
     if cached is not None:
         return cached
     try:
-        result = await db.execute(select(Engineer).where(Engineer.is_active == 1))
+        result = await db.execute(select(Engineer).where(Engineer.is_active == True))
         engineers = result.scalars().all()
 
         certs_by_engineer: Dict[str, List[Dict[str, Any]]] = {}
@@ -128,7 +128,7 @@ async def get_users(
         if not current_user or current_user.role not in ["admin", "chief_operator"]:
             raise HTTPException(status_code=403, detail="Доступ запрещен")
         
-        query = select(User).where(User.is_active == 1)
+        query = select(User).where(User.is_active == True)
         if role:
             query = query.where(User.role == role)
         
@@ -203,7 +203,7 @@ async def get_certifications(
 ):
     """Get certifications (method_code — фильтр по виду НК для мобильной синхронизации)"""
     try:
-        query = select(Certification).where(Certification.is_active == 1)
+        query = select(Certification).where(Certification.is_active == True)
         if engineer_id:
             try:
                 eng_uuid = uuid_lib.UUID(engineer_id)

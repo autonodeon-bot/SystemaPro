@@ -76,12 +76,6 @@ const ReportViewer: React.FC = () => {
   };
 
   const isImageDoc = (mime?: string) => (mime || '').toLowerCase().startsWith('image/');
-  const formatDateRu = (value?: string | null) => {
-    if (!value) return '—';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '—';
-    return new Intl.DateTimeFormat('ru-RU').format(date);
-  };
   const buildNdtPhotoUrl = (methodId?: string, path?: string) => {
     if (!methodId || !path) return null;
     const fileName = path.split('/').pop();
@@ -127,10 +121,6 @@ const ReportViewer: React.FC = () => {
   const docFiles = useMemo(() => data?.document_files ?? [], [data]);
   const schemeDoc = useMemo(
     () => docFiles.find((doc) => doc.document_number === 'control_scheme_image'),
-    [docFiles],
-  );
-  const factoryDoc = useMemo(
-    () => docFiles.find((doc) => doc.document_number === 'factory_plate_photo'),
     [docFiles],
   );
   const documentsData = (data?.inspection?.data?.documents ?? {}) as Record<string, any>;

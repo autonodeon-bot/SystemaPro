@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Calendar, FileText, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Calculator, TrendingUp, AlertTriangle } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface Equipment {

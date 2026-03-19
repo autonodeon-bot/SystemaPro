@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
-import 'dashboard_screen.dart';
 import '../services/sync_service.dart';
 import '../services/biometric_service.dart';
 
@@ -151,15 +151,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
             if (biometricAvailable) {
               _showBiometricSetupDialog();
             } else {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
+              context.go('/dashboard');
             }
           } else {
             if (mounted) {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
+              context.go('/dashboard');
             }
           }
         } else {
@@ -222,9 +218,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       if (authenticated) {
         final user = await _authService.getCurrentUser();
         if (user != null) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const DashboardScreen()),
-          );
+          context.go('/dashboard');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -270,9 +264,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
+              context.go('/dashboard');
             },
             child: const Text('Позже'),
           ),
@@ -282,9 +274,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
               await _authService.setBiometricEnabled(true);
               if (!context.mounted) return;
               Navigator.of(context).pop();
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
+              context.go('/dashboard');
             },
             child: const Text('Включить'),
           ),
@@ -357,11 +347,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       }
     }
 
-    // Вход выполнен - переходим в приложение
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DashboardScreen()),
-    );
+    context.go('/dashboard');
   }
 
   Future<void> _loginWithPin() async {
@@ -470,9 +457,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       );
       return;
     }
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DashboardScreen()),
-    );
+    context.go('/dashboard');
   }
 
   Future<void> _setupPin() async {
@@ -560,10 +545,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
             backgroundColor: Colors.green,
           ),
         );
-        // После установки PIN сразу входим
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
+        context.go('/dashboard');
       }
     }
   }

@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PIPELINES_DATA, MOCK_INSPECTORS, MOCK_CADASTRAL } from '../constants';
-import { Layers, Zap, Info, Wind, Navigation, Users, Hexagon, Triangle, MapPin, Gauge, Globe, Map as MapIcon } from 'lucide-react';
+import { Layers, Zap, Wind, Navigation, Users, Hexagon, Triangle, Gauge, Map as MapIcon } from 'lucide-react';
 import { WeatherState, Inspector } from '../types';
 
 // Declare Leaflet global
@@ -177,8 +177,6 @@ const PipelineMap = () => {
         const pipe = PIPELINES_DATA.find(p => p.id === selectedSegment);
         if (pipe) {
             const start = pipe.coordinates[0];
-            const startPt = L.latLng(start.lat, start.lng);
-            
             // Simple logic: Create a triangle polygon based on wind direction
             // In a real app, this would use complex math converting LatLng to meters and back
             const dist = 0.015; // roughly 1.5km

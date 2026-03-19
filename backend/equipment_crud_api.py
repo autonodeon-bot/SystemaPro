@@ -44,19 +44,26 @@ class EquipmentUpdate(BaseModel):
 @router.get("/api/equipment")
 async def get_equipment(
     skip: int = 0,
+    offset: int = 0,
     limit: int = 100,
     workshop_id: Optional[str] = None,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get list of equipment (filtered by access for engineers)"""
+    """Получить список оборудования с пагинацией (limit макс. 1000).
+
+    Параметры offset и skip взаимозаменяемы (offset приоритетнее).
+    """
     try:
+        effective_offset = offset if offset > 0 else skip
+        effective_limit = min(limit, 1000)
+
         user_result = await db.execute(
             select(User).where(or_(User.username == username, User.email == username))
         )
         user = user_result.scalar_one_or_none()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
 
         if user.role == "engineer":
             hierarchy_result = await db.execute(
@@ -138,7 +145,7 @@ async def get_equipment(
 
             if conditions:
                 query = query.where(or_(*conditions))
-                result = await db.execute(query.offset(skip).limit(limit))
+                result = await db.execute(query.offset(effective_offset).limit(effective_limit))
                 equipment = result.scalars().all()
             else:
                 equipment = []
@@ -149,9 +156,8 @@ async def get_equipment(
                     workshop_uuid = uuid_lib.UUID(workshop_id)
                     query = query.where(Equipment.workshop_id == workshop_uuid)
                 except ValueError:
-                    raise HTTPException(status_code=400, detail="Invalid workshop_id format")
-            effective_limit = limit if limit > 100 else 10000
-            result = await db.execute(query.offset(skip).limit(effective_limit))
+                    raise HTTPException(status_code=400, detail="Неверный формат workshop_id")
+            result = await db.execute(query.offset(effective_offset).limit(effective_limit))
             equipment = result.scalars().all()
 
         equipment_items = []

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
@@ -335,7 +336,7 @@ class _VerificationEquipmentSelectionScreenState
                       if (widget.onEquipmentSelected != null) {
                         widget.onEquipmentSelected!(_selectedIds.toList());
                       }
-                      Navigator.pop(context, _selectedIds.toList());
+                      context.pop(_selectedIds.toList());
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF3b82f6),

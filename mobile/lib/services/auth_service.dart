@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
@@ -46,11 +47,13 @@ class AuthService {
   }
 
   /// Сохранить логин и пароль для автоматического входа при синхронизации (офлайн→онлайн).
+  /// Также сохраняет SHA-256 хеш пароля для офлайн-верификации.
   Future<void> saveCredentials(String username, String password) async {
     if (username.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKeyUsername, username.trim());
     await _secureStorage.write(key: _secureKeyPassword, value: password);
+    await _saveOfflinePasswordHash(password);
   }
 
   /// Получить сохранённые логин и пароль (для повторного входа при синхронизации).
@@ -178,19 +181,25 @@ class AuthService {
     return prefs.getString(_prefsKeyUsername);
   }
   
+  Future<void> _saveOfflinePasswordHash(String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    await prefs.setString('offline_password_hash', digest.toString());
+  }
+
   // Проверить пароль локально (для офлайн-авторизации)
   Future<bool> verifyPasswordOffline(String password) async {
-    final savedHash = await getPasswordHash();
-    if (savedHash == null) return false;
-    
-    // Используем bcrypt для проверки пароля
     try {
-      // Импортируем bcrypt для Dart
-      // В Flutter можно использовать пакет bcrypt
-      // Для простоты пока используем простое сравнение (в продакшене нужно использовать bcrypt)
-      // TODO: Добавить пакет bcrypt для Dart
-      return savedHash.isNotEmpty; // Временная заглушка
+      final prefs = await SharedPreferences.getInstance();
+      final savedHash = prefs.getString('offline_password_hash');
+      if (savedHash == null) return false;
+
+      final bytes = utf8.encode(password);
+      final digest = sha256.convert(bytes);
+      return digest.toString() == savedHash;
     } catch (e) {
+      debugPrint('Error verifying offline password: $e');
       return false;
     }
   }
@@ -284,10 +293,6 @@ class AuthService {
     return user != null && token != null;
   }
 }
-
-
-
-
 
 
 

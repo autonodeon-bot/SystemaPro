@@ -51,8 +51,8 @@ async def mobile_sync_engineers_by_ndt(
             select(Certification, Engineer, User)
             .join(Engineer, Certification.engineer_id == Engineer.id)
             .outerjoin(User, User.engineer_id == Engineer.id)
-            .where(Certification.is_active == 1)
-            .where(Engineer.is_active == 1)
+            .where(Certification.is_active == True)
+            .where(Engineer.is_active == True)
         )
         if method_code:
             query = query.where(Certification.method_code == method_code)

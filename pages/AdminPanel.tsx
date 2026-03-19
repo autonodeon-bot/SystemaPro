@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, Shield, FileText, BarChart3, Settings, Search, 
-  Plus, Edit, Trash2, Download, Eye, Filter, 
-  UserPlus, FileCheck, Award, Calendar, Mail, Phone,
-  CheckCircle, XCircle, AlertTriangle, TrendingUp
+  Users, Shield, FileText, BarChart3, Search, 
+  Plus, Edit, Trash2, Download, Eye, 
+  UserPlus, Award, Mail, Phone,
+  CheckCircle, XCircle, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
@@ -58,9 +58,9 @@ const AdminPanel = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddUser, setShowAddUser] = useState(false);
+  const [_showAddUser, setShowAddUser] = useState(false);
   const [showAddEngineer, setShowAddEngineer] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [_selectedUser, _setSelectedUser] = useState<User | null>(null);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalEngineers: 0,

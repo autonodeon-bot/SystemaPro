@@ -30,7 +30,7 @@ async def create_test_opos():
         try:
             # Получаем первое предприятие
             enterprise_result = await session.execute(
-                select(Enterprise).where(Enterprise.is_active == 1).limit(1)
+                select(Enterprise).where(Enterprise.is_active == True).limit(1)
             )
             enterprise = enterprise_result.scalar_one_or_none()
             
@@ -44,7 +44,7 @@ async def create_test_opos():
             branch_result = await session.execute(
                 select(Branch).where(
                     Branch.enterprise_id == enterprise.id,
-                    Branch.is_active == 1
+                    Branch.is_active == True
                 ).limit(1)
             )
             branch = branch_result.scalar_one_or_none()
@@ -59,7 +59,7 @@ async def create_test_opos():
             workshop_result = await session.execute(
                 select(Workshop).where(
                     Workshop.branch_id == branch.id,
-                    Workshop.is_active == 1
+                    Workshop.is_active == True
                 ).limit(1)
             )
             workshop = workshop_result.scalar_one_or_none()

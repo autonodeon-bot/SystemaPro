@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Search, Filter, BookOpen, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, BookOpen } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface RegulatoryDocument {

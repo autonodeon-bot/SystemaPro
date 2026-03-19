@@ -126,15 +126,27 @@ async def upload_inspection_archive(
                     project_id = uuid_lib.UUID(str(inspection_data["project_id"]))
                 except Exception:
                     pass
+            assignment_id_parsed = None
+            if inspection_data.get("assignment_id"):
+                try:
+                    _aid = uuid_lib.UUID(str(inspection_data["assignment_id"]))
+                    _exists = await db.execute(select(Assignment).where(Assignment.id == _aid))
+                    if _exists.scalar_one_or_none() is not None:
+                        assignment_id_parsed = _aid
+                except Exception:
+                    pass
             new_inspection = Inspection(
                 equipment_id=equipment_id,
                 project_id=project_id,
+                assignment_id=assignment_id_parsed,
                 data=inspection_data.get("data", {}),
                 conclusion=inspection_data.get("conclusion"),
                 status=inspection_data.get("status", "DRAFT"),
                 date_performed=date_performed,
                 is_archived=False,
                 created_by=created_by_id,
+                inspector_id=created_by_id,
+                performed_by=created_by_id,
             )
             db.add(new_inspection)
             await db.commit()

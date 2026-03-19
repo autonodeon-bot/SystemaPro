@@ -46,7 +46,7 @@ async def create_test_certifications():
         try:
             # Получаем всех инженеров
             engineers_result = await db.execute(
-                select(Engineer).where(Engineer.is_active == 1)
+                select(Engineer).where(Engineer.is_active == True)
             )
             engineers = engineers_result.scalars().all()
             
@@ -123,7 +123,7 @@ async def create_test_certifications():
             
             # Статистика
             all_certs_result = await db.execute(
-                select(Certification).where(Certification.is_active == 1)
+                select(Certification).where(Certification.is_active == True)
             )
             all_certs = all_certs_result.scalars().all()
             

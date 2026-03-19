@@ -1,69 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/assignment.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
-import '../services/sync_service.dart';
-import 'vessel_inspection_screen.dart';
 import '../services/auth_service.dart';
 import '../services/recent_service.dart';
-import 'login_screen.dart';
-import 'opo_survey_screen.dart';
-
-// Вспомогательный класс для группировки заданий
-class AssignmentGroup {
-  final String? enterpriseName;
-  final String? branchName;
-  final String? workshopName;
-  final String? opoName;
-  final List<Assignment> assignments;
-  
-  AssignmentGroup({
-    this.enterpriseName,
-    this.branchName,
-    this.workshopName,
-    this.opoName,
-    required this.assignments,
-  });
-  
-  String get key {
-    return '${enterpriseName ?? 'Без предприятия'}_${branchName ?? ''}_${workshopName ?? ''}_${opoName ?? ''}';
-  }
-  
-  String get displayName {
-    if (enterpriseName != null && enterpriseName!.isNotEmpty) {
-      if (branchName != null && branchName!.isNotEmpty) {
-        if (workshopName != null && workshopName!.isNotEmpty) {
-          if (opoName != null && opoName!.isNotEmpty) {
-            return '$enterpriseName → $branchName → $workshopName → $opoName';
-          }
-          return '$enterpriseName → $branchName → $workshopName';
-        }
-        return '$enterpriseName → $branchName';
-      }
-      return enterpriseName!;
-    }
-    if (branchName != null && branchName!.isNotEmpty) {
-      if (workshopName != null && workshopName!.isNotEmpty) {
-        if (opoName != null && opoName!.isNotEmpty) {
-          return '[Филиал] $branchName → $workshopName → $opoName';
-        }
-        return '[Филиал] $branchName → $workshopName';
-      }
-      return '[Филиал] $branchName';
-    }
-    if (workshopName != null && workshopName!.isNotEmpty) {
-      if (opoName != null && opoName!.isNotEmpty) {
-        return '[Цех] $workshopName → $opoName';
-      }
-      return '[Цех] $workshopName';
-    }
-    if (opoName != null && opoName!.isNotEmpty) {
-      return '[ОПО] $opoName';
-    }
-    return 'Без привязки';
-  }
-}
+import '../services/sync_service.dart';
+import '../theme/app_colors.dart';
+import '../widgets/assignments/assignment_dialogs.dart';
+import '../widgets/assignments/assignment_group.dart';
+import '../widgets/assignments/assignments_filters_section.dart';
+import '../widgets/assignments/assignments_grouped_list.dart';
 
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({super.key});
@@ -88,18 +37,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   List<Assignment> _filteredAssignments = [];
   List<RecentItem> _recentItems = [];
   Map<String, LocalAssignmentInspectionState> _localInspectionState = {};
-  final Map<String, bool> _opoHasData = {}; // opo_id -> есть ли данные ОПО (локально или на сервере)
+  final Map<String, bool> _opoHasData = {};
   bool _isLoading = true;
   String _selectedStatus = 'all';
   String _selectedAssignmentType = 'all';
-  String _selectedSort = 'due_date'; // due_date, priority, created_at, equipment_name
+  String _selectedSort = 'due_date';
   bool _sortAscending = false;
   String _searchQuery = '';
   bool _isSyncing = false;
   bool _showFilters = false;
-  
-  // Состояние раскрытия иерархии
-  final Map<String, bool> _expandedGroups = {}; // Ключ: "enterprise_branch_workshop", значение: раскрыто/свернуто
+
+  final Map<String, bool> _expandedGroups = {};
 
   @override
   void initState() {
@@ -181,65 +129,23 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
   }
 
-  Future<String?> _selectInspectionType({String? initialType}) async {
-    String selected = initialType ?? 'NDT';
-    return showDialog<String>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setInner) => AlertDialog(
-          backgroundColor: const Color(0xFF1e293b),
-          title: const Text('Тип обследования', style: TextStyle(color: Colors.white)),
-          content: DropdownButtonFormField<String>(
-            value: selected,
-            decoration: const InputDecoration(
-              labelText: 'Выберите тип',
-              labelStyle: TextStyle(color: Colors.white70),
-            ),
-            dropdownColor: const Color(0xFF1e293b),
-            items: const [
-              DropdownMenuItem(value: 'VISUAL', child: Text('VISUAL', style: TextStyle(color: Colors.white))),
-              DropdownMenuItem(value: 'NDT', child: Text('NDT', style: TextStyle(color: Colors.white))),
-              DropdownMenuItem(value: 'QUESTIONNAIRE', child: Text('QUESTIONNAIRE', style: TextStyle(color: Colors.white))),
-              DropdownMenuItem(value: 'EXPERTISE', child: Text('EXPERTISE', style: TextStyle(color: Colors.white))),
-            ],
-            onChanged: (v) => setInner(() => selected = v ?? selected),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Отмена', style: TextStyle(color: Colors.white70)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, selected),
-              child: const Text('Продолжить', style: TextStyle(color: Color(0xFF3b82f6))),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _openInspectionScreen({
     required Equipment equipment,
     required String assignmentId,
     String? existingInspectionId,
     required String assignmentType,
   }) async {
-    final selectedType = await _selectInspectionType(
+    final selectedType = await showInspectionTypeSelectDialog(
+      context,
       initialType: _defaultInspectionTypeFromAssignment(assignmentType),
     );
     if (!mounted || selectedType == null) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VesselInspectionScreen(
-          equipment: equipment,
-          assignmentId: assignmentId,
-          existingInspectionId: existingInspectionId,
-          inspectionType: selectedType,
-        ),
-      ),
-    );
+    await context.push('/inspection', extra: {
+      'equipment': equipment,
+      'assignmentId': assignmentId,
+      'existingInspectionId': existingInspectionId,
+      'inspectionType': selectedType,
+    });
   }
 
   Future<void> _loadAssignments() async {
@@ -248,9 +154,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     });
 
     try {
-      // Пытаемся загрузить с сервера
       final assignments = await _apiService.getAssignments();
-      // Сохраняем локально для офлайн-режима
       await _syncService.saveAssignmentsOffline(assignments);
       setState(() {
         _assignments = assignments;
@@ -275,13 +179,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
+        context.go('/login');
         return;
       }
-      // Если не удалось загрузить с сервера, используем локальное хранилище
       try {
         final offlineAssignments = await _syncService.getOfflineAssignments();
         setState(() {
@@ -293,7 +193,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Режим офлайн: загружены сохранённые задания. При появлении интернета выполните синхронизацию.'),
+              content: Text(
+                  'Режим офлайн: загружены сохранённые задания. При появлении интернета выполните синхронизацию.'),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 4),
             ),
@@ -325,7 +226,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           .toList();
       if (opoIds.isEmpty) return;
 
-      // 1) Локальные несинхронизированные опросники ОПО
       try {
         final pending = await _syncService.getPendingOpoSurveys();
         for (final p in pending) {
@@ -336,9 +236,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         }
       } catch (_) {}
 
-      // 2) Данные на сервере (подтягиваем и кэшируем)
       for (final id in opoIds) {
-        if (_opoHasData[id] == true) continue; // уже знаем, что есть
+        if (_opoHasData[id] == true) continue;
         try {
           final resp = await _apiService.getOpoSurvey(id);
           final data = resp['survey_data'];
@@ -360,20 +259,15 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             }
           }
           _opoHasData[id] = has;
-        } catch (_) {
-          // игнорируем ошибки сети
-        }
+        } catch (_) {}
       }
 
       if (!mounted) return;
       setState(() {});
-    } catch (_) {
-      // игнорируем
-    }
+    } catch (_) {}
   }
 
   Future<void> _syncAssignments() async {
-    // Проверка доступности сети перед синхронизацией
     final hasConnection = await _apiService.checkConnection();
     if (!hasConnection) {
       if (mounted) {
@@ -394,15 +288,12 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     try {
       final assignments = await _apiService.getAssignments();
       await _syncService.saveAssignmentsOffline(assignments);
-      
-      // Также синхронизируем оборудование из заданий (MERGE внутри saveEquipmentOffline)
+
       for (var assignment in assignments) {
         try {
           final equipment = await _apiService.getAssignmentEquipment(assignment.id);
           await _syncService.saveEquipmentOffline([equipment]);
-        } catch (e) {
-          // Игнорируем ошибки получения оборудования
-        }
+        } catch (e) {}
       }
 
       setState(() {
@@ -436,10 +327,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
+        context.go('/login');
         return;
       }
       setState(() {
@@ -464,66 +352,12 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       setState(() {
         _localInspectionState = st;
       });
-    } catch (_) {
-      // Игнорируем
-    }
+    } catch (_) {}
   }
 
-  Widget _buildSyncBadges(Assignment assignment) {
-    final local = _localInspectionState[assignment.id] ?? LocalAssignmentInspectionState.none();
-    final chips = <Widget>[];
-
-    if (local.hasDraft) {
-      chips.add(_chip('Черновик (локально)', Colors.orange));
-    }
-    if (local.hasSigned) {
-      chips.add(_chip('Подписано (локально)', const Color(0xFF3b82f6)));
-    }
-    if (assignment.status == 'COMPLETED') {
-      chips.add(_chip('На сервере', Colors.green));
-    } else if (local.hasSigned) {
-      chips.add(_chip('Ожидает синхронизации', Colors.purple));
-    }
-
-    final opoId = assignment.opoId;
-    if (opoId != null && opoId.isNotEmpty && (_opoHasData[opoId] == true)) {
-      chips.add(_chip('ОПО заполнено', Colors.teal));
-    }
-
-    if (chips.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: chips,
-      ),
-    );
-  }
-
-  Widget _chip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  // Группировка заданий по иерархии
   List<AssignmentGroup> _groupAssignments(List<Assignment> assignments) {
     final Map<String, List<Assignment>> groups = {};
-    
+
     for (final assignment in assignments) {
       final key =
           '${assignment.enterpriseName ?? 'Без предприятия'}_${assignment.branchName ?? ''}_${assignment.workshopName ?? ''}_${assignment.opoName ?? ''}';
@@ -532,7 +366,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       }
       groups[key]!.add(assignment);
     }
-    
+
     return groups.entries.map((entry) {
       final firstAssignment = entry.value.first;
       return AssignmentGroup(
@@ -545,33 +379,29 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }).toList()
       ..sort((a, b) => a.displayName.compareTo(b.displayName));
   }
-  
+
   void _filterAssignments() {
     List<Assignment> filtered = _assignments;
-    
-    // Фильтр по статусу
+
     if (_selectedStatus != 'all') {
       filtered = filtered.where((a) => a.status == _selectedStatus).toList();
     }
-    // Фильтр по типу задания/обследования
     if (_selectedAssignmentType != 'all') {
       filtered = filtered.where((a) => a.assignmentType == _selectedAssignmentType).toList();
     }
-    
-    // Поиск
+
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((a) {
         return a.equipmentCode.toLowerCase().contains(query) ||
-               a.equipmentName.toLowerCase().contains(query) ||
-               (a.enterpriseName?.toLowerCase().contains(query) ?? false) ||
-               (a.branchName?.toLowerCase().contains(query) ?? false) ||
-               (a.workshopName?.toLowerCase().contains(query) ?? false) ||
-               (a.opoName?.toLowerCase().contains(query) ?? false);
+            a.equipmentName.toLowerCase().contains(query) ||
+            (a.enterpriseName?.toLowerCase().contains(query) ?? false) ||
+            (a.branchName?.toLowerCase().contains(query) ?? false) ||
+            (a.workshopName?.toLowerCase().contains(query) ?? false) ||
+            (a.opoName?.toLowerCase().contains(query) ?? false);
       }).toList();
     }
-    
-    // Сортировка
+
     filtered.sort((a, b) {
       int comparison = 0;
       switch (_selectedSort) {
@@ -597,73 +427,19 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       }
       return _sortAscending ? comparison : -comparison;
     });
-    
+
     setState(() {
       _filteredAssignments = filtered;
     });
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'PENDING':
-        return Colors.orange;
-      case 'IN_PROGRESS':
-        return Colors.blue;
-      case 'COMPLETED':
-        return Colors.green;
-      case 'CANCELLED':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Color _getPriorityColor(String priority) {
-    switch (priority) {
-      case 'LOW':
-        return Colors.grey;
-      case 'NORMAL':
-        return Colors.blue;
-      case 'HIGH':
-        return Colors.orange;
-      case 'URGENT':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Future<void> _startAssignment(Assignment assignment) async {
     try {
-      // Если задание уже выполнено, показываем диалог выбора
       if (assignment.status == 'COMPLETED') {
-        final choice = await showDialog<String>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Задание выполнено'),
-            content: const Text(
-              'Это задание уже выполнено. Что вы хотите сделать?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, 'edit'),
-                child: const Text('Внести изменения'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, 'restart'),
-                child: const Text('Пройти заново'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: const Text('Отмена'),
-              ),
-            ],
-          ),
-        );
+        final choice = await showCompletedAssignmentChoiceDialog(context);
 
         if (choice == null) return;
 
-        // Получаем информацию об оборудовании (при офлайне — из кэша)
         Equipment? equipment;
         try {
           equipment = await _apiService.getAssignmentEquipment(assignment.id);
@@ -681,29 +457,26 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             }
           }
         }
-        if (equipment == null || equipment!.id.isEmpty) {
+        if (equipment == null || equipment.id.isEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Не удалось загрузить информацию об оборудовании. Проверьте сеть или загрузите задания при интернете.'),
+                content: Text(
+                    'Не удалось загрузить информацию об оборудовании. Проверьте сеть или загрузите задания при интернете.'),
                 backgroundColor: Colors.red,
               ),
             );
           }
           return;
         }
-        final eq = equipment!;
+        final eq = equipment;
         await _syncService.saveEquipmentOffline([eq]);
 
         if (choice == 'edit') {
-          // Внести изменения - загружаем существующую инспекцию
           try {
             final inspections = await _apiService.getInspections(eq.id);
-            // Ищем инспекцию для этого задания
             Map<String, dynamic>? existingInspection;
             for (var insp in inspections) {
-              // Проверяем, связана ли инспекция с этим заданием
-              // (можно проверить по assignment_id в data или другим способом)
               final data = insp['data'] as Map<String, dynamic>?;
               if (data != null) {
                 final assignmentIdInData = data['assignment_id'] as String?;
@@ -715,7 +488,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             }
 
             if (existingInspection != null) {
-              // Открываем экран редактирования с существующей инспекцией
               if (mounted) {
                 _recentService.addRecent(
                   assignmentId: assignment.id,
@@ -725,14 +497,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 await _openInspectionScreen(
                   equipment: eq,
                   assignmentId: assignment.id,
-                  existingInspectionId: existingInspection!['id'] as String,
+                  existingInspectionId: existingInspection['id'] as String,
                   assignmentType: assignment.assignmentType,
                 );
                 _loadAssignments();
                 _loadRecent();
               }
             } else {
-              // Инспекция не найдена, создаем новую
               if (mounted) {
                 _recentService.addRecent(
                   assignmentId: assignment.id,
@@ -749,7 +520,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
               }
             }
           } catch (e) {
-            // Если не удалось загрузить инспекции, просто открываем новый экран
             if (mounted) {
               await _openInspectionScreen(
                 equipment: eq,
@@ -766,7 +536,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             }
           }
         } else if (choice == 'restart') {
-          // Пройти заново - создаем новую инспекцию, статус остается COMPLETED
           if (mounted) {
             await _openInspectionScreen(
               equipment: eq,
@@ -785,8 +554,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         return;
       }
 
-      // Для заданий в статусе не COMPLETED - обычная логика
-      // Показываем индикатор загрузки
       if (mounted) {
         showDialog(
           context: context,
@@ -801,13 +568,12 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       Equipment? equipment;
 
       try {
-        // Обновляем статус задания на "В работе" только если не COMPLETED (только при наличии сети)
         if (assignment.status != 'COMPLETED') {
           await _apiService.updateAssignmentStatus(assignment.id, 'IN_PROGRESS');
         }
         equipment = await _apiService.getAssignmentEquipment(assignment.id);
-        if (equipment != null && equipment!.id.isNotEmpty) {
-          await _syncService.saveEquipmentOffline([equipment!]);
+        if (equipment.id.isNotEmpty) {
+          await _syncService.saveEquipmentOffline([equipment]);
         }
       } catch (e) {
         final msg = e.toString().toLowerCase();
@@ -817,11 +583,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             msg.contains('нет подключения') ||
             msg.contains('failed host lookup') ||
             msg.contains('connection failed');
-        // Офлайн-вход без токена: считаем режимом офлайн и берём данные из кэша
         final isOfflineNoToken = msg.contains('токен авторизации не найден') ||
             msg.contains('токен авторизации отсутствует');
         if (isNetworkError || isOfflineNoToken) {
-          // Режим офлайн: берём оборудование из локального кэша
           final offlineList = await _syncService.getOfflineEquipment();
           try {
             equipment = offlineList.firstWhere((e) => e.id == assignment.equipmentId);
@@ -851,12 +615,12 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         }
       }
 
-      // Закрываем индикатор загрузки
       if (mounted) {
         Navigator.of(context).pop();
       }
 
-      if (equipment == null || equipment!.id.isEmpty) {
+      final resolvedEquipment = equipment;
+      if (resolvedEquipment.id.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -872,7 +636,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         if (usedOffline) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Режим офлайн: работа с сохранёнными данными. При появлении интернета выполните синхронизацию.'),
+              content: Text(
+                  'Режим офлайн: работа с сохранёнными данными. При появлении интернета выполните синхронизацию.'),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 3),
             ),
@@ -880,11 +645,11 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         }
         _recentService.addRecent(
           assignmentId: assignment.id,
-          equipmentId: equipment!.id,
+          equipmentId: resolvedEquipment.id,
           title: assignment.equipmentName,
         );
         await _openInspectionScreen(
-          equipment: equipment!,
+          equipment: resolvedEquipment,
           assignmentId: assignment.id,
           assignmentType: assignment.assignmentType,
         );
@@ -905,23 +670,88 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
   }
 
+  Future<void> _openRecentItem(RecentItem item) async {
+    Equipment? equipment;
+    try {
+      final list = await _syncService.getOfflineEquipment();
+      equipment = list.firstWhere((e) => e.id == item.equipmentId);
+    } catch (_) {}
+    if (equipment == null) {
+      try {
+        final fetched = await _apiService.getEquipmentById(item.equipmentId);
+        equipment = fetched;
+        await _syncService.saveEquipmentOffline([fetched]);
+      } catch (_) {}
+    }
+    if (equipment == null || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Оборудование не найдено. Загрузите задания при подключении к интернету.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+    await _openInspectionScreen(
+      equipment: equipment,
+      assignmentId: item.assignmentId,
+      assignmentType: 'DIAGNOSTICS',
+    );
+    _loadAssignments();
+    _loadRecent();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value;
+      _filterAssignments();
+    });
+    _saveFilterToPrefs();
+  }
+
+  void _onClearSearch() {
+    setState(() {
+      _searchQuery = '';
+      _searchController.clear();
+      _filterAssignments();
+    });
+    _saveFilterToPrefs();
+  }
+
+  void _onStatusChanged(String status) {
+    setState(() {
+      _selectedStatus = status;
+      _filterAssignments();
+    });
+    _saveFilterToPrefs();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: const Text('Мои задания'),
-        backgroundColor: const Color(0xFF0f172a),
+        backgroundColor: AppColors.darkBackground,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: Icon(_showFilters ? Icons.filter_list : Icons.filter_list_off),
-            onPressed: () {
-              setState(() {
-                _showFilters = !_showFilters;
-              });
-            },
-            tooltip: 'Фильтры',
+          Semantics(
+            label: 'Показать или скрыть фильтры',
+            child: IconButton(
+              icon: Icon(
+                _showFilters ? Icons.filter_list : Icons.filter_list_off,
+                semanticLabel: _showFilters ? 'Фильтры активны' : 'Фильтры скрыты',
+              ),
+              onPressed: () {
+                setState(() {
+                  _showFilters = !_showFilters;
+                });
+              },
+              tooltip: 'Фильтры',
+            ),
           ),
           Semantics(
             label: 'Синхронизировать задания с сервером',
@@ -944,198 +774,44 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       ),
       body: Column(
         children: [
-          // Расширенные фильтры
-          if (_showFilters)
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: const Color(0xFF1e293b),
-              child: Column(
-                children: [
-                  // Поиск
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Поиск по коду, названию, предприятию...',
-                      hintStyle: TextStyle(color: Colors.grey[600]),
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              tooltip: 'Очистить поиск',
-                              onPressed: () {
-                                setState(() {
-                                  _searchQuery = '';
-                                  _searchController.clear();
-                                  _filterAssignments();
-                                });
-                                _saveFilterToPrefs();
-                              },
-                              icon: const Icon(Icons.close, color: Colors.grey),
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: const Color(0xFF0f172a),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[700]!),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                        _filterAssignments();
-                      });
-                      _saveFilterToPrefs();
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _resetFilters,
-                      icon: const Icon(Icons.restart_alt, color: Colors.white70),
-                      label: const Text(
-                        'Сбросить фильтры',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // Фильтр по статусу
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(value: 'all', label: Text('Все')),
-                            ButtonSegment(value: 'PENDING', label: Text('Ожидает')),
-                            ButtonSegment(value: 'IN_PROGRESS', label: Text('В работе')),
-                            ButtonSegment(value: 'COMPLETED', label: Text('Завершено')),
-                          ],
-                          selected: {_selectedStatus},
-                          onSelectionChanged: (Set<String> newSelection) {
-                            setState(() {
-                              _selectedStatus = newSelection.first;
-                              _filterAssignments();
-                            });
-                            _saveFilterToPrefs();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Фильтр по типу задания/обследования
-                  Row(
-                    children: [
-                      const Text('Тип:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButton<String>(
-                          value: _selectedAssignmentType,
-                          isExpanded: true,
-                          dropdownColor: const Color(0xFF1e293b),
-                          style: const TextStyle(color: Colors.white),
-                          items: const [
-                            DropdownMenuItem(value: 'all', child: Text('Все типы')),
-                            DropdownMenuItem(value: 'DIAGNOSTICS', child: Text('DIAGNOSTICS')),
-                            DropdownMenuItem(value: 'INSPECTION', child: Text('INSPECTION')),
-                            DropdownMenuItem(value: 'EXPERTISE', child: Text('EXPERTISE')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _selectedAssignmentType = value;
-                                _filterAssignments();
-                              });
-                              _saveFilterToPrefs();
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Сортировка
-                  Row(
-                    children: [
-                      const Text('Сортировка:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButton<String>(
-                          value: _selectedSort,
-                          isExpanded: true,
-                          dropdownColor: const Color(0xFF1e293b),
-                          style: const TextStyle(color: Colors.white),
-                          items: const [
-                            DropdownMenuItem(value: 'due_date', child: Text('По сроку')),
-                            DropdownMenuItem(value: 'priority', child: Text('По приоритету')),
-                            DropdownMenuItem(value: 'created_at', child: Text('По дате создания')),
-                            DropdownMenuItem(value: 'equipment_name', child: Text('По названию')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _selectedSort = value;
-                                _filterAssignments();
-                              });
-                              _saveFilterToPrefs();
-                            }
-                          },
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                          color: Colors.white70,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _sortAscending = !_sortAscending;
-                            _filterAssignments();
-                          });
-                          _saveFilterToPrefs();
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          // Фильтр по статусу (компактный вид)
-          if (!_showFilters)
-            Container(
-              padding: const EdgeInsets.all(8),
-              color: const Color(0xFF1e293b),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'all', label: Text('Все')),
-                        ButtonSegment(value: 'PENDING', label: Text('Ожидает')),
-                        ButtonSegment(value: 'IN_PROGRESS', label: Text('В работе')),
-                        ButtonSegment(value: 'COMPLETED', label: Text('Завершено')),
-                      ],
-                      selected: {_selectedStatus},
-                      onSelectionChanged: (Set<String> newSelection) {
-                        setState(() {
-                          _selectedStatus = newSelection.first;
-                          _filterAssignments();
-                        });
-                        _saveFilterToPrefs();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          // Список заданий
+          AssignmentsFiltersSection(
+            showExpanded: _showFilters,
+            searchController: _searchController,
+            searchQuery: _searchQuery,
+            selectedStatus: _selectedStatus,
+            selectedAssignmentType: _selectedAssignmentType,
+            selectedSort: _selectedSort,
+            sortAscending: _sortAscending,
+            onSearchChanged: _onSearchChanged,
+            onClearSearch: _onClearSearch,
+            onResetFilters: _resetFilters,
+            onStatusChanged: _onStatusChanged,
+            onAssignmentTypeChanged: (v) {
+              setState(() {
+                _selectedAssignmentType = v;
+                _filterAssignments();
+              });
+              _saveFilterToPrefs();
+            },
+            onSortChanged: (v) {
+              setState(() {
+                _selectedSort = v;
+                _filterAssignments();
+              });
+              _saveFilterToPrefs();
+            },
+            onToggleSortDirection: () {
+              setState(() {
+                _sortAscending = !_sortAscending;
+                _filterAssignments();
+              });
+              _saveFilterToPrefs();
+            },
+          ),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _filteredAssignments.isEmpty
+                : (_filteredAssignments.isEmpty && _recentItems.isEmpty)
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1144,6 +820,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                               Icons.assignment_outlined,
                               size: 64,
                               color: Colors.grey[600],
+                              semanticLabel: 'Нет заданий',
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -1167,357 +844,26 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       )
                     : RefreshIndicator(
                         onRefresh: _loadAssignments,
-                        child: _buildHierarchicalList(),
+                        child: AssignmentsGroupedList(
+                          groups: _groupAssignments(_filteredAssignments),
+                          recentItems: _recentItems,
+                          expandedGroups: _expandedGroups,
+                          localInspectionState: _localInspectionState,
+                          opoHasData: _opoHasData,
+                          formatDate: _formatDate,
+                          onExpansionChanged: (groupKey, expanded) {
+                            setState(() {
+                              _expandedGroups[groupKey] = expanded;
+                            });
+                          },
+                          onAssignmentTap: _startAssignment,
+                          onRecentItemTap: _openRecentItem,
+                          onAssignmentsReload: _loadAssignments,
+                        ),
                       ),
           ),
         ],
       ),
-    );
-  }
-  
-  Widget _buildRecentSection() {
-    if (_recentItems.isEmpty) return const SizedBox.shrink();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Text(
-              'Недавно открытые',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: _recentItems.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final item = _recentItems[index];
-                return ActionChip(
-                  avatar: const Icon(Icons.history, color: Colors.white54, size: 18),
-                  label: Text(
-                    item.title,
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  backgroundColor: const Color(0xFF1e293b),
-                  side: BorderSide(color: Colors.blue.withOpacity(0.5)),
-                  onPressed: () => _openRecentItem(item),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openRecentItem(RecentItem item) async {
-    Equipment? equipment;
-    try {
-      final list = await _syncService.getOfflineEquipment();
-      equipment = list.firstWhere((e) => e.id == item.equipmentId);
-    } catch (_) {}
-    if (equipment == null) {
-      try {
-        equipment = await _apiService.getEquipmentById(item.equipmentId);
-        await _syncService.saveEquipmentOffline([equipment!]);
-      } catch (_) {}
-    }
-    if (equipment == null || !mounted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Оборудование не найдено. Загрузите задания при подключении к интернету.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-    await _openInspectionScreen(
-      equipment: equipment!,
-      assignmentId: item.assignmentId,
-      assignmentType: 'DIAGNOSTICS',
-    );
-    _loadAssignments();
-    _loadRecent();
-  }
-
-  Widget _buildHierarchicalList() {
-    final groups = _groupAssignments(_filteredAssignments);
-    final hasRecent = _recentItems.isNotEmpty;
-    
-    if (groups.isEmpty && !hasRecent) {
-      return const Center(
-        child: Text(
-          'Нет заданий',
-          style: TextStyle(color: Colors.grey, fontSize: 16),
-        ),
-      );
-    }
-    
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: (hasRecent ? 1 : 0) + groups.length,
-      itemBuilder: (context, listIndex) {
-        if (hasRecent && listIndex == 0) {
-          return _buildRecentSection();
-        }
-        final groupIndex = hasRecent ? listIndex - 1 : listIndex;
-        final group = groups[groupIndex];
-        final groupKey = group.key;
-        final isExpanded = _expandedGroups[groupKey] ?? true; // По умолчанию раскрыто
-        
-        return Card(
-          color: const Color(0xFF1e293b),
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ExpansionTile(
-            key: Key(groupKey),
-            initiallyExpanded: isExpanded,
-            onExpansionChanged: (expanded) {
-              setState(() {
-                _expandedGroups[groupKey] = expanded;
-              });
-            },
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.folder,
-                      color: Colors.blue[300],
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        group.displayName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${group.assignments.length}',
-                        style: TextStyle(
-                          color: Colors.blue[300],
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if ((group.opoName ?? '').isNotEmpty &&
-                        (group.assignments.isNotEmpty) &&
-                        ((group.assignments.first.opoId ?? '').isNotEmpty))
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 28),
-                        tooltip: 'Заполнить ОПО',
-                        onPressed: () async {
-                          final first = group.assignments.first;
-                          final ok = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => OpoSurveyScreen(
-                                opoId: first.opoId!,
-                                opoName: group.opoName!,
-                              ),
-                            ),
-                          );
-                          if (ok == true) {
-                            await _loadAssignments();
-                          }
-                        },
-                        icon: const Icon(Icons.assignment_turned_in, color: Colors.green, size: 20),
-                      ),
-                    if ((group.assignments.isNotEmpty) &&
-                        ((group.assignments.first.opoId ?? '').isNotEmpty) &&
-                        (_opoHasData[group.assignments.first.opoId!] == true))
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.teal.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.teal.withOpacity(0.35)),
-                        ),
-                        child: const Text(
-                          'ОПО заполнено',
-                          style: TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            children: group.assignments.map((assignment) {
-              return Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                child: Card(
-                  color: const Color(0xFF0f172a),
-                  margin: EdgeInsets.zero,
-                  child: InkWell(
-                    onTap: assignment.status == 'CANCELLED'
-                        ? null
-                        : () => _startAssignment(assignment),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      assignment.equipmentCode,
-                                      style: const TextStyle(
-                                        color: Color(0xFF3b82f6),
-                                        fontSize: 12,
-                                        fontFamily: 'monospace',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      assignment.equipmentName,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(assignment.status).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  assignment.statusLabel,
-                                  style: TextStyle(
-                                    color: _getStatusColor(assignment.status),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              if ((_localInspectionState[assignment.id] ?? LocalAssignmentInspectionState.none()).hasDraft ||
-                                  (_localInspectionState[assignment.id] ?? LocalAssignmentInspectionState.none()).hasSigned)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 6),
-                                  child: Icon(
-                                    Icons.cloud_off,
-                                    size: 18,
-                                    color: Colors.orange.shade300,
-                                    semanticLabel: 'Ожидает отправки на сервер',
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.assignment, size: 14, color: Colors.grey[400]),
-                              const SizedBox(width: 4),
-                              Text(
-                                assignment.typeLabel,
-                                style: TextStyle(color: Colors.grey[300], fontSize: 12),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: _getPriorityColor(assignment.priority).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  assignment.priority,
-                                  style: TextStyle(
-                                    color: _getPriorityColor(assignment.priority),
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          _buildSyncBadges(assignment),
-                          if (assignment.dueDate != null) ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 14,
-                                  color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
-                                      ? Colors.red
-                                      : Colors.grey[400],
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Срок: ${_formatDate(assignment.dueDate!)}',
-                                  style: TextStyle(
-                                    color: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
-                                        ? Colors.red
-                                        : Colors.grey[300],
-                                    fontSize: 11,
-                                    fontWeight: assignment.dueDate!.isBefore(DateTime.now()) && assignment.status != 'COMPLETED'
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        );
-      },
     );
   }
 }
-

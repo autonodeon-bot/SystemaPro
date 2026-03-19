@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
-import 'opo_survey_screen.dart';
 import '../services/auth_service.dart';
-import 'login_screen.dart';
 
 class OpoListScreen extends ConsumerStatefulWidget {
   const OpoListScreen({super.key});
@@ -55,10 +54,7 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
             msg.contains('401')) {
           await _authService.logout();
           if (!mounted) return;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-          );
+          context.go('/login');
           return;
         }
         // 403 / Not authenticated / нет токена — офлайн: используем кэш, не показываем ошибку
@@ -231,15 +227,10 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
                                     color: Color(0xFF3b82f6),
                                   ),
                                   onPressed: () async {
-                                    final result = await Navigator.push<bool>(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => OpoSurveyScreen(
-                                          opoId: opoId,
-                                          opoName: opoName,
-                                        ),
-                                      ),
-                                    );
+                                    final result = await context.push<bool>('/opo-survey', extra: {
+                                      'opoId': opoId,
+                                      'opoName': opoName,
+                                    });
                                     if (result == true) {
                                       await _loadOpos();
                                     }
@@ -247,15 +238,10 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
                                   tooltip: 'Заполнить опросный лист ОПО',
                                 ),
                                 onTap: () async {
-                                  final result = await Navigator.push<bool>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => OpoSurveyScreen(
-                                        opoId: opoId,
-                                        opoName: opoName,
-                                      ),
-                                    ),
-                                  );
+                                  final result = await context.push<bool>('/opo-survey', extra: {
+                                    'opoId': opoId,
+                                    'opoName': opoName,
+                                  });
                                   if (result == true) {
                                     await _loadOpos();
                                   }

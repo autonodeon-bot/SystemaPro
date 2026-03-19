@@ -481,6 +481,14 @@ async def create_inspection(
             except:
                 pass
 
+        # Parse assignment_id if provided
+        assignment_id_parsed = None
+        if inspection_data.get("assignment_id"):
+            try:
+                assignment_id_parsed = uuid_lib.UUID(str(inspection_data.get("assignment_id")))
+            except (ValueError, TypeError):
+                pass
+
         # Если в data указано include_opo_data=false, а у оборудования есть opo_id —
         # подтягиваем сохранённые данные ОПО и сливаем документы 1..9.
         try:
@@ -550,6 +558,7 @@ async def create_inspection(
         new_inspection = Inspection(
             equipment_id=equipment_id,
             project_id=project_id,
+            assignment_id=assignment_id_parsed,
             data=inspection_data.get("data", {}),
             conclusion=inspection_data.get("conclusion"),
             status=inspection_data.get("status", "DRAFT"),
@@ -559,6 +568,8 @@ async def create_inspection(
             inspection_category=inspection_category_value,
             is_archived=False,
             created_by=created_by_id,
+            inspector_id=created_by_id,
+            performed_by=created_by_id,
         )
         db.add(new_inspection)
         await db.flush()

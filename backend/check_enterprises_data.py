@@ -17,7 +17,7 @@ async def check_data():
         enterprises = result.scalars().all()
         print(f"\n=== ПРЕДПРИЯТИЯ ===")
         print(f"Всего: {len(enterprises)}")
-        active = [e for e in enterprises if e.is_active == 1]
+        active = [e for e in enterprises if e.is_active == True]
         print(f"Активных: {len(active)}")
         for e in active[:10]:
             print(f"  - {e.name} (ID: {e.id}, active: {e.is_active})")
@@ -27,7 +27,7 @@ async def check_data():
         branches = branch_result.scalars().all()
         print(f"\n=== ФИЛИАЛЫ ===")
         print(f"Всего: {len(branches)}")
-        active_branches = [b for b in branches if b.is_active == 1]
+        active_branches = [b for b in branches if b.is_active == True]
         print(f"Активных: {len(active_branches)}")
         
         # Проверяем цеха
@@ -35,7 +35,7 @@ async def check_data():
         workshops = workshop_result.scalars().all()
         print(f"\n=== ЦЕХА ===")
         print(f"Всего: {len(workshops)}")
-        active_workshops = [w for w in workshops if w.is_active == 1]
+        active_workshops = [w for w in workshops if w.is_active == True]
         print(f"Активных: {len(active_workshops)}")
         
         # Проверяем оборудование

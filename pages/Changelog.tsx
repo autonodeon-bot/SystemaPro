@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sparkles, CheckCircle, AlertCircle, Plus, Bug, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Version {

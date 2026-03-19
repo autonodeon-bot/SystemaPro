@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' as intl;
 import 'dart:typed_data';
@@ -377,10 +378,9 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
                 if (widget.onSave != null) {
                   widget.onSave!(annotatedFile, _annotations);
                 }
-                Navigator.pop(context, annotatedFile);
+                context.pop(annotatedFile);
               } else {
-                // Если не удалось сохранить аннотированное изображение, возвращаем оригинал
-                Navigator.pop(context, _imageFile);
+                context.pop(_imageFile);
               }
             },
           ),

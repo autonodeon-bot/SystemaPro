@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Key, Save } from 'lucide-react';
+import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { API_BASE } from '../constants';
@@ -43,7 +43,6 @@ const UsersManagement = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  const bgClass = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
   const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';
   const textSecondaryClass = theme === 'dark' ? 'text-slate-400' : 'text-slate-600';
   const borderClass = theme === 'dark' ? 'border-slate-700' : 'border-slate-300';

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, ChevronRight, ChevronDown, UserPlus, Users, Building2, Network, Factory, Box } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronRight, ChevronDown, UserPlus, Building2, Network, Factory, Box } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface Enterprise {
@@ -240,7 +240,7 @@ const EquipmentHierarchy = () => {
       console.log('Ответ сервера:', response.status, response.statusText);
 
       if (response.ok) {
-        const result = await response.json();
+        await response.json();
         alert('Инженеры успешно назначены');
         setShowAssignModal(null);
         setSelectedEngineers([]);

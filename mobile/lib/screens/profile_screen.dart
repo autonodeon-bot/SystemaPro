@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../services/sync_service.dart';
 import '../providers/theme_provider.dart';
-import 'login_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -347,10 +347,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // ignore
       }
       if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
+        context.go('/login');
       }
     }
   }
@@ -531,8 +528,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               trailing: const Icon(Icons.chevron_right, color: Colors.white70),
               onTap: () {
-                // Переход на вкладку «Синхронизация» — через главный экран
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                context.go('/dashboard');
               },
             ),
           ),

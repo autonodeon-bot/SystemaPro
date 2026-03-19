@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Award, Edit, Plus, Trash2, Download, Calendar, 
-  CheckCircle, XCircle, AlertTriangle, FileText, Save, Upload,
-  ClipboardList, Package, Gauge, User, Wrench
+  Award, Plus, Download,
+  AlertTriangle, FileText, Save,
+  ClipboardList, Package, Gauge, Wrench
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
@@ -62,7 +62,7 @@ const EngineerPanel = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [verificationEquipment, setVerificationEquipment] = useState<VerificationItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingCert, setEditingCert] = useState<Certification | null>(null);
+  const [_editingCert, _setEditingCert] = useState<Certification | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     certification_type: '',

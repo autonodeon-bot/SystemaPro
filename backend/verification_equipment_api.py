@@ -562,7 +562,7 @@ async def export_verification_equipment(
 ):
     """Экспорт списка оборудования для поверок"""
     try:
-        query = select(VerificationEquipment).where(VerificationEquipment.is_active == 1)
+        query = select(VerificationEquipment).where(VerificationEquipment.is_active == True)
         
         if equipment_type:
             query = query.where(VerificationEquipment.equipment_type == equipment_type)

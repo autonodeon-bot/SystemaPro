@@ -1,56 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Filter, FileText, Package, Calendar, User, MapPin, Eye, Download, Trash2, CheckCircle2, Building2, ChevronDown, ChevronRight } from 'lucide-react';
-import { checklistDocumentNames } from './checklistDocumentNames';
+import { useEffect, useMemo, useState } from 'react';
+import { FileText, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
-
-interface Inspection {
-  id: string;
-  equipment_id: string;
-  equipment_name?: string;
-  equipment_location?: string;
-  enterprise_id?: string;
-  enterprise_name?: string;
-  branch_id?: string;
-  branch_name?: string;
-  workshop_id?: string;
-  workshop_name?: string;
-  data: any;
-  conclusion?: string;
-  status: string;
-  date_performed?: string;
-  created_at: string;
-  inspector_id?: string;
-  inspector_name?: string;
-  inspection_type?: string;
-  inspection_method?: string;
-  inspection_category?: string;
-}
-
-interface DocumentFile {
-  id: string;
-  document_number: string;
-  file_name: string;
-  file_size: number;
-  file_type?: string;
-  mime_type?: string;
-  created_at?: string;
-}
-
-interface InspectionQuestionnaireInfo {
-  questionnaire_id: string | null;
-  document_files: DocumentFile[];
-}
-
-interface Equipment {
-  id: string;
-  name: string;
-  location?: string;
-}
-
-interface Enterprise { id: string; name: string; code?: string; }
-interface Branch { id: string; enterprise_id: string; name: string; code?: string; }
-interface Workshop { id: string; branch_id: string; name: string; code?: string; }
+import type {
+  Branch,
+  Enterprise,
+  Equipment,
+  Inspection,
+  InspectionQuestionnaireInfo,
+  Workshop,
+} from '../components/inspections/types';
+import InspectionsFiltersBar, { type InspectionsGroupBy } from '../components/inspections/InspectionsFiltersBar';
+import InspectionsListView from '../components/inspections/InspectionsListView';
+import InspectionDetailModal from '../components/inspections/InspectionDetailModal';
 
 const InspectionsList = () => {
   const { user } = useAuth();
@@ -67,7 +29,7 @@ const InspectionsList = () => {
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>('');
-  const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop' | 'inspection_type'>('none');
+  const [groupBy, setGroupBy] = useState<InspectionsGroupBy>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -208,15 +170,15 @@ const InspectionsList = () => {
 
       const response = await fetch(url, { headers });
       const data = await response.json();
-      let inspectionsList = data.items || [];
+      let inspectionsList: Inspection[] = data.items || [];
 
       if (selectedStatus !== 'all') {
-        inspectionsList = inspectionsList.filter((insp: Inspection) => insp.status === selectedStatus);
+        inspectionsList = inspectionsList.filter((insp) => insp.status === selectedStatus);
       }
 
       for (const insp of inspectionsList) {
         if (!insp.equipment_name || !insp.equipment_location) {
-          const eq = equipment.find(e => e.id === insp.equipment_id);
+          const eq = equipment.find((e) => e.id === insp.equipment_id);
           if (eq) {
             insp.equipment_name = eq.name;
             insp.equipment_location = eq.location;
@@ -257,7 +219,7 @@ const InspectionsList = () => {
       }
       await loadInspections();
       if (selectedInspection?.id === inspectionId) {
-        setSelectedInspection((prev) => (prev ? ({ ...prev, status: 'APPROVED' } as any) : prev));
+        setSelectedInspection((prev) => (prev ? { ...prev, status: 'APPROVED' } : prev));
       }
     } catch (e) {
       alert(`Ошибка утверждения: ${e instanceof Error ? e.message : String(e)}`);
@@ -298,7 +260,7 @@ const InspectionsList = () => {
     }
     const confirm = window.confirm(`Удалить ${selectedInspections.size} выбранных чек-листов? Также будут удалены связанные отчеты и файлы. Действие необратимо.`);
     if (!confirm) return;
-    
+
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token');
@@ -306,11 +268,11 @@ const InspectionsList = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ inspection_ids: Array.from(selectedInspections) })
+        body: JSON.stringify({ inspection_ids: Array.from(selectedInspections) }),
       });
-      
+
       if (!response.ok) {
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
@@ -323,18 +285,16 @@ const InspectionsList = () => {
               errorMessage = err.detail || err.message || err.error || String(err) || errorMessage;
             }
           } catch {
-            // Если не JSON, используем текст ответа
             errorMessage = text || errorMessage;
           }
-        } catch (parseError) {
-          // Если не удалось прочитать ответ, используем статус
+        } catch {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
         console.error('Ошибка удаления чек-листов:', errorMessage);
         alert(`Ошибка удаления: ${errorMessage}`);
         return;
       }
-      
+
       const data = await response.json();
       alert(`Удалено: ${data.deleted} из ${data.total} чек-листов`);
       setSelectedInspections(new Set());
@@ -346,7 +306,7 @@ const InspectionsList = () => {
       } else if (typeof e === 'string') {
         errorMessage = e;
       } else if (e && typeof e === 'object') {
-        errorMessage = (e as any).message || (e as any).detail || String(e);
+        errorMessage = (e as { message?: string; detail?: string }).message || (e as { detail?: string }).detail || String(e);
       }
       alert(`Ошибка удаления: ${errorMessage}`);
     } finally {
@@ -361,7 +321,7 @@ const InspectionsList = () => {
     }
     const confirm = window.confirm(`Отправить ${selectedInspections.size} выбранных чек-листов в архив?`);
     if (!confirm) return;
-    
+
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token');
@@ -369,11 +329,11 @@ const InspectionsList = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ inspection_ids: Array.from(selectedInspections), archive: true })
+        body: JSON.stringify({ inspection_ids: Array.from(selectedInspections), archive: true }),
       });
-      
+
       if (!response.ok) {
         let errorMessage = response.statusText;
         try {
@@ -385,13 +345,13 @@ const InspectionsList = () => {
         alert(`Ошибка архивирования: ${errorMessage}`);
         return;
       }
-      
+
       const data = await response.json();
       alert(`Отправлено в архив: ${data.archived} из ${data.total} чек-листов`);
       setSelectedInspections(new Set());
       await loadInspections();
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : (typeof e === 'string' ? e : JSON.stringify(e));
+      const errorMessage = e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e);
       alert(`Ошибка архивирования: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
@@ -415,7 +375,7 @@ const InspectionsList = () => {
         alert(`Ошибка очистки: ${err.detail || res.statusText}`);
         return;
       }
-      const data = await res.json().catch(() => null as any);
+      const data = await res.json().catch(() => null as { deleted?: number; reports_deleted?: number } | null);
       alert(`Удалено чек-листов: ${data?.deleted ?? 'OK'} (и отчетов: ${data?.reports_deleted ?? 0})`);
       await loadInspections();
     } catch (e) {
@@ -424,7 +384,6 @@ const InspectionsList = () => {
   };
 
   const loadInspectionQuestionnaireInfo = async (inspectionId: string) => {
-    // Кэшируем, чтобы не дергать API повторно при каждом открытии
     if (questionnaireInfo[inspectionId]) return;
 
     setLoadingQuestionnaire(true);
@@ -437,21 +396,21 @@ const InspectionsList = () => {
       if (!response.ok) return;
 
       const data = await response.json();
-      setQuestionnaireInfo(prev => ({
+      setQuestionnaireInfo((prev) => ({
         ...prev,
         [inspectionId]: {
           questionnaire_id: data.questionnaire_id ?? null,
           document_files: data.document_files ?? [],
-        }
+        },
       }));
-    } catch (e) {
+    } catch {
       // не блокируем UI
     } finally {
       setLoadingQuestionnaire(false);
     }
   };
 
-  const filteredInspections = inspections.filter(insp => {
+  const filteredInspections = inspections.filter((insp) => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -487,12 +446,12 @@ const InspectionsList = () => {
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    const csvHeaders = Object.keys(rows[0]);
     const csv = [
-      headers.join(';'),
+      csvHeaders.join(';'),
       ...rows.map((row) =>
-        headers
-          .map((header) => `"${String((row as any)[header] ?? '').replaceAll('"', '""')}"`)
+        csvHeaders
+          .map((header) => `"${String((row as Record<string, string>)[header] ?? '').replaceAll('"', '""')}"`)
           .join(';'),
       ),
     ].join('\n');
@@ -530,7 +489,7 @@ const InspectionsList = () => {
   }, [groupBy, filteredInspections]);
 
   const toggleGroup = (key: string) => {
-    setExpandedGroups(prev => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -538,429 +497,61 @@ const InspectionsList = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'SIGNED':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'DRAFT':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'REJECTED':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
+  const handleEnterpriseChange = (v: string) => {
+    setSelectedEnterpriseId(v);
+    setSelectedBranchId('');
+    setSelectedWorkshopId('');
+    setBranches([]);
+    setWorkshops([]);
+    if (v) loadBranches(v);
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'SIGNED':
-        return 'Подписан';
-      case 'DRAFT':
-        return 'Черновик';
-      case 'REJECTED':
-        return 'Отклонен';
-      default:
-        return status;
-    }
+  const handleBranchChange = (v: string) => {
+    setSelectedBranchId(v);
+    setSelectedWorkshopId('');
+    setWorkshops([]);
+    if (v) loadWorkshops(v);
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Не указана';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('ru-RU', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateString;
-    }
+  const handleToggleSelect = (id: string) => {
+    setSelectedInspections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
-  const hierarchySubtitle = (insp: Inspection) => {
-    const parts = [insp.enterprise_name, insp.branch_name, insp.workshop_name].filter(Boolean);
-    return parts.length ? parts.join(' / ') : null;
-  };
-
-  const renderInspectionCard = (insp: Inspection) => (
-    <div
-      key={insp.id}
-      className="bg-secondary/50 rounded-lg p-4 hover:bg-secondary/70 transition-colors border border-slate-700"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <input
-          type="checkbox"
-          checked={selectedInspections.has(insp.id)}
-          onChange={(e) => {
-            e.stopPropagation();
-            setSelectedInspections(prev => {
-              const newSet = new Set(prev);
-              if (newSet.has(insp.id)) newSet.delete(insp.id);
-              else newSet.add(insp.id);
-              return newSet;
-            });
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="mt-1 rounded"
-        />
-        <div
-          className="flex-1 cursor-pointer"
-          onClick={() => {
-            setSelectedInspection(insp);
-            setShowDetails(true);
-            loadInspectionQuestionnaireInfo(insp.id);
-          }}
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <Package className="text-accent" size={20} />
-            <h3 className="font-semibold text-white">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
-            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${getStatusColor(insp.status)}`}>
-              {getStatusLabel(insp.status)}
-            </span>
-            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-blue-500/40 text-blue-300 bg-blue-500/10">
-              {insp.inspection_type || 'UNSPECIFIED'}
-            </span>
-          </div>
-          {hierarchySubtitle(insp) && (
-            <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
-              <Building2 size={12} />
-              {hierarchySubtitle(insp)}
-            </p>
-          )}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            {insp.equipment_location && (
-              <div className="flex items-center gap-2 text-slate-400">
-                <MapPin size={14} />
-                <span>{insp.equipment_location}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-slate-400">
-              <Calendar size={14} />
-              <span>{formatDate(insp.date_performed)}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-400">
-              <FileText size={14} />
-              <span>ID: {insp.id.substring(0, 8)}...</span>
-            </div>
-            {insp.conclusion && (
-              <div className="text-slate-300 truncate">
-                {insp.conclusion.substring(0, 50)}...
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {canApprove && String(insp.status || '').toUpperCase() !== 'APPROVED' && (
-            <button
-              onClick={(e) => { e.stopPropagation(); approveInspection(insp.id); }}
-              className="p-2 rounded-lg text-green-300 hover:bg-green-500/10 border border-green-500/20"
-              title="Утвердить чек-лист"
-            >
-              <CheckCircle2 size={16} />
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); deleteInspection(insp.id); }}
-            className="p-2 rounded-lg text-red-300 hover:bg-red-500/10 border border-red-500/20"
-            title="Удалить чек-лист"
-          >
-            <Trash2 size={16} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedInspection(insp);
-              setShowDetails(true);
-              loadInspectionQuestionnaireInfo(insp.id);
-            }}
-            className="p-2 text-slate-400 hover:text-accent hover:bg-secondary rounded transition-colors"
-            title="Просмотр деталей"
-          >
-            <Eye size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderInspectionDetails = (insp: Inspection) => {
-    const data = insp.data || {};
-    const docsInfo = questionnaireInfo[insp.id];
-    const docsFilesByNumber: Record<string, DocumentFile[]> = {};
-    if (docsInfo?.document_files) {
-      for (const f of docsInfo.document_files) {
-        const k = String(f.document_number);
-        if (!docsFilesByNumber[k]) docsFilesByNumber[k] = [];
-        docsFilesByNumber[k].push(f);
-      }
-    }
-
-    // Вложения (не входят в перечень документов 1..17)
-    const attachmentLabels: Record<string, string> = {
-      factory_plate_photo: 'Фото заводской таблички',
-      control_scheme_image: 'Схема контроля / карта обследования',
-    };
-    const attachmentKeys = Object.keys(docsFilesByNumber).filter((k) => k in attachmentLabels);
-
-    // Прочие вложения: все ключи, которые НЕ относятся к 1..17 и НЕ являются системными (табличка/схема).
-    const otherAttachmentKeys = Object.keys(docsFilesByNumber)
-      .filter((k) => {
-        if (k in attachmentLabels) return false;
-        const n = Number(k);
-        // 1..17 считаем "документами"
-        if (!Number.isNaN(n) && Number.isFinite(n) && n >= 1 && n <= 17) return false;
-        return true;
-      })
-      .sort((a, b) => a.localeCompare(b, 'en'));
-    
-    return (
-      <div className="space-y-6">
-        {/* Основная информация */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Оборудование</label>
-            <div className="flex items-center gap-2">
-              <Package size={16} className="text-accent" />
-              <span className="font-medium">{insp.equipment_name || 'Не указано'}</span>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Местоположение</label>
-            <div className="flex items-center gap-2">
-              <MapPin size={16} className="text-accent" />
-              <span>{insp.equipment_location || 'Не указано'}</span>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Дата обследования</label>
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-accent" />
-              <span>{formatDate(insp.date_performed)}</span>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Статус</label>
-            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${getStatusColor(insp.status)}`}>
-              {getStatusLabel(insp.status)}
-            </span>
-          </div>
-        </div>
-
-        {/* Данные чек-листа */}
-        {data.executors && (
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Исполнители</label>
-            <p className="text-white">{data.executors}</p>
-          </div>
-        )}
-
-        {data.organization && (
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Организация</label>
-            <p className="text-white">{data.organization}</p>
-          </div>
-        )}
-
-        {/* Документы */}
-        {data.documents && (
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block">Перечень рассмотренных документов</label>
-            <div className="space-y-2">
-              {Object.entries(data.documents).map(([key, value]: [string, any]) => (
-                <div key={key} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
-                  <div className="flex-1 pr-3">
-                    <div className="text-sm text-slate-300">
-                      {checklistDocumentNames[String(key)] ?? `Документ ${key}`}
-                    </div>
-                    {docsFilesByNumber[String(key)]?.length ? (
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        {docsFilesByNumber[String(key)].map((f) => (
-                          <a
-                            key={f.id}
-                            className="text-xs text-accent hover:underline inline-flex items-center gap-1 px-2 py-1 bg-accent/10 hover:bg-accent/20 rounded"
-                            href={`${API_BASE}/api/questionnaires/${docsInfo?.questionnaire_id}/documents/${String(key)}/view`}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={f.file_name}
-                          >
-                            <Download size={14} />
-                            {f.file_name || 'Открыть файл'}
-                            {f.file_size ? ` (${(f.file_size / 1024).toFixed(1)} КБ)` : ''}
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-xs text-slate-500">Файл не приложен</div>
-                    )}
-                  </div>
-
-                  <span className={`px-2 py-1 rounded text-xs ${value ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {value ? 'Да' : 'Нет'}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {loadingQuestionnaire && (
-              <div className="text-xs text-slate-500 mt-2">Загрузка вложений документов...</div>
-            )}
-            {docsInfo?.questionnaire_id && Object.keys(docsFilesByNumber).length === 0 && !loadingQuestionnaire && (
-              <div className="text-xs text-slate-500 mt-2">Документы не загружены</div>
-            )}
-          </div>
-        )}
-
-        {/* Карта обследования */}
-        {data.vesselName && (
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block">Карта обследования</label>
-            <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/50 rounded">
-              <div>
-                <span className="text-xs text-slate-400">Наименование сосуда</span>
-                <p className="text-white font-medium">{data.vesselName}</p>
-              </div>
-              {data.serialNumber && (
-                <div>
-                  <span className="text-xs text-slate-400">Заводской номер</span>
-                  <p className="text-white font-medium">{data.serialNumber}</p>
-                </div>
-              )}
-              {data.regNumber && (
-                <div>
-                  <span className="text-xs text-slate-400">Регистрационный номер</span>
-                  <p className="text-white font-medium">{data.regNumber}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Приложенные файлы (фото таблички, схема контроля и т.п.) */}
-        {docsInfo?.questionnaire_id && attachmentKeys.length > 0 && (
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block">Приложенные файлы</label>
-            <div className="space-y-2">
-              {attachmentKeys.map((k) => (
-                <div key={k} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
-                  <div className="flex-1 pr-3">
-                    <div className="text-sm text-slate-300 font-medium">{attachmentLabels[k] || k}</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {(docsFilesByNumber[k] || []).map((f) => (
-                        <a
-                          key={f.id}
-                          className="text-xs text-accent hover:underline inline-flex items-center gap-1 px-2 py-1 bg-accent/10 hover:bg-accent/20 rounded"
-                          href={`${API_BASE}/api/questionnaires/${docsInfo.questionnaire_id}/documents/${k}/view`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={f.file_name}
-                        >
-                          <Download size={14} />
-                          {f.file_name || 'Открыть'}
-                          {f.file_size ? ` (${(f.file_size / 1024).toFixed(1)} КБ)` : ''}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Прочие вложения */}
-        {docsInfo?.questionnaire_id && otherAttachmentKeys.length > 0 && (
-          <div>
-            <label className="text-xs text-slate-400 mb-2 block">Прочие вложения</label>
-            <div className="space-y-2">
-              {otherAttachmentKeys.map((k) => (
-                <div key={k} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
-                  <div className="flex-1 pr-3">
-                    <div className="text-sm text-slate-300 font-medium">{k}</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {(docsFilesByNumber[k] || []).map((f) => (
-                        <a
-                          key={f.id}
-                          className="text-xs text-accent hover:underline inline-flex items-center gap-1 px-2 py-1 bg-accent/10 hover:bg-accent/20 rounded"
-                          href={`${API_BASE}/api/questionnaires/${docsInfo.questionnaire_id}/documents/${k}/view`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={f.file_name}
-                        >
-                          <Download size={14} />
-                          {f.file_name || 'Открыть'}
-                          {f.file_size ? ` (${(f.file_size / 1024).toFixed(1)} КБ)` : ''}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Информация о документах, если они не загружены */}
-        {!docsInfo?.questionnaire_id && (
-          <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded">
-            <p className="text-xs text-yellow-400">
-              Документы привязаны к опросному листу. Для просмотра документов необходимо наличие опросного листа для данного оборудования.
-            </p>
-          </div>
-        )}
-
-        {/* Заключение */}
-        {insp.conclusion && (
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Заключение</label>
-            <div className="p-4 bg-secondary/50 rounded">
-              <p className="text-white whitespace-pre-wrap">{insp.conclusion}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Дополнительные данные */}
-        {Object.keys(data).length > 0 && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm text-slate-400 hover:text-white">
-              Показать все данные
-            </summary>
-            <pre className="mt-2 p-4 bg-secondary/50 rounded text-xs overflow-auto text-slate-300">
-              {JSON.stringify(data, null, 2)}
-            </pre>
-          </details>
-        )}
-      </div>
-    );
+  const handleOpenDetails = (insp: Inspection) => {
+    setSelectedInspection(insp);
+    setShowDetails(true);
+    loadInspectionQuestionnaireInfo(insp.id);
   };
 
   return (
     <div className="space-y-6">
-      {/* Навигация: хлебные крошки */}
       <nav className="flex items-center gap-2 text-sm text-slate-400">
         <span className="text-white font-medium">Чек-листы</span>
-        {selectedEnterpriseId && enterprises.find(e => e.id === selectedEnterpriseId) && (
+        {selectedEnterpriseId && enterprises.find((e) => e.id === selectedEnterpriseId) && (
           <>
             <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{enterprises.find(e => e.id === selectedEnterpriseId)?.name}</span>
+            <span className="text-slate-300">{enterprises.find((e) => e.id === selectedEnterpriseId)?.name}</span>
           </>
         )}
-        {selectedBranchId && branches.find(b => b.id === selectedBranchId) && (
+        {selectedBranchId && branches.find((b) => b.id === selectedBranchId) && (
           <>
             <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{branches.find(b => b.id === selectedBranchId)?.name}</span>
+            <span className="text-slate-300">{branches.find((b) => b.id === selectedBranchId)?.name}</span>
           </>
         )}
-        {selectedWorkshopId && workshops.find(w => w.id === selectedWorkshopId) && (
+        {selectedWorkshopId && workshops.find((w) => w.id === selectedWorkshopId) && (
           <>
             <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{workshops.find(w => w.id === selectedWorkshopId)?.name}</span>
+            <span className="text-slate-300">{workshops.find((w) => w.id === selectedWorkshopId)?.name}</span>
           </>
         )}
       </nav>
 
-      {/* Заголовок */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -971,272 +562,63 @@ const InspectionsList = () => {
         </div>
       </div>
 
-      {/* Фильтры и поиск */}
-      <div className="bg-secondary/50 rounded-lg p-4 space-y-4">
-        {selectedInspections.size > 0 && (
-          <div className="flex items-center justify-between p-3 bg-accent/20 border border-accent/30 rounded-lg">
-            <span className="text-white font-semibold">Выбрано: {selectedInspections.size}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={handleBulkArchive}
-                disabled={isProcessing}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
-              >
-                Отправить в архив
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={isProcessing}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
-              >
-                Удалить выбранные
-              </button>
-              <button
-                onClick={() => setSelectedInspections(new Set())}
-                className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-semibold"
-              >
-                Снять выделение
-              </button>
-            </div>
-          </div>
-        )}
-        <div className="flex flex-wrap gap-4">
-          {/* Поиск */}
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text"
-                placeholder="Поиск по оборудованию, заключению..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
-              />
-            </div>
-          </div>
+      <InspectionsFiltersBar
+        selectedCount={selectedInspections.size}
+        isProcessing={isProcessing}
+        onBulkArchive={handleBulkArchive}
+        onBulkDelete={handleBulkDelete}
+        onClearSelection={() => setSelectedInspections(new Set())}
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        equipment={equipment}
+        selectedEquipment={selectedEquipment}
+        onSelectedEquipmentChange={setSelectedEquipment}
+        selectedStatus={selectedStatus}
+        onSelectedStatusChange={setSelectedStatus}
+        selectedInspectionType={selectedInspectionType}
+        onSelectedInspectionTypeChange={setSelectedInspectionType}
+        enterprises={enterprises}
+        branches={branches}
+        workshops={workshops}
+        selectedEnterpriseId={selectedEnterpriseId}
+        selectedBranchId={selectedBranchId}
+        selectedWorkshopId={selectedWorkshopId}
+        onEnterpriseChange={handleEnterpriseChange}
+        onBranchChange={handleBranchChange}
+        onWorkshopChange={setSelectedWorkshopId}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
+        onExportCsv={exportFilteredToCsv}
+        cleanupInspectionsDays={cleanupInspectionsDays}
+        onCleanupDaysChange={setCleanupInspectionsDays}
+        onCleanupOldInspections={cleanupOldInspections}
+      />
 
-          {/* Фильтр по оборудованию */}
-          <div className="min-w-[200px]">
-            <select
-              value={selectedEquipment}
-              onChange={(e) => setSelectedEquipment(e.target.value)}
-              className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
-            >
-              <option value="all">Все оборудование</option>
-              {equipment.map((eq) => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <InspectionsListView
+        loading={loading}
+        filteredInspections={filteredInspections}
+        groupBy={groupBy}
+        groupedInspections={groupedInspections}
+        expandedGroups={expandedGroups}
+        onToggleGroup={toggleGroup}
+        selectedInspectionIds={selectedInspections}
+        onToggleSelect={handleToggleSelect}
+        onOpenDetails={handleOpenDetails}
+        canApprove={canApprove}
+        onApprove={approveInspection}
+        onDelete={deleteInspection}
+      />
 
-          {/* Фильтр по статусу */}
-          <div className="min-w-[150px]">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
-            >
-              <option value="all">Все статусы</option>
-              <option value="DRAFT">Черновик</option>
-              <option value="SIGNED">Подписан</option>
-              <option value="REJECTED">Отклонен</option>
-            </select>
-          </div>
-
-          {/* Фильтр по типу обследования */}
-          <div className="min-w-[180px]">
-            <select
-              value={selectedInspectionType}
-              onChange={(e) => setSelectedInspectionType(e.target.value)}
-              className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
-            >
-              <option value="all">Все типы обследования</option>
-              <option value="VISUAL">VISUAL</option>
-              <option value="NDT">NDT</option>
-              <option value="QUESTIONNAIRE">QUESTIONNAIRE</option>
-              <option value="EXPERTISE">EXPERTISE</option>
-            </select>
-          </div>
-
-          {/* Предприятие / Филиал / Цех / Группировка */}
-          <div className="w-full flex flex-wrap gap-4 pt-2 border-t border-slate-600/50 mt-2">
-            <div className="min-w-[180px]">
-              <label className="block text-xs text-slate-400 mb-1">Предприятие</label>
-              <select
-                value={selectedEnterpriseId}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSelectedEnterpriseId(v);
-                  setSelectedBranchId('');
-                  setSelectedWorkshopId('');
-                  setBranches([]);
-                  setWorkshops([]);
-                  if (v) loadBranches(v);
-                }}
-                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
-              >
-                <option value="">Все предприятия</option>
-                {enterprises.map((ent) => (
-                  <option key={ent.id} value={ent.id}>{ent.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-[180px]">
-              <label className="block text-xs text-slate-400 mb-1">Филиал</label>
-              <select
-                value={selectedBranchId}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSelectedBranchId(v);
-                  setSelectedWorkshopId('');
-                  setWorkshops([]);
-                  if (v) loadWorkshops(v);
-                }}
-                disabled={!selectedEnterpriseId}
-                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
-              >
-                <option value="">Все филиалы</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-[180px]">
-              <label className="block text-xs text-slate-400 mb-1">Цех</label>
-              <select
-                value={selectedWorkshopId}
-                onChange={(e) => setSelectedWorkshopId(e.target.value)}
-                disabled={!selectedBranchId}
-                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
-              >
-                <option value="">Все цеха</option>
-                {workshops.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-[160px]">
-              <label className="block text-xs text-slate-400 mb-1">Группировка</label>
-              <select
-                value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as 'none' | 'enterprise' | 'branch' | 'workshop' | 'inspection_type')}
-                className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
-              >
-                <option value="none">Без группировки</option>
-                <option value="enterprise">По предприятию</option>
-                <option value="branch">По филиалу</option>
-                <option value="workshop">По цеху</option>
-                <option value="inspection_type">По типу обследования</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:ml-auto">
-            <button
-              onClick={exportFilteredToCsv}
-              className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent rounded-lg text-sm font-semibold"
-              title="Экспорт текущей выборки в CSV"
-            >
-              <Download size={16} />
-              <span className="hidden sm:inline">Экспорт CSV</span>
-            </button>
-            <select
-              value={cleanupInspectionsDays}
-              onChange={(e) => setCleanupInspectionsDays(parseInt(e.target.value, 10))}
-              className="px-3 py-2 bg-primary border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
-              title="Удалить чек-листы старше N дней"
-            >
-              <option value={30}>Старше 30 дней</option>
-              <option value={90}>Старше 90 дней</option>
-              <option value={180}>Старше 180 дней</option>
-              <option value={365}>Старше 365 дней</option>
-            </select>
-            <button
-              onClick={cleanupOldInspections}
-              className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-300 rounded-lg text-sm font-semibold"
-              title="Удалить старые чек-листы"
-            >
-              <Trash2 size={16} />
-              <span className="hidden sm:inline">Удалить старые чек-листы</span>
-              <span className="sm:hidden">Очистить</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Список чек-листов */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-          <p className="text-slate-400 mt-4">Загрузка чек-листов...</p>
-        </div>
-      ) : filteredInspections.length === 0 ? (
-        <div className="text-center py-12 bg-secondary/50 rounded-lg">
-          <FileText className="mx-auto text-slate-400 mb-4" size={48} />
-          <p className="text-slate-400">Чек-листы не найдены</p>
-        </div>
-      ) : groupBy !== 'none' && groupedInspections && groupedInspections.length > 0 ? (
-        <div className="space-y-4">
-          {groupedInspections.map(([groupKey, items]) => {
-            const isCollapsed = expandedGroups.has(groupKey);
-            const isExpanded = expandedGroups.size === 0 || !isCollapsed;
-            return (
-              <div key={groupKey} className="rounded-lg border border-slate-700 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(groupKey)}
-                  className="w-full flex items-center gap-2 px-4 py-3 bg-secondary/70 hover:bg-secondary text-left text-white font-medium"
-                >
-                  {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                  <Building2 size={18} className="text-accent" />
-                  <span>{groupKey}</span>
-                  <span className="text-slate-400 text-sm font-normal">({items.length})</span>
-                </button>
-                {isExpanded && (
-                  <div className="p-2 space-y-2 bg-secondary/30">
-                    {items.map((insp) => renderInspectionCard(insp))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredInspections.map((insp) => renderInspectionCard(insp))}
-        </div>
-      )}
-
-      {/* Модальное окно с деталями */}
       {showDetails && selectedInspection && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDetails(false)}>
-          <div
-            className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-secondary border-b border-slate-700 p-6 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <FileText className="text-accent" size={24} />
-                Детали чек-листа
-              </h2>
-              <button
-                onClick={() => setShowDetails(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-6">
-              {renderInspectionDetails(selectedInspection)}
-            </div>
-          </div>
-        </div>
+        <InspectionDetailModal
+          inspection={selectedInspection}
+          questionnaireInfo={questionnaireInfo}
+          loadingQuestionnaire={loadingQuestionnaire}
+          onClose={() => setShowDetails(false)}
+        />
       )}
     </div>
   );
 };
 
 export default InspectionsList;
-

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Calendar, User, DollarSign, Filter, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText, Activity } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface Client {

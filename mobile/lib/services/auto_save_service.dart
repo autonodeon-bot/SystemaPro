@@ -3,14 +3,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
+import 'database_service.dart';
 
 /// Сервис для автоматического сохранения черновиков
 class AutoSaveService {
-  static const String _prefsKeyDrafts = 'auto_save_drafts';
   static const String _prefsKeyLastSave = 'last_auto_save_time';
   static const Duration _autoSaveInterval = Duration(seconds: 30);
+  static const String _screenTypeInspection = 'inspection';
 
-  /// Сохранить черновик обследования
+  /// Сохранить черновик обследования (sqflite + file backup)
   Future<void> saveDraft({
     required String equipmentId,
     required Map<String, dynamic> checklistData,
@@ -18,9 +19,6 @@ class AutoSaveService {
     String? inspectionId,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final drafts = await getDrafts();
-      
       final draftKey = inspectionId ?? 'draft_$equipmentId';
       final draft = {
         'id': draftKey,
@@ -31,37 +29,26 @@ class AutoSaveService {
         'version': 1,
       };
 
-      // Обновляем или добавляем черновик
-      drafts[draftKey] = draft;
+      await DatabaseService.saveDraft(draftKey, _screenTypeInspection, draft);
 
-      // Сохраняем в SharedPreferences
-      final draftsJson = drafts.values.map((d) => json.encode(d)).toList();
-      await prefs.setStringList(_prefsKeyDrafts, draftsJson);
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKeyLastSave, DateTime.now().toIso8601String());
 
-      // Также сохраняем в файл для резервного копирования
       await _saveToFile(draft);
     } catch (e) {
       print('Ошибка автосохранения: $e');
     }
   }
 
-  /// Получить все черновики
+  /// Получить все черновики (sqflite)
   Future<Map<String, Map<String, dynamic>>> getDrafts() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final draftsJson = prefs.getStringList(_prefsKeyDrafts) ?? [];
-      
+      final rows = await DatabaseService.getAllDrafts();
       final Map<String, Map<String, dynamic>> drafts = {};
-      for (var jsonStr in draftsJson) {
-        try {
-          final draft = json.decode(jsonStr) as Map<String, dynamic>;
-          final id = draft['id'] as String?;
-          if (id != null) {
-            drafts[id] = draft;
-          }
-        } catch (e) {
-          print('Ошибка парсинга черновика: $e');
+      for (var row in rows) {
+        final id = row['id'] as String?;
+        if (id != null) {
+          drafts[id] = row;
         }
       }
       return drafts;
@@ -72,52 +59,33 @@ class AutoSaveService {
 
   /// Получить черновик для конкретного оборудования
   Future<Map<String, dynamic>?> getDraftForEquipment(String equipmentId) async {
+    final draftKey = 'draft_$equipmentId';
+    final draft = await DatabaseService.getDraft(draftKey);
+    if (draft != null) return draft;
+
     final drafts = await getDrafts();
-    for (var draft in drafts.values) {
-      if (draft['equipment_id'] == equipmentId) {
-        return draft;
+    for (var d in drafts.values) {
+      if (d['equipment_id'] == equipmentId) {
+        return d;
       }
     }
     return null;
   }
 
-  /// Удалить черновик
+  /// Удалить черновик (sqflite + file backup)
   Future<void> deleteDraft(String draftId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final drafts = await getDrafts();
-      drafts.remove(draftId);
-      
-      final draftsJson = drafts.values.map((d) => json.encode(d)).toList();
-      await prefs.setStringList(_prefsKeyDrafts, draftsJson);
-      
-      // Удаляем файл резервной копии
+      await DatabaseService.deleteDraft(draftId);
       await _deleteFile(draftId);
     } catch (e) {
       print('Ошибка удаления черновика: $e');
     }
   }
 
-  /// Очистить все черновики старше определенного времени
+  /// Очистить все черновики старше определенного времени (sqflite)
   Future<void> cleanOldDrafts({Duration maxAge = const Duration(days: 30)}) async {
     try {
-      final drafts = await getDrafts();
-      final now = DateTime.now();
-      final toDelete = <String>[];
-
-      for (var entry in drafts.entries) {
-        final savedAtStr = entry.value['saved_at'] as String?;
-        if (savedAtStr != null) {
-          final savedAt = DateTime.parse(savedAtStr);
-          if (now.difference(savedAt) > maxAge) {
-            toDelete.add(entry.key);
-          }
-        }
-      }
-
-      for (var id in toDelete) {
-        await deleteDraft(id);
-      }
+      await DatabaseService.clearOldDrafts(maxAge: maxAge);
     } catch (e) {
       print('Ошибка очистки старых черновиков: $e');
     }

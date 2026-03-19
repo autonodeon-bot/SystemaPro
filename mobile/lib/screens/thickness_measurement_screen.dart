@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' as intl;
 import 'dart:io';
@@ -7,19 +8,21 @@ import '../models/vessel_checklist.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../services/photo_annotation_service.dart';
+import '../services/bluetooth_measurement_service.dart';
 import '../models/equipment.dart';
+import '../widgets/bluetooth_measurement_widget.dart';
 
 class ThicknessMeasurementScreen extends StatefulWidget {
   final File? schemeImage;
   final List<ThicknessMeasurement>? existingMeasurements;
-  final Function(List<ThicknessMeasurement>, File?) onSave;
-  final Equipment? equipment; // Для определения типа оборудования
+  final Function(List<ThicknessMeasurement>, File?)? onSave;
+  final Equipment? equipment;
 
   const ThicknessMeasurementScreen({
     super.key,
     this.schemeImage,
     this.existingMeasurements,
-    required this.onSave,
+    this.onSave,
     this.equipment,
   });
 
@@ -37,7 +40,19 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   List<ThicknessMeasurement> _measurements = [];
   ThicknessMeasurement? _selectedPoint;
   bool _loadingTemplate = false;
-  Offset? _pendingTapPosition; // позиция для добавления точки по onTap (чтобы не добавлять при сдвиге)
+  Offset? _pendingTapPosition;
+  int? _activePointIndex;
+
+  void _onBluetoothMeasurement(MeasurementResult result) {
+    if (_measurements.isEmpty) return;
+    final target = _activePointIndex != null &&
+            _activePointIndex! < _measurements.length
+        ? _measurements[_activePointIndex!]
+        : _measurements.last;
+    setState(() {
+      target.thickness = result.value;
+    });
+  }
 
   @override
   void initState() {
@@ -327,6 +342,9 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   }
 
   void _editPoint(ThicknessMeasurement point) {
+    setState(() {
+      _activePointIndex = _measurements.indexOf(point);
+    });
     _showPointDialog(point);
   }
 
@@ -490,8 +508,11 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: () {
-              widget.onSave(_measurements, _schemeImage);
-              Navigator.pop(context);
+              widget.onSave?.call(_measurements, _schemeImage);
+              context.pop({
+                'measurements': _measurements,
+                'image': _schemeImage,
+              });
             },
           ),
         ],
@@ -499,7 +520,13 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
       backgroundColor: const Color(0xFF0f172a),
       body: Column(
         children: [
-          // Схема с точками
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: BluetoothMeasurementWidget(
+              instrumentType: InstrumentType.thicknessGauge,
+              onMeasurement: _onBluetoothMeasurement,
+            ),
+          ),
           Expanded(
             flex: 3,
             child: Container(

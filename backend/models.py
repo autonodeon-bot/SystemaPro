@@ -12,7 +12,7 @@ class EquipmentType(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     code = Column(String(50), unique=True)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
 
 class Enterprise(Base):
     """Предприятия"""
@@ -22,7 +22,7 @@ class Enterprise(Base):
     name = Column(String(255), nullable=False)
     code = Column(String(50), unique=True)  # Код предприятия
     description = Column(Text)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -35,7 +35,7 @@ class Branch(Base):
     name = Column(String(255), nullable=False)
     code = Column(String(50))  # Код филиала
     description = Column(Text)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -48,7 +48,7 @@ class Workshop(Base):
     name = Column(String(255), nullable=False)
     code = Column(String(50))  # Код цеха
     description = Column(Text)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -66,7 +66,7 @@ class OPO(Base):
     registration_number = Column(String(100))  # Регистрационный номер в реестре ОПО
     hazard_class = Column(String(50))  # Класс опасности
     survey_data = Column(JSONB)  # Данные опросного листа ОПО (вопросы 1-9)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -86,7 +86,7 @@ class Equipment(Base):
     model = Column(String(255))
     commissioning_date = Column(Date)
     attributes = Column(JSONB)  # Дополнительные атрибуты в формате JSON
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -94,7 +94,7 @@ class EquipmentResource(Base):
     """Ресурс оборудования (остаточный ресурс, продление)"""
     __tablename__ = "equipment_resources"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=True, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="CASCADE"), nullable=True, index=True)
     remaining_resource_years = Column(Numeric(10, 2), nullable=True)
     resource_end_date = Column(Date, nullable=True)
     extension_years = Column(Numeric(10, 2), nullable=True)
@@ -115,7 +115,7 @@ class PipelineSegment(Base):
     """Сегменты трубопроводов"""
     __tablename__ = "pipeline_segments"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=True, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(255))
     segment_type = Column(String(50))
     corrosion_rate = Column(Numeric(10, 4), nullable=True)
@@ -166,7 +166,7 @@ class Engineer(Base):
     email = Column(String(255))
     qualifications = Column(JSONB)  # Квалификации и сертификаты
     equipment_types = Column(JSONB)  # Типы оборудования, с которыми работает
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -192,7 +192,7 @@ class Certification(Base):
     scan_file_name = Column(String(255), nullable=True)
     scan_file_size = Column(Integer, nullable=True)
     scan_mime_type = Column(String(100), nullable=True)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -211,7 +211,7 @@ class RegulatoryDocument(Base):
     requirements = Column(JSONB)  # Требования из документа
     effective_date = Column(Date)
     expiry_date = Column(Date)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -226,8 +226,9 @@ class User(Base):
     full_name = Column(String(255))
     role = Column(String(50), default="engineer")  # admin, chief_operator, engineer
     engineer_id = Column(UUID(as_uuid=True), ForeignKey("engineers.id"), nullable=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
     permissions = Column(JSONB)  # Дополнительные права доступа
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     last_login = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -246,21 +247,21 @@ class HierarchyEngineerAssignment(Base):
     granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     granted_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
 
 class Assignment(Base):
     """Задания на обследование"""
     __tablename__ = "assignments"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
-    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False)
-    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="RESTRICT"), nullable=False, index=True)
+    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     assigned_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     assignment_type = Column(String(50), default="DIAGNOSTICS")  # DIAGNOSTICS, EXPERTISE, INSPECTION
     due_date = Column(Date)
     priority = Column(String(20), default="NORMAL")  # LOW, NORMAL, HIGH, URGENT
-    status = Column(String(50), default="ASSIGNED")  # ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED
+    status = Column(String(50), default="PENDING")  # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
     description = Column(Text)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -272,9 +273,11 @@ class Inspection(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, index=True)
-    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="RESTRICT"), nullable=False, index=True)
     assignment_id = Column(UUID(as_uuid=True), ForeignKey("assignments.id"), nullable=True, index=True)
     questionnaire_id = Column(UUID(as_uuid=True), ForeignKey("questionnaires.id"), nullable=True, index=True)
+    # inspector_id и performed_by указывают на одного пользователя.
+    # performed_by — основное поле. inspector_id сохраняется для обратной совместимости.
     inspector_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     date_performed = Column(DateTime(timezone=True))
     performed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -336,7 +339,7 @@ class ReportTemplate(Base):
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)  # Шаблон для конкретного клиента
     template_config = Column(JSONB)  # Конфигурация шаблона (какие разделы включать, стили и т.д.)
     is_default = Column(Boolean, default=False)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -346,7 +349,7 @@ class Report(Base):
     __tablename__ = "reports"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspections.id", ondelete="SET NULL"), nullable=True)
+    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspections.id", ondelete="SET NULL"), nullable=True, index=True)
     report_type = Column(String(50))  # TECHNICAL, EXPERTISE
     report_number = Column(String(100), nullable=True, unique=True, index=True)  # Автоматический номер отчета
     registration_number = Column(String(100), nullable=True, unique=True, index=True)  # Регистрационный номер
@@ -371,7 +374,7 @@ class Questionnaire(Base):
     __tablename__ = "questionnaires"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="RESTRICT"), nullable=False, index=True)
     assignment_id = Column(UUID(as_uuid=True), ForeignKey("assignments.id"), nullable=True, index=True)
     date_performed = Column(DateTime(timezone=True))
     performed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -387,7 +390,7 @@ class QuestionnaireDocumentFile(Base):
     __tablename__ = "questionnaire_document_files"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    questionnaire_id = Column(UUID(as_uuid=True), ForeignKey("questionnaires.id"), nullable=False, index=True)
+    questionnaire_id = Column(UUID(as_uuid=True), ForeignKey("questionnaires.id", ondelete="CASCADE"), nullable=False, index=True)
     document_number = Column(String(100), nullable=False, index=True)
     file_name = Column(String(255), nullable=True)
     file_path = Column(String(500), nullable=False)
@@ -396,6 +399,7 @@ class QuestionnaireDocumentFile(Base):
     mime_type = Column(String(100), nullable=True)
     uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class NDTMethod(Base):
     """Методы неразрушающего контроля"""
@@ -405,8 +409,8 @@ class NDTMethod(Base):
     # Источник/контекст метода НК:
     # - questionnaire_id: методы НК, добавленные к опросному листу (историческая логика)
     # - inspection_id: методы НК, добавленные к обследованию/инспекции (новая логика)
-    questionnaire_id = Column(UUID(as_uuid=True), ForeignKey("questionnaires.id"), nullable=True, index=True)
-    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspections.id"), nullable=True, index=True)
+    questionnaire_id = Column(UUID(as_uuid=True), ForeignKey("questionnaires.id", ondelete="CASCADE"), nullable=True, index=True)
+    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspections.id", ondelete="SET NULL"), nullable=True, index=True)
     equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False)
     method_code = Column(String(50))  # Код метода (УЗК, ВИК, ПВК и т.д.)
     method_name = Column(String(255))  # Название метода
@@ -457,7 +461,7 @@ class VerificationEquipment(Base):
     inventory_number = Column(String(100), nullable=True)
     next_verification_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -498,6 +502,19 @@ class AuditLog(Base):
     entity_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     details = Column(JSONB, nullable=True)  # Краткое описание (имя сущности, что изменено)
     ip_address = Column(String(50), nullable=True)
+
+
+class UserDevice(Base):
+    """FCM токены устройств пользователей"""
+    __tablename__ = "user_devices"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    fcm_token = Column(String(500), nullable=False, unique=True)
+    platform = Column(String(20), default="android")
+    is_active = Column(Boolean, default=True, server_default='true')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
 # Алиас для импорта в main.py

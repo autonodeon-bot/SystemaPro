@@ -10,21 +10,13 @@ import '../models/equipment.dart';
 import '../models/assignment.dart';
 import 'api_service.dart';
 import 'inspection_archive_service.dart';
+import 'database_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
   static const String _prefsKeyPendingInspections = 'pending_inspections';
   static const String _prefsKeyLastSync = 'last_sync';
   static const String _prefsKeyOfflineMode = 'offline_mode';
-  static const String _prefsKeyOfflineEquipment = 'offline_equipment';
-  static const String _prefsKeyOfflineAssignments =
-      'offline_assignments'; // Версия 3.3.0
-  static const String _prefsKeyPendingOpoSurveys =
-      'pending_opo_surveys'; // Версия 3.7.0
-  static const String _prefsKeyOfflineEngineers = 'offline_engineers';
-  static const String _prefsKeyOfflineVerificationEquipment =
-      'offline_verification_equipment';
-  static const String _prefsKeyOfflineOpos = 'offline_opos';
 
   final ApiService _apiService = ApiService();
   static const int _uploadArchiveRetryCount = 3;
@@ -326,7 +318,7 @@ class SyncService {
 
       // Загружаем список оборудования с сервера и сохраняем локально
       try {
-        final equipmentList = await _apiService.getEquipmentList();
+        final equipmentList = await _apiService.getAllEquipment();
         // Сохраняем оборудование локально для офлайн-режима
         await saveEquipmentOffline(equipmentList);
         result.message = 'Список оборудования обновлен и сохранен локально';
@@ -541,18 +533,10 @@ class SyncService {
           }
         }
         
-        // Удаляем успешно отправленные ОПО опросники
-        final remainingOpoSurveys = pendingOpoSurveys
-            .where((item) {
-              final opoId = item['opo_id'] as String?;
-              return opoId != null && !successfulOpoIds.contains(opoId);
-            })
-            .toList();
-        
-        final remainingOpoSurveysJson = remainingOpoSurveys
-            .map((s) => json.encode(s))
-            .toList();
-        await prefs.setStringList(_prefsKeyPendingOpoSurveys, remainingOpoSurveysJson);
+        // Удаляем успешно отправленные ОПО опросники из sqflite
+        for (final opoId in successfulOpoIds) {
+          await DatabaseService.deleteOpoSurvey(opoId);
+        }
       } catch (e) {
         // Не блокируем основную синхронизацию из-за ошибок ОПО
         print('Ошибка синхронизации ОПО опросников: $e');
@@ -636,113 +620,50 @@ class SyncService {
     return prefs.getBool(_prefsKeyOfflineMode) ?? false;
   }
 
-  /// Сохранить список оборудования локально для офлайн-режима
+  /// Сохранить список оборудования локально для офлайн-режима (sqflite)
   Future<void> saveEquipmentOffline(List<Equipment> equipmentList) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      // MERGE: не перетираем список (иначе при синхронизации по заданиям останется только последний объект)
-      final existing = await getOfflineEquipment();
-      final merged = <String, Equipment>{};
-      for (final e in existing) {
-        merged[e.id] = e;
-      }
-      for (final e in equipmentList) {
-        merged[e.id] = e;
-      }
-
-      final equipmentJsonList =
-          merged.values.map((eq) => json.encode(eq.toJson())).toList();
-      await prefs.setStringList(_prefsKeyOfflineEquipment, equipmentJsonList);
+      final jsonList = equipmentList.map((eq) => eq.toJson()).toList();
+      await DatabaseService.saveEquipment(jsonList);
     } catch (e) {
       throw Exception('Ошибка сохранения оборудования локально: $e');
     }
   }
 
-  /// Сохранить список инженеров локально для офлайн-режима
-  /// MERGE: не перетираем список (иначе при синхронизации останется только последний набор)
+  /// Сохранить список инженеров локально для офлайн-режима (sqflite, MERGE)
   Future<void> saveEngineersOffline(
       List<Map<String, dynamic>> engineers) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      // MERGE: не перетираем список (иначе при синхронизации останется только последний набор)
-      final existing = await getOfflineEngineers();
-      final merged = <String, Map<String, dynamic>>{};
-      for (final e in existing) {
-        final id = e['id']?.toString();
-        if (id != null && id.isNotEmpty) {
-          merged[id] = e;
-        }
-      }
-      for (final e in engineers) {
-        final id = e['id']?.toString();
-        if (id != null && id.isNotEmpty) {
-          merged[id] = e; // Обновляем существующие или добавляем новые
-        }
-      }
-
-      final engineersJsonList =
-          merged.values.map((e) => json.encode(e)).toList();
-      await prefs.setStringList(_prefsKeyOfflineEngineers, engineersJsonList);
+      await DatabaseService.saveEngineers(engineers);
     } catch (e) {
       throw Exception('Ошибка сохранения инженеров локально: $e');
     }
   }
 
-  /// Получить список инженеров из локального хранилища
+  /// Получить список инженеров из локального хранилища (sqflite)
   Future<List<Map<String, dynamic>>> getOfflineEngineers() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final engineersJsonList =
-          prefs.getStringList(_prefsKeyOfflineEngineers) ?? [];
-      return engineersJsonList.map((item) {
-        return json.decode(item) as Map<String, dynamic>;
-      }).toList();
+      return await DatabaseService.getEngineers();
     } catch (e) {
       return [];
     }
   }
 
-  /// Сохранить список поверенного оборудования локально для офлайн-режима
-  /// MERGE: не перетираем список (иначе при синхронизации останется только последний набор)
+  /// Сохранить список поверенного оборудования локально для офлайн-режима (sqflite, MERGE)
   Future<void> saveVerificationEquipmentOffline(
       List<Map<String, dynamic>> equipment) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      // MERGE: не перетираем список (иначе при синхронизации останется только последний набор)
-      final existing = await getOfflineVerificationEquipment();
-      final merged = <String, Map<String, dynamic>>{};
-      for (final e in existing) {
-        final id = e['id']?.toString();
-        if (id != null && id.isNotEmpty) {
-          merged[id] = e;
-        }
-      }
-      for (final e in equipment) {
-        final id = e['id']?.toString();
-        if (id != null && id.isNotEmpty) {
-          merged[id] = e; // Обновляем существующие или добавляем новые
-        }
-      }
-
-      final equipmentJsonList =
-          merged.values.map((e) => json.encode(e)).toList();
-      await prefs.setStringList(
-          _prefsKeyOfflineVerificationEquipment, equipmentJsonList);
+      await DatabaseService.saveVerificationEquipment(equipment);
     } catch (e) {
       throw Exception(
           'Ошибка сохранения поверенного оборудования локально: $e');
     }
   }
 
-  /// Получить список поверенного оборудования из локального хранилища
+  /// Получить список поверенного оборудования из локального хранилища (sqflite)
   Future<List<Map<String, dynamic>>> getOfflineVerificationEquipment() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final equipmentJsonList =
-          prefs.getStringList(_prefsKeyOfflineVerificationEquipment) ?? [];
-      return equipmentJsonList.map((item) {
-        return json.decode(item) as Map<String, dynamic>;
-      }).toList();
+      return await DatabaseService.getVerificationEquipment();
     } catch (e) {
       return [];
     }
@@ -753,14 +674,9 @@ class SyncService {
   /// чтобы после повторного входа можно было подключиться и синхронизировать.
   Future<void> clearOfflineCache() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyOfflineEquipment);
-    await prefs.remove(_prefsKeyOfflineAssignments);
     await prefs.remove(_prefsKeyLastSync);
     await prefs.remove(_prefsKeyOfflineMode);
-    await prefs.remove(_prefsKeyOfflineEngineers);
-    await prefs.remove(_prefsKeyOfflineVerificationEquipment);
-    await prefs.remove(_prefsKeyOfflineOpos);
-    await prefs.remove(_prefsKeyPendingOpoSurveys);
+    await DatabaseService.clearAllCaches();
   }
 
   /// Полная очистка, включая очередь неотправленных обследований (только по явному запросу пользователя).
@@ -770,138 +686,166 @@ class SyncService {
     await clearOfflineCache();
   }
 
-  /// Получить список оборудования из локального хранилища
+  /// Получить список оборудования из локального хранилища (sqflite)
   Future<List<Equipment>> getOfflineEquipment() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final equipmentJsonList =
-          prefs.getStringList(_prefsKeyOfflineEquipment) ?? [];
-
-      return equipmentJsonList.map((item) {
-        final jsonData = json.decode(item) as Map<String, dynamic>;
-        return Equipment.fromJson(jsonData);
+      final rows = await DatabaseService.getEquipment();
+      return rows.map((jsonData) {
+        final map = jsonData is Map<String, dynamic>
+            ? jsonData
+            : json.decode(jsonData.toString()) as Map<String, dynamic>;
+        return Equipment.fromJson(map);
       }).toList();
     } catch (e) {
       return [];
     }
   }
 
-  /// Сохранить список заданий локально для офлайн-режима (версия 3.3.0)
+  /// Сохранить список заданий локально для офлайн-режима (sqflite, версия 3.3.0)
   Future<void> saveAssignmentsOffline(List<Assignment> assignments) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final assignmentsJsonList =
-          assignments.map((a) => json.encode(a.toJson())).toList();
-      await prefs.setStringList(
-          _prefsKeyOfflineAssignments, assignmentsJsonList);
+      final jsonList = assignments.map((a) => a.toJson()).toList();
+      await DatabaseService.saveAssignments(jsonList);
     } catch (e) {
       throw Exception('Ошибка сохранения заданий локально: $e');
     }
   }
 
-  /// Получить список заданий из локального хранилища (версия 3.3.0)
+  /// Получить список заданий из локального хранилища (sqflite, версия 3.3.0)
   Future<List<Assignment>> getOfflineAssignments() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final assignmentsJsonList =
-          prefs.getStringList(_prefsKeyOfflineAssignments) ?? [];
-
-      return assignmentsJsonList.map((item) {
-        final jsonData = json.decode(item) as Map<String, dynamic>;
-        return Assignment.fromJson(jsonData);
+      final rows = await DatabaseService.getAssignments();
+      return rows.map((jsonData) {
+        final map = jsonData is Map<String, dynamic>
+            ? jsonData
+            : json.decode(jsonData.toString()) as Map<String, dynamic>;
+        return Assignment.fromJson(map);
       }).toList();
     } catch (e) {
       return [];
     }
   }
 
-  /// Сохранить опросник ОПО в офлайн-режиме (версия 3.7.0)
+  /// Сохранить опросник ОПО в офлайн-режиме (sqflite, версия 3.7.0)
   Future<void> saveOpoSurveyOffline({
     required String opoId,
     required Map<String, dynamic> surveyData,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingSurveys =
-          prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
-
       final surveyEntry = {
-        'opo_id': opoId,
         'survey_data': surveyData,
         'timestamp': DateTime.now().toIso8601String(),
       };
-
-      // Удаляем старую запись для этого ОПО, если есть
-      pendingSurveys.removeWhere((item) {
-        try {
-          final decoded = json.decode(item) as Map<String, dynamic>;
-          return decoded['opo_id'] == opoId;
-        } catch (_) {
-          return false;
-        }
-      });
-
-      pendingSurveys.add(json.encode(surveyEntry));
-      await prefs.setStringList(_prefsKeyPendingOpoSurveys, pendingSurveys);
+      await DatabaseService.saveOpoSurvey(opoId, surveyEntry);
     } catch (e) {
       throw Exception('Ошибка сохранения опросника ОПО: $e');
     }
   }
 
-  /// Получить список ожидающих синхронизации опросников ОПО (версия 3.7.0)
+  /// Получить список ожидающих синхронизации опросников ОПО (sqflite, версия 3.7.0)
   Future<List<Map<String, dynamic>>> getPendingOpoSurveys() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingSurveys =
-          prefs.getStringList(_prefsKeyPendingOpoSurveys) ?? [];
-
-      return pendingSurveys.map((item) {
-        return json.decode(item) as Map<String, dynamic>;
-      }).toList();
+      return await DatabaseService.getOpoSurveys();
     } catch (e) {
       return [];
     }
   }
 
-  /// Сохранить список ОПО локально для офлайн-режима
+  /// Сохранить список ОПО локально для офлайн-режима (sqflite, MERGE)
   Future<void> saveOposOffline(List<Map<String, dynamic>> opos) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      // MERGE: не перетираем список
-      final existing = await getOfflineOpos();
-      final merged = <String, Map<String, dynamic>>{};
-      for (final o in existing) {
-        final id = o['id'] as String?;
-        if (id != null) {
-          merged[id] = o;
-        }
-      }
-      for (final o in opos) {
-        final id = o['id'] as String?;
-        if (id != null) {
-          merged[id] = o;
-        }
-      }
-
-      final oposJsonList = merged.values.map((o) => json.encode(o)).toList();
-      await prefs.setStringList(_prefsKeyOfflineOpos, oposJsonList);
+      await DatabaseService.saveOpos(opos);
     } catch (e) {
       throw Exception('Ошибка сохранения ОПО локально: $e');
     }
   }
 
-  /// Получить список ОПО из локального хранилища
+  /// Получить список ОПО из локального хранилища (sqflite)
   Future<List<Map<String, dynamic>>> getOfflineOpos() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final oposJsonList = prefs.getStringList(_prefsKeyOfflineOpos) ?? [];
-
-      return oposJsonList.map((item) {
-        return json.decode(item) as Map<String, dynamic>;
-      }).toList();
+      return await DatabaseService.getOpos();
     } catch (e) {
       return [];
     }
+  }
+
+  // ─── Delta sync ──────────────────────────────────────────────────────────
+
+  static const String _prefsKeyLastAssignmentsSync = 'last_assignments_sync'; // хранится в sync_metadata (sqflite)
+
+  /// Инкрементальная синхронизация заданий (дельта).
+  /// Запрашивает только изменённые записи с момента последней синхронизации,
+  /// мерджит с локальным кэшем и обновляет метку времени.
+  Future<List<dynamic>> syncAssignmentsDelta() async {
+    final lastSyncStr = await DatabaseService.getSyncMeta(_prefsKeyLastAssignmentsSync);
+
+    final assignments = await _apiService.getAssignmentsDelta(since: lastSyncStr);
+
+    final cached = await DatabaseService.getAssignments();
+
+    final Map<String, dynamic> assignmentMap = {};
+    for (var a in cached) {
+      if (a is Map<String, dynamic>) {
+        final id = a['id']?.toString();
+        if (id != null) assignmentMap[id] = a;
+      }
+    }
+    for (var a in assignments) {
+      if (a is Map<String, dynamic>) {
+        final id = a['id']?.toString();
+        if (id != null) assignmentMap[id] = a;
+      }
+    }
+
+    final merged = assignmentMap.values.toList();
+
+    final mergedAssignments = merged
+        .whereType<Map<String, dynamic>>()
+        .map((j) => Assignment.fromJson(j))
+        .toList();
+    await saveAssignmentsOffline(mergedAssignments);
+
+    await DatabaseService.setSyncMeta(
+      _prefsKeyLastAssignmentsSync,
+      DateTime.now().toUtc().toIso8601String(),
+    );
+
+    return merged;
+  }
+
+  // ─── Conflict-aware full sync ──────────────────────────────────────────
+
+  /// Полная синхронизация с определением конфликтов:
+  /// 1. Отправить локальные обследования
+  /// 2. Скачать дельту заданий
+  /// 3. Обновить оборудование
+  Future<SyncResultFull> syncWithConflictDetection() async {
+    final results = SyncResultFull();
+
+    try {
+      final uploaded = await syncPendingInspections();
+      results.uploaded = uploaded.syncedCount;
+      results.uploadFailed = uploaded.failedCount;
+
+      try {
+        final updated = await syncAssignmentsDelta();
+        results.updatedAssignments = updated.length;
+      } catch (e) {
+        results.deltaSyncError = e.toString();
+      }
+
+      try {
+        final equipmentList = await _apiService.getAllEquipment();
+        await saveEquipmentOffline(equipmentList);
+      } catch (_) {}
+
+      results.success = true;
+    } catch (e) {
+      results.success = false;
+      results.error = e.toString();
+    }
+
+    return results;
   }
 
   /// Получить последний ожидающий inspection для оборудования (версия 3.7.0)
@@ -949,6 +893,15 @@ class SyncResult {
   String? error;
   /// Текст последней ошибки при отправке обследования (для показа пользователю).
   String? lastFailureReason;
+}
+
+class SyncResultFull {
+  bool success = false;
+  int uploaded = 0;
+  int uploadFailed = 0;
+  int updatedAssignments = 0;
+  String? error;
+  String? deltaSyncError;
 }
 
 class LocalAssignmentInspectionState {

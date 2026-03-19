@@ -37,6 +37,7 @@ from questionnaires_api import router as questionnaires_router
 from verification_equipment_api import router as verification_equipment_router
 from engineers_users_api import router as engineers_users_router
 from mobile_stats_api import router as mobile_stats_router
+from notifications_api import router as notifications_router
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -55,6 +56,7 @@ app = FastAPI(
         {"name": "verification-equipment", "description": "Поверочное оборудование"},
         {"name": "dictionaries", "description": "Справочники"},
         {"name": "mobile", "description": "Мобильное приложение"},
+        {"name": "notifications", "description": "Уведомления"},
     ],
 )
 
@@ -120,6 +122,7 @@ app.include_router(questionnaires_router)
 app.include_router(verification_equipment_router)
 app.include_router(engineers_users_router)
 app.include_router(mobile_stats_router)
+app.include_router(notifications_router)
 
 
 # ─── Startup: DB migrations ──────────────────────────────────────────────────
@@ -146,7 +149,12 @@ async def startup():
 
 
 async def _run_migrations():
-    """Лёгкие авто-миграции (ALTER TABLE ADD COLUMN IF NOT EXISTS)."""
+    """Лёгкие авто-миграции (ALTER TABLE ADD COLUMN IF NOT EXISTS).
+
+    Предпочтительно применять изменения схемы через Alembic из каталога backend:
+    ``alembic upgrade head``. Этот блок остаётся запасным вариантом для сред,
+    где миграции ещё не прогоняют отдельно.
+    """
     migration_steps = [
         # equipment_resources
         ("equipment_resources.resource_type",
@@ -191,7 +199,7 @@ async def _run_migrations():
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS model VARCHAR(255)",
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS commissioning_date DATE",
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS attributes JSONB",
-            "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1",
+            "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true",
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
             "ALTER TABLE equipment ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE",
         ]),
@@ -230,6 +238,34 @@ async def _run_migrations():
             "ALTER TABLE questionnaires ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id)",
             "ALTER TABLE questionnaires ADD COLUMN IF NOT EXISTS updated_by UUID REFERENCES users(id)",
             "CREATE INDEX IF NOT EXISTS idx_questionnaires_assignment_id ON questionnaires(assignment_id)",
+        ]),
+        # users.client_id — привязка пользователя к клиенту
+        ("users.client_id", [
+            "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id)",
+        ]),
+        # Индексы для assignments и reports
+        ("assignments+reports indexes", [
+            "CREATE INDEX IF NOT EXISTS idx_assignments_assigned_to ON assignments(assigned_to)",
+            "CREATE INDEX IF NOT EXISTS idx_assignments_equipment_id ON assignments(equipment_id)",
+            "CREATE INDEX IF NOT EXISTS idx_assignments_project_id ON assignments(project_id)",
+            "CREATE INDEX IF NOT EXISTS idx_reports_inspection_id ON reports(inspection_id)",
+        ]),
+        # questionnaire_document_files.updated_at
+        ("questionnaire_document_files.updated_at", [
+            "ALTER TABLE IF EXISTS questionnaire_document_files ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE",
+        ]),
+        # user_devices table (FCM push tokens)
+        ("user_devices", [
+            """CREATE TABLE IF NOT EXISTS user_devices (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                fcm_token VARCHAR(500) NOT NULL UNIQUE,
+                platform VARCHAR(20) DEFAULT 'android',
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            )""",
+            "CREATE INDEX IF NOT EXISTS idx_user_devices_user_id ON user_devices(user_id)",
         ]),
         # audit_log table
         ("audit_log", [
@@ -285,6 +321,22 @@ async def _run_migrations():
         except Exception as e:
             print(f"⚠️  Warning: {tbl}.is_archived migration: {e}")
 
+    # Синхронизация inspector_id ↔ performed_by для существующих записей inspections.
+    # performed_by — основное поле; inspector_id дублирует его для обратной совместимости.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "UPDATE inspections SET performed_by = inspector_id "
+                "WHERE performed_by IS NULL AND inspector_id IS NOT NULL"
+            ))
+            await conn.execute(text(
+                "UPDATE inspections SET inspector_id = performed_by "
+                "WHERE inspector_id IS NULL AND performed_by IS NOT NULL"
+            ))
+        print("✅ DB migration: inspections inspector_id ↔ performed_by sync")
+    except Exception as e:
+        print(f"⚠️  Warning: inspections inspector_id/performed_by sync: {e}")
+
     # questionnaire_document_files — column resize
     try:
         async with engine.begin() as conn:
@@ -302,6 +354,38 @@ async def _run_migrations():
             print("⚠️  questionnaire_document_files table not found, skip")
         else:
             print(f"⚠️  Warning: questionnaire_document_files migration: {e}")
+
+    # is_active: Integer → Boolean для всех таблиц
+    is_active_tables = [
+        "equipment_types", "enterprises", "branches", "workshops", "opos",
+        "equipment", "engineers", "certifications", "regulatory_documents",
+        "users", "hierarchy_engineer_assignments", "report_templates",
+        "verification_equipment",
+    ]
+    for tbl in is_active_tables:
+        try:
+            async with engine.begin() as conn:
+                col_type = await conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    f"WHERE table_name = '{tbl}' AND column_name = 'is_active'"
+                ))
+                dtype = col_type.scalar()
+                if dtype and dtype.lower() in ("integer", "smallint", "bigint"):
+                    await conn.execute(text(
+                        f"ALTER TABLE {tbl} ALTER COLUMN is_active TYPE boolean USING is_active::boolean"
+                    ))
+                    await conn.execute(text(
+                        f"ALTER TABLE {tbl} ALTER COLUMN is_active SET DEFAULT true"
+                    ))
+                    print(f"✅ DB migration: {tbl}.is_active → boolean")
+                else:
+                    print(f"✅ DB migration: {tbl}.is_active (already boolean)")
+        except Exception as e:
+            err = str(e).lower()
+            if "already" in err or "does not exist" in err:
+                print(f"✅ DB migration: {tbl}.is_active (skip: {e})")
+            else:
+                print(f"⚠️  Warning: {tbl}.is_active migration: {e}")
 
 
 # ─── System endpoints ─────────────────────────────────────────────────────────

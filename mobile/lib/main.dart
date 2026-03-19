@@ -1,14 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'services/auth_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:workmanager/workmanager.dart';
+import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
+import 'services/sync_service.dart';
+import 'services/api_service.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
-import 'theme/app_colors.dart';
+import 'router.dart';
 
-void main() {
+const backgroundSyncTask = 'backgroundSync';
+
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    switch (task) {
+      case backgroundSyncTask:
+        try {
+          final apiService = ApiService();
+          final isOnline = await apiService.checkConnection();
+          if (!isOnline) return Future.value(true);
+
+          final syncService = SyncService();
+          await syncService.syncPendingInspections();
+          await syncService.syncAssignmentsDelta();
+          return Future.value(true);
+        } catch (e) {
+          print('Background sync error: $e');
+          return Future.value(false);
+        }
+      default:
+        return Future.value(true);
+    }
+  });
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    await FcmService().initialize();
+  } catch (e) {
+    debugPrint('Firebase not configured: $e');
+  }
+
+  await Workmanager().initialize(
+    callbackDispatcher,
+    isInDebugMode: false,
+  );
+
+  await Workmanager().registerPeriodicTask(
+    'background-sync',
+    backgroundSyncTask,
+    frequency: const Duration(minutes: 15),
+    constraints: Constraints(
+      networkType: NetworkType.connected,
+    ),
+    existingWorkPolicy: ExistingWorkPolicy.keep,
+  );
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -20,49 +73,24 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
-  final _authService = AuthService();
-  bool _isLoading = true;
-  bool _isAuthenticated = false;
-
   @override
   void initState() {
     super.initState();
-    _checkAuth();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService().initialize();
-    });
-  }
-
-  Future<void> _checkAuth() async {
-    final authenticated = await _authService.isAuthenticated();
-    if (!mounted) return;
-    setState(() {
-      _isAuthenticated = authenticated;
-      _isLoading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'ЕС ТД НГО',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
-      home: _isLoading
-          ? Scaffold(
-              backgroundColor: themeMode == ThemeMode.light
-                  ? AppColors.lightBackground
-                  : AppColors.darkBackground,
-              body: const Center(
-                child: CircularProgressIndicator(),
-              ),
-            )
-          : _isAuthenticated
-              ? const DashboardScreen()
-              : const LoginScreen(),
+      routerConfig: appRouter,
     );
   }
 }

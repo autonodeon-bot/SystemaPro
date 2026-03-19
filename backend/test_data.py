@@ -233,6 +233,7 @@ async def create_test_data():
                 equipment_id=equipment1.id,
                 project_id=project1.id,
                 inspector_id=engineer1.id,
+                performed_by=engineer1.id,
                 date_performed=datetime.now() - timedelta(days=5),
                 data={
                     "executors": "Смирнов А.В.",
@@ -256,6 +257,7 @@ async def create_test_data():
                 equipment_id=equipment2.id,
                 project_id=project1.id,
                 inspector_id=engineer1.id,
+                performed_by=engineer1.id,
                 date_performed=datetime.now() - timedelta(days=3),
                 data={
                     "executors": "Смирнов А.В.",

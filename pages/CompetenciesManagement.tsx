@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Award, Calendar, Plus, AlertTriangle, CheckCircle, Edit, Trash2, X, FileText, Clock } from 'lucide-react';
+import { User, Award, Plus, AlertTriangle, CheckCircle, Edit, Trash2, X, FileText, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
 
@@ -208,8 +208,8 @@ const CompetenciesManagement = () => {
       const certificationsList = Array.isArray(certData?.items) ? certData.items : [];
       
       // Фильтруем некорректные записи
-      const validEngineers = engineersList.filter(e => e && e.id);
-      const validCertifications = certificationsList.filter(c => c && c.id && c.engineer_id);
+      const validEngineers = engineersList.filter((e: any) => e && e.id);
+      const validCertifications = certificationsList.filter((c: any) => c && c.id && c.engineer_id);
       
       console.log('Валидированные данные:', {
         engineers: validEngineers.length,

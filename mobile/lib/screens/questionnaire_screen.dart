@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../models/equipment.dart';
 import '../models/questionnaire.dart';
 import '../services/api_service.dart';
-import 'add_ndt_method_screen.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   final Equipment equipment;
@@ -63,14 +63,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       return;
     }
 
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddNDTMethodScreen(
-          questionnaireId: _questionnaireId!,
-        ),
-      ),
-    );
+    final result = await context.push<bool>('/add-ndt-method', extra: {
+      'questionnaireId': _questionnaireId!,
+    });
 
     if (result == true) {
       await _loadNDTMethods();
@@ -94,7 +89,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true);
+          context.pop(true);
         }
       } catch (e) {
         if (mounted) {

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
-import 'vessel_inspection_screen.dart';
 import '../services/auth_service.dart';
-import 'login_screen.dart';
 
 final equipmentListProvider = FutureProvider<List<Equipment>>((ref) async {
   final apiService = ApiService();
@@ -13,7 +12,7 @@ final equipmentListProvider = FutureProvider<List<Equipment>>((ref) async {
   
   try {
     // Пытаемся загрузить с сервера
-    final equipmentList = await apiService.getEquipmentList();
+    final equipmentList = await apiService.getAllEquipment();
     // Сохраняем локально для офлайн-режима
     await syncService.saveEquipmentOffline(equipmentList);
     return equipmentList;
@@ -386,12 +385,9 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
 
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VesselInspectionScreen(equipment: equipment),
-          ),
-        );
+        context.push('/inspection', extra: {
+          'equipment': equipment,
+        });
       },
       child: Container(
         padding: EdgeInsets.symmetric(
@@ -876,10 +872,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                             await SyncService().clearOfflineCache();
                           } catch (_) {}
                           if (!mounted) return;
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
-                            (route) => false,
-                          );
+                          context.go('/login');
                         },
                         icon: const Icon(Icons.login),
                         label: const Text('Войти заново'),

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, ChevronLeft, ChevronRight, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface VerificationEquipment {
@@ -9,7 +9,7 @@ interface VerificationEquipment {
   equipment_type: string;
   serial_number: string;
   next_verification_date: string;
-  days_until_expiry?: number;
+  days_until_expiry: number | null;
   is_expired: boolean;
 }
 

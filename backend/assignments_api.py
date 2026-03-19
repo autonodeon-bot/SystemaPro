@@ -1,5 +1,5 @@
 """
-API для работы с заданиями на диагностику/экспертизу оборудования (версия 3.3.0)
+API для работы с заданиями на диагностику/экспертизу оборудования (версия 3.4.0)
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,8 +8,9 @@ from sqlalchemy import select, and_, or_, func, update
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid as uuid_lib
+import logging
 
 from database import get_db
 from models import (
@@ -29,7 +30,35 @@ from models import (
 )
 from auth import verify_token
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/assignments", tags=["assignments"])
+
+# --- Константы валидации ---
+VALID_ASSIGNMENT_TYPES = {'DIAGNOSTICS', 'EXPERTISE', 'INSPECTION'}
+VALID_STATUSES = {'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'}
+VALID_PRIORITIES = {'LOW', 'NORMAL', 'HIGH', 'URGENT'}
+OPERATOR_ROLES = {'admin', 'chief_operator', 'operator'}
+
+
+# --- Вспомогательные функции ---
+async def _get_current_user(username: str, db: AsyncSession) -> User:
+    """Get current user by username/email, raise 404 if not found."""
+    result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+
+async def _check_assignment_access(user: User, assignment: Assignment):
+    """Check user has access to assignment. Raises 403 if not."""
+    if user.role in OPERATOR_ROLES:
+        return
+    if user.role == 'engineer' and assignment.assigned_to == user.id:
+        return
+    raise HTTPException(status_code=403, detail="Нет доступа к этому заданию")
+
 
 # Pydantic модели
 class AssignmentCreate(BaseModel):
@@ -98,40 +127,73 @@ async def create_assignment(
 ):
     """Создать новое задание на диагностику/экспертизу"""
     try:
-        # Проверяем права доступа (только операторы и выше)
-        # Совместимость: в токене/клиенте может приходить email вместо username
-        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
-        user = user_result.scalar_one_or_none()
-        
-        if not user or user.role not in ['admin', 'chief_operator', 'operator']:
+        user = await _get_current_user(username, db)
+
+        if user.role not in OPERATOR_ROLES:
             raise HTTPException(status_code=403, detail="Недостаточно прав для создания задания")
-        
+
+        # Валидация типа задания
+        if assignment_data.assignment_type not in VALID_ASSIGNMENT_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недопустимый тип задания. Допустимые: {', '.join(sorted(VALID_ASSIGNMENT_TYPES))}"
+            )
+
+        # Валидация приоритета
+        if assignment_data.priority and assignment_data.priority not in VALID_PRIORITIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недопустимый приоритет. Допустимые: {', '.join(sorted(VALID_PRIORITIES))}"
+            )
+
         # Проверяем существование оборудования
         equipment_result = await db.execute(
             select(Equipment).where(Equipment.id == assignment_data.equipment_id)
         )
         equipment = equipment_result.scalar_one_or_none()
-        
+
         if not equipment:
             raise HTTPException(status_code=404, detail="Оборудование не найдено")
-        
+
         # Проверяем существование назначенного пользователя
         assigned_user_result = await db.execute(
             select(User).where(User.id == assignment_data.assigned_to)
         )
         assigned_user = assigned_user_result.scalar_one_or_none()
-        
+
         if not assigned_user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
-        
+
+        # Задание можно назначить только инженеру
+        if assigned_user.role != 'engineer':
+            raise HTTPException(status_code=400, detail="Задание можно назначить только инженеру")
+
+        # Проверяем, что инженер имеет доступ к оборудованию через иерархию (предупреждение)
+        hierarchy_check = await db.execute(
+            select(HierarchyEngineerAssignment).where(
+                and_(
+                    HierarchyEngineerAssignment.user_id == assigned_user.id,
+                    HierarchyEngineerAssignment.is_active == True,
+                    or_(
+                        HierarchyEngineerAssignment.equipment_id == equipment.id,
+                        HierarchyEngineerAssignment.workshop_id == equipment.workshop_id,
+                    )
+                )
+            )
+        )
+        if not hierarchy_check.scalar_one_or_none():
+            logger.warning(
+                f"Инженер {assigned_user.id} не имеет назначения в иерархии для оборудования {equipment.id}"
+            )
+
         # Парсим дату
         due_date = None
         if assignment_data.due_date:
             try:
                 due_date = datetime.fromisoformat(assignment_data.due_date.replace('Z', '+00:00'))
-            except:
-                pass
-        
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Неверный формат даты. Используйте ISO 8601")
+
         # Создаем задание
         new_assignment = Assignment(
             equipment_id=uuid_lib.UUID(assignment_data.equipment_id),
@@ -143,17 +205,29 @@ async def create_assignment(
             description=assignment_data.description,
             status='PENDING'
         )
-        
+
         db.add(new_assignment)
         await db.commit()
         await db.refresh(new_assignment)
-        
+
+        try:
+            from notifications_api import send_push_notification
+            await send_push_notification(
+                db=db,
+                user_id=assigned_user.id,
+                title="Новое задание",
+                body=f"Вам назначено задание: {assignment_data.assignment_type}",
+                data={"assignment_id": str(new_assignment.id)},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send push notification: {e}")
+
         return {
             "id": str(new_assignment.id),
             "status": "created",
             "message": "Задание успешно создано"
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -165,27 +239,34 @@ async def get_assignments(
     status: Optional[str] = None,
     assigned_to: Optional[str] = None,
     equipment_id: Optional[str] = None,
+    enterprise_id: Optional[str] = None,
+    branch_id: Optional[str] = None,
+    workshop_id: Optional[str] = None,
     include_cancelled: Optional[bool] = True,
+    limit: int = 100,
+    offset: int = 0,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить список заданий. include_cancelled=false скрывает задания со статусом CANCELLED (архив)."""
+    """Получить список заданий с пагинацией и фильтрацией по иерархии.
+
+    - enterprise_id / branch_id / workshop_id — фильтрация по иерархии предприятия
+    - limit / offset — пагинация (макс. 1000 записей за запрос)
+    - include_cancelled=false скрывает задания со статусом CANCELLED (архив)
+    """
     try:
-        # Получаем информацию о пользователе
-        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
-        user = user_result.scalar_one_or_none()
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
-        
+        user = await _get_current_user(username, db)
+
         query = select(Assignment)
-        
+
         if user.role == 'engineer':
             query = query.where(Assignment.assigned_to == user.id)
-        
+        elif user.role not in OPERATOR_ROLES:
+            raise HTTPException(status_code=403, detail="Нет доступа к списку заданий")
+
         if include_cancelled is False:
             query = query.where(Assignment.status != "CANCELLED")
-        
+
         filters = []
         if status:
             filters.append(Assignment.status == status)
@@ -193,99 +274,94 @@ async def get_assignments(
             filters.append(Assignment.assigned_to == uuid_lib.UUID(assigned_to))
         if equipment_id:
             filters.append(Assignment.equipment_id == uuid_lib.UUID(equipment_id))
-        
+
         if filters:
             query = query.where(and_(*filters))
-        
-        # Сортируем по дате создания (новые первые)
+
+        # Фильтрация по иерархии (предприятие → филиал → цех → оборудование)
+        if workshop_id:
+            equipment_in_workshop = select(Equipment.id).where(
+                Equipment.workshop_id == uuid_lib.UUID(workshop_id)
+            )
+            query = query.where(Assignment.equipment_id.in_(equipment_in_workshop))
+        elif branch_id:
+            workshops_in_branch = select(Workshop.id).where(
+                Workshop.branch_id == uuid_lib.UUID(branch_id)
+            )
+            equipment_in_branch = select(Equipment.id).where(
+                Equipment.workshop_id.in_(workshops_in_branch)
+            )
+            query = query.where(Assignment.equipment_id.in_(equipment_in_branch))
+        elif enterprise_id:
+            branches_in_enterprise = select(Branch.id).where(
+                Branch.enterprise_id == uuid_lib.UUID(enterprise_id)
+            )
+            workshops_in_enterprise = select(Workshop.id).where(
+                Workshop.branch_id.in_(branches_in_enterprise)
+            )
+            equipment_in_enterprise = select(Equipment.id).where(
+                Equipment.workshop_id.in_(workshops_in_enterprise)
+            )
+            query = query.where(Assignment.equipment_id.in_(equipment_in_enterprise))
+
         query = query.order_by(Assignment.created_at.desc())
-        
+
+        # Пагинация (макс. 1000 записей за запрос)
+        effective_limit = min(limit, 1000)
+        query = query.limit(effective_limit).offset(offset)
+
         result = await db.execute(query)
         assignments = result.scalars().all()
-        
+
+        # --- Batch-загрузка связанных данных (устранение N+1) ---
+        equipment_ids = {a.equipment_id for a in assignments}
+        user_ids = {a.assigned_to for a in assignments}
+
+        equip_result = await db.execute(
+            select(Equipment).where(Equipment.id.in_(equipment_ids))
+        ) if equipment_ids else None
+        equipment_map = {eq.id: eq for eq in equip_result.scalars().all()} if equip_result else {}
+
+        user_result = await db.execute(
+            select(User).where(User.id.in_(user_ids))
+        ) if user_ids else None
+        user_map = {u.id: u for u in user_result.scalars().all()} if user_result else {}
+
+        workshop_ids = {eq.workshop_id for eq in equipment_map.values() if eq.workshop_id}
+        ws_result = await db.execute(
+            select(Workshop).where(Workshop.id.in_(workshop_ids))
+        ) if workshop_ids else None
+        workshop_map = {w.id: w for w in ws_result.scalars().all()} if ws_result else {}
+
+        branch_ids = {w.branch_id for w in workshop_map.values() if w.branch_id}
+        br_result = await db.execute(
+            select(Branch).where(Branch.id.in_(branch_ids))
+        ) if branch_ids else None
+        branch_map = {b.id: b for b in br_result.scalars().all()} if br_result else {}
+
+        enterprise_ids = {b.enterprise_id for b in branch_map.values() if b.enterprise_id}
+        ent_result = await db.execute(
+            select(Enterprise).where(Enterprise.id.in_(enterprise_ids))
+        ) if enterprise_ids else None
+        enterprise_map = {e.id: e for e in ent_result.scalars().all()} if ent_result else {}
+
+        opo_ids = {eq.opo_id for eq in equipment_map.values() if getattr(eq, 'opo_id', None)}
+        opo_result = await db.execute(
+            select(Opo).where(Opo.id.in_(opo_ids))
+        ) if opo_ids else None
+        opo_map = {o.id: o for o in opo_result.scalars().all()} if opo_result else {}
+
         # Формируем ответ
         assignments_list = []
         for assignment in assignments:
-            # Получаем информацию об оборудовании
-            equipment_result = await db.execute(
-                select(Equipment).where(Equipment.id == assignment.equipment_id)
-            )
-            equipment = equipment_result.scalar_one_or_none()
-            
-            # Получаем информацию о назначенном пользователе
-            assigned_user_result = await db.execute(
-                select(User).where(User.id == assignment.assigned_to)
-            )
-            assigned_user = assigned_user_result.scalar_one_or_none()
-            
-            # Получаем информацию об иерархии (предприятие, филиал, цех)
-            enterprise_name = None
-            branch_name = None
-            workshop_name = None
-            enterprise_id = None
-            branch_id = None
-            workshop_id = None
-            opo_id = None
-            opo_name = None
-            opo_code = None
-            
-            if equipment:
-                # Проверяем workshop_id у оборудования
-                if equipment.workshop_id:
-                    try:
-                        workshop_result = await db.execute(
-                            select(Workshop).where(Workshop.id == equipment.workshop_id)
-                        )
-                        workshop = workshop_result.scalar_one_or_none()
-                        if workshop:
-                            workshop_name = workshop.name
-                            workshop_id = str(workshop.id)
-                            if workshop.branch_id:
-                                try:
-                                    branch_result = await db.execute(
-                                        select(Branch).where(Branch.id == workshop.branch_id)
-                                    )
-                                    branch = branch_result.scalar_one_or_none()
-                                    if branch:
-                                        branch_name = branch.name
-                                        branch_id = str(branch.id)
-                                        if branch.enterprise_id:
-                                            try:
-                                                enterprise_result = await db.execute(
-                                                    select(Enterprise).where(Enterprise.id == branch.enterprise_id)
-                                                )
-                                                enterprise = enterprise_result.scalar_one_or_none()
-                                                if enterprise:
-                                                    enterprise_name = enterprise.name
-                                                    enterprise_id = str(enterprise.id)
-                                            except Exception as e:
-                                                # Любая DB-ошибка переводит транзакцию в aborted — обязательно откатываем,
-                                                # иначе дальше в этом же запросе получим InFailedSQLTransactionError.
-                                                await db.rollback()
-                                                print(f"⚠️ Error loading enterprise for assignment {assignment.id}: {e}")
-                                except Exception as e:
-                                    await db.rollback()
-                                    print(f"⚠️ Error loading branch for assignment {assignment.id}: {e}")
-                    except Exception as e:
-                        await db.rollback()
-                        print(f"⚠️ Error loading workshop for assignment {assignment.id}: {e}")
-                else:
-                    # Если у оборудования нет workshop_id, логируем для отладки
-                    print(f"⚠️ Equipment {equipment.id} ({getattr(equipment, 'equipment_code', 'N/A')}) has no workshop_id")
+            equipment = equipment_map.get(assignment.equipment_id)
+            assigned_user = user_map.get(assignment.assigned_to)
 
-                # ОПО (если привязано к оборудованию)
-                if getattr(equipment, "opo_id", None):
-                    try:
-                        opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
-                        opo = opo_result.scalar_one_or_none()
-                        if opo:
-                            opo_id = str(opo.id)
-                            opo_name = opo.name
-                            opo_code = opo.code
-                    except Exception as e:
-                        await db.rollback()
-                        print(f"⚠️ Error loading OPO for assignment {assignment.id}: {e}")
-            
+            workshop = workshop_map.get(equipment.workshop_id) if equipment and equipment.workshop_id else None
+            branch = branch_map.get(workshop.branch_id) if workshop and workshop.branch_id else None
+            enterprise = enterprise_map.get(branch.enterprise_id) if branch and branch.enterprise_id else None
+            opo = opo_map.get(equipment.opo_id) if equipment and getattr(equipment, 'opo_id', None) else None
+
             assignments_list.append({
                 "id": str(assignment.id),
                 "equipment_id": str(assignment.equipment_id),
@@ -302,27 +378,156 @@ async def get_assignments(
                 "created_at": assignment.created_at.isoformat() if assignment.created_at else None,
                 "updated_at": assignment.updated_at.isoformat() if assignment.updated_at else None,
                 "completed_at": (lambda t: t.isoformat() if t else None)(getattr(assignment, "completed_at", None)),
-                "enterprise_id": enterprise_id,
-                "enterprise_name": enterprise_name,
-                "branch_id": branch_id,
-                "branch_name": branch_name,
-                "workshop_id": workshop_id,
-                "workshop_name": workshop_name,
-                "opo_id": opo_id,
-                "opo_name": opo_name,
-                "opo_code": opo_code,
+                "enterprise_id": str(enterprise.id) if enterprise else None,
+                "enterprise_name": enterprise.name if enterprise else None,
+                "branch_id": str(branch.id) if branch else None,
+                "branch_name": branch.name if branch else None,
+                "workshop_id": str(workshop.id) if workshop else None,
+                "workshop_name": workshop.name if workshop else None,
+                "opo_id": str(opo.id) if opo else None,
+                "opo_name": opo.name if opo else None,
+                "opo_code": opo.code if opo else None,
             })
-        
+
         return assignments_list
-        
+
     except HTTPException:
         raise
     except Exception as e:
         import traceback
         error_detail = str(e)
-        print(f"❌ Error in get_assignments: {error_detail}")
-        print(traceback.format_exc())
+        logger.error(f"Error in get_assignments: {error_detail}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка при получении заданий: {error_detail}")
+
+
+@router.get("/sync", response_model=List[AssignmentResponse])
+async def get_assignments_sync(
+    since: Optional[str] = None,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Дельта-синхронизация заданий для мобильного приложения.
+
+    Возвращает задания, изменённые после указанного timestamp (ISO 8601).
+    Если since не указан — возвращает все задания пользователя.
+    """
+    try:
+        user = await _get_current_user(username, db)
+
+        query = select(Assignment)
+
+        if user.role == 'engineer':
+            query = query.where(Assignment.assigned_to == user.id)
+        elif user.role not in OPERATOR_ROLES:
+            raise HTTPException(status_code=403, detail="Нет доступа к списку заданий")
+
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Неверный формат параметра 'since'. Используйте ISO 8601 (напр. 2025-01-01T00:00:00Z)"
+                )
+            query = query.where(
+                or_(
+                    Assignment.updated_at > since_dt,
+                    Assignment.created_at > since_dt,
+                )
+            )
+
+        query = query.order_by(Assignment.created_at.desc()).limit(1000)
+
+        result = await db.execute(query)
+        assignments = result.scalars().all()
+
+        if not assignments:
+            return []
+
+        # Batch-загрузка связанных данных
+        equipment_ids = {a.equipment_id for a in assignments}
+        user_ids = {a.assigned_to for a in assignments}
+
+        equip_result = await db.execute(
+            select(Equipment).where(Equipment.id.in_(equipment_ids))
+        ) if equipment_ids else None
+        equipment_map = {eq.id: eq for eq in equip_result.scalars().all()} if equip_result else {}
+
+        user_result = await db.execute(
+            select(User).where(User.id.in_(user_ids))
+        ) if user_ids else None
+        user_map = {u.id: u for u in user_result.scalars().all()} if user_result else {}
+
+        workshop_ids = {eq.workshop_id for eq in equipment_map.values() if eq.workshop_id}
+        ws_result = await db.execute(
+            select(Workshop).where(Workshop.id.in_(workshop_ids))
+        ) if workshop_ids else None
+        workshop_map = {w.id: w for w in ws_result.scalars().all()} if ws_result else {}
+
+        branch_ids = {w.branch_id for w in workshop_map.values() if w.branch_id}
+        br_result = await db.execute(
+            select(Branch).where(Branch.id.in_(branch_ids))
+        ) if branch_ids else None
+        branch_map = {b.id: b for b in br_result.scalars().all()} if br_result else {}
+
+        enterprise_ids = {b.enterprise_id for b in branch_map.values() if b.enterprise_id}
+        ent_result = await db.execute(
+            select(Enterprise).where(Enterprise.id.in_(enterprise_ids))
+        ) if enterprise_ids else None
+        enterprise_map = {e.id: e for e in ent_result.scalars().all()} if ent_result else {}
+
+        opo_ids = {eq.opo_id for eq in equipment_map.values() if getattr(eq, 'opo_id', None)}
+        opo_result = await db.execute(
+            select(Opo).where(Opo.id.in_(opo_ids))
+        ) if opo_ids else None
+        opo_map = {o.id: o for o in opo_result.scalars().all()} if opo_result else {}
+
+        assignments_list = []
+        for assignment in assignments:
+            equipment = equipment_map.get(assignment.equipment_id)
+            assigned_user = user_map.get(assignment.assigned_to)
+
+            workshop = workshop_map.get(equipment.workshop_id) if equipment and equipment.workshop_id else None
+            branch = branch_map.get(workshop.branch_id) if workshop and workshop.branch_id else None
+            enterprise = enterprise_map.get(branch.enterprise_id) if branch and branch.enterprise_id else None
+            opo = opo_map.get(equipment.opo_id) if equipment and getattr(equipment, 'opo_id', None) else None
+
+            assignments_list.append({
+                "id": str(assignment.id),
+                "equipment_id": str(assignment.equipment_id),
+                "equipment_code": getattr(equipment, "equipment_code", None) if equipment else "N/A",
+                "equipment_name": equipment.name if equipment else "N/A",
+                "assignment_type": getattr(assignment, "assignment_type", None) or "DIAGNOSTICS",
+                "assigned_by": str(assignment.assigned_by) if assignment.assigned_by else None,
+                "assigned_to": str(assignment.assigned_to),
+                "assigned_to_name": assigned_user.full_name if assigned_user else None,
+                "status": assignment.status,
+                "priority": assignment.priority,
+                "due_date": assignment.due_date.isoformat() if assignment.due_date else None,
+                "description": assignment.description,
+                "created_at": assignment.created_at.isoformat() if assignment.created_at else None,
+                "updated_at": assignment.updated_at.isoformat() if assignment.updated_at else None,
+                "completed_at": (lambda t: t.isoformat() if t else None)(getattr(assignment, "completed_at", None)),
+                "enterprise_id": str(enterprise.id) if enterprise else None,
+                "enterprise_name": enterprise.name if enterprise else None,
+                "branch_id": str(branch.id) if branch else None,
+                "branch_name": branch.name if branch else None,
+                "workshop_id": str(workshop.id) if workshop else None,
+                "workshop_name": workshop.name if workshop else None,
+                "opo_id": str(opo.id) if opo else None,
+                "opo_name": opo.name if opo else None,
+                "opo_code": opo.code if opo else None,
+            })
+
+        return assignments_list
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_assignments_sync: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка дельта-синхронизации заданий: {str(e)}")
+
 
 @router.get("/{assignment_id}", response_model=AssignmentResponse)
 async def get_assignment(
@@ -332,26 +537,30 @@ async def get_assignment(
 ):
     """Получить задание по ID"""
     try:
+        user = await _get_current_user(username, db)
+
         result = await db.execute(
             select(Assignment).where(Assignment.id == assignment_id)
         )
         assignment = result.scalar_one_or_none()
-        
+
         if not assignment:
             raise HTTPException(status_code=404, detail="Задание не найдено")
-        
+
+        await _check_assignment_access(user, assignment)
+
         # Получаем информацию об оборудовании
         equipment_result = await db.execute(
             select(Equipment).where(Equipment.id == assignment.equipment_id)
         )
         equipment = equipment_result.scalar_one_or_none()
-        
+
         # Получаем информацию о назначенном пользователе
         assigned_user_result = await db.execute(
             select(User).where(User.id == assignment.assigned_to)
         )
         assigned_user = assigned_user_result.scalar_one_or_none()
-        
+
         return {
             "id": str(assignment.id),
             "equipment_id": str(assignment.equipment_id),
@@ -369,7 +578,7 @@ async def get_assignment(
             "updated_at": assignment.updated_at.isoformat() if assignment.updated_at else None,
             "completed_at": (lambda t: t.isoformat() if t else None)(getattr(assignment, "completed_at", None)),
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -384,43 +593,61 @@ async def update_assignment(
 ):
     """Обновить задание"""
     try:
+        user = await _get_current_user(username, db)
+
         result = await db.execute(
             select(Assignment).where(Assignment.id == assignment_id)
         )
         assignment = result.scalar_one_or_none()
-        
+
         if not assignment:
             raise HTTPException(status_code=404, detail="Задание не найдено")
-        
+
+        await _check_assignment_access(user, assignment)
+
+        # Валидация статуса
+        if assignment_data.status and assignment_data.status not in VALID_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недопустимый статус. Допустимые: {', '.join(sorted(VALID_STATUSES))}"
+            )
+
+        # Валидация приоритета
+        if assignment_data.priority and assignment_data.priority not in VALID_PRIORITIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недопустимый приоритет. Допустимые: {', '.join(sorted(VALID_PRIORITIES))}"
+            )
+
         # Обновляем поля
         if assignment_data.status:
             assignment.status = assignment_data.status
             if assignment_data.status == 'COMPLETED':
-                assignment.completed_at = datetime.now()
-        
+                assignment.completed_at = datetime.now(timezone.utc)
+
         if assignment_data.priority:
             assignment.priority = assignment_data.priority
-        
+
         if assignment_data.due_date:
             try:
                 assignment.due_date = datetime.fromisoformat(assignment_data.due_date.replace('Z', '+00:00'))
-            except:
-                pass
-        
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Неверный формат даты. Используйте ISO 8601")
+
         if assignment_data.description is not None:
             assignment.description = assignment_data.description
-        
-        assignment.updated_at = datetime.now()
-        
+
+        assignment.updated_at = datetime.now(timezone.utc)
+
         await db.commit()
         await db.refresh(assignment)
-        
+
         return {
             "id": str(assignment.id),
             "status": "updated",
             "message": "Задание успешно обновлено"
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -436,12 +663,17 @@ async def archive_assignment(
 ):
     """Перенести задание в архив (статус CANCELLED)."""
     try:
+        user = await _get_current_user(username, db)
+
         result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
         assignment = result.scalar_one_or_none()
         if not assignment:
             raise HTTPException(status_code=404, detail="Задание не найдено")
+
+        await _check_assignment_access(user, assignment)
+
         assignment.status = "CANCELLED"
-        assignment.updated_at = datetime.now()
+        assignment.updated_at = datetime.now(timezone.utc)
         await db.commit()
         return {"status": "ok", "message": "Задание перенесено в архив", "id": assignment_id}
     except HTTPException:
@@ -459,6 +691,12 @@ async def delete_assignment(
 ):
     """Удалить задание. Связи обследований и опросников с заданием обнуляются."""
     try:
+        user = await _get_current_user(username, db)
+
+        # Удаление — только для операторов/админов
+        if user.role not in OPERATOR_ROLES:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для удаления задания")
+
         assignment_uuid = uuid_lib.UUID(assignment_id)
         result = await db.execute(select(Assignment).where(Assignment.id == assignment_uuid))
         assignment = result.scalar_one_or_none()
@@ -488,17 +726,21 @@ async def get_assignment_inspection(
 ):
     """Получить чек-лист (inspection) по заданию"""
     try:
+        user = await _get_current_user(username, db)
+
         assignment_uuid = uuid_lib.UUID(assignment_id)
-        
+
         # Проверяем существование задания
         assignment_result = await db.execute(
             select(Assignment).where(Assignment.id == assignment_uuid)
         )
         assignment = assignment_result.scalar_one_or_none()
-        
+
         if not assignment:
             raise HTTPException(status_code=404, detail="Задание не найдено")
-        
+
+        await _check_assignment_access(user, assignment)
+
         # Сначала ищем Inspection напрямую по assignment_id (если есть)
         inspection = None
         insp_result = await db.execute(
@@ -508,7 +750,7 @@ async def get_assignment_inspection(
             .limit(1)
         )
         inspection = insp_result.scalars().first()
-        
+
         # Ищем последнюю запись inspection_history по assignment_id (может быть несколько)
         history_result = await db.execute(
             select(InspectionHistory)
@@ -517,10 +759,10 @@ async def get_assignment_inspection(
             .limit(1)
         )
         history_entry = history_result.scalars().first()
-        
+
         if not inspection and not history_entry:
             raise HTTPException(status_code=404, detail="Чек-лист для этого задания не найден")
-        
+
         # Если Inspection не нашли по assignment_id, ищем по equipment_id и дате (по history_entry)
         if not inspection and history_entry:
             inspection_result = await db.execute(
@@ -540,7 +782,7 @@ async def get_assignment_inspection(
                         break
             if not inspection and inspections:
                 inspection = inspections[0]
-        
+
         # Если нашли Inspection, возвращаем его данные
         if inspection:
             return {
@@ -566,14 +808,14 @@ async def get_assignment_inspection(
                 "created_at": history_entry.created_at.isoformat() if history_entry.created_at else None,
             }
         raise HTTPException(status_code=404, detail="Чек-лист для этого задания не найден")
-        
+
     except HTTPException:
         raise
     except ValueError:
         raise HTTPException(status_code=400, detail="Неверный формат ID задания")
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка при получении чек-листа: {str(e)}")
 
 
@@ -693,30 +935,33 @@ async def get_assignment_equipment(
 ):
     """Получить информацию об оборудовании из задания (для мобильного приложения)"""
     try:
+        user = await _get_current_user(username, db)
+
         result = await db.execute(
             select(Assignment).where(Assignment.id == assignment_id)
         )
         assignment = result.scalar_one_or_none()
-        
+
         if not assignment:
             raise HTTPException(status_code=404, detail="Задание не найдено")
-        
+
+        await _check_assignment_access(user, assignment)
+
         # Получаем информацию об оборудовании
         equipment_result = await db.execute(
             select(Equipment).where(Equipment.id == assignment.equipment_id)
         )
         equipment = equipment_result.scalar_one_or_none()
-        
+
         if not equipment:
             raise HTTPException(status_code=404, detail="Оборудование не найдено")
-        
+
         # Получаем информацию о цехе, филиале и предприятии
         workshop_name = None
         branch_name = None
         enterprise_name = None
-        
+
         if equipment.workshop_id:
-            from models import Workshop, Branch, Enterprise
             workshop_result = await db.execute(
                 select(Workshop).where(Workshop.id == equipment.workshop_id)
             )
@@ -737,7 +982,7 @@ async def get_assignment_equipment(
                             enterprise = enterprise_result.scalar_one_or_none()
                             if enterprise:
                                 enterprise_name = enterprise.name
-        
+
         return {
             "id": str(equipment.id),
             "equipment_code": getattr(equipment, "equipment_code", None) or "N/A",
@@ -752,7 +997,7 @@ async def get_assignment_equipment(
             "attributes": equipment.attributes or {},
             "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -765,24 +1010,17 @@ async def get_assignments_statistics_by_engineers(
 ):
     """Получить статистику по заданиям для каждого инженера"""
     try:
-        # Получаем информацию о пользователе
-        # Совместимость: в токене/клиенте может приходить email вместо username
-        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
-        user = user_result.scalar_one_or_none()
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
-        
-        # Проверяем права доступа (только операторы и выше)
-        if user.role not in ['admin', 'chief_operator', 'operator']:
+        user = await _get_current_user(username, db)
+
+        if user.role not in OPERATOR_ROLES:
             raise HTTPException(status_code=403, detail="Доступ запрещен")
-        
+
         # Получаем всех инженеров
         engineers_result = await db.execute(
-            select(User).where(User.role == 'engineer', User.is_active == 1)
+            select(User).where(User.role == 'engineer', User.is_active == True)
         )
         engineers = engineers_result.scalars().all()
-        
+
         statistics = []
         for engineer in engineers:
             # Получаем все задания для инженера
@@ -790,13 +1028,13 @@ async def get_assignments_statistics_by_engineers(
                 select(Assignment).where(Assignment.assigned_to == engineer.id)
             )
             all_assignments = assignments_result.scalars().all()
-            
+
             total = len(all_assignments)
             pending = len([a for a in all_assignments if a.status == 'PENDING'])
             in_progress = len([a for a in all_assignments if a.status == 'IN_PROGRESS'])
             completed = len([a for a in all_assignments if a.status == 'COMPLETED'])
             cancelled = len([a for a in all_assignments if a.status == 'CANCELLED'])
-            
+
             statistics.append({
                 "engineer_id": str(engineer.id),
                 "engineer_name": engineer.full_name or engineer.username,
@@ -808,19 +1046,19 @@ async def get_assignments_statistics_by_engineers(
                 "completed": completed,
                 "cancelled": cancelled,
             })
-        
+
         return {
             "items": statistics,
             "total_engineers": len(statistics)
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         import traceback
         error_detail = str(e)
-        print(f"❌ Error in get_assignments_statistics_by_engineers: {error_detail}")
-        print(traceback.format_exc())
+        logger.error(f"Error in get_assignments_statistics_by_engineers: {error_detail}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка при получении статистики: {error_detail}")
 
 
@@ -834,16 +1072,12 @@ async def get_assignments_progress_by_objects(
     + прогресс по заданиям (COMPLETED / TOTAL) внутри этого объекта.
     """
     try:
-        # Текущий пользователь и права
-        # Совместимость: в токене/клиенте может приходить email вместо username
-        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
-        user = user_result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=404, detail="Пользователь не найден")
-        if user.role not in ["admin", "chief_operator", "operator"]:
+        user = await _get_current_user(username, db)
+
+        if user.role not in OPERATOR_ROLES:
             raise HTTPException(status_code=403, detail="Доступ запрещен")
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Берем активные назначения инженеров по иерархии
         ha_result = await db.execute(
@@ -851,7 +1085,7 @@ async def get_assignments_progress_by_objects(
                 User, HierarchyEngineerAssignment.user_id == User.id
             ).where(
                 and_(
-                    HierarchyEngineerAssignment.is_active == 1,
+                    HierarchyEngineerAssignment.is_active == True,
                     or_(
                         HierarchyEngineerAssignment.expires_at.is_(None),
                         HierarchyEngineerAssignment.expires_at > now
@@ -920,7 +1154,6 @@ async def get_assignments_progress_by_objects(
                 r = await db.execute(select(Equipment.id).where(Equipment.workshop_id == object_uuid))
                 return [x[0] for x in r.all()]
             if object_type == "branch":
-                # цеха филиала -> оборудование
                 wr = await db.execute(select(Workshop.id).where(Workshop.branch_id == object_uuid))
                 wids = [x[0] for x in wr.all()]
                 if not wids:
@@ -982,7 +1215,6 @@ async def get_assignments_progress_by_objects(
                     "engineers_map": {}
                 }
 
-            # считаем прогресс по заданиям для этого инженера в рамках объекта
             equipment_ids = await _equipment_ids_for_object(object_type, object_uuid)
             if not equipment_ids:
                 total = 0
@@ -1026,7 +1258,6 @@ async def get_assignments_progress_by_objects(
         items: List[dict] = []
         for (_, _), v in objects_map.items():
             engineers_list = list(v["engineers_map"].values())
-            # сортируем инженеров по имени
             engineers_list.sort(key=lambda x: (x.get("full_name") or x.get("username") or ""))
             items.append(
                 {
@@ -1037,7 +1268,6 @@ async def get_assignments_progress_by_objects(
                 }
             )
 
-        # сортировка объектов
         items.sort(key=lambda x: (x["object_type"], x["object_name"]))
         return {"items": items, "total": len(items)}
 
@@ -1045,6 +1275,5 @@ async def get_assignments_progress_by_objects(
         raise
     except Exception as e:
         import traceback
-        print(traceback.format_exc())
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка статистики по объектам: {str(e)}")
-

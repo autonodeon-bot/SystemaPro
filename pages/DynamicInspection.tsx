@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
 import { VESSEL_SCHEMA, HIERARCHY_TREE } from '../constants';
-import { FormField, ModuleSchema, HierarchyNode, NodeType, EquipmentType, MaintenanceEvent, AttachedDocument, DocCategory, EquipmentAttributes } from '../types';
+import { FormField, ModuleSchema, HierarchyNode, NodeType, MaintenanceEvent, AttachedDocument, DocCategory, EquipmentAttributes } from '../types';
 import { 
   Camera, Save, Calculator, PenTool, Check, 
   ChevronRight, ChevronDown, 
   Building2, Network, Factory, Box, FileText, Tag, FolderOpen, Folder,
-  ClipboardList, History, FileBadge, Info, Download, AlertTriangle, Calendar,
-  User, ShieldCheck, Printer, Search, Plus, Edit2, Upload, Target, X
+  ClipboardList, History, FileBadge, Info, Download, Calendar,
+  User, ShieldCheck, Printer, Search, Plus, Edit2, Upload, X
 } from 'lucide-react';
 
 // --- WIDGETS ---
@@ -465,7 +465,7 @@ const HistoryTab = ({ events, onAddEvent }: { events?: MaintenanceEvent[], onAdd
        )}
 
        {(!events || events.length === 0) ? <div className="text-center text-slate-500 py-10">История эксплуатации пуста</div> :
-       events.map((event, idx) => (
+       events.map((event) => (
          <div key={event.id} className="relative pl-8 border-l border-slate-700 last:border-0">
             {/* Dot */}
             <div className={`absolute -left-2 top-0 w-4 h-4 rounded-full border-2 border-slate-900 ${

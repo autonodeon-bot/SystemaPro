@@ -26,7 +26,7 @@ async def list_opos(
     if cached is not None:
         return cached
     try:
-        query = select(Opo).where(Opo.is_active == 1)
+        query = select(Opo).where(Opo.is_active == True)
         if workshop_id:
             try:
                 query = query.where(Opo.workshop_id == uuid_lib.UUID(workshop_id))

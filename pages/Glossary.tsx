@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BookOpen, Search } from 'lucide-react';
 
 const TERMS: { term: string; full: string; desc: string }[] = [

@@ -4,8 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
+import '../theme/app_colors.dart';
 import 'equipment_list_screen.dart';
-import 'assignments_screen.dart'; // Версия 3.3.0
+import 'assignments_screen.dart';
 import 'profile_screen.dart';
 import 'sync_screen.dart';
 import 'opo_list_screen.dart';
@@ -299,14 +300,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: AppColors.darkBackground,
       body: Column(
         children: [
-          // Индикатор офлайн/онлайн и счётчик несинхронизированных
           Material(
-              color: _isOffline ? Colors.orange.shade900 : const Color(0xFF0d1117),
+              color: _isOffline ? Colors.orange.shade900 : AppColors.darkBackgroundDeep,
               child: SafeArea(
-                child: InkWell(
+                child: Semantics(
+                  label: _isOffline
+                      ? 'Режим офлайн. Нажмите для перехода к синхронизации'
+                      : 'Подключено к серверу. Нажмите для перехода к синхронизации',
+                  button: true,
+                  child: InkWell(
                   onTap: () {
                     setState(() => _currentIndex = 3);
                   },
@@ -318,6 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           _isOffline ? Icons.offline_bolt : Icons.cloud_queue,
                           color: Colors.white70,
                           size: 20,
+                          semanticLabel: _isOffline ? 'Нет подключения' : 'Подключено к серверу',
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -342,11 +348,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.touch_app, color: Colors.white54, size: 16),
+                          const Icon(Icons.touch_app, color: Colors.white54, size: 16, semanticLabel: 'Нажмите'),
                         ],
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
             ),
@@ -370,7 +377,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (_appVersion.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              color: const Color(0xFF0f172a),
+              color: AppColors.darkBackground,
               child: Text(
                 'Версия: $_appVersion',
                 style: const TextStyle(
@@ -388,29 +395,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _currentIndex = index;
               });
             },
-            backgroundColor: const Color(0xFF1e293b),
-            selectedItemColor: const Color(0xFF3b82f6),
+            backgroundColor: AppColors.darkSurface,
+            selectedItemColor: AppColors.darkPrimary,
             unselectedItemColor: Colors.white70,
             type: BottomNavigationBarType.fixed,
             items: const [
               BottomNavigationBarItem(
-                icon: Icon(Icons.assignment),
+                icon: Icon(Icons.assignment, semanticLabel: 'Задания'),
                 label: 'Задания',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.list),
+                icon: Icon(Icons.list, semanticLabel: 'Оборудование'),
                 label: 'Оборудование',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.dangerous),
+                icon: Icon(Icons.dangerous, semanticLabel: 'ОПО'),
                 label: 'ОПО',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.sync),
+                icon: Icon(Icons.sync, semanticLabel: 'Синхронизация'),
                 label: 'Синхронизация',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.person),
+                icon: Icon(Icons.person, semanticLabel: 'Профиль'),
                 label: 'Профиль',
               ),
             ],

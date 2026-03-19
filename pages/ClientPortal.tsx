@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Download, FileText, Calendar, MapPin, Search, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, FileText, MapPin, Search } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface Equipment {
