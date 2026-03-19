@@ -1,34 +1,42 @@
-import React, { useState } from 'react';
-import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
+import React, { useState, lazy, Suspense } from 'react';
+import { HashRouter, Routes, Route, NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-router-dom';
 import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, User, Menu, X, FileText, Package, Users, FolderKanban, Calculator, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Calendar, Sun, Moon, Shield, Wrench, HelpCircle } from 'lucide-react';
 import { APP_VERSION } from './constants';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
-import Dashboard from './pages/Dashboard';
-import DynamicInspection from './pages/DynamicInspection';
-import TechSpecs from './pages/TechSpecs';
-import EquipmentManagement from './pages/EquipmentManagement';
-import EquipmentHierarchy from './pages/EquipmentHierarchy';
-import EquipmentDetails from './pages/EquipmentDetails';
-import ProjectsManagement from './pages/ProjectsManagement';
-import ResourceManagement from './pages/ResourceManagement';
-import RegulatoryDocuments from './pages/RegulatoryDocuments';
-import CompetenciesManagement from './pages/CompetenciesManagement';
-import ReportGeneration from './pages/ReportGeneration';
-import ReportViewer from './pages/ReportViewer';
-import InspectionsList from './pages/InspectionsList';
-import MobileApp from './pages/MobileApp';
-import Changelog from './pages/Changelog';
-import Glossary from './pages/Glossary';
-import AssignmentsManagement from './pages/AssignmentsManagement';
-import UsersManagement from './pages/UsersManagement';
-import VerificationsManagement from './pages/VerificationsManagement';
-import VerificationsCalendar from './pages/VerificationsCalendar';
-import ReportTemplates from './pages/ReportTemplates';
-import AdminPanel from './pages/AdminPanel';
-import EngineerPanel from './pages/EngineerPanel';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 import ProtectedRoute from './components/ProtectedRoute';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DynamicInspection = lazy(() => import('./pages/DynamicInspection'));
+const TechSpecs = lazy(() => import('./pages/TechSpecs'));
+const EquipmentManagement = lazy(() => import('./pages/EquipmentManagement'));
+const EquipmentHierarchy = lazy(() => import('./pages/EquipmentHierarchy'));
+const EquipmentDetails = lazy(() => import('./pages/EquipmentDetails'));
+const ProjectsManagement = lazy(() => import('./pages/ProjectsManagement'));
+const ResourceManagement = lazy(() => import('./pages/ResourceManagement'));
+const RegulatoryDocuments = lazy(() => import('./pages/RegulatoryDocuments'));
+const CompetenciesManagement = lazy(() => import('./pages/CompetenciesManagement'));
+const ReportGeneration = lazy(() => import('./pages/ReportGeneration'));
+const ReportViewer = lazy(() => import('./pages/ReportViewer'));
+const InspectionsList = lazy(() => import('./pages/InspectionsList'));
+const MobileApp = lazy(() => import('./pages/MobileApp'));
+const Changelog = lazy(() => import('./pages/Changelog'));
+const Glossary = lazy(() => import('./pages/Glossary'));
+const AssignmentsManagement = lazy(() => import('./pages/AssignmentsManagement'));
+const UsersManagement = lazy(() => import('./pages/UsersManagement'));
+const VerificationsManagement = lazy(() => import('./pages/VerificationsManagement'));
+const VerificationsCalendar = lazy(() => import('./pages/VerificationsCalendar'));
+const ReportTemplates = lazy(() => import('./pages/ReportTemplates'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const EngineerPanel = lazy(() => import('./pages/EngineerPanel'));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="inline-block w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
   const location = useLocation();
@@ -74,7 +82,7 @@ const Layout: React.FC = () => {
         </div>
         
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
-          <SidebarItem to="/" icon={LayoutDashboard} label={isSidebarOpen ? "Дашборд" : ""} />
+          <SidebarItem to="/dashboard" icon={LayoutDashboard} label={isSidebarOpen ? "Дашборд" : ""} />
           <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? "Оборудование" : ""} />
           <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? "Задания" : ""} />
           <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Чек-листы" : ""} />
@@ -179,11 +187,29 @@ const Layout: React.FC = () => {
 
         {/* Scrollable Area */}
         <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>
   );
+};
+
+const HomePage = () => {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-primary">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-slate-400">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+  if (!isAuthenticated) return <Landing />;
+  return <Navigate to="/dashboard" replace />;
 };
 
 const App = () => {
@@ -192,6 +218,7 @@ const App = () => {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/" element={<HomePage />} />
           <Route
             element={
               <ProtectedRoute>
@@ -199,7 +226,7 @@ const App = () => {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/equipment" element={<EquipmentManagement />} />
             <Route path="/equipment/:id" element={<EquipmentDetails />} />
             <Route path="/equipment-hierarchy" element={<EquipmentHierarchy />} />

@@ -152,4 +152,59 @@ body.dark {
   background: rgba(51, 65, 85, 0.8);
 }
 
+/* Landing page animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+  50% { opacity: 0.8; box-shadow: 0 0 40px rgba(59, 130, 246, 0.4); }
+}
+
+.landing-fade-in-up {
+  animation: fadeInUp 0.7s ease-out forwards;
+}
+
+.landing-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+.landing-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.landing-stagger-1 { animation-delay: 0.1s; }
+.landing-stagger-2 { animation-delay: 0.2s; }
+.landing-stagger-3 { animation-delay: 0.3s; }
+.landing-stagger-4 { animation-delay: 0.4s; }
+.landing-stagger-5 { animation-delay: 0.5s; }
+.landing-stagger-6 { animation-delay: 0.6s; }
+.landing-stagger-7 { animation-delay: 0.7s; }
+.landing-stagger-8 { animation-delay: 0.8s; }
+.landing-stagger-9 { animation-delay: 0.9s; }
+.landing-stagger-10 { animation-delay: 1s; }
+
 

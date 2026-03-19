@@ -26,3 +26,22 @@ dist-ssr
 # Python
 __pycache__/
 *.pyc
+
+# Secrets
+.env
+!.env.example
+
+# Backend data
+backend/uploads/
+backend/certs/
+backend/reports/
+
+# Mobile build
+mobile/build/
+mobile/.dart_tool/
+mobile/.packages
+*.jks
+key.properties
+
+# Docker
+*.tar.gz

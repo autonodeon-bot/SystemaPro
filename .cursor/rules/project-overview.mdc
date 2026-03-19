@@ -1,0 +1,82 @@
+---
+description: Общий контекст проекта ЕС ТД НГО — SystemaPro. Активируется при любой работе с проектом.
+globs: 
+alwaysApply: true
+---
+
+# Проект: ЕС ТД НГО — SystemaPro
+
+## Описание
+Единая Система Технической Диагностики Нефтегазового Оборудования (ЕС ТД НГО) — платформа для управления обследованиями, диагностикой и технической экспертизой промышленного оборудования (сосуды, трубопроводы, ОПО).
+
+**Домен:** https://neftcontrol.ru
+**Версия:** 3.25.0
+
+## Технологический стек
+
+| Слой | Технологии |
+|------|-----------|
+| Frontend | React 18, TypeScript, Vite 5, Tailwind CSS 3.4, react-router-dom v6 (HashRouter) |
+| Backend | Python 3.11, FastAPI 0.115, SQLAlchemy 2.0 (async), PostgreSQL, asyncpg |
+| Mobile | Flutter 3.x, Dart, Riverpod, sqflite (offline-first), Dio |
+| Инфраструктура | Docker, Nginx, Let's Encrypt SSL, PowerShell deploy |
+| БД | PostgreSQL (remote, SSL) |
+
+## Структура проекта
+
+```
+SystemaPro/
+├── backend/           # Python FastAPI API сервер
+│   ├── main.py        # Основной файл (~12000 строк — требует рефакторинга)
+│   ├── models.py      # SQLAlchemy модели
+│   ├── database.py    # Подключение к БД
+│   ├── auth.py        # JWT авторизация
+│   ├── *_api.py       # Модульные роутеры API
+│   └── Dockerfile
+├── mobile/            # Flutter мобильное приложение
+│   ├── lib/
+│   │   ├── screens/   # Экраны
+│   │   ├── services/  # Сервисы (API, auth, sync, и т.д.)
+│   │   ├── models/    # Модели данных
+│   │   ├── widgets/   # Виджеты
+│   │   ├── providers/ # Riverpod провайдеры
+│   │   └── theme/     # Тема приложения
+│   └── pubspec.yaml
+├── pages/             # React страницы
+├── components/        # React компоненты
+├── contexts/          # React контексты (Auth, Theme, Toast)
+├── utils/             # Утилиты (cache, apiWithRetry)
+├── styles/            # CSS переменные (design tokens)
+├── nginx/             # Nginx конфигурация
+├── App.tsx            # Главный компонент + роутинг
+├── constants.ts       # Константы, схемы, мок-данные
+├── types.ts           # TypeScript типы
+└── docker-compose.yml # Оркестрация контейнеров
+```
+
+## Роли пользователей
+- `admin` — полный доступ
+- `chief_operator` — старший оператор
+- `engineer` — инженер диагностики
+- `client` — клиент (ограниченный доступ)
+- `operator` — оператор
+
+## Ключевые сущности домена
+- **Equipment** — оборудование (сосуды, трубопроводы, компрессоры)
+- **Inspection** — обследование / чек-лист
+- **Assignment** — задание на диагностику
+- **Engineer** — инженер с сертификатами НК
+- **Questionnaire** — опросный лист (10 разделов)
+- **Report** — отчёт (PDF/Word)
+- **VerificationEquipment** — поверочное оборудование
+- **Enterprise → Branch → Workshop** — иерархия предприятий
+- **OPO** — опасный производственный объект
+- **NDTMethod** — метод неразрушающего контроля
+
+## Правила разработки
+1. **Язык общения** — русский
+2. **PowerShell** — не использовать `&&`, использовать `;` или отдельные команды
+3. **Исправления** — вносить автоматически без предложений вариантов
+4. **Секреты** — НЕ коммитить `.env`, credentials, JWT ключи
+5. **API** — все endpoints под `/api/` с Bearer JWT авторизацией
+6. **Версионирование** — синхронизировать версии между package.json, pubspec.yaml и API

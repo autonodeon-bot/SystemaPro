@@ -1,4 +1,3 @@
-
 services:
   backend:
     build: 
@@ -7,23 +6,18 @@ services:
     container_name: es_td_ngo_backend
     ports:
       - "8000:8000"
-    environment:
-      - DB_USER=gen_user
-      - DB_PASS=#BeH)(rn;Cl}7a
-      - DB_HOST=99f541abb57e364deed82c1d.twc1.net
-      - DB_PORT=5432
-      - DB_NAME=default_db
-      - DB_SSLMODE=require
-      - DB_SSLCERT=/app/certs/root.crt
-      # Фиксируем JWT секрет, чтобы токены не "ломались" после пересборок контейнера
-      - JWT_SECRET_KEY=es-td-ngo-jwt-secret-2025-12
+    env_file:
+      - .env
     volumes:
-      # Монтируем папку с сертификатами внутрь контейнера
       - ./backend/certs:/app/certs
-      # Монтируем папку для отчетов
       - ./backend/reports:/app/reports
-      # Монтируем папку для загрузок (сканы сертификатов, вложения и т.п.)
       - ./backend/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     restart: always
 
   frontend:
@@ -33,9 +27,11 @@ services:
     container_name: es_td_ngo_frontend
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     volumes:
-      # Монтируем директорию для мобильных APK файлов
       - ./mobile-apk:/usr/share/nginx/html/mobile
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     restart: always

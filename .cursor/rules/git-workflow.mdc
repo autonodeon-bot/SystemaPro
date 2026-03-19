@@ -1,0 +1,73 @@
+---
+description: Git workflow и версионирование
+globs: 
+alwaysApply: false
+---
+
+# Git Workflow
+
+## Ветвление
+```
+main (production)
+├── develop (текущая разработка)
+├── feature/название-фичи
+├── fix/описание-бага
+└── release/3.xx.0
+```
+
+## Версионирование (SemVer)
+- Текущая версия: **3.25.0**
+- Обновлять синхронно в 3 местах:
+  1. `package.json` → `"version": "3.xx.x"`
+  2. `mobile/pubspec.yaml` → `version: 3.xx.x+build`
+  3. `backend/main.py` → `FastAPI(version="3.xx.x")`
+
+## Коммиты
+Формат: `тип(область): описание на русском`
+
+### Типы
+| Тип | Описание |
+|-----|----------|
+| feat | Новая функциональность |
+| fix | Исправление бага |
+| refactor | Рефакторинг без изменения поведения |
+| style | Оформление (CSS, форматирование) |
+| docs | Документация |
+| perf | Оптимизация |
+| test | Тесты |
+| build | Сборка, Docker, CI/CD |
+| chore | Обслуживание |
+
+### Примеры
+```
+feat(backend): добавить API для журнала ремонтов
+fix(mobile): исправить синхронизацию офлайн чек-листов
+refactor(backend): вынести equipment endpoints из main.py
+style(frontend): обновить дизайн дашборда
+build(docker): добавить healthcheck в docker-compose
+```
+
+## Что НЕ коммитить
+- `.env` с реальными данными
+- `node_modules/`, `build/`, `dist/`
+- `backend/uploads/` (реальные файлы)
+- `backend/certs/` (SSL сертификаты)
+- `mobile/build/`
+- `*.jks`, `key.properties`
+- `docker-compose.yml` с реальными паролями
+
+## .gitignore
+Убедиться, что `.gitignore` содержит:
+```
+node_modules/
+dist/
+build/
+.env
+.env.local
+backend/uploads/
+backend/certs/
+backend/reports/
+mobile/build/
+*.jks
+key.properties
+```

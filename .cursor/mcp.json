@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "description": "Документация библиотек и фреймворков (FastAPI, React, Flutter, SQLAlchemy, Tailwind)"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "Последовательное размышление для сложных задач проектирования и отладки"
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "C:/DIATEKS/sys/SystemaPro"],
+      "description": "Git операции: log, diff, status, blame"
+    }
+  }
+}

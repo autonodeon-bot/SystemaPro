@@ -1,0 +1,52 @@
+---
+description: Правила качества кода и рефакторинга
+globs: 
+alwaysApply: true
+---
+
+# Качество кода
+
+## Общие принципы
+1. **DRY** — не дублировать код, выносить в утилиты/хелперы
+2. **Single Responsibility** — один файл/функция = одна задача
+3. **Именование на английском** — переменные, функции, классы — на английском
+4. **Комментарии на русском** — при необходимости, объяснять бизнес-логику
+5. **Нет магических чисел** — выносить в константы
+
+## TypeScript / React
+- Предпочитать `interface` над `type` для объектов
+- Использовать `enum` или `const` объекты для перечислений
+- Деструктуризация props: `({ name, value }: Props) => ...`
+- Хуки в начале компонента, условный рендеринг после
+- `useEffect` — всегда указывать зависимости
+
+## Python / FastAPI
+- Docstrings для публичных функций
+- Type hints для всех параметров и возвратов
+- `async def` для всех handlers
+- Исключения через `HTTPException` с русскоязычными `detail`
+- Логирование через `logging`, не `print()`
+
+## Dart / Flutter
+- `const` конструкторы где возможно
+- `final` для неизменяемых переменных
+- Именование файлов: `snake_case.dart`
+- Виджеты: композиция > наследование
+- `dispose()` — обязательная очистка ресурсов
+
+## Выполненные оптимизации
+- [x] Секреты вынесены из docker-compose.yml в .env
+- [x] CORS ограничен до конкретных доменов (CORS_ORIGINS env)
+- [x] NullPool заменён на AsyncAdaptedQueuePool (pool_size=10, max_overflow=20)
+- [x] Code splitting на frontend (React.lazy + Suspense)
+- [x] Исправлен applicationId в build.gradle.kts
+- [x] main.py сокращён с 12084 до 6411 строк (удалены дубли, вынесены equipment/OPO/dictionaries)
+- [x] Добавлен healthcheck в docker-compose
+- [x] Создан shared.py для общих утилит
+
+## Оставшиеся задачи
+1. **backend/main.py** — ~6400 строк, нужно вынести inspections, reports, questionnaires, verifications
+2. **Отсутствуют тесты** — нужны unit и integration тесты
+3. **Отсутствует CI/CD** — нужен GitHub Actions pipeline
+4. **Нет error boundaries** на frontend
+5. **go_router** подключён но не используется в mobile — унифицировать навигацию

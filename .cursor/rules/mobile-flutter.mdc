@@ -1,0 +1,79 @@
+---
+description: Правила разработки мобильного приложения на Flutter/Dart
+globs: mobile/**/*.dart
+alwaysApply: false
+---
+
+# Mobile: Flutter / Dart
+
+## Стек
+- **Flutter 3.x**, **Dart** (SDK >=3.2.0 <4.0.0)
+- **Riverpod** — управление состоянием
+- **sqflite** — локальная БД (offline-first)
+- **Dio** + **http** — HTTP клиент
+- **go_router** — маршрутизация (в зависимостях, частично используется)
+- **flutter_blue_plus** — Bluetooth для приборов
+- **geolocator** — геолокация
+
+## Структура mobile/lib/
+```
+lib/
+├── main.dart              # Точка входа (ProviderScope → MyApp)
+├── screens/               # Экраны (StatefulWidget)
+├── services/              # Сервисы (API, auth, sync, PDF, geo, и т.д.)
+├── models/                # Модели данных
+├── widgets/               # Переиспользуемые виджеты
+├── providers/             # Riverpod провайдеры
+├── theme/                 # AppTheme, AppColors
+└── data/                  # Константы (checklist_constants)
+```
+
+## API сервис (services/api_service.dart)
+- **Base URL:** `https://neftcontrol.ru`
+- **Таймаут:** 120 сек
+- Авторизация: Bearer JWT через `AuthService`
+- `ensureValidToken()` — авто-обновление токена
+- Все методы возвращают `Future<...>`
+
+## Модели данных
+- Модели в `models/`: `Equipment`, `User`, `VesselChecklist`, `Assignment`, `Questionnaire`
+- Сериализация: `fromJson()` / `toJson()` ручная
+- `VesselChecklist` содержит схему чек-листа сосуда (ЗРА, СППК, УЗТ, ПВК, дефекты)
+
+## Управление состоянием
+- **Riverpod** (`ProviderScope` в `main.dart`)
+- **StateNotifier** для темы: `ThemeModeNotifier` → `themeModeProvider`
+- Экраны используют `ConsumerStatefulWidget` или `StatefulWidget`
+
+## Офлайн-режим
+- **SyncService** — синхронизация обследований при появлении сети
+- **sqflite** — локальная БД для хранения данных
+- **AutoSaveService** — автосохранение незавершённых чек-листов
+- **SharedPreferences** — настройки и кэш
+
+## Безопасность
+- **flutter_secure_storage** — хранение токенов и паролей
+- **local_auth** — биометрическая аутентификация
+- **PIN-код** — дополнительная защита
+- **BiometricService** — идентификация устройства
+
+## Правила кодирования
+1. **Const constructors** — использовать `const` где возможно
+2. **Single quotes** — одинарные кавычки для строк
+3. **Prefer const** — `prefer_const_constructors`, `prefer_const_literals`
+4. **Типизация** — явные типы для параметров и переменных
+5. **Async/await** — для всех асинхронных операций
+6. **Error handling** — try/catch для API вызовов с fallback на офлайн
+7. **Dispose** — отменять подписки и контроллеры в `dispose()`
+8. **Именование** — snake_case для файлов, camelCase для переменных, PascalCase для классов
+
+## Android конфигурация
+- **applicationId:** `com.es_td_ngo.mobile`
+- **compileSdkVersion:** 36
+- **minSdkVersion:** определяется Flutter
+- **Java 17** для компиляции
+- **Подпись:** через `key.properties` (не коммитить!)
+
+## Внимание
+- В проекте дублируются `build.gradle` и `build.gradle.kts` с разными `applicationId`
+- Актуальный `applicationId`: `com.es_td_ngo.mobile` (из `build.gradle`)

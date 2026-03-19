@@ -14,8 +14,8 @@ import '../models/assignment.dart';
 import 'auth_service.dart';
 
 class ApiService {
-  /// URL сервера: порт 80 (через nginx), чтобы запросы проходили с любых сетей (порт 8000 часто блокируется).
-  static const String baseUrl = 'http://5.129.203.182';
+  /// URL сервера: HTTPS через nginx (порт 443).
+  static const String baseUrl = 'https://neftcontrol.ru';
 
   /// Таймаут для отправки отчётов и загрузки файлов (секунды).
   static const Duration requestTimeout = Duration(seconds: 120);

@@ -279,7 +279,7 @@ export const MOBILE_APP_BUILD = '25';
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOBILE_APK_URL) ||
-  `http://5.129.203.182/mobile/es-td-ngo-${MOBILE_APP_VERSION}-${MOBILE_APP_BUILD}.apk`;
+  `https://neftcontrol.ru/mobile/es-td-ngo-${MOBILE_APP_VERSION}-${MOBILE_APP_BUILD}.apk`;
 
 export const INSPECTION_TASKS: InspectionTask[] = [
   { id: 'T-001', equipmentId: 'V-501', equipmentName: 'Сепаратор С-1', type: EquipmentType.VESSEL, status: 'OVERDUE', date: '2024-12-01', assignee: 'Иванов И.И.', riskLevel: RiskLevel.CRITICAL },

@@ -1,0 +1,70 @@
+---
+description: Правила безопасности проекта
+globs: "{backend/auth.py,backend/auth_api.py,contexts/AuthContext.tsx,mobile/lib/services/auth_service.dart,docker-compose.yml,.env*}"
+alwaysApply: false
+---
+
+# Безопасность
+
+## КРИТИЧЕСКИЕ ПРАВИЛА
+
+### Секреты — НИКОГДА не коммитить:
+- `.env` файлы с реальными данными
+- `JWT_SECRET_KEY`
+- `DB_PASS`, `DB_USER`
+- SSL сертификаты (`*.pem`, `*.crt`, `*.key`)
+- Android keystore (`key.properties`, `*.jks`)
+- API ключи, токены
+
+### Docker-compose
+- Секреты в `docker-compose.yml` **должны быть** вынесены в `.env` файл:
+```yaml
+environment:
+  - DB_PASS=${DB_PASS}
+  - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+```
+
+## JWT авторизация
+
+### Backend (auth.py)
+- Алгоритм: HS256
+- Время жизни: настраиваемое
+- Поля в токене: `sub` (user_id), `role`, `exp`
+- `verify_token()` → dict с `id`, `username`, `role`
+
+### Frontend (AuthContext.tsx)
+- Токен хранится в `localStorage`
+- Автоматически добавляется в headers
+- `hasRole()`, `hasPermission()` для проверки доступа
+
+### Mobile (auth_service.dart)
+- Токен в `flutter_secure_storage`
+- Биометрия + PIN как дополнительная защита
+- Офлайн-вход с кэшированным токеном
+
+## CORS
+- Текущая настройка: `allow_origins=["*"]` — **слишком открыто для прода!**
+- Рекомендация: ограничить до `["https://neftcontrol.ru"]`
+
+## Nginx
+- HTTPS: Let's Encrypt
+- HTTP → HTTPS редирект для neftcontrol.ru
+- Proxy headers: `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`
+- `client_max_body_size`: 100MB
+
+## Хеширование паролей
+- `passlib` + `bcrypt`
+- `hash_password()`, `verify_password()`
+
+## Валидация ввода
+- Backend: Pydantic модели + FastAPI валидация
+- Frontend: проверки в формах перед отправкой
+- Mobile: `flutter_form_builder` + `form_builder_validators`
+
+## Рекомендации по улучшению
+1. Вынести секреты из `docker-compose.yml` в `.env`
+2. Ограничить CORS до конкретных доменов
+3. Добавить rate limiting
+4. Добавить refresh token механизм
+5. Логировать неуспешные попытки входа
+6. Добавить HTTPS-only cookies для web

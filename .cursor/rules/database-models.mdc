@@ -1,0 +1,105 @@
+---
+description: Правила работы с базой данных и моделями SQLAlchemy
+globs: "{backend/models.py,backend/database.py,backend/main.py,backend/*_api.py}"
+alwaysApply: false
+---
+
+# База данных и модели
+
+## PostgreSQL
+- Хостинг: удалённый сервер (99f541abb57e364deed82c1d.twc1.net)
+- SSL: self-signed сертификат (root.crt)
+- Драйвер: `asyncpg` (async) / `psycopg2` (sync для миграций)
+
+## SQLAlchemy 2.0 (async)
+```python
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text, Float, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
+from database import Base
+import uuid
+from datetime import datetime
+```
+
+## Модели (backend/models.py)
+
+### Шаблон новой модели
+```python
+class NewEntity(Base):
+    __tablename__ = "new_entities"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    data = Column(JSONB, default={})
+    
+    is_archived = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+```
+
+### Основные модели
+| Модель | Таблица | Ключевые связи |
+|--------|---------|----------------|
+| Enterprise | enterprises | → branches |
+| Branch | branches | → enterprise, → workshops |
+| Workshop | workshops | → branch, → equipment |
+| Equipment | equipment | → enterprise, branch, workshop, type |
+| EquipmentType | equipment_types | — |
+| Inspection | inspections | → equipment, engineer |
+| Assignment | assignments | → equipment, engineer |
+| Engineer | engineers | → certifications |
+| Certification | certifications | → engineer |
+| User | users | role, permissions |
+| Report | reports | → inspection |
+| Questionnaire | questionnaires | → inspection |
+| AuditLog | audit_log | → user |
+
+## Запросы
+
+### Выборка
+```python
+result = await db.execute(select(Equipment).where(Equipment.is_archived == False))
+items = result.scalars().all()
+```
+
+### Создание
+```python
+item = Equipment(**data.dict())
+db.add(item)
+await db.commit()
+await db.refresh(item)
+```
+
+### Обновление
+```python
+result = await db.execute(select(Equipment).where(Equipment.id == id))
+item = result.scalar_one_or_none()
+if not item:
+    raise HTTPException(404, "Не найдено")
+for key, value in data.dict(exclude_unset=True).items():
+    setattr(item, key, value)
+item.updated_at = datetime.utcnow()
+await db.commit()
+```
+
+### Удаление (soft delete)
+```python
+item.is_archived = True
+item.updated_at = datetime.utcnow()
+await db.commit()
+```
+
+## Миграции
+- Автомиграции при старте: `ALTER TABLE ADD COLUMN IF NOT EXISTS`
+- Для сложных миграций: отдельные скрипты в `backend/scripts/`
+- Alembic в зависимостях, но не настроен для автогенерации
+
+## Правила
+1. **UUID** — всегда как первичный ключ
+2. **JSONB** — для сложных вложенных данных (атрибуты оборудования, результаты обследований)
+3. **created_at / updated_at** — обязательны
+4. **Soft delete** — `is_archived` или `is_deleted`, не удалять физически
+5. **Индексы** — добавлять для полей фильтрации (enterprise_id, status, created_at)
+6. **Валидация** — на уровне Pydantic (не в модели)
+7. **Связи** — определять через `ForeignKey`, relationship при необходимости

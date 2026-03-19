@@ -1,0 +1,127 @@
+---
+description: Стратегия тестирования проекта
+globs: "{backend/**/*.py,pages/**/*.tsx,mobile/lib/**/*.dart,**/*test*,**/*spec*}"
+alwaysApply: false
+---
+
+# Тестирование
+
+## Текущее состояние
+**Тесты отсутствуют** во всех частях проекта. Ниже — стратегия добавления тестов.
+
+## Backend (Python) — pytest + httpx
+
+### Структура
+```
+backend/
+├── tests/
+│   ├── conftest.py          # Fixtures: test DB, test client
+│   ├── test_auth.py         # Тесты авторизации
+│   ├── test_equipment.py    # Тесты оборудования
+│   ├── test_inspections.py  # Тесты обследований
+│   └── test_reports.py      # Тесты отчётов
+```
+
+### conftest.py
+```python
+import pytest
+from httpx import AsyncClient, ASGITransport
+from main import app
+
+@pytest.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+@pytest.fixture
+async def auth_headers(client):
+    response = await client.post("/api/auth/login", json={
+        "username": "admin", "password": "test"
+    })
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+```
+
+### Пример теста
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_list_equipment(client, auth_headers):
+    response = await client.get("/api/equipment", headers=auth_headers)
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+@pytest.mark.asyncio
+async def test_unauthorized_access(client):
+    response = await client.get("/api/equipment")
+    assert response.status_code == 401
+```
+
+### Запуск
+```bash
+cd backend
+pip install pytest pytest-asyncio httpx
+pytest -v
+```
+
+## Frontend (React) — Vitest + Testing Library
+
+### Структура
+```
+__tests__/
+├── pages/
+│   ├── Dashboard.test.tsx
+│   └── Login.test.tsx
+├── components/
+│   ├── ProtectedRoute.test.tsx
+│   └── ConfirmModal.test.tsx
+└── utils/
+    ├── cache.test.ts
+    └── apiWithRetry.test.ts
+```
+
+### Настройка (vite.config.ts)
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './test/setup.ts',
+  },
+});
+```
+
+### Зависимости
+```bash
+npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
+```
+
+## Mobile (Flutter) — flutter_test
+
+### Структура
+```
+mobile/test/
+├── services/
+│   ├── api_service_test.dart
+│   └── auth_service_test.dart
+├── models/
+│   ├── equipment_test.dart
+│   └── vessel_checklist_test.dart
+└── widget_test.dart
+```
+
+### Запуск
+```bash
+cd mobile
+flutter test
+```
+
+## Приоритет тестирования
+1. **Авторизация** — login, token validation, role checks
+2. **CRUD оборудования** — create, read, update, archive
+3. **Обследования** — создание, статусы, bulk операции
+4. **Генерация отчётов** — PDF, Word
+5. **Мобильная синхронизация** — офлайн → онлайн

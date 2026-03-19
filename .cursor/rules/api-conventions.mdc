@@ -1,0 +1,115 @@
+---
+description: Конвенции API — именование, структура, обработка ошибок
+globs: "{backend/**/*.py,pages/**/*.tsx,components/**/*.tsx,utils/**/*.ts,mobile/lib/services/**/*.dart}"
+alwaysApply: false
+---
+
+# API Конвенции
+
+## URL структура
+- Все endpoints: `/api/{ресурс}`
+- RESTful: `GET /api/equipment`, `POST /api/equipment`, `GET /api/equipment/{id}`
+- Вложенные ресурсы: `/api/equipment/{id}/history`, `/api/inspections/{id}/ndt-methods`
+- Действия: `PATCH /api/assignments/{id}/archive`, `POST /api/reports/generate`
+
+## Авторизация
+- **Header:** `Authorization: Bearer <JWT>`
+- **Создание:** `POST /api/auth/login` → `{ access_token, token_type, user }`
+- **Проверка:** `GET /api/auth/me`
+- **Backend:** `Depends(verify_token)` на всех защищённых endpoints
+- **Frontend:** токен из `AuthContext`, добавляется в headers
+
+## Формат ответов
+
+### Успешный ответ
+```json
+{
+  "id": "uuid",
+  "name": "...",
+  ...
+}
+```
+
+### Список
+```json
+[
+  { "id": "uuid", ... },
+  { "id": "uuid", ... }
+]
+```
+
+### Ошибка
+```json
+{
+  "detail": "Описание ошибки на русском",
+  "code": "ERROR_CODE",
+  "errors": []
+}
+```
+
+## HTTP статусы
+| Код | Использование |
+|-----|---------------|
+| 200 | Успешный GET/PUT/PATCH |
+| 201 | Успешный POST (создание) |
+| 204 | Успешный DELETE |
+| 400 | Ошибка валидации |
+| 401 | Не авторизован |
+| 403 | Нет доступа |
+| 404 | Не найдено |
+| 409 | Конфликт (дубликат) |
+| 500 | Серверная ошибка |
+
+## Именование endpoints
+
+### Backend (Python)
+```python
+@router.get("/api/equipment")
+async def list_equipment(...)
+
+@router.post("/api/equipment")
+async def create_equipment(...)
+
+@router.get("/api/equipment/{equipment_id}")
+async def get_equipment(equipment_id: UUID, ...)
+
+@router.put("/api/equipment/{equipment_id}")
+async def update_equipment(equipment_id: UUID, ...)
+
+@router.delete("/api/equipment/{equipment_id}")
+async def delete_equipment(equipment_id: UUID, ...)
+```
+
+### Frontend (TypeScript)
+```typescript
+const fetchEquipment = async () => {
+  const res = await fetch(`${API_BASE}/api/equipment`, { headers });
+  return await res.json();
+};
+```
+
+### Mobile (Dart)
+```dart
+Future<List<Equipment>> getEquipmentList() async {
+  final response = await _dio.get('/api/equipment');
+  return (response.data as List).map((e) => Equipment.fromJson(e)).toList();
+}
+```
+
+## Пагинация (при необходимости)
+```
+GET /api/equipment?skip=0&limit=50
+GET /api/equipment?page=1&per_page=20
+```
+
+## Фильтрация
+```
+GET /api/equipment?enterprise_id=uuid&type_id=uuid&search=текст
+GET /api/inspections?status=completed&date_from=2025-01-01
+```
+
+## Загрузка файлов
+- Использовать `multipart/form-data`
+- Backend: `UploadFile = File(...)`
+- Хранение: `backend/uploads/{category}/{filename}`
+- Скачивание: `GET /api/resource/{id}/download` с `FileResponse`

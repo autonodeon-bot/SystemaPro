@@ -1,0 +1,90 @@
+---
+description: Правила разработки backend на Python/FastAPI
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend: Python / FastAPI
+
+## Стек
+- **Python 3.11**, **FastAPI 0.115**, **SQLAlchemy 2.0** (async), **asyncpg**, **Pydantic v2**
+- JWT авторизация: `python-jose` + `passlib[bcrypt]`
+- Генерация отчётов: `reportlab` (PDF), `python-docx` (Word)
+- БД: PostgreSQL (async через `asyncpg`, SSL)
+
+## Архитектура
+
+### Модульные роутеры
+Новые API endpoints создавать как **отдельные роутеры** в файлах `*_api.py`:
+```python
+from fastapi import APIRouter, Depends
+from database import get_db
+from auth import verify_token
+
+router = APIRouter(prefix="/api/feature", tags=["feature"])
+
+@router.get("/")
+async def list_items(db=Depends(get_db), user=Depends(verify_token)):
+    ...
+```
+
+**НЕ добавлять** новые endpoints в `main.py` — он уже слишком большой.
+
+### Подключение роутера
+В `main.py`:
+```python
+from feature_api import router as feature_router
+app.include_router(feature_router)
+```
+
+## Модели (models.py)
+- Использовать `SQLAlchemy 2.0` declarative с `mapped_column`
+- UUID первичные ключи: `Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)`
+- JSONB для сложных данных
+- `created_at`, `updated_at` — обязательны для всех моделей
+- `is_deleted` или `is_archived` — soft delete
+
+## Pydantic схемы
+- Определять в том же файле роутера или в отдельном `schemas/`
+- Наследовать от `BaseModel`
+- Использовать `model_config = ConfigDict(from_attributes=True)` для ORM
+
+## Авторизация
+- `verify_token` — обязательная авторизация
+- `verify_token_optional` — опциональная
+- Проверка ролей: `if user["role"] not in ["admin", "chief_operator"]`
+- JWT создаётся в `auth.py`: `create_access_token(data)`
+
+## База данных (database.py)
+```python
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
+```
+- `NullPool` для async engine
+- SSL через self-signed сертификат
+
+## Правила кодирования
+1. **Async everywhere** — все endpoints и DB операции должны быть async
+2. **Depends injection** — использовать `Depends(get_db)` и `Depends(verify_token)`
+3. **HTTP exceptions** — `raise HTTPException(status_code=404, detail="Не найдено")`
+4. **Логирование** — использовать `logging` модуль, не `print()`
+5. **Типизация** — аннотировать все параметры и возвращаемые значения
+6. **Транзакции** — `await db.commit()` после изменений, `await db.rollback()` при ошибках
+7. **Миграции** — новые колонки добавлять через ALTER TABLE в startup или отдельные скрипты
+8. **CORS** — настроен `allow_origins=["*"]` (на проде ограничить!)
+
+## Кэширование
+- Справочники кэшируются с TTL 5 минут
+- Кэш хранится в памяти (dict с timestamp)
+- Инвалидация при CRUD операциях
+
+## Аудит
+- Все важные действия записывать в `AuditLog`:
+```python
+audit = AuditLog(user_id=user["id"], action="create", entity_type="equipment", entity_id=str(eq.id), details={...})
+db.add(audit)
+```
+
+## Тестирование
+- Тесты отсутствуют — при добавлении использовать `pytest` + `httpx.AsyncClient`

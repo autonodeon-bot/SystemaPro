@@ -122,7 +122,7 @@ Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Site:   http://5.129.203.182/" -ForegroundColor White
-Write-Host "API:    http://5.129.203.182:8000/" -ForegroundColor White
-Write-Host "Mobile: http://5.129.203.182/mobile/app-release.apk" -ForegroundColor White
+Write-Host "Site:   https://neftcontrol.ru/ (HTTP: http://5.129.203.182/)" -ForegroundColor White
+Write-Host "API:    https://neftcontrol.ru/api/ (HTTP: http://5.129.203.182:8000/)" -ForegroundColor White
+Write-Host "Mobile: https://neftcontrol.ru/mobile/app-release.apk" -ForegroundColor White
 Write-Host ""

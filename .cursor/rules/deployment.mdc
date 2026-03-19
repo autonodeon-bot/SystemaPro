@@ -1,0 +1,96 @@
+---
+description: Правила деплоя и инфраструктуры
+globs: "{docker-compose.yml,backend/Dockerfile,frontend.Dockerfile,nginx/**,deploy-ssh.ps1,*.bat,*.ps1,*.sh}"
+alwaysApply: false
+---
+
+# Деплой и инфраструктура
+
+## Docker архитектура
+```
+┌─────────────┐    ┌──────────────┐    ┌───────────┐
+│   Frontend   │    │   Backend    │    │ PostgreSQL │
+│  (Nginx:80)  │───▶│ (Uvicorn:8000)│───▶│  (Remote)  │
+│  (Nginx:443) │    │              │    │            │
+└─────────────┘    └──────────────┘    └───────────┘
+```
+
+## Контейнеры
+
+### Backend (backend/Dockerfile)
+- Base: `python:3.11-slim`
+- Зависимости: gcc, postgresql-client, fonts
+- Порт: 8000
+- CMD: `uvicorn main:app --host 0.0.0.0 --port 8000`
+
+### Frontend (frontend.Dockerfile)
+- Multi-stage: `node:18 → nginx:alpine`
+- Build: `npm run build`
+- Результат копируется в nginx HTML
+- Порты: 80 (HTTP), 443 (HTTPS)
+
+## Docker Compose
+```yaml
+services:
+  backend:
+    build: {context: ., dockerfile: backend/Dockerfile}
+    ports: ["8000:8000"]
+    volumes:
+      - ./backend/certs:/app/certs
+      - ./backend/reports:/app/reports
+      - ./backend/uploads:/app/uploads
+    
+  frontend:
+    build: {context: ., dockerfile: frontend.Dockerfile}
+    ports: ["80:80", "443:443"]
+    depends_on: [backend]
+    volumes:
+      - ./mobile-apk:/usr/share/nginx/html/mobile
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+```
+
+## Nginx (nginx/default.conf)
+- HTTP → HTTPS редирект для neftcontrol.ru
+- SPA: `try_files $uri $uri/ /index.html`
+- API proxy: `/api/` → `http://backend:8000`
+- APK: `/mobile/` → статические файлы
+- Gzip включён
+- Статика (img, fonts): кэш 1 год
+- JS/CSS/HTML: без кэша (всегда свежая версия)
+
+## Деплой (PowerShell)
+- Скрипт: `deploy-ssh.ps1`
+- Протокол: SSH + SCP
+- Сервер: удалённый VPS
+
+## Команды деплоя (PowerShell)
+```powershell
+# Сборка
+docker-compose build
+
+# Запуск
+docker-compose up -d
+
+# Логи
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Перезапуск
+docker-compose restart backend
+docker-compose restart frontend
+```
+
+## Mobile APK
+- Сборка: `flutter build apk --release`
+- Размещение: `mobile-apk/` → `/mobile/` в nginx
+- Скачивание: `https://neftcontrol.ru/mobile/app.apk`
+
+## SSL (Let's Encrypt)
+- Сертификаты: `/etc/letsencrypt/live/neftcontrol.ru/`
+- Монтируются read-only в frontend контейнер
+- Обновление: certbot на хосте
+
+## PowerShell правила
+- **НЕ использовать `&&`** — использовать `;` для цепочки команд
+- **НЕ использовать `==`** — использовать `-eq`
+- **НЕ использовать `&&` для логики** — использовать `-and`

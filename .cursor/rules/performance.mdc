@@ -1,0 +1,100 @@
+---
+description: Рекомендации по оптимизации производительности
+globs: "{backend/**/*.py,pages/**/*.tsx,mobile/lib/**/*.dart,nginx/**,docker-compose.yml}"
+alwaysApply: false
+---
+
+# Оптимизация производительности
+
+## Backend (FastAPI)
+
+### Текущие проблемы
+1. **main.py ~12000 строк** — долгий импорт, сложная навигация
+2. **NullPool** — создаёт новое подключение на каждый запрос
+3. **Нет индексов** на часто фильтруемых полях
+4. **Кэш в памяти** — не переживает рестарт
+
+### Рекомендации
+- Заменить `NullPool` на `AsyncAdaptedQueuePool` с `pool_size=10, max_overflow=20`
+- Добавить индексы: `equipment.enterprise_id`, `inspections.status`, `inspections.created_at`
+- Использовать `selectinload` для eager loading связей
+- Добавить пагинацию по умолчанию (limit=50)
+- `select(...).options(load_only(...))` для сокращения данных
+- Gzip middleware для ответов API
+
+### Запросы
+```python
+# Плохо — загружает ВСЕ записи
+result = await db.execute(select(Equipment))
+
+# Хорошо — пагинация + фильтрация + select полей
+result = await db.execute(
+    select(Equipment.id, Equipment.name, Equipment.status)
+    .where(Equipment.is_archived == False)
+    .order_by(Equipment.created_at.desc())
+    .offset(skip).limit(limit)
+)
+```
+
+## Frontend (React)
+
+### Текущие проблемы
+1. **Нет React.lazy** — все страницы загружаются сразу
+2. **Нет мемоизации** — частые перерендеры
+3. **Нет виртуализации** — большие списки рендерятся полностью
+
+### Рекомендации
+- Code splitting с `React.lazy` + `Suspense`:
+```typescript
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+```
+- `useMemo` для вычисляемых списков (фильтрация, сортировка)
+- `useCallback` для обработчиков в props
+- `React.memo` для компонентов списков
+- Виртуализация длинных списков (react-window)
+- Debounce для поисковых запросов (300ms)
+
+## Mobile (Flutter)
+
+### Текущие проблемы
+1. **Сервисы как синглтоны** — не управляются Riverpod
+2. **Нет кэширования API ответов**
+3. **Большие изображения** без сжатия
+
+### Рекомендации
+- Вынести сервисы в Riverpod providers
+- Кэшировать справочники в sqflite
+- Сжимать фото перед отправкой (`image_resize_service.dart`)
+- Lazy loading для списков (`ListView.builder`)
+- `AutomaticKeepAliveClientMixin` для сохранения состояния табов
+
+## Nginx
+
+### Текущее
+- JS/CSS без кэша — каждый раз перезагружается
+- Gzip включён
+
+### Рекомендации
+- Использовать хэшированные имена файлов (Vite делает это) и кэшировать на 1 год:
+```nginx
+location ~* \.[0-9a-f]{8}\.(js|css)$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+```
+- Добавить `brotli` сжатие (лучше чем gzip)
+- Добавить `http2_push` для критических ресурсов
+
+## Docker
+
+### Рекомендации
+- Multi-stage build для backend (уменьшить размер образа)
+- `--no-cache-dir` уже используется в pip
+- Healthcheck в docker-compose:
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+```

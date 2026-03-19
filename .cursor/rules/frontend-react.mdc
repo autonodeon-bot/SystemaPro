@@ -1,0 +1,85 @@
+---
+description: Правила разработки frontend на React/TypeScript
+globs: "{App.tsx,index.tsx,index.css,constants.ts,types.ts,pages/**,components/**,contexts/**,utils/**,styles/**}"
+alwaysApply: false
+---
+
+# Frontend: React / TypeScript
+
+## Стек
+- **React 18**, **TypeScript 5**, **Vite 5**
+- **Tailwind CSS 3.4** с кастомными цветами и design tokens
+- **react-router-dom v6** (HashRouter)
+- **Recharts** — графики
+- **Leaflet** — карты
+- **lucide-react** — иконки
+
+## Структура файлов
+```
+├── App.tsx              # Роутинг, Layout, ProtectedRoute
+├── index.tsx            # Точка входа (ThemeProvider → ToastProvider → App)
+├── pages/               # Страницы (одна страница — один файл)
+├── components/          # Переиспользуемые компоненты
+├── contexts/            # React Context (Auth, Theme, Toast)
+├── utils/               # Утилиты (cache, apiWithRetry)
+├── styles/              # design-tokens.css
+├── constants.ts         # Константы, схемы, мок-данные
+└── types.ts             # Типы TypeScript
+```
+
+## Роутинг (App.tsx)
+- Использовать `HashRouter` (для деплоя на Nginx без серверного роутинга)
+- Все маршруты определены в `App.tsx`
+- Защищённые маршруты через `<ProtectedRoute requiredRole="admin">`
+- Новый маршрут: добавить `<Route>` в `App.tsx` и ссылку в навигации сайдбара
+
+## Контексты
+- **AuthContext** — `login()`, `logout()`, `user`, `isAuthenticated`, `hasRole()`, `hasPermission()`
+- **ThemeContext** — `isDark`, `toggleTheme()`, класс `dark` на `<html>`
+- **ToastContext** — `showToast()`, `success()`, `error()`, `info()`, `warning()`
+
+## API вызовы
+```typescript
+import { API_BASE } from './constants';
+
+const response = await fetch(`${API_BASE}/api/endpoint`, {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+});
+```
+- Использовать `fetchWithRetry` из `utils/apiWithRetry.ts` для критичных запросов
+- `API_BASE` берётся из `VITE_API_BASE` или пустая строка (тот же хост)
+- Кэш в localStorage через `utils/cache.ts` (TTL 5 мин)
+
+## Стилизация
+- **Tailwind CSS** — основной инструмент стилизации
+- **Design tokens** — CSS переменные в `styles/design-tokens.css` (`--bg-primary`, `--text-primary` и т.д.)
+- **Dark mode** — через класс `dark` на html, используя `dark:` префикс Tailwind
+- Кастомные классы: `.sp-card`, `.sp-card-soft`, `.sp-badge-*`, `.sp-btn-subtle`
+
+### Цветовая палитра (tailwind.config.js)
+| Цвет | Значение | Использование |
+|------|----------|---------------|
+| primary | #0f172a | Основные элементы |
+| accent | #3b82f6 | Активные элементы, кнопки |
+| danger | #ef4444 | Ошибки, удаление |
+| success | #22c55e | Успех |
+| warning | #f59e0b | Предупреждения |
+
+## Компоненты
+- Каждый компонент — функциональный (FC), с TypeScript типами
+- Для состояний загрузки использовать `<Skeleton>`, `<SkeletonTable>`
+- Для подтверждений использовать `<ConfirmModal>`
+- Для подсказок — `<Tooltip>`
+
+## Правила кодирования
+1. **Типизация** — все props и state должны быть типизированы
+2. **Нет any** — избегать `any`, использовать конкретные типы из `types.ts`
+3. **Иконки** — только из `lucide-react`, не добавлять другие библиотеки
+4. **Адаптивность** — все страницы должны работать на мобильных (responsive)
+5. **Тёмная тема** — все стили должны поддерживать `dark:` вариант
+6. **Нет inline стилей** — использовать Tailwind классы
+7. **Мемоизация** — `useMemo`/`useCallback` для тяжёлых вычислений
+8. **Error boundaries** — обрабатывать ошибки API

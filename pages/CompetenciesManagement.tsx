@@ -284,15 +284,16 @@ const CompetenciesManagement = () => {
   };
 
   const handleEditCertification = (cert: Certification) => {
-    const areas = cert.certification_areas?.length
+    const areasRaw = cert.certification_areas?.length
       ? cert.certification_areas
       : (cert.certification_area ? [cert.certification_area] : []);
+    const areas = areasRaw.map((a) => (typeof a === 'string' ? a : toDisplayStr(a))).filter(Boolean);
     setCertFormData({
       engineer_id: cert.engineer_id,
       certification_type: cert.certification_type || '',
       certificate_number: cert.certificate_number || cert.number || '',
       method_code: (cert as any).method_code || '',
-      certification_areas: [...areas],
+      certification_areas: areas,
       equipment_type_id: (cert as any).equipment_type_id || '',
       issue_date: cert.issue_date ? cert.issue_date.split('T')[0] : '',
       expiry_date: cert.expiry_date ? cert.expiry_date.split('T')[0] : '',
@@ -435,6 +436,19 @@ const CompetenciesManagement = () => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     return d.toLocaleDateString('ru-RU');
+  };
+
+  /** Безопасное преобразование в строку для рендера (API может вернуть объект в qualifications) */
+  const toDisplayStr = (v: unknown): string => {
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (Array.isArray(v)) return v.map(toDisplayStr).filter(Boolean).join('; ');
+    if (typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      return (o.certification_type as string) || (o.method_code as string) || (o.method as string) || (o.name as string) || '';
+    }
+    return String(v);
   };
 
   // Вычисляем статистику сертификатов с помощью useMemo для гарантии определения переменных
@@ -707,7 +721,7 @@ const CompetenciesManagement = () => {
                   <div className="flex flex-wrap gap-1">
                     {engineer.qualifications.slice(0, 3).map((qual, idx) => (
                       <span key={idx} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
-                        {qual}
+                        {toDisplayStr(qual)}
                       </span>
                     ))}
                   </div>
@@ -725,7 +739,7 @@ const CompetenciesManagement = () => {
                   <div className="flex flex-wrap gap-1">
                     {engineer.equipment_types.slice(0, 2).map((type, idx) => (
                       <span key={idx} className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
-                        {type}
+                        {toDisplayStr(type)}
                       </span>
                     ))}
                   </div>
@@ -776,7 +790,7 @@ const CompetenciesManagement = () => {
                   <div className="flex flex-wrap gap-2">
                     {selectedEngineer.qualifications.map((qual, idx) => (
                       <span key={idx} className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-sm">
-                        {qual}
+                        {toDisplayStr(qual)}
                       </span>
                     ))}
                   </div>
@@ -817,7 +831,7 @@ const CompetenciesManagement = () => {
                               <p className="text-sm text-slate-400">№ {cert.certificate_number || cert.number}</p>
                               {(cert.certification_areas?.length || (cert.certification_area ? 1 : 0)) > 0 && (
                                 <p className="text-sm text-accent/90">
-                                  Области аттестации: {(cert.certification_areas?.length ? cert.certification_areas : [cert.certification_area]).join('; ')}
+                                  Области аттестации: {(cert.certification_areas?.length ? cert.certification_areas : [cert.certification_area]).map(toDisplayStr).filter(Boolean).join('; ')}
                                 </p>
                               )}
                               <p className="text-sm text-slate-400">
@@ -897,7 +911,7 @@ const CompetenciesManagement = () => {
                   <div className="flex flex-wrap gap-2">
                     {selectedEngineer.equipment_types.map((type, idx) => (
                       <span key={idx} className="bg-accent/10 text-accent px-3 py-1 rounded text-sm">
-                        {type}
+                        {toDisplayStr(type)}
                       </span>
                     ))}
                   </div>

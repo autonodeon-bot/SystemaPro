@@ -1,0 +1,146 @@
+---
+description: Паттерны для создания React хуков и утилит
+globs: "{utils/**/*.ts,contexts/**/*.tsx,pages/**/*.tsx}"
+alwaysApply: false
+---
+
+# React Hooks и паттерны
+
+## Рекомендуемые хуки для создания
+
+В проекте отсутствует директория `hooks/` — все API вызовы делаются напрямую в компонентах. 
+Рекомендуется создать `hooks/` для переиспользования логики.
+
+### useApi — универсальный хук для API запросов
+```typescript
+// hooks/useApi.ts
+import { useState, useCallback } from 'react';
+import { API_BASE } from '../constants';
+import { useAuth } from '../contexts/AuthContext';
+
+interface UseApiOptions {
+  showError?: boolean;
+}
+
+export function useApi<T>(endpoint: string, options?: UseApiOptions) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { token } = useAuth();
+
+  const fetchData = useCallback(async (params?: Record<string, string>) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = new URL(`${API_BASE}/api/${endpoint}`);
+      if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const result = await res.json();
+      setData(result);
+      return result;
+    } catch (e: any) {
+      setError(e.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [endpoint, token]);
+
+  return { data, loading, error, fetchData, setData };
+}
+```
+
+### useDebounce — дебаунс для поиска
+```typescript
+// hooks/useDebounce.ts
+import { useState, useEffect } from 'react';
+
+export function useDebounce<T>(value: T, delay: number = 300): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+```
+
+### useLocalStorage — персистентное состояние
+```typescript
+// hooks/useLocalStorage.ts
+import { useState, useEffect } from 'react';
+
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch { return initialValue; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}
+```
+
+## Существующие утилиты
+
+### utils/apiWithRetry.ts — fetchWithRetry
+- Повторяет запрос до 3 раз при ошибке
+- Использовать для критичных запросов (отправка данных, генерация отчётов)
+
+### utils/cache.ts — кэш в localStorage
+- TTL: 5 минут по умолчанию
+- Использовать для справочников (equipment types, regulatory docs)
+
+## Контексты как хуки
+```typescript
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
+```
+
+## Паттерн страницы
+```typescript
+export default function NewPage() {
+  const { token, user, hasRole } = useAuth();
+  const { showToast } = useToast();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/api/endpoint`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setData(await res.json());
+    } catch (e) {
+      showToast('Ошибка загрузки данных', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <SkeletonTable />;
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+        Заголовок
+      </h1>
+      {/* content */}
+    </div>
+  );
+}
+```
