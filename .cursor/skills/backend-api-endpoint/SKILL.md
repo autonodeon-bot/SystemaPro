@@ -1,7 +1,7 @@
 # Skill: Создание нового API endpoint (Backend)
 
 ## Описание
-Создание нового модульного API endpoint для FastAPI backend проекта ЕС ТД НГО.
+Создание нового модульного API endpoint для FastAPI backend проекта «Монитор» (SystemaPro).
 
 ## Когда использовать
 - Пользователь просит добавить новый API endpoint

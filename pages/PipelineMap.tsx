@@ -1,8 +1,8 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { PIPELINES_DATA, MOCK_INSPECTORS, MOCK_CADASTRAL } from '../constants';
+import { PIPELINES_DATA, MOCK_INSPECTORS, MOCK_CADASTRAL, API_BASE } from '../constants';
 import { Layers, Zap, Wind, Navigation, Users, Hexagon, Triangle, Gauge, Map as MapIcon } from 'lucide-react';
-import { WeatherState, Inspector } from '../types';
+import { WeatherState, Inspector, PipelineSegment } from '../types';
 
 // Declare Leaflet global
 declare const L: any;
@@ -30,6 +30,31 @@ const PipelineMap = () => {
   const [weather, setWeather] = useState<WeatherState>({ temp: -12, windSpeed: 5, windDeg: 45, condition: 'Снег' });
   const [inspectors, setInspectors] = useState<Inspector[]>(MOCK_INSPECTORS);
   const [scadaData, setScadaData] = useState({ pressure: 5.5, temp: 42 });
+  const [pipelineSegments, setPipelineSegments] = useState<PipelineSegment[]>(PIPELINES_DATA);
+  const [pipelineSource, setPipelineSource] = useState<'database' | 'demo'>('demo');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/pipeline-map/segments`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (Array.isArray(data.segments) && data.segments.length > 0 && !cancelled) {
+          setPipelineSegments(data.segments as PipelineSegment[]);
+          setPipelineSource('database');
+        }
+      } catch {
+        /* оставляем демо-данные */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // --- INITIALIZE MAP ---
   useEffect(() => {
@@ -92,9 +117,10 @@ const PipelineMap = () => {
     lg.clearLayers();
 
     if (activeLayers.PIPELINES) {
-        PIPELINES_DATA.forEach(pipe => {
+        pipelineSegments.forEach(pipe => {
             const latlngs = pipe.coordinates.map(c => [c.lat, c.lng]);
-            const color = pipe.type === 'UNDERGROUND' ? '#f59e0b' : '#3b82f6';
+            const color =
+              pipe.type === 'UNDERGROUND' ? '#f59e0b' : pipe.type === 'CROSSING' ? '#a855f7' : '#3b82f6';
             const isSelected = selectedSegment === pipe.id;
 
             // 1. Buffer Zone (Transparent)
@@ -106,12 +132,13 @@ const PipelineMap = () => {
             }).addTo(lg);
 
             // 2. The Pipe
-            const line = L.polyline(latlngs, {
+            const lineOpts: Record<string, unknown> = {
                 color: isSelected ? '#fff' : color,
                 weight: isSelected ? 6 : 4,
                 opacity: 1,
-                dashArray: pipe.type === 'UNDERGROUND' ? '10, 10' : null
-            }).addTo(lg);
+            };
+            if (pipe.type === 'UNDERGROUND') lineOpts.dashArray = '10, 10';
+            const line = L.polyline(latlngs, lineOpts).addTo(lg);
 
             line.on('click', () => {
                 setSelectedSegment(pipe.id);
@@ -123,7 +150,7 @@ const PipelineMap = () => {
             // L.tooltip({permanent: true, direction: 'center', className: 'bg-transparent border-0 text-white font-bold'}).setContent(pipe.name).setLatLng(latlngs[0]).addTo(lg);
         });
     }
-  }, [activeLayers.PIPELINES, selectedSegment]);
+  }, [activeLayers.PIPELINES, selectedSegment, pipelineSegments]);
 
   // --- RENDER CADASTRAL ---
   useEffect(() => {
@@ -174,7 +201,7 @@ const PipelineMap = () => {
      lg.clearLayers();
 
      if (activeLayers.TOXI_RISK && selectedSegment) {
-        const pipe = PIPELINES_DATA.find(p => p.id === selectedSegment);
+        const pipe = pipelineSegments.find(p => p.id === selectedSegment);
         if (pipe) {
             const start = pipe.coordinates[0];
             // Simple logic: Create a triangle polygon based on wind direction
@@ -200,7 +227,7 @@ const PipelineMap = () => {
             }).addTo(lg);
         }
      }
-  }, [activeLayers.TOXI_RISK, selectedSegment, weather.windDeg]);
+  }, [activeLayers.TOXI_RISK, selectedSegment, weather.windDeg, pipelineSegments]);
 
 
   // --- SIMULATION LOOPS ---
@@ -243,6 +270,13 @@ const PipelineMap = () => {
         
         {/* LEAFLET MAP CONTAINER */}
         <div ref={mapContainerRef} className="w-full h-full z-0 bg-[#0f172a]" id="map"></div>
+
+        {pipelineSource === 'demo' && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] max-w-xl px-3 py-1.5 rounded-lg bg-amber-950/90 border border-amber-700/50 text-amber-100 text-xs text-center">
+            Демо-геометрия трубопроводов. Реальные линии: сегменты в БД + координаты в{' '}
+            <span className="font-mono">equipment.attributes.pipeline_map.coordinates</span>
+          </div>
+        )}
 
         {/* OVERLAYS */}
         
@@ -302,7 +336,7 @@ const PipelineMap = () => {
       {selectedSegment ? (
         <div className="w-full md:w-80 bg-secondary rounded-xl p-5 border border-slate-700 animate-in slide-in-from-right duration-300 flex flex-col gap-4">
            {(() => {
-             const seg = PIPELINES_DATA.find(s => s.id === selectedSegment);
+             const seg = pipelineSegments.find(s => s.id === selectedSegment);
              if(!seg) return null;
              return (
                <>

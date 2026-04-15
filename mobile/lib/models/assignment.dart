@@ -136,6 +136,14 @@ class Assignment {
         return 'Экспертиза ПБ';
       case 'INSPECTION':
         return 'Обследование';
+      case 'CHTO':
+        return 'ЧТО';
+      case 'PTO':
+        return 'ПТО';
+      case 'NVO':
+        return 'НВО';
+      case 'NVO_GI':
+        return 'НВО и ГИ';
       default:
         return assignmentType;
     }

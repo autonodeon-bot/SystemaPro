@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn } from 'lucide-react';
-import { APP_VERSION } from '../constants';
+import { APP_VERSION, PLATFORM_FULL_TITLE } from '../constants';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -39,7 +39,7 @@ const Login: React.FC = () => {
               <LogIn className="w-8 h-8 text-accent" />
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Вход в систему</h1>
-            <p className="text-slate-400">Единая цифровая платформа ТД НГО</p>
+            <p className="text-accent font-semibold text-sm leading-snug">{PLATFORM_FULL_TITLE}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

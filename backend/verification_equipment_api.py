@@ -41,7 +41,7 @@ async def get_verification_equipment(
         query = select(VerificationEquipment)
         
         if is_active is not None:
-            query = query.where(VerificationEquipment.is_active == (1 if is_active else 0))
+            query = query.where(VerificationEquipment.is_active == bool(is_active))
         
         if equipment_type:
             query = query.where(VerificationEquipment.equipment_type == equipment_type)

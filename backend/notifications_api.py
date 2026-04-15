@@ -16,6 +16,17 @@ from auth import verify_token
 
 logger = logging.getLogger(__name__)
 
+# Подписи типов заданий (как в assignments_api.ASSIGNMENT_TYPE_LABELS_RU)
+_ASSIGNMENT_TYPE_LABELS_RU = {
+    "DIAGNOSTICS": "Диагностика",
+    "EXPERTISE": "Экспертиза ПБ",
+    "INSPECTION": "Обследование",
+    "CHTO": "ЧТО",
+    "PTO": "ПТО",
+    "NVO": "НВО",
+    "NVO_GI": "НВО и ГИ",
+}
+
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
@@ -72,7 +83,7 @@ async def get_notifications(
                 "id": str(assignment.id),
                 "type": "new_assignment",
                 "title": "Новое задание",
-                "message": f"Вам назначено задание: {assignment.assignment_type}",
+                "message": f"Вам назначено задание: {_ASSIGNMENT_TYPE_LABELS_RU.get(assignment.assignment_type, assignment.assignment_type)}",
                 "is_read": False,
                 "created_at": assignment.created_at.isoformat() if assignment.created_at else datetime.now(timezone.utc).isoformat(),
                 "data": {

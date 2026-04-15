@@ -1,0 +1,12 @@
+# Контекст сборки — корень репозитория (frontend + backend). backend/ не исключаем.
+.git
+.github
+**/.DS_Store
+**/node_modules
+**/dist
+**/build
+mobile
+*.md
+.env
+.env.*
+!.env.example

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, ArrowUpDown, User, Building2, MapPin, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { API_BASE } from '../constants';
+import { API_BASE, getAssignmentTypeLabel, ASSIGNMENT_TYPE_SELECT_OPTIONS } from '../constants';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CreateAssignmentModal from '../components/CreateAssignmentModal';
@@ -398,14 +398,7 @@ const AssignmentsManagement = () => {
     return labels[status] || status;
   };
 
-  const getTypeLabel = (type: string) => {
-    const labels: { [key: string]: string } = {
-      'DIAGNOSTICS': 'Диагностика',
-      'EXPERTISE': 'Экспертиза ПБ',
-      'INSPECTION': 'Обследование'
-    };
-    return labels[type] || type;
-  };
+  const getTypeLabel = (type: string) => getAssignmentTypeLabel(type);
 
   const getPriorityColor = (priority: string) => {
     const colors: { [key: string]: string } = {
@@ -746,9 +739,9 @@ const AssignmentsManagement = () => {
               className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
             >
               <option value="all">Все типы</option>
-              <option value="DIAGNOSTICS">Диагностика</option>
-              <option value="EXPERTISE">Экспертиза ПБ</option>
-              <option value="INSPECTION">Обследование</option>
+              {ASSIGNMENT_TYPE_SELECT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
 
             <select

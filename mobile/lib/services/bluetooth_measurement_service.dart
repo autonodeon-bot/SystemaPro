@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
 
 /// Поддерживаемые типы приборов
 enum InstrumentType {
@@ -53,8 +53,8 @@ class BluetoothMeasurementService {
   factory BluetoothMeasurementService() => _instance;
   BluetoothMeasurementService._();
 
-  BluetoothDevice? _connectedDevice;
-  BluetoothCharacteristic? _dataCharacteristic;
+  fbp.BluetoothDevice? _connectedDevice;
+  fbp.BluetoothCharacteristic? _dataCharacteristic;
   StreamSubscription? _scanSubscription;
   StreamSubscription? _connectionSubscription;
   StreamSubscription? _dataSubscription;
@@ -62,24 +62,24 @@ class BluetoothMeasurementService {
   final _stateController =
       StreamController<BluetoothConnectionState>.broadcast();
   final _measurementController = StreamController<MeasurementResult>.broadcast();
-  final _devicesController = StreamController<List<ScanResult>>.broadcast();
+  final _devicesController = StreamController<List<fbp.ScanResult>>.broadcast();
 
   Stream<BluetoothConnectionState> get stateStream => _stateController.stream;
   Stream<MeasurementResult> get measurementStream =>
       _measurementController.stream;
-  Stream<List<ScanResult>> get devicesStream => _devicesController.stream;
+  Stream<List<fbp.ScanResult>> get devicesStream => _devicesController.stream;
 
   BluetoothConnectionState _currentState = BluetoothConnectionState.disconnected;
   BluetoothConnectionState get currentState => _currentState;
 
   InstrumentType _instrumentType = InstrumentType.generic;
 
-  final List<ScanResult> _discoveredDevices = [];
+  final List<fbp.ScanResult> _discoveredDevices = [];
 
   /// Проверка доступности Bluetooth
   Future<bool> isAvailable() async {
     try {
-      return await FlutterBluePlus.isSupported;
+      return await fbp.FlutterBluePlus.isSupported;
     } catch (e) {
       return false;
     }
@@ -97,7 +97,7 @@ class BluetoothMeasurementService {
     _updateState(BluetoothConnectionState.scanning);
 
     _scanSubscription?.cancel();
-    _scanSubscription = FlutterBluePlus.onScanResults.listen((results) {
+    _scanSubscription = fbp.FlutterBluePlus.onScanResults.listen((results) {
       for (var r in results) {
         final idx = _discoveredDevices
             .indexWhere((d) => d.device.remoteId == r.device.remoteId);
@@ -110,24 +110,24 @@ class BluetoothMeasurementService {
       _devicesController.add(List.from(_discoveredDevices));
     });
 
-    await FlutterBluePlus.startScan(timeout: timeout);
+    await fbp.FlutterBluePlus.startScan(timeout: timeout);
     _updateState(BluetoothConnectionState.disconnected);
   }
 
   /// Остановить сканирование
   Future<void> stopScan() async {
-    await FlutterBluePlus.stopScan();
+    await fbp.FlutterBluePlus.stopScan();
     _scanSubscription?.cancel();
   }
 
   /// Подключиться к устройству
-  Future<bool> connect(BluetoothDevice device,
+  Future<bool> connect(fbp.BluetoothDevice device,
       {InstrumentType type = InstrumentType.generic}) async {
     try {
       _updateState(BluetoothConnectionState.connecting);
       _instrumentType = type;
 
-      await device.connect(timeout: const Duration(seconds: 15));
+      await device.connect(license: fbp.License.free);
       _connectedDevice = device;
 
       final services = await device.discoverServices();
@@ -151,7 +151,7 @@ class BluetoothMeasurementService {
       }
 
       _connectionSubscription = device.connectionState.listen((state) {
-        if (state == BluetoothConnectionState2.disconnected) {
+        if (state == fbp.BluetoothConnectionState.disconnected) {
           _updateState(BluetoothConnectionState.disconnected);
           _cleanup();
         }

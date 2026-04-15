@@ -40,28 +40,40 @@ const ClientPortal = () => {
     loadData();
   }, []);
 
+  const authHeaders = (): HeadersInit => {
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  };
+
   const loadData = async () => {
     try {
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      const token = localStorage.getItem('token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      const headers = authHeaders();
+
+      const eqResponse = await fetch(`${API_BASE}/api/equipment`, { headers });
+      if (eqResponse.ok) {
+        const eqData = await eqResponse.json();
+        setEquipment(eqData.items || []);
+      } else {
+        setEquipment([]);
       }
 
-      // Загрузка оборудования
-      const eqResponse = await fetch(`${API_BASE}/api/equipment`, { headers });
-      const eqData = await eqResponse.json();
-      setEquipment(eqData.items || []);
-
-      // Загрузка диагностик
       const inspResponse = await fetch(`${API_BASE}/api/inspections`, { headers });
-      const inspData = await inspResponse.json();
-      setInspections(inspData.items || []);
+      if (inspResponse.ok) {
+        const inspData = await inspResponse.json();
+        setInspections(inspData.items || []);
+      } else {
+        setInspections([]);
+      }
 
-      // Загрузка отчетов
       const repResponse = await fetch(`${API_BASE}/api/reports`, { headers });
-      const repData = await repResponse.json();
-      setReports(repData.items || []);
+      if (repResponse.ok) {
+        const repData = await repResponse.json();
+        setReports(repData.items || []);
+      } else {
+        setReports([]);
+      }
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     } finally {
@@ -71,7 +83,11 @@ const ClientPortal = () => {
 
   const handleDownloadReport = async (reportId: string, filename: string) => {
     try {
-      const response = await fetch(`${API_BASE}/api/reports/${reportId}/download`);
+      const headers: HeadersInit = {};
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`${API_BASE}/api/reports/${reportId}/download`, { headers });
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -82,6 +98,10 @@ const ClientPortal = () => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+      } else if (response.status === 403) {
+        alert('Нет прав на скачивание этого отчёта');
+      } else {
+        alert('Не удалось скачать отчёт');
       }
     } catch (error) {
       console.error('Ошибка скачивания отчета:', error);
@@ -179,8 +199,18 @@ const ClientPortal = () => {
       </div>
 
       {filteredEquipment.length === 0 && (
-        <div className="text-center text-slate-400 py-20">
-          Оборудование не найдено
+        <div className="text-center text-slate-400 py-20 max-w-lg mx-auto space-y-2">
+          {equipment.length === 0 && searchTerm.trim() === '' ? (
+            <>
+              <p>Для вашей учётной записи пока нет доступного оборудования.</p>
+              <p className="text-sm text-slate-500">
+                Администратор должен указать организацию клиента в профиле пользователя и привязать предприятие
+                (поле «Клиент» у предприятия) или проекты с заданиями/обследованиями по вашему оборудованию.
+              </p>
+            </>
+          ) : (
+            <p>Оборудование не найдено по запросу</p>
+          )}
         </div>
       )}
 

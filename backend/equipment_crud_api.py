@@ -12,6 +12,7 @@ import os
 
 from database import get_db
 from auth import verify_token
+from client_access import get_client_accessible_equipment_ids
 from models import (
     Equipment, EquipmentType, User, Workshop, Branch, Enterprise, Opo,
     UserEquipmentAccess, HierarchyEngineerAssignment,
@@ -149,6 +150,20 @@ async def get_equipment(
                 equipment = result.scalars().all()
             else:
                 equipment = []
+        elif user.role == "client":
+            allowed_ids = await get_client_accessible_equipment_ids(db, user)
+            if not allowed_ids:
+                equipment = []
+            else:
+                query = select(Equipment).where(Equipment.id.in_(allowed_ids))
+                if workshop_id:
+                    try:
+                        workshop_uuid = uuid_lib.UUID(workshop_id)
+                        query = query.where(Equipment.workshop_id == workshop_uuid)
+                    except ValueError:
+                        raise HTTPException(status_code=400, detail="Неверный формат workshop_id")
+                result = await db.execute(query.offset(effective_offset).limit(effective_limit))
+                equipment = result.scalars().all()
         else:
             query = select(Equipment)
             if workshop_id:

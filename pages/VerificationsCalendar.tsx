@@ -43,14 +43,23 @@ const VerificationsCalendar: React.FC = () => {
     }
   };
 
+  /** Ключ даты YYYY-MM-DD в локальном календаре (без UTC-сдвига). */
+  const localDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    
+    // Понедельник = первый столбец: JS getDay() 0=Вс → сдвиг
+    const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
+
     const days: (Date | null)[] = [];
     // Пустые ячейки для дней предыдущего месяца
     for (let i = 0; i < startingDayOfWeek; i++) {
@@ -64,11 +73,11 @@ const VerificationsCalendar: React.FC = () => {
   };
 
   const getEquipmentForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = localDateKey(date);
     return equipment.filter(eq => {
       if (!eq.next_verification_date) return false;
-      const eqDate = new Date(eq.next_verification_date).toISOString().split('T')[0];
-      return eqDate === dateStr;
+      const eqKey = eq.next_verification_date.slice(0, 10);
+      return eqKey === dateStr;
     });
   };
 
@@ -77,10 +86,12 @@ const VerificationsCalendar: React.FC = () => {
     const month = currentMonth.getMonth();
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0);
-    
+
     return equipment.filter(eq => {
       if (!eq.next_verification_date) return false;
-      const eqDate = new Date(eq.next_verification_date);
+      const raw = eq.next_verification_date.slice(0, 10);
+      const [y, mo, d] = raw.split('-').map(Number);
+      const eqDate = new Date(y, mo - 1, d);
       return eqDate >= startDate && eqDate <= endDate;
     });
   };
@@ -89,13 +100,23 @@ const VerificationsCalendar: React.FC = () => {
     if (!date) return '';
     const eqForDate = getEquipmentForDate(date);
     if (eqForDate.length === 0) return '';
-    
+
     const hasExpired = eqForDate.some(eq => eq.is_expired);
-    const hasWarning = eqForDate.some(eq => !eq.is_expired && eq.days_until_expiry !== null && eq.days_until_expiry <= 7);
-    
+    const hasUrgent = eqForDate.some(
+      eq => !eq.is_expired && eq.days_until_expiry !== null && eq.days_until_expiry <= 7
+    );
+    const hasMonth = eqForDate.some(
+      eq =>
+        !eq.is_expired &&
+        eq.days_until_expiry !== null &&
+        eq.days_until_expiry > 7 &&
+        eq.days_until_expiry <= 30
+    );
+
     if (hasExpired) return 'bg-red-500/20 border-red-500';
-    if (hasWarning) return 'bg-orange-500/20 border-orange-500';
-    return 'bg-yellow-500/20 border-yellow-500';
+    if (hasUrgent) return 'bg-orange-500/20 border-orange-500';
+    if (hasMonth) return 'bg-yellow-500/20 border-yellow-500';
+    return 'bg-emerald-500/10 border-emerald-600';
   };
 
   const monthNames = [
@@ -165,7 +186,11 @@ const VerificationsCalendar: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-yellow-500/20 border border-yellow-500 rounded"></div>
-            <span className="text-sm text-slate-300">Истекает ≤30 дней</span>
+            <span className="text-sm text-slate-300">Истекает 8–30 дней</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-emerald-500/10 border border-emerald-600 rounded"></div>
+            <span className="text-sm text-slate-300">Срок &gt; 30 дней</span>
           </div>
         </div>
       </div>
@@ -197,7 +222,7 @@ const VerificationsCalendar: React.FC = () => {
                       className="text-xs text-slate-300 truncate mb-1"
                       title={eq.name}
                     >
-                      {eq.equipment_type}: {eq.name.substring(0, 15)}...
+                      {eq.equipment_type}: {(eq.name || '').length > 15 ? `${(eq.name || '').slice(0, 15)}…` : (eq.name || '—')}
                     </div>
                   ))}
                   {getEquipmentForDate(date).length > 2 && (
@@ -241,6 +266,14 @@ const VerificationsCalendar: React.FC = () => {
                     ) : eq.days_until_expiry !== null && eq.days_until_expiry <= 7 ? (
                       <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs">
                         Истекает через {eq.days_until_expiry} дн.
+                      </span>
+                    ) : eq.days_until_expiry !== null && eq.days_until_expiry <= 30 ? (
+                      <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">
+                        Истекает через {eq.days_until_expiry} дн.
+                      </span>
+                    ) : !eq.is_expired && eq.days_until_expiry !== null ? (
+                      <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-xs">
+                        Через {eq.days_until_expiry} дн.
                       </span>
                     ) : null}
                   </div>

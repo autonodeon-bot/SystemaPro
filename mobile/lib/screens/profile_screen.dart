@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/auth_service.dart';
+import '../services/api_service.dart';
 import '../models/user.dart';
 import '../services/sync_service.dart';
 import '../providers/theme_provider.dart';
+import 'instrument_park_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -16,10 +18,12 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _authService = AuthService();
+  final _apiService = ApiService();
   User? _user;
   bool _isLoading = true;
   String _appVersion = 'Загрузка...';
   bool _pinEnabled = false;
+  List<Map<String, dynamic>> _myInstruments = [];
 
   @override
   void initState() {
@@ -48,6 +52,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _user = user;
       _isLoading = false;
     });
+    _loadMyInstruments();
+  }
+
+  Future<void> _loadMyInstruments() async {
+    try {
+      final data = await _apiService.getMyInstruments();
+      if (mounted) {
+        setState(() {
+          _myInstruments = List<Map<String, dynamic>>.from(data);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadPinStatus() async {
@@ -491,7 +507,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: ListTile(
               leading: const Icon(Icons.info_outline, color: Colors.white70),
               title: const Text(
-                'ЕС ТД НГО — мобильное приложение инженера диагностики',
+                'Монитор (SystemaPro) — мобильное приложение инженера диагностики',
                 style: TextStyle(color: Colors.white, fontSize: 14),
               ),
               subtitle: const Text(
@@ -561,6 +577,83 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     onTap: _showRemovePinDialog,
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Приборный парк — П.4
+          Card(
+            color: const Color(0xFF1e293b),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.build_circle_outlined, color: Colors.blueAccent),
+                  title: const Text(
+                    'Приборный парк',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: _myInstruments.isEmpty
+                      ? const Text('Нет закреплённых приборов',
+                          style: TextStyle(color: Colors.white54, fontSize: 12))
+                      : Text(
+                          'Закреплено приборов: ${_myInstruments.length}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white70),
+                  onTap: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const InstrumentParkScreen(),
+                    ));
+                  },
+                ),
+                // Список закреплённых приборов (П.4.3)
+                if (_myInstruments.isNotEmpty) ...[
+                  const Divider(color: Colors.white12, height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Мои приборы',
+                            style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        ..._myInstruments.map((inst) {
+                          final name = (inst['name'] as String?) ?? 'Прибор';
+                          final type = (inst['type'] as String?) ?? '';
+                          final verUntil = (inst['verification_until'] as String?) ?? '—';
+                          final condCode = (inst['condition'] as String?) ?? 'ok';
+                          Color condColor = Colors.greenAccent;
+                          if (condCode == 'damaged') condColor = Colors.orange;
+                          if (condCode == 'broken') condColor = Colors.redAccent;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                Icon(Icons.circle, size: 8, color: condColor),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '$name${type.isNotEmpty ? ' ($type)' : ''}',
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 13),
+                                  ),
+                                ),
+                                Text(
+                                  'Поверка: $verUntil',
+                                  style: const TextStyle(
+                                      color: Colors.white54, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

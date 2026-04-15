@@ -10,6 +10,11 @@ import 'assignments_screen.dart';
 import 'profile_screen.dart';
 import 'sync_screen.dart';
 import 'opo_list_screen.dart';
+import 'protocols_registry_screen.dart';
+import 'quick_control_screen.dart';
+import 'new_ndk_protocol_screen.dart';
+import 'protocol_template_selection_screen.dart';
+import 'select_equipment_for_act_screen.dart';
 import '../services/sync_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -364,6 +369,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AssignmentsScreen(),
                 EquipmentListScreen(),
                 OpoListScreen(),
+                ProtocolsRegistryScreen(),
                 SyncScreen(),
                 ProfileScreen(),
               ],
@@ -371,6 +377,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+      // Кнопка «Создать» — показывается только на вкладке «Протоколы»
+      floatingActionButton: _currentIndex == 3
+          ? FloatingActionButton.extended(
+              onPressed: () => _showCreateProtocolSheet(context),
+              backgroundColor: AppColors.darkPrimary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Создать'),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -413,6 +430,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'ОПО',
               ),
               BottomNavigationBarItem(
+                icon: Icon(Icons.folder_copy_outlined, semanticLabel: 'Протоколы'),
+                label: 'Протоколы',
+              ),
+              BottomNavigationBarItem(
                 icon: Icon(Icons.sync, semanticLabel: 'Синхронизация'),
                 label: 'Синхронизация',
               ),
@@ -423,6 +444,157 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Нижний лист «Создать» (П.1.1) с 4-мя подразделами
+  void _showCreateProtocolSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Создать протокол / акт',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Выберите тип создаваемого документа',
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              // 1.1.1 Быстрый контроль ВИК/УЗТ
+              _createSheetItem(
+                ctx,
+                icon: Icons.flash_on,
+                color: Colors.amber,
+                title: 'Быстрый контроль',
+                subtitle: 'ВИК, УЗТ — оперативный протокол',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const QuickControlScreen(),
+                  ));
+                },
+              ),
+              const SizedBox(height: 12),
+              // 1.1.2 Новый протокол НК
+              _createSheetItem(
+                ctx,
+                icon: Icons.assignment_add,
+                color: Colors.blueAccent,
+                title: 'Новый протокол НК',
+                subtitle: 'Выбор методов: ВИК, УЗТ, УЗК, ПВК(МПД)',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const NewNdkProtocolScreen(),
+                  ));
+                },
+              ),
+              const SizedBox(height: 12),
+              // 1.1.3 Акт ТД (ЭПБ)
+              _createSheetItem(
+                ctx,
+                icon: Icons.description_outlined,
+                color: Colors.greenAccent,
+                title: 'Акт ТД (ЭПБ) оборудования',
+                subtitle: 'Сосуд, котёл, буровая установка и др.',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const SelectEquipmentForActScreen(),
+                  ));
+                },
+              ),
+              const SizedBox(height: 12),
+              // 1.1.4 Свой протокол (загрузка из конструктора)
+              _createSheetItem(
+                ctx,
+                icon: Icons.layers_outlined,
+                color: Colors.orangeAccent,
+                title: 'Свой протокол / акт',
+                subtitle: 'Выбрать шаблон из конструктора',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ProtocolTemplateSelectionScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _createSheetItem(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.white30, size: 14),
+          ],
+        ),
       ),
     );
   }

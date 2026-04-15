@@ -328,6 +328,8 @@ class NDTMethod {
 
 // Раздел 8: Результаты неразрушающего контроля
 class Section8NDT {
+  Section8NDT();
+
   QuestionnaireItem? hasVisualInspection; // Проведен ВИК
   QuestionnaireItem? visualInspectionResults; // Результаты ВИК
   QuestionnaireItem? hasUltrasonicTesting; // Проведен УЗК

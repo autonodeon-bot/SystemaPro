@@ -12,12 +12,40 @@ interface Version {
 }
 
 const Changelog = () => {
+  /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
-      version: '3.25.0',
-      date: '25.02.2026',
+      version: '3.26.0',
+      date: '07.04.2026',
       type: 'minor',
       changes: [
+        { type: 'added', description: 'Мобильное: меню «Создать» — пункт «Акт ТД (ЭПБ) оборудования» теперь открывает экран выбора объекта из базы (поиск, фильтр по типу) с прямым переходом к созданию акта.' },
+        { type: 'added', description: 'Мобильное: новый экран «Новый протокол НК» — выбор методов контроля (ВИК, УЗТ; УЗК и ПВК/МПД — скоро), динамическая форма протокола по выбранным методам.' },
+        { type: 'added', description: 'Мобильное: «Продолжить контроль» — реестр черновиков теперь открывает нужный экран (QuickControl / НК-протокол / Свой шаблон) с восстановлением всех заполненных данных.' },
+        { type: 'added', description: 'Мобильное: «Ведомость дефектов» — официальный бланк результатов НК с автозаполнением из VIK-дефектов и UZT-замеров, статистикой, фильтром по степени, заключением и подписями.' },
+        { type: 'added', description: 'Мобильное: PDF-экспорт ведомости дефектов с кириллическими шрифтами (NotoSans через printing/pdf), диалог печати и сохранения.' },
+        { type: 'added', description: 'Мобильное: реестр протоколов/актов — переведён на единую таблицу (Дата | Объект | Вид контроля | Статус) с зелёным/красным цветом статуса, как в требованиях.' },
+        { type: 'added', description: 'Мобильное: реестр приборов — переведён на компактную таблицу (№ | Наименование | Тип | Поверка до | Состояние | Специалист) с цветовой индикацией срока поверки и состояния.' },
+        { type: 'added', description: 'Веб: новый раздел «Ведомость дефектов» (/defect-statement) — импорт из обследования, редактируемая таблица дефектов, автозаключение, фильтр по степени, печать/PDF через браузер.' },
+        { type: 'added', description: 'Веб: конструктор протоколов/актов (/protocol-constructor) — создание и управление шаблонами протоколов с блочным редактором (секции, таблицы, поля, фото, подписи и др.).' },
+        { type: 'added', description: 'Веб: корзина удалённых обследований (/inspections-trash) — просмотр мягко удалённых записей, восстановление в течение 60 дней, принудительная очистка для admin.' },
+        { type: 'added', description: 'П.5.1 — Защита от случайного удаления: мягкое удаление (soft-delete) обследований с 60-дневным периодом восстановления; физическое удаление только по команде admin (purge). Все GET-запросы автоматически скрывают удалённые записи.' },
+        { type: 'added', description: 'Бэкенд: новые endpoints — POST /api/inspections/{id}/restore, GET /api/inspections-trash, DELETE /api/inspections-trash/purge; миграция Alembic 004 (поля is_deleted, deleted_at, deleted_by в таблице inspections).' },
+        { type: 'added', description: 'Мобильное: «Быстрый контроль ВИК/УЗТ» — реальное сохранение черновиков через AutoSaveService, восстановление всех полей, фотографий и таблиц при повторном открытии.' },
+        { type: 'added', description: 'Мобильное: «Свой протокол / акт» — сохранение и восстановление черновиков шаблонных протоколов через AutoSaveService.' },
+        { type: 'improved', description: 'Мобильное: AutoSaveService расширен методом saveGenericDraft с поддержкой типов экранов (quick_control, ndk_protocol, custom_protocol) для унифицированного сохранения черновиков.' },
+      ],
+    },
+    {
+      version: '3.25.0',
+      date: '31.03.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Клиентский портал: фильтрация оборудования, обследований и отчётов по роли client; скачивание отчётов с Bearer; маршрут только для client; привязка через enterprises.client_id и проекты.' },
+        { type: 'added', description: 'Календарь поверок: корректные локальные даты, неделя с понедельника, легенда сроков; API фильтр is_active по boolean.' },
+        { type: 'added', description: 'Карта трубопроводов: GET /api/pipeline-map/segments из БД и coordinates в attributes оборудования; демо при отсутствии геоданных.' },
+        { type: 'added', description: 'Миграция Alembic 003 (enterprises.client_id), загрузка .env в alembic/env.py; DB_SSLMODE=disable для локального Postgres без TLS.' },
+        { type: 'changed', description: 'Имя продукта в интерфейсе: «Монитор» (кодовое имя SystemaPro / ЕС ТД НГО) — веб, мобильное приложение, OpenAPI.' },
         { type: 'added', description: 'Системный релиз 3.25.0: синхронизированы версии web/backend/mobile и обновлён раздел «Что нового».' },
         { type: 'improved', description: 'Web UI-kit (phase 1): добавлены единые классы sp-card, sp-card-soft, sp-section-title, sp-badge и sp-btn-subtle для сквозного современного интерфейса.' },
         { type: 'improved', description: 'Web отчёты: страницы ReportGeneration и ReportViewer переведены на унифицированный визуальный каркас без потери функциональности.' },
@@ -434,6 +462,8 @@ const Changelog = () => {
     }
   };
 
+  const latest = versions[0];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -444,7 +474,9 @@ const Changelog = () => {
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
         <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
           <h2 className="text-xl font-bold text-white mb-2">Версия системы</h2>
-          <p className="text-2xl font-bold text-accent">3.25.0 (25.02.2026)</p>
+          <p className="text-2xl font-bold text-accent">
+            {latest.version} ({latest.date})
+          </p>
           <p className="text-sm text-slate-400 mt-1">Текущая версия платформы</p>
         </div>
         <p className="text-slate-300 mb-6">

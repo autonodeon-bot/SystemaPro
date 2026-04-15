@@ -11,6 +11,11 @@ class AutoSaveService {
   static const Duration _autoSaveInterval = Duration(seconds: 30);
   static const String _screenTypeInspection = 'inspection';
 
+  // Типы экранов для черновиков
+  static const String screenTypeQuickControl  = 'quick_control';
+  static const String screenTypeNdkProtocol   = 'ndk_protocol';
+  static const String screenTypeCustomProtocol = 'custom_protocol';
+
   /// Сохранить черновик обследования (sqflite + file backup)
   Future<void> saveDraft({
     required String equipmentId,
@@ -80,6 +85,47 @@ class AutoSaveService {
     } catch (e) {
       print('Ошибка удаления черновика: $e');
     }
+  }
+
+  /// Универсальное сохранение черновика любого типа экрана.
+  /// [screenType] — 'quick_control' | 'ndk_protocol' | 'custom_protocol' | 'inspection'
+  /// [id] — уникальный ключ черновика
+  /// [data] — данные формы
+  /// [meta] — отображаемые поля: objectName, controlType, category
+  Future<void> saveGenericDraft({
+    required String id,
+    required String screenType,
+    required Map<String, dynamic> data,
+    Map<String, dynamic>? meta,
+  }) async {
+    try {
+      final draft = {
+        'id': id,
+        'screen_type': screenType,
+        'equipment_id': meta?['equipment_id'] ?? id,
+        'checklist_data': {
+          ...data,
+          'object_name': meta?['objectName'] ?? '',
+          'inspection_type': screenType,
+          'control_type': meta?['controlType'] ?? screenType,
+          'category': meta?['category'] ?? '',
+          ...?meta,
+        },
+        'saved_at': DateTime.now().toIso8601String(),
+        'version': 1,
+      };
+      await DatabaseService.saveDraft(id, screenType, draft);
+      await _saveToFile(draft);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKeyLastSave, DateTime.now().toIso8601String());
+    } catch (e) {
+      print('Ошибка saveGenericDraft: $e');
+    }
+  }
+
+  /// Получить черновик по id
+  Future<Map<String, dynamic>?> getDraftById(String id) async {
+    return await DatabaseService.getDraft(id);
   }
 
   /// Очистить все черновики старше определенного времени (sqflite)

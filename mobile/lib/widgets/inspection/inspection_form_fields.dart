@@ -139,12 +139,51 @@ Widget buildDropdownField(String name, String label, List<String> items,
   );
 }
 
+/// Показывает диалог подтверждения удаления.
+/// Возвращает true если пользователь нажал «Да».
+Future<bool> showConfirmDeleteDialog(
+  BuildContext context, {
+  String title = 'Подтверждение удаления',
+  String message = 'Вы уверены? Запись будет удалена.',
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Нет'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('Да'),
+        ),
+      ],
+    ),
+  );
+  return result == true;
+}
+
 Widget buildListItemCard({
   required String title,
   required String subtitle,
   required VoidCallback onDelete,
   VoidCallback? onTap,
+  BuildContext? deleteContext,
 }) {
+  void handleDelete() {
+    if (deleteContext != null) {
+      showConfirmDeleteDialog(deleteContext).then((confirmed) {
+        if (confirmed) onDelete();
+      });
+    } else {
+      onDelete();
+    }
+  }
+
   final content = Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     child: Row(
@@ -167,7 +206,7 @@ Widget buildListItemCard({
           ),
         ),
         IconButton(
-          onPressed: onDelete,
+          onPressed: handleDelete,
           icon: const Icon(Icons.delete, color: Colors.redAccent),
           tooltip: 'Удалить',
         ),

@@ -124,6 +124,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       case 'INSPECTION':
         return 'VISUAL';
       case 'DIAGNOSTICS':
+      case 'CHTO':
+      case 'PTO':
+      case 'NVO':
+      case 'NVO_GI':
       default:
         return 'NDT';
     }

@@ -37,6 +37,7 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
               checklist.zraItems.removeAt(idx);
               onStateChanged();
             },
+            deleteContext: context,
           );
         }),
         const SizedBox(height: 24),
@@ -60,6 +61,7 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
               checklist.sppkItems.removeAt(idx);
               onStateChanged();
             },
+            deleteContext: context,
           );
         }),
       ],

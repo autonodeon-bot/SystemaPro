@@ -29,6 +29,7 @@ from models import (
 )
 from report_generator import ReportGenerator
 from shared import resolve_report_file_path, metrics
+from client_access import get_client_accessible_equipment_ids, client_user_can_access_equipment
 
 _resolve_report_file_path = resolve_report_file_path
 _metrics = metrics
@@ -71,6 +72,13 @@ async def get_reports(
             raise HTTPException(status_code=404, detail="User not found")
 
         query = select(Report)
+
+        if current_user.role == "client":
+            allowed_eq = await get_client_accessible_equipment_ids(db, current_user)
+            if not allowed_eq:
+                return {"items": [], "total": 0}
+            insp_allowed = select(Inspection.id).where(Inspection.equipment_id.in_(allowed_eq))
+            query = query.where(Report.inspection_id.in_(insp_allowed))
         # Временно НЕ фильтруем по is_archived, чтобы показать все отчеты
         # Фильтрация будет добавлена позже, когда будет уверенность, что поле корректно работает
         # query = query.where(Report.is_archived == False)
@@ -117,7 +125,7 @@ async def get_reports(
                     )
                 )
             )
-        
+
         result = await db.execute(query.order_by(Report.created_at.desc()))
         reports = result.scalars().all()
         
@@ -1590,7 +1598,7 @@ async def download_report(
     """Download report file (PDF/DOCX)"""
     try:
         # Текущий пользователь и права
-        user_result = await db.execute(select(User).where(User.username == username))
+        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
         current_user = user_result.scalar_one_or_none()
         if not current_user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -1613,6 +1621,15 @@ async def download_report(
                 if insp and insp.inspector_id == current_user.id:
                     allowed = True
             if not allowed:
+                raise HTTPException(status_code=403, detail="Доступ запрещен")
+        elif current_user.role == "client":
+            if not report.inspection_id:
+                raise HTTPException(status_code=403, detail="Доступ запрещен")
+            insp_result = await db.execute(select(Inspection).where(Inspection.id == report.inspection_id))
+            insp = insp_result.scalar_one_or_none()
+            if not insp or not insp.equipment_id:
+                raise HTTPException(status_code=403, detail="Доступ запрещен")
+            if not await client_user_can_access_equipment(db, current_user, insp.equipment_id):
                 raise HTTPException(status_code=403, detail="Доступ запрещен")
 
         # Выбор файла по формату (если указан), иначе по расширению/наличию

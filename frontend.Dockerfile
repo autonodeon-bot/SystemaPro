@@ -17,6 +17,10 @@ COPY . .
 ARG VITE_API_BASE=
 ENV VITE_API_BASE=$VITE_API_BASE
 
+# Меняйте при каждом деплое (docker-compose build --build-arg), чтобы сбрасывать кэш слоя сборки
+ARG BUILD_REF=dev
+RUN echo "frontend build ref: ${BUILD_REF}"
+
 # Build the application
 RUN npm run build
 

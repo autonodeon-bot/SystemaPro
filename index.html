@@ -6,14 +6,29 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <title>NeftMonitor | Платформа Диагностики</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%233b82f6' width='32' height='32' rx='4'/><text x='16' y='22' font-size='16' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'>N</text></svg>" />
+    <title>Единая цифровая платформа контроля диагностических работ «МОНИТОР»</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%233b82f6' width='32' height='32' rx='4'/><text x='16' y='22' font-size='16' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'>М</text></svg>" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <!-- ADDED LEAFLET JS SCRIPT -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
   <body class="bg-primary text-slate-200 antialiased overflow-hidden">
     <div id="root"></div>
+    <script>
+      // Автоматическая перезагрузка при ошибке динамического импорта чанков
+      // (возникает когда браузер закешировал старый index.html после деплоя)
+      window.addEventListener('vite:preloadError', function(event) {
+        event.preventDefault();
+        window.location.reload();
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        var msg = event.reason && (event.reason.message || String(event.reason));
+        if (msg && (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Importing a module script failed'))) {
+          event.preventDefault();
+          window.location.reload();
+        }
+      });
+    </script>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

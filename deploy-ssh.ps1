@@ -31,6 +31,22 @@ ssh $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/compon
 Write-Host "  Done" -ForegroundColor Green
 Write-Host ""
 
+Write-Host "[2.5/7] Environment (.env) on server..." -ForegroundColor Yellow
+$localEnv = Join-Path $ProjectRoot ".env"
+if (Test-Path $localEnv) {
+    scp $localEnv "${SERVER}:${REMOTE}/.env"
+    Write-Host '  OK: .env copied to server' -ForegroundColor Green
+} else {
+    $null = ssh $SERVER "test -s $REMOTE/.env"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: No .env in project root and server $REMOTE/.env is missing or empty." -ForegroundColor Red
+        Write-Host '       Create .env from .env.example then redeploy.' -ForegroundColor Red
+        exit 1
+    }
+    Write-Host '  No local .env: keep server .env' -ForegroundColor Gray
+}
+Write-Host ""
+
 Write-Host "[3/7] Copying files..." -ForegroundColor Yellow
 $dest = "${SERVER}`:${REMOTE}"
 scp -r backend/* "${dest}/backend/"
@@ -93,12 +109,13 @@ if (Test-Path $apkPath) {
         }
     }
     ssh $SERVER "chmod -R a+rX $REMOTE/mobile-apk"
-    Write-Host "  APK загружен -> http://5.129.203.182/mobile/app-release.apk" -ForegroundColor Green
+    Write-Host '  APK uploaded: http://5.129.203.182/mobile/app-release.apk' -ForegroundColor Green
 }
 Write-Host ""
 
-Write-Host "[4/7] Building containers (no cache)..." -ForegroundColor Yellow
-ssh $SERVER "cd $REMOTE; docker-compose build --no-cache backend frontend"
+Write-Host "[4/7] Building containers (no cache, BUILD_REF for fresh frontend)..." -ForegroundColor Yellow
+$buildRef = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+ssh $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build --no-cache backend frontend"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build failed. Check output above." -ForegroundColor Red
     exit 1
@@ -106,8 +123,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "  Build done" -ForegroundColor Green
 Write-Host ""
 
-Write-Host "[5/7] Building, migrating and starting (single SSH session)..." -ForegroundColor Yellow
-ssh $SERVER "cd $REMOTE && docker-compose build --no-cache backend frontend && (docker-compose run --rm backend python add_certification_area_column.py || true) && (docker-compose run --rm backend python add_certification_areas_column.py || true) && (docker-compose run --rm backend python add_inspection_grouping_columns.py || true) && docker-compose up -d"
+Write-Host "[5/7] Legacy DB scripts (ignore errors) and start stack..." -ForegroundColor Yellow
+ssh $SERVER "cd $REMOTE; docker-compose run --rm backend python add_certification_area_column.py 2>/dev/null; docker-compose run --rm backend python add_certification_areas_column.py 2>/dev/null; docker-compose run --rm backend python add_inspection_grouping_columns.py 2>/dev/null; docker-compose up -d"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build or start failed. Check output above." -ForegroundColor Red
     exit 1
@@ -116,13 +133,13 @@ Write-Host "  Done" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[6/7] Verifying..." -ForegroundColor Yellow
-ssh $SERVER "cd $REMOTE && docker-compose ps"
+ssh $SERVER "cd $REMOTE; docker-compose ps"
 Write-Host ""
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Site:   https://neftcontrol.ru/ (HTTP: http://5.129.203.182/)" -ForegroundColor White
-Write-Host "API:    https://neftcontrol.ru/api/ (HTTP: http://5.129.203.182:8000/)" -ForegroundColor White
-Write-Host "Mobile: https://neftcontrol.ru/mobile/app-release.apk" -ForegroundColor White
+Write-Host 'Site:   https://neftcontrol.ru/' -ForegroundColor White
+Write-Host 'API:    https://neftcontrol.ru/api/' -ForegroundColor White
+Write-Host 'Mobile: https://neftcontrol.ru/mobile/app-release.apk' -ForegroundColor White
 Write-Host ""

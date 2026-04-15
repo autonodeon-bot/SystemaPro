@@ -6,24 +6,29 @@ services:
     container_name: es_td_ngo_backend
     ports:
       - "8000:8000"
+    # required: false — compose не падает, если на сервере ещё не создан .env (секреты не в git)
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
       - ./backend/certs:/app/certs
       - ./backend/reports:/app/reports
       - ./backend/uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # curl в slim-образе нет — проверка через стандартную библиотеку Python
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()\""]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 60s
     restart: always
 
   frontend:
     build:
       context: .
       dockerfile: frontend.Dockerfile
+      args:
+        BUILD_REF: ${BUILD_REF:-local}
     container_name: es_td_ngo_frontend
     ports:
       - "80:80"

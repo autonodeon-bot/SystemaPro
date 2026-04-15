@@ -191,4 +191,118 @@ class ApiService extends ApiServiceBase
       return null;
     }
   }
+
+  // ============================================================
+  //  Реестр приборов (приборный парк) — П.4
+  // ============================================================
+
+  Future<List<dynamic>> getInstruments() async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/instruments'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as List<dynamic>;
+    }
+    throw Exception('Ошибка загрузки приборов: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> createInstrument(Map<String, dynamic> data) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/instruments'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: json.encode(data),
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Ошибка создания прибора: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> updateInstrument(
+      String id, Map<String, dynamic> data) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/instruments/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: json.encode(data),
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Ошибка обновления прибора: ${response.statusCode}');
+  }
+
+  Future<void> deleteInstrument(String id) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/instruments/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Ошибка удаления прибора: ${response.statusCode}');
+    }
+  }
+
+  Future<List<dynamic>> getMyInstruments() async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/instruments/my'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as List<dynamic>;
+    }
+    return [];
+  }
+
+  // ── Шаблоны протоколов (конструктор П.2) ──────────────────────────────────
+
+  Future<List<dynamic>> getProtocolTemplates({String? category}) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    var url = '$baseUrl/api/protocol-templates?active_only=true';
+    if (category != null && category.isNotEmpty) {
+      url += '&category=${Uri.encodeComponent(category)}';
+    }
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as List<dynamic>;
+    }
+    throw Exception('Ошибка загрузки шаблонов: ${response.statusCode}');
+  }
 }

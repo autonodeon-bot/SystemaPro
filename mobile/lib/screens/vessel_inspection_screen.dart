@@ -54,6 +54,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormBuilderState>();
   final _scrollController = ScrollController();
+  // Постраничная навигация (П.3.1)
+  final _pageController = PageController();
+  int _currentPage = 0;
+  bool _showPageNav = false; // показывать/скрывать навигацию
+  static const _pageLabels = [
+    '1. Основная информация',
+    '2. Документы',
+    '3. Карта обследования',
+    '4. Проверки + Дефекты',
+    '5. ЗРА + СППК',
+    '6. Измерения (7-10)',
+    '7. Заключение',
+  ];
   final ApiService _apiService = ApiService();
   final SyncService _syncService = SyncService();
   final LocationService _locationService = LocationService();
@@ -134,6 +147,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     if (_hasUnsavedChanges && !_isSubmitting) {
       _autoSaveDraft();
     }
@@ -1482,152 +1496,365 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               if (!_hasUnsavedChanges) setState(() => _hasUnsavedChanges = true);
             },
             initialValue: initialValues,
-            child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+            child: Stack(
               children: [
-                conclusionSection.buildProgressIndicator(),
-                const SizedBox(height: 16),
-
-                // Раздел 1: Основная информация
-                InspectionGeneralInfoSection(
-                  checklist: _checklist,
-                  selectedEquipmentIds: _selectedEquipmentIds,
-                  manualVerificationEquipment: _manualVerificationEquipment,
-                  engineers: _engineers,
-                  loadingEngineers: _loadingEngineers,
-                  showAllEngineersList: _showAllEngineersList,
-                  selectedEngineerByMethod: _selectedEngineerByMethod,
-                  opos: _opos,
-                  loadingOpos: _loadingOpos,
-                  selectedOpoId: _selectedOpoId,
-                  equipmentOpoId: widget.equipment.opoId,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                  onEquipmentIdsChanged: (ids) => setState(() => _selectedEquipmentIds = ids),
-                  onManualEquipmentChanged: (items) {
-                    setState(() {
-                      _manualVerificationEquipment = items;
-                      _hasUnsavedChanges = true;
-                      _syncManualEquipmentToChecklist();
-                    });
-                  },
-                  onShowAllEngineersChanged: (v) => setState(() => _showAllEngineersList = v),
-                  onEngineerSelected: (methodKey, value) {
-                    setState(() {
-                      _selectedEngineerByMethod[methodKey] = value;
-                      _updateInspectionEngineers();
-                      _hasUnsavedChanges = true;
-                    });
-                    final id = value['id']?.toString();
-                    if (id != null && id.isNotEmpty) {
-                      SharedPreferences.getInstance().then((prefs) async {
-                        try {
-                          final saved = prefs.getString('last_engineers_by_method');
-                          final map = (saved != null && saved.isNotEmpty)
-                              ? Map<String, String>.from(
-                                  (json.decode(saved) as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')))
-                              : <String, String>{};
-                          map[methodKey] = id;
-                          await prefs.setString('last_engineers_by_method', json.encode(map));
-                        } catch (_) {}
-                      });
-                    }
-                  },
-                  onOpoChanged: (value) {
-                    setState(() => _selectedOpoId = value);
-                    if (value != null && value.isNotEmpty) {
-                      SharedPreferences.getInstance().then((prefs) => prefs.setString('last_opo_id', value));
-                      _apiService.updateEquipmentOpo(equipmentId: widget.equipment.id, opoId: value).catchError((e) {
-                        print('Ошибка обновления ОПО оборудования: $e');
-                      });
-                    }
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // Раздел 2: Документы
-                InspectionDocumentsSection(
-                  checklist: _checklist,
-                  documentFiles: _documentFiles,
-                  questionnaireId: _questionnaireId,
-                  apiService: _apiService,
-                  imagePicker: _imagePicker,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Раздел 3: Карта обследования
-                InspectionSurveyCardSection(
-                  checklist: _checklist,
-                  isCompressor: _isCompressor,
-                  factoryPlatePhoto: _factoryPlatePhoto,
-                  controlSchemeImage: _controlSchemeImage,
-                  additionalObjectPhotos: _additionalObjectPhotos,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                  onPickImage: _pickImage,
-                  onPickImageFromFile: _pickImageFromFile,
-                  onPickBuiltInTemplate: _pickBuiltInTemplate,
-                  onPickStandardDrawing: _pickStandardDrawing,
-                  onPickAdditionalObjectPhoto: _pickAdditionalObjectPhoto,
-                  onRemoveObjectPhoto: (idx) {
-                    setState(() {
-                      _additionalObjectPhotos.removeAt(idx);
-                      _hasUnsavedChanges = true;
-                      _syncObjectPhotosToChecklist();
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // Раздел 4: Проверки
-                InspectionChecksSection(
-                  checklist: _checklist,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Разделы 5-6: ЗРА + СППК
-                InspectionSafetyDevicesSection(
-                  checklist: _checklist,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Разделы 7-10: Измерения + УЗТ
-                InspectionMeasurementsSection(
-                  checklist: _checklist,
-                  controlSchemeImage: _controlSchemeImage,
-                  equipment: widget.equipment,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                  onThicknessSave: (measurements, image) {
-                    setState(() {
-                      _checklist.thicknessMeasurements = measurements;
-                      if (image != null) _controlSchemeImage = image;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // Раздел 11: Дефекты
-                InspectionDefectsSection(
-                  checklist: _checklist,
-                  imagePicker: _imagePicker,
-                  onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-                  maybeAddDateTimeGpsToPhoto: _maybeAddDateTimeGpsToPhoto,
-                ),
-
-                const SizedBox(height: 24),
-
-                // Раздел 12: Заключение + кнопки
-                conclusionSection,
+                // PageView по разделам
+                _buildPageView(conclusionSection),
+                // Полупрозрачная навигация по страницам (П.3.1)
+                _buildPageNavOverlay(),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageView(dynamic conclusionSection) {
+    // Страница 0: Основная информация
+    final page0 = _buildSinglePage(
+      pageIndex: 0,
+      progressWidget: conclusionSection.buildProgressIndicator(),
+      child: InspectionGeneralInfoSection(
+        checklist: _checklist,
+        selectedEquipmentIds: _selectedEquipmentIds,
+        manualVerificationEquipment: _manualVerificationEquipment,
+        engineers: _engineers,
+        loadingEngineers: _loadingEngineers,
+        showAllEngineersList: _showAllEngineersList,
+        selectedEngineerByMethod: _selectedEngineerByMethod,
+        opos: _opos,
+        loadingOpos: _loadingOpos,
+        selectedOpoId: _selectedOpoId,
+        equipmentOpoId: widget.equipment.opoId,
+        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        onEquipmentIdsChanged: (ids) => setState(() => _selectedEquipmentIds = ids),
+        onManualEquipmentChanged: (items) {
+          setState(() {
+            _manualVerificationEquipment = items;
+            _hasUnsavedChanges = true;
+            _syncManualEquipmentToChecklist();
+          });
+        },
+        onShowAllEngineersChanged: (v) => setState(() => _showAllEngineersList = v),
+        onEngineerSelected: (methodKey, value) {
+          setState(() {
+            _selectedEngineerByMethod[methodKey] = value;
+            _updateInspectionEngineers();
+            _hasUnsavedChanges = true;
+          });
+          final id = value['id']?.toString();
+          if (id != null && id.isNotEmpty) {
+            SharedPreferences.getInstance().then((prefs) async {
+              try {
+                final saved = prefs.getString('last_engineers_by_method');
+                final map = (saved != null && saved.isNotEmpty)
+                    ? Map<String, String>.from(
+                        (json.decode(saved) as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')))
+                    : <String, String>{};
+                map[methodKey] = id;
+                await prefs.setString('last_engineers_by_method', json.encode(map));
+              } catch (_) {}
+            });
+          }
+        },
+        onOpoChanged: (value) {
+          setState(() => _selectedOpoId = value);
+          if (value != null && value.isNotEmpty) {
+            SharedPreferences.getInstance().then((prefs) => prefs.setString('last_opo_id', value));
+            _apiService.updateEquipmentOpo(equipmentId: widget.equipment.id, opoId: value).catchError((e) {
+              print('Ошибка обновления ОПО оборудования: $e');
+            });
+          }
+        },
+      ),
+    );
+
+    // Страница 1: Перечень документов + анализ предыдущих обследований
+    final page1 = _buildSinglePage(
+      pageIndex: 1,
+      child: InspectionDocumentsSection(
+        checklist: _checklist,
+        documentFiles: _documentFiles,
+        questionnaireId: _questionnaireId,
+        apiService: _apiService,
+        imagePicker: _imagePicker,
+        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+      ),
+    );
+
+    // Страница 2: Карта обследования (фото таблички, доп.фото, схема)
+    final page2 = _buildSinglePage(
+      pageIndex: 2,
+      child: InspectionSurveyCardSection(
+        checklist: _checklist,
+        isCompressor: _isCompressor,
+        factoryPlatePhoto: _factoryPlatePhoto,
+        controlSchemeImage: _controlSchemeImage,
+        additionalObjectPhotos: _additionalObjectPhotos,
+        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        onPickImage: _pickImage,
+        onPickImageFromFile: _pickImageFromFile,
+        onPickBuiltInTemplate: _pickBuiltInTemplate,
+        onPickStandardDrawing: _pickStandardDrawing,
+        onPickAdditionalObjectPhoto: _pickAdditionalObjectPhoto,
+        onRemoveObjectPhoto: (idx) {
+          setState(() {
+            _additionalObjectPhotos.removeAt(idx);
+            _hasUnsavedChanges = true;
+            _syncObjectPhotosToChecklist();
+          });
+        },
+      ),
+    );
+
+    // Страница 3: Проверки + Дефекты (р.11)
+    final page3 = _buildSinglePage(
+      pageIndex: 3,
+      children: [
+        InspectionChecksSection(
+          checklist: _checklist,
+          onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        ),
+        const SizedBox(height: 24),
+        InspectionDefectsSection(
+          checklist: _checklist,
+          imagePicker: _imagePicker,
+          onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+          maybeAddDateTimeGpsToPhoto: _maybeAddDateTimeGpsToPhoto,
+        ),
+      ],
+    );
+
+    // Страница 4: ЗРА + СППК
+    final page4 = _buildSinglePage(
+      pageIndex: 4,
+      child: InspectionSafetyDevicesSection(
+        checklist: _checklist,
+        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+      ),
+    );
+
+    // Страница 5: Измерения 7-10 (овальность, твёрдость, ПВК/УЗК, УЗТ)
+    final page5 = _buildSinglePage(
+      pageIndex: 5,
+      child: InspectionMeasurementsSection(
+        checklist: _checklist,
+        controlSchemeImage: _controlSchemeImage,
+        equipment: widget.equipment,
+        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        onThicknessSave: (measurements, image) {
+          setState(() {
+            _checklist.thicknessMeasurements = measurements;
+            if (image != null) _controlSchemeImage = image;
+          });
+        },
+        onUztSchemeSave: (schemeIndex, measurements, image) {
+          setState(() => _hasUnsavedChanges = true);
+        },
+      ),
+    );
+
+    // Страница 6: Заключение + кнопки
+    final page6 = _buildSinglePage(
+      pageIndex: 6,
+      child: conclusionSection,
+    );
+
+    return GestureDetector(
+      onTap: () => setState(() => _showPageNav = !_showPageNav),
+      child: PageView(
+        controller: _pageController,
+        onPageChanged: (idx) => setState(() {
+          _currentPage = idx;
+          _showPageNav = true;
+        }),
+        children: [page0, page1, page2, page3, page4, page5, page6],
+      ),
+    );
+  }
+
+  /// Оборачивает один виджет или список виджетов в ScrollView с заголовком страницы
+  Widget _buildSinglePage({
+    required int pageIndex,
+    Widget? child,
+    List<Widget>? children,
+    Widget? progressWidget,
+  }) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+      children: [
+        if (progressWidget != null) ...[
+          progressWidget,
+          const SizedBox(height: 12),
+        ],
+        _buildPageHeader(pageIndex),
+        const SizedBox(height: 12),
+        if (child != null) child,
+        if (children != null) ...children,
+        // Кнопки навигации внизу страницы
+        const SizedBox(height: 24),
+        _buildPageNavButtons(pageIndex),
+      ],
+    );
+  }
+
+  /// Заголовок страницы с номером и индикатором прогресса
+  Widget _buildPageHeader(int pageIndex) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1e293b),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: kInspectionAccentBlue.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(
+              color: kInspectionAccentBlue,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '${pageIndex + 1}',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _pageLabels[pageIndex],
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14),
+            ),
+          ),
+          Text(
+            '${pageIndex + 1} / ${_pageLabels.length}',
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Кнопки «Назад» / «Далее» внизу страницы
+  Widget _buildPageNavButtons(int pageIndex) {
+    return Row(
+      children: [
+        if (pageIndex > 0)
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _pageController.previousPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut),
+              icon: const Icon(Icons.arrow_back_ios, size: 14),
+              label: const Text('Назад'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Colors.white30),
+              ),
+            ),
+          ),
+        if (pageIndex > 0 && pageIndex < _pageLabels.length - 1)
+          const SizedBox(width: 12),
+        if (pageIndex < _pageLabels.length - 1)
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _pageController.nextPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut),
+              icon: const Icon(Icons.arrow_forward_ios, size: 14),
+              label: const Text('Далее'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kInspectionAccentBlue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Полупрозрачная навигация по страницам (П.3.1) — снизу экрана
+  Widget _buildPageNavOverlay() {
+    if (!_showPageNav) return const SizedBox.shrink();
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: GestureDetector(
+        onTap: () {}, // Не скрывать при тапе на само меню
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.82),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Навигация по разделам',
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: () => setState(() => _showPageNav = false),
+                    child: const Icon(Icons.close, color: Colors.white54, size: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: List.generate(_pageLabels.length, (idx) {
+                  final isCurrent = idx == _currentPage;
+                  return GestureDetector(
+                    onTap: () {
+                      _pageController.animateToPage(idx,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut);
+                      setState(() => _showPageNav = false);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isCurrent
+                            ? kInspectionAccentBlue
+                            : Colors.white12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _pageLabels[idx],
+                        style: TextStyle(
+                          color: isCurrent ? Colors.white : Colors.white70,
+                          fontSize: 11,
+                          fontWeight: isCurrent
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
           ),
         ),
       ),

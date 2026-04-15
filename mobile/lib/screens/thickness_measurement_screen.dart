@@ -150,8 +150,12 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   }
 
   void _showPointDialog(ThicknessMeasurement point) {
-    final thicknessController = TextEditingController();
-    final minThicknessController = TextEditingController();
+    final nominalThicknessController =
+        TextEditingController(text: point.nominalThickness?.toString() ?? '');
+    final thicknessController =
+        TextEditingController(text: point.thickness?.toString() ?? '');
+    final minThicknessController =
+        TextEditingController(text: point.minAllowedThickness?.toString() ?? '');
     final commentController = TextEditingController(text: point.comment ?? '');
     final locationController = TextEditingController(text: point.location);
     final sectionController = TextEditingController(text: point.sectionNumber);
@@ -201,9 +205,28 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
               ),
               const SizedBox(height: 8),
               TextField(
+                controller: nominalThicknessController,
+                decoration: const InputDecoration(
+                  labelText: 'Номинальная толщина, мм',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white24),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF3b82f6)),
+                  ),
+                ),
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  point.nominalThickness = double.tryParse(value);
+                },
+              ),
+              const SizedBox(height: 8),
+              TextField(
                 controller: thicknessController,
                 decoration: const InputDecoration(
-                  labelText: 'Толщина, мм',
+                  labelText: 'Фактическая толщина, мм',
                   labelStyle: TextStyle(color: Colors.white70),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: Colors.white24),
@@ -222,7 +245,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
               TextField(
                 controller: minThicknessController,
                 decoration: const InputDecoration(
-                  labelText: 'Минимальная допустимая, мм',
+                  labelText: 'Отбраковочная толщина, мм',
                   labelStyle: TextStyle(color: Colors.white70),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: Colors.white24),
@@ -648,14 +671,21 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                                   subtitle: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      if (point.nominalThickness != null)
+                                        Text(
+                                          'Номинальная: ${point.nominalThickness} мм',
+                                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                        ),
                                       if (point.thickness != null)
                                         Text(
-                                          'Толщина: ${point.thickness} мм',
-                                          style: const TextStyle(color: Colors.white70),
+                                          'Фактическая: ${point.thickness} мм',
+                                          style: TextStyle(
+                                            color: isCritical ? Colors.redAccent : Colors.white70,
+                                          ),
                                         ),
                                       if (point.minAllowedThickness != null)
                                         Text(
-                                          'Мин. допустимая: ${point.minAllowedThickness} мм',
+                                          'Отбраковочная: ${point.minAllowedThickness} мм',
                                           style: const TextStyle(color: Colors.white70),
                                         ),
                                       if (point.comment != null && point.comment!.isNotEmpty)

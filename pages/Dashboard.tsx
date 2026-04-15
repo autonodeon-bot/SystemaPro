@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles, BarChart2, FileText, ClipboardList, Calendar, User } from 'lucide-react';
-import { API_BASE } from '../constants';
+import {
+  API_BASE,
+  APP_VERSION,
+  DASHBOARD_WHATS_NEW_ITEMS,
+  RELEASE_NOTES_DATE,
+  getAssignmentTypeLabel,
+} from '../constants';
 
 interface DashboardStats {
   inspections: number;
@@ -52,10 +58,7 @@ const getPriorityBadge = (p: string) => {
   return <span className={`px-2 py-1 rounded text-xs border font-bold ${v.cls}`}>{v.label}</span>;
 };
 
-const getTypeLabel = (t: string) => {
-  const labels: Record<string, string> = { DIAGNOSTICS: 'Диагностика', EXPERTISE: 'Экспертиза ПБ', INSPECTION: 'Обследование' };
-  return labels[t] || t;
-};
+const getTypeLabel = (t: string) => getAssignmentTypeLabel(t);
 
 const Dashboard = () => {
   const [verificationAlerts, setVerificationAlerts] = useState<{
@@ -172,9 +175,14 @@ const Dashboard = () => {
           <Sparkles className="text-accent" size={20} />
           <h3 className="text-white font-semibold">Что нового</h3>
         </div>
-        <p className="text-slate-300 text-sm">
-          Версия системы 3.25.0 (25.02.2026) — обновлены web/mobile/backend, внедрены улучшения UX отчётов и синхронизации, а также доработан штамп даты/GPS на фото.
+        <p className="text-slate-400 text-xs mb-2">
+          Версия {APP_VERSION}, актуально на {RELEASE_NOTES_DATE} — последние доработки web, mobile и backend:
         </p>
+        <ul className="text-slate-300 text-sm list-disc list-inside space-y-1.5 marker:text-accent">
+          {DASHBOARD_WHATS_NEW_ITEMS.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
         <a href="#/changelog" className="mt-2 inline-block text-sm text-blue-400 hover:text-blue-300">
           Открыть список изменений →
         </a>

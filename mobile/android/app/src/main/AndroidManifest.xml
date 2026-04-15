@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
     
     <application
-        android:label="ЕС ТД НГО"
+        android:label="Монитор"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

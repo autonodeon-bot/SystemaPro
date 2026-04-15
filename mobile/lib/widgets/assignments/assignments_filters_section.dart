@@ -105,9 +105,13 @@ class AssignmentsFiltersSection extends StatelessWidget {
                     style: const TextStyle(color: Colors.white),
                     items: const [
                       DropdownMenuItem(value: 'all', child: Text('Все типы')),
-                      DropdownMenuItem(value: 'DIAGNOSTICS', child: Text('DIAGNOSTICS')),
-                      DropdownMenuItem(value: 'INSPECTION', child: Text('INSPECTION')),
-                      DropdownMenuItem(value: 'EXPERTISE', child: Text('EXPERTISE')),
+                      DropdownMenuItem(value: 'DIAGNOSTICS', child: Text('Диагностика')),
+                      DropdownMenuItem(value: 'INSPECTION', child: Text('Обследование')),
+                      DropdownMenuItem(value: 'EXPERTISE', child: Text('Экспертиза ПБ')),
+                      DropdownMenuItem(value: 'CHTO', child: Text('ЧТО')),
+                      DropdownMenuItem(value: 'PTO', child: Text('ПТО')),
+                      DropdownMenuItem(value: 'NVO', child: Text('НВО')),
+                      DropdownMenuItem(value: 'NVO_GI', child: Text('НВО и ГИ')),
                     ],
                     onChanged: (value) {
                       if (value != null) onAssignmentTypeChanged(value);

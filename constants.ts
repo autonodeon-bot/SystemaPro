@@ -270,11 +270,71 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.25.0';
+export const APP_VERSION = '3.26.0';
+
+/** Короткое имя продукта в интерфейсе (веб и мобильное). */
+export const SYSTEM_SHORT_NAME = 'Монитор';
+/** Кодовое имя платформы в репозитории и документации для разработчиков. */
+export const SYSTEM_PRODUCT_LINE = 'SystemaPro';
+
+/**
+ * Полное название в шапке приложения, на лендинге и в подзаголовках.
+ * (Пользовательское написание с акцентом на имя продукта.)
+ */
+export const PLATFORM_FULL_TITLE =
+  'Единая цифровая платформа контроля диагностических работ «МОНИТОР»';
+
+/** Алиас для шапки Layout (то же, что PLATFORM_FULL_TITLE). */
+export const APP_HEADER_TITLE = PLATFORM_FULL_TITLE;
+
+/** Буква в квадрате сайдбара (вместе с SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = «Монитор»). */
+export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
+
+/**
+ * Текст справа от бейджа в сайдбаре (полное имя без повтора буквы бейджа).
+ */
+export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
+
+/** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
+export const RELEASE_NOTES_DATE = '31.03.2026';
+
+/** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
+export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Клиентский портал: данные и скачивание отчётов по правам клиента, привязка через предприятие и проекты',
+  'Календарь поверок: данные из API, неделя с понедельника, локальные даты и легенда сроков (7 / 8–30 / >30 дней)',
+  'Карта трубопроводов: сегменты из БД и координаты в attributes оборудования; при отсутствии данных — демо с подсказкой',
+  'База данных: колонка enterprises.client_id, миграция Alembic 003, загрузка .env для alembic; DB_SSLMODE=disable для локального Postgres',
+  'Отображаемое имя продукта в интерфейсах: «Монитор» (кодовое имя SystemaPro / ЕС ТД НГО)',
+];
+
+/** Коды типов заданий (совпадают с backend VALID_ASSIGNMENT_TYPES) и подписи для UI */
+export const ASSIGNMENT_TYPE_LABELS: Record<string, string> = {
+  DIAGNOSTICS: 'Диагностика',
+  EXPERTISE: 'Экспертиза ПБ',
+  INSPECTION: 'Обследование',
+  CHTO: 'ЧТО',
+  PTO: 'ПТО',
+  NVO: 'НВО',
+  NVO_GI: 'НВО и ГИ',
+};
+
+export function getAssignmentTypeLabel(type: string): string {
+  return ASSIGNMENT_TYPE_LABELS[type] ?? type;
+}
+
+export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'DIAGNOSTICS', label: 'Диагностика' },
+  { value: 'EXPERTISE', label: 'Экспертиза ПБ' },
+  { value: 'INSPECTION', label: 'Обследование' },
+  { value: 'CHTO', label: 'ЧТО' },
+  { value: 'PTO', label: 'ПТО' },
+  { value: 'NVO', label: 'НВО' },
+  { value: 'NVO_GI', label: 'НВО и ГИ' },
+];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.25.0';
-export const MOBILE_APP_BUILD = '25';
+export const MOBILE_APP_VERSION = '3.26.0';
+export const MOBILE_APP_BUILD = '26';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

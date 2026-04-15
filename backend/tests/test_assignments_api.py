@@ -13,7 +13,11 @@ class TestAssignmentValidation:
         assert 'DIAGNOSTICS' in VALID_ASSIGNMENT_TYPES
         assert 'EXPERTISE' in VALID_ASSIGNMENT_TYPES
         assert 'INSPECTION' in VALID_ASSIGNMENT_TYPES
-        assert len(VALID_ASSIGNMENT_TYPES) == 3
+        assert len(VALID_ASSIGNMENT_TYPES) == 7
+        assert 'CHTO' in VALID_ASSIGNMENT_TYPES
+        assert 'PTO' in VALID_ASSIGNMENT_TYPES
+        assert 'NVO' in VALID_ASSIGNMENT_TYPES
+        assert 'NVO_GI' in VALID_ASSIGNMENT_TYPES
 
     def test_valid_statuses(self):
         """Проверка допустимых статусов"""

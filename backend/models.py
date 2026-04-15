@@ -22,6 +22,7 @@ class Enterprise(Base):
     name = Column(String(255), nullable=False)
     code = Column(String(50), unique=True)  # Код предприятия
     description = Column(Text)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True, index=True)
     is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -258,7 +259,7 @@ class Assignment(Base):
     equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="RESTRICT"), nullable=False, index=True)
     assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     assigned_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    assignment_type = Column(String(50), default="DIAGNOSTICS")  # DIAGNOSTICS, EXPERTISE, INSPECTION
+    assignment_type = Column(String(50), default="DIAGNOSTICS")  # DIAGNOSTICS, EXPERTISE, INSPECTION, CHTO, PTO, NVO, NVO_GI
     due_date = Column(Date)
     priority = Column(String(20), default="NORMAL")  # LOW, NORMAL, HIGH, URGENT
     status = Column(String(50), default="PENDING")  # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
@@ -289,6 +290,10 @@ class Inspection(Base):
     data = Column(JSONB)  # Данные обследования в формате JSON
     gps_coordinates = Column(JSONB)  # GPS координаты места обследования
     is_archived = Column(Boolean, default=False, nullable=False)
+    # П.5.1 — Soft-delete: запись помечается как удалённая, физически удаляется через 60 дней
+    is_deleted  = Column(Boolean, default=False, nullable=False, index=True)
+    deleted_at  = Column(DateTime(timezone=True), nullable=True)
+    deleted_by  = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

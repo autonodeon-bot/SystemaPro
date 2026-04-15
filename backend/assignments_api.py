@@ -35,7 +35,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/assignments", tags=["assignments"])
 
 # --- Константы валидации ---
-VALID_ASSIGNMENT_TYPES = {'DIAGNOSTICS', 'EXPERTISE', 'INSPECTION'}
+VALID_ASSIGNMENT_TYPES = {
+    'DIAGNOSTICS', 'EXPERTISE', 'INSPECTION',
+    'CHTO', 'PTO', 'NVO', 'NVO_GI',  # ЧТО, ПТО, НВО, НВО и ГИ
+}
+
+ASSIGNMENT_TYPE_LABELS_RU = {
+    'DIAGNOSTICS': 'Диагностика',
+    'EXPERTISE': 'Экспертиза ПБ',
+    'INSPECTION': 'Обследование',
+    'CHTO': 'ЧТО',
+    'PTO': 'ПТО',
+    'NVO': 'НВО',
+    'NVO_GI': 'НВО и ГИ',
+}
 VALID_STATUSES = {'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'}
 VALID_PRIORITIES = {'LOW', 'NORMAL', 'HIGH', 'URGENT'}
 OPERATOR_ROLES = {'admin', 'chief_operator', 'operator'}
@@ -216,7 +229,7 @@ async def create_assignment(
                 db=db,
                 user_id=assigned_user.id,
                 title="Новое задание",
-                body=f"Вам назначено задание: {assignment_data.assignment_type}",
+                body=f"Вам назначено задание: {ASSIGNMENT_TYPE_LABELS_RU.get(assignment_data.assignment_type, assignment_data.assignment_type)}",
                 data={"assignment_id": str(new_assignment.id)},
             )
         except Exception as e:

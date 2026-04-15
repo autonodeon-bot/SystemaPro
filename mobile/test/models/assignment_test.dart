@@ -181,6 +181,16 @@ void main() {
         expect(a.typeLabel, 'Обследование');
       });
 
+      test('CHTO → ЧТО', () {
+        final a = Assignment.fromJson({...fullJson, 'assignment_type': 'CHTO'});
+        expect(a.typeLabel, 'ЧТО');
+      });
+
+      test('NVO_GI → НВО и ГИ', () {
+        final a = Assignment.fromJson({...fullJson, 'assignment_type': 'NVO_GI'});
+        expect(a.typeLabel, 'НВО и ГИ');
+      });
+
       test('неизвестный тип возвращает код', () {
         final a = Assignment.fromJson({...fullJson, 'assignment_type': 'CUSTOM'});
         expect(a.typeLabel, 'CUSTOM');

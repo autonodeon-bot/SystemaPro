@@ -19,7 +19,7 @@ import {
   Database,
   Lock,
 } from 'lucide-react';
-import { APP_VERSION } from '../constants';
+import { APP_VERSION, SYSTEM_SHORT_NAME, PLATFORM_FULL_TITLE } from '../constants';
 
 const FEATURES = [
   {
@@ -162,14 +162,17 @@ const Landing: React.FC = () => {
         >
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl mb-8 landing-float border border-slate-700/80 bg-gradient-to-br from-accent/20 to-blue-600/20 shadow-lg shadow-accent/10">
             <span className="text-4xl font-black tracking-tight text-white drop-shadow-sm">
-              N<span className="text-accent">M</span>
+              <span className="text-accent">М</span>
             </span>
           </div>
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-black text-white tracking-tight mb-4">
-            Neft<span className="text-accent">Monitor</span>
+            {SYSTEM_SHORT_NAME}
           </h1>
-          <p className="text-xl sm:text-2xl text-slate-400 max-w-2xl mx-auto mb-4 font-medium">
-            Система технического диагностирования и неразрушающего контроля
+          <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto mb-4 font-medium leading-relaxed px-2">
+            {PLATFORM_FULL_TITLE}
+          </p>
+          <p className="text-sm sm:text-base text-slate-500 max-w-2xl mx-auto mb-4">
+            Техническое диагностирование и неразрушающий контроль оборудования на ОПО
           </p>
           <p className="text-sm text-slate-500 mb-6">Версия {APP_VERSION}</p>
           <Link

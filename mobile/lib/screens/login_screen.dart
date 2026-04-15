@@ -572,7 +572,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 32),
                   const Text(
-                    'ЕС ТД НГО',
+                    'Монитор',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 32,

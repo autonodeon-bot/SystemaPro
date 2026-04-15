@@ -9,6 +9,7 @@ import asyncio
 import os
 import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -17,7 +18,31 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Корень backend в PYTHONPATH
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_BACKEND_ROOT))
+
+
+def _load_env_file() -> None:
+    """Подхватываем SystemaPro/.env или backend/.env до импорта database (DB_*, DATABASE_URL)."""
+    for path in (_BACKEND_ROOT.parent / ".env", _BACKEND_ROOT / ".env"):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key, val = key.strip(), val.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = val
+        break
+
+
+_load_env_file()
 
 from database import Base, DATABASE_URL, connect_args  # noqa: E402
 import models  # noqa: F401, E402 — регистрация таблиц в metadata

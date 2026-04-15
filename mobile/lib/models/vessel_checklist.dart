@@ -96,6 +96,9 @@ class VesselChecklist {
   // УЗТ (Ультразвуковая толщинометрия)
   List<ThicknessMeasurement> thicknessMeasurements = [];
 
+  // Множественные схемы контроля УЗТ (П.3.2)
+  List<UztScheme> uztSchemes = [];
+
   // Инженеры по видам обследований (ВИК/УЗК/УЗТ/ПВК и др.)
   List<InspectionEngineer> inspectionEngineers = [];
   
@@ -196,6 +199,7 @@ class VesselChecklist {
       'hardness_tests': hardnessTests.map((e) => e.toJson()).toList(),
       'weld_inspections': weldInspections.map((e) => e.toJson()).toList(),
       'thickness_measurements': thicknessMeasurements.map((e) => e.toJson()).toList(),
+      'uzt_schemes': uztSchemes.map((e) => e.toJson()).toList(),
       'inspection_engineers': inspectionEngineers.map((e) => e.toJson()).toList(),
       'ndt_methods': ndtMethods, // Выбранные методы контроля
       'visual_defects': visualDefects.map((e) => e.toJson()).toList(),
@@ -379,6 +383,14 @@ class VesselChecklist {
       checklist.thicknessMeasurements = tmRaw
           .whereType<Map>()
           .map((e) => ThicknessMeasurement.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final uztRaw = json['uzt_schemes'];
+    if (uztRaw is List) {
+      checklist.uztSchemes = uztRaw
+          .whereType<Map>()
+          .map((e) => UztScheme.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     }
 
@@ -719,10 +731,11 @@ class WeldInspection {
 }
 
 class ThicknessMeasurement {
-  String location; // Обечайка, днище, патрубок
-  String sectionNumber;
-  double? thickness;
-  double? minAllowedThickness;
+  String location; // Наименование элемента (обечайка, днище, патрубок)
+  String sectionNumber; // № точки
+  double? nominalThickness; // Номинальная толщина, мм
+  double? thickness; // Фактическая толщина, мм
+  double? minAllowedThickness; // Отбраковочная толщина, мм
   String? comment;
   double? xPercent; // Позиция на схеме X
   double? yPercent; // Позиция на схеме Y
@@ -736,6 +749,7 @@ class ThicknessMeasurement {
   Map<String, dynamic> toJson() => {
     'location': location,
     'section_number': sectionNumber,
+    'nominal_thickness': nominalThickness,
     'thickness': thickness,
     'min_allowed_thickness': minAllowedThickness,
     'comment': comment,
@@ -749,6 +763,7 @@ class ThicknessMeasurement {
       location: (json['location'] ?? '').toString(),
       sectionNumber: (json['section_number'] ?? '').toString(),
     );
+    t.nominalThickness = VesselChecklist._asDouble(json['nominal_thickness']);
     t.thickness = VesselChecklist._asDouble(json['thickness']);
     t.minAllowedThickness = VesselChecklist._asDouble(json['min_allowed_thickness']);
     t.comment = json['comment']?.toString();
@@ -786,6 +801,34 @@ class InspectionEngineer {
     e.certificateNumber = json['certificate_number']?.toString();
     e.validUntil = json['valid_until']?.toString();
     return e;
+  }
+}
+
+/// Схема контроля УЗТ (связка «схема + таблица замеров»). П.3.2
+class UztScheme {
+  String label; // Название схемы, напр. «Схема 1 — Обечайка»
+  String? schemeImagePath; // Путь к фото/схеме
+  List<ThicknessMeasurement> measurements = [];
+
+  UztScheme({required this.label});
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'scheme_image_path': schemeImagePath,
+        'measurements': measurements.map((e) => e.toJson()).toList(),
+      };
+
+  factory UztScheme.fromJson(Map<String, dynamic> json) {
+    final s = UztScheme(label: (json['label'] ?? 'Схема').toString());
+    s.schemeImagePath = json['scheme_image_path']?.toString();
+    final mRaw = json['measurements'];
+    if (mRaw is List) {
+      s.measurements = mRaw
+          .whereType<Map>()
+          .map((e) => ThicknessMeasurement.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    return s;
   }
 }
 

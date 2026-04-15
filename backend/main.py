@@ -1,6 +1,6 @@
 """
-ЕС ТД НГО — API
-Единая Система Технической Диагностики Нефтегазового Оборудования.
+Монитор — API (ЕС ТД НГО / SystemaPro)
+Единая система технической диагностики нефтегазового оборудования.
 
 Ядро приложения: инициализация FastAPI, middleware, миграции, системные endpoints.
 Бизнес-логика вынесена в модульные роутеры (*_api.py).
@@ -35,15 +35,18 @@ from inspections_crud_api import router as inspections_crud_router
 from reports_crud_api import router as reports_crud_router
 from questionnaires_api import router as questionnaires_router
 from verification_equipment_api import router as verification_equipment_router
+from instruments_api import router as instruments_router
 from engineers_users_api import router as engineers_users_router
 from mobile_stats_api import router as mobile_stats_router
 from notifications_api import router as notifications_router
+from pipeline_map_api import router as pipeline_map_router
+from protocol_templates_api import router as protocol_templates_router
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="ЕС ТД НГО — API",
-    description="API для системы учёта оборудования и диагностирования (ЕС ТД НГО).",
-    version="3.25.0",
+    title="Монитор — API (SystemaPro)",
+    description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
+    version="3.26.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -120,9 +123,12 @@ app.include_router(inspections_crud_router)
 app.include_router(reports_crud_router)
 app.include_router(questionnaires_router)
 app.include_router(verification_equipment_router)
+app.include_router(instruments_router)
 app.include_router(engineers_users_router)
 app.include_router(mobile_stats_router)
 app.include_router(notifications_router)
+app.include_router(pipeline_map_router)
+app.include_router(protocol_templates_router)
 
 
 # ─── Startup: DB migrations ──────────────────────────────────────────────────
@@ -179,6 +185,11 @@ async def _run_migrations():
         # users.permissions
         ("users.permissions",
          ["ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB"]),
+        # enterprises.client_id — доступ клиента к оборудованию по иерархии
+        ("enterprises.client_id", [
+            "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id)",
+            "CREATE INDEX IF NOT EXISTS idx_enterprises_client_id ON enterprises(client_id)",
+        ]),
         # verification_equipment columns
         ("verification_equipment columns", [
             "ALTER TABLE verification_equipment ADD COLUMN IF NOT EXISTS name VARCHAR(255)",
@@ -208,6 +219,13 @@ async def _run_migrations():
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS assignment_type VARCHAR(50) DEFAULT 'DIAGNOSTICS'",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id)",
+        ]),
+        # inspections soft-delete (П.5.1)
+        ("inspections soft-delete", [
+            "ALTER TABLE inspections ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false",
+            "ALTER TABLE inspections ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE",
+            "ALTER TABLE inspections ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id)",
+            "CREATE INDEX IF NOT EXISTS ix_inspections_is_deleted ON inspections(is_deleted)",
         ]),
         # inspections columns
         ("inspections columns", [
@@ -371,8 +389,13 @@ async def _run_migrations():
                 ))
                 dtype = col_type.scalar()
                 if dtype and dtype.lower() in ("integer", "smallint", "bigint"):
+                    # Сначала убираем DEFAULT, конвертируем тип, затем устанавливаем новый DEFAULT
                     await conn.execute(text(
-                        f"ALTER TABLE {tbl} ALTER COLUMN is_active TYPE boolean USING is_active::boolean"
+                        f"ALTER TABLE {tbl} ALTER COLUMN is_active DROP DEFAULT"
+                    ))
+                    await conn.execute(text(
+                        f"ALTER TABLE {tbl} ALTER COLUMN is_active TYPE boolean "
+                        f"USING CASE WHEN is_active = 0 THEN FALSE ELSE TRUE END"
                     ))
                     await conn.execute(text(
                         f"ALTER TABLE {tbl} ALTER COLUMN is_active SET DEFAULT true"
@@ -391,7 +414,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.25.0", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.26.0", "status": "running"}
 
 
 @app.get("/health")

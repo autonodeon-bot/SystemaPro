@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp hide BluetoothConnectionState;
 import '../services/bluetooth_measurement_service.dart';
 import '../theme/app_colors.dart';
 
@@ -23,7 +23,7 @@ class _BluetoothMeasurementWidgetState
     extends State<BluetoothMeasurementWidget> {
   final _btService = BluetoothMeasurementService();
   BluetoothConnectionState _state = BluetoothConnectionState.disconnected;
-  List<ScanResult> _devices = [];
+  List<fbp.ScanResult> _devices = [];
   StreamSubscription? _stateSub;
   StreamSubscription? _devicesSub;
   StreamSubscription? _measurementSub;
@@ -165,6 +165,8 @@ class _BluetoothMeasurementWidgetState
           icon: const Icon(Icons.refresh, size: 16),
           label: const Text('Повторить'),
         );
+      default:
+        return const SizedBox.shrink();
     }
   }
 }

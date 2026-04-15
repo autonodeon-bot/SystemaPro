@@ -46,7 +46,7 @@ const MobileApp = () => {
             <Smartphone className="text-accent" size={32} />
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-white mb-2">ЕС ТД НГО - Мобильное приложение</h2>
+            <h2 className="text-xl font-bold text-white mb-2">Монитор — мобильное приложение</h2>
             <p className="text-slate-400 mb-1">Версия: {MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD}) — последняя версия</p>
             <p className="text-sm text-green-400 mb-2">✓ Доступна новая версия для скачивания</p>
             <p className="text-slate-300">

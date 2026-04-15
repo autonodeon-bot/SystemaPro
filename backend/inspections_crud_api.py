@@ -23,6 +23,7 @@ from inspection_utils import (
     create_ndt_methods_from_mobile as _create_ndt_methods_from_mobile,
     update_equipment_attributes_from_inspection as _update_equipment_attrs,
 )
+from client_access import get_client_accessible_equipment_ids
 
 router = APIRouter(tags=["inspections"])
 
@@ -119,7 +120,10 @@ async def get_inspections(
         if not current_user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        query = select(Inspection)
+        # П.5.1 — Скрываем мягко удалённые записи
+        query = select(Inspection).where(
+            or_(Inspection.is_deleted == False, Inspection.is_deleted == None)
+        )
 
         if current_user.role == "engineer":
             query = query.where(
@@ -128,6 +132,19 @@ async def get_inspections(
                     Inspection.performed_by == current_user.id,
                 )
             )
+        elif current_user.role == "client":
+            allowed_eq = await get_client_accessible_equipment_ids(db, current_user)
+            if not allowed_eq:
+                if group_by in {"type", "method", "category", "type_method"}:
+                    return {
+                        "grouped": True,
+                        "group_by": group_by,
+                        "groups": [],
+                        "total_groups": 0,
+                        "total": 0,
+                    }
+                return {"items": [], "total": 0}
+            query = query.where(Inspection.equipment_id.in_(allowed_eq))
 
         if equipment_id:
             try:
@@ -727,30 +744,32 @@ async def create_inspection(
 @router.delete("/api/inspections/{inspection_id}")
 async def delete_inspection(
     inspection_id: str,
+    force: bool = False,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Удаление чек-листа (inspection).
-    - admin/chief_operator/operator: удаляют любые
-    - engineer: удаляет только свои (по inspector_id)
-    При удалении также удаляются связанные отчеты (reports) и методы НК (ndt_methods) по inspection_id.
+    П.5.1 — Мягкое удаление обследования (soft-delete).
+    Запись помечается как удалённая (is_deleted=True) и хранится 60 дней.
+    Параметр force=true (только admin) — немедленное физическое удаление.
     """
+    from datetime import datetime, timezone as tz
     try:
         insp_uuid = uuid_lib.UUID(inspection_id)
 
-        # Совместимость: username в токене может быть email
         user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
         current_user = user_result.scalar_one_or_none()
         if not current_user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        insp_result = await db.execute(select(Inspection).where(Inspection.id == insp_uuid))
+        insp_result = await db.execute(
+            select(Inspection).where(Inspection.id == insp_uuid)
+        )
         inspection = insp_result.scalar_one_or_none()
         if not inspection:
-            raise HTTPException(status_code=404, detail="Inspection not found")
+            raise HTTPException(status_code=404, detail="Обследование не найдено")
 
-        # Права
+        # Права доступа
         allowed = False
         if current_user.role in ["admin", "chief_operator", "operator"]:
             allowed = True
@@ -758,12 +777,132 @@ async def delete_inspection(
             if inspection.inspector_id and inspection.inspector_id == current_user.id:
                 allowed = True
         if not allowed:
-            raise HTTPException(status_code=403, detail="Доступ запрещен")
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
 
-        # Удаляем связанные отчеты и их файлы (сначала отчёты, иначе FK violation)
+        if force and current_user.role == "admin":
+            # Физическое удаление (только admin, принудительно)
+            rep_result = await db.execute(select(Report).where(Report.inspection_id == inspection.id))
+            related_reports = rep_result.scalars().all()
+            for report in related_reports:
+                for p in [report.file_path, getattr(report, "word_file_path", None)]:
+                    if p:
+                        try:
+                            fp = Path(p)
+                            if fp.exists():
+                                fp.unlink()
+                        except Exception:
+                            pass
+                await db.delete(report)
+            await db.flush()
+
+            try:
+                ndt_result = await db.execute(select(NDTMethod).where(NDTMethod.inspection_id == inspection.id))
+                for m in ndt_result.scalars().all():
+                    await db.delete(m)
+                await db.flush()
+            except Exception:
+                pass
+
+            await db.delete(inspection)
+            await db.commit()
+            return {"status": "permanently_deleted", "id": inspection_id}
+        else:
+            # Мягкое удаление — пометить, не трогать данные
+            inspection.is_deleted = True
+            inspection.deleted_at = datetime.now(tz.utc)
+            inspection.deleted_by = current_user.id
+            await db.commit()
+            return {
+                "status": "soft_deleted",
+                "id": inspection_id,
+                "deleted_at": inspection.deleted_at.isoformat(),
+                "restore_within_days": 60,
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный формат inspection_id")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка удаления: {str(e)}")
+
+
+@router.post("/api/inspections/{inspection_id}/restore")
+async def restore_inspection(
+    inspection_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    П.5.1 — Восстановление мягко удалённого обследования (в течение 60 дней).
+    """
+    try:
+        insp_uuid = uuid_lib.UUID(inspection_id)
+
+        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
+        current_user = user_result.scalar_one_or_none()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+        insp_result = await db.execute(
+            select(Inspection).where(Inspection.id == insp_uuid, Inspection.is_deleted == True)
+        )
+        inspection = insp_result.scalar_one_or_none()
+        if not inspection:
+            raise HTTPException(status_code=404, detail="Удалённое обследование не найдено")
+
+        # Только admin/chief_operator и автор могут восстанавливать
+        allowed = current_user.role in ["admin", "chief_operator"]
+        if not allowed and inspection.deleted_by == current_user.id:
+            allowed = True
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+        inspection.is_deleted = False
+        inspection.deleted_at = None
+        inspection.deleted_by = None
+        await db.commit()
+        return {"status": "restored", "id": inspection_id}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный формат inspection_id")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка восстановления: {str(e)}")
+
+
+@router.delete("/api/inspections-trash/purge")
+async def purge_deleted_inspections(
+    older_than_days: int = 60,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    П.5.1 — Принудительная очистка корзины (только admin).
+    Физически удаляет записи с is_deleted=True старше older_than_days дней.
+    """
+    from datetime import datetime, timedelta, timezone as tz
+
+    user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
+    current_user = user_result.scalar_one_or_none()
+    if not current_user or current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Только для администратора")
+
+    cutoff = datetime.now(tz.utc) - timedelta(days=older_than_days)
+    result = await db.execute(
+        select(Inspection).where(
+            Inspection.is_deleted == True,
+            Inspection.deleted_at <= cutoff,
+        )
+    )
+    to_purge = result.scalars().all()
+
+    deleted_count = 0
+    for inspection in to_purge:
+        # Удаляем связанные отчёты
         rep_result = await db.execute(select(Report).where(Report.inspection_id == inspection.id))
-        related_reports = rep_result.scalars().all()
-        for report in related_reports:
+        for report in rep_result.scalars().all():
             for p in [report.file_path, getattr(report, "word_file_path", None)]:
                 if p:
                     try:
@@ -775,7 +914,6 @@ async def delete_inspection(
             await db.delete(report)
         await db.flush()
 
-        # Удаляем связанные методы НК (новая схема привязки к inspection_id)
         try:
             ndt_result = await db.execute(select(NDTMethod).where(NDTMethod.inspection_id == inspection.id))
             for m in ndt_result.scalars().all():
@@ -785,15 +923,51 @@ async def delete_inspection(
             pass
 
         await db.delete(inspection)
-        await db.commit()
-        return {"status": "deleted", "id": inspection_id, "reports_deleted": len(related_reports)}
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid inspection_id format")
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete inspection: {str(e)}")
+        deleted_count += 1
+
+    await db.commit()
+    return {"status": "purged", "deleted_count": deleted_count, "older_than_days": older_than_days}
+
+
+@router.get("/api/inspections-trash")
+async def list_deleted_inspections(
+    skip: int = 0,
+    limit: int = 100,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """П.5.1 — Список мягко удалённых обследований (корзина). Только admin/chief_operator."""
+    user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
+    current_user = user_result.scalar_one_or_none()
+    if not current_user or current_user.role not in ["admin", "chief_operator"]:
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+    result = await db.execute(
+        select(Inspection)
+        .where(Inspection.is_deleted == True)
+        .order_by(Inspection.deleted_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    items = result.scalars().all()
+
+    from datetime import datetime, timezone as tz
+    now = datetime.now(tz.utc)
+    rows = []
+    for ins in items:
+        days_left = None
+        if ins.deleted_at:
+            delta = (ins.deleted_at.replace(tzinfo=tz.utc) + __import__('datetime').timedelta(days=60)) - now
+            days_left = max(0, delta.days)
+        rows.append({
+            "id": str(ins.id),
+            "equipment_id": str(ins.equipment_id) if ins.equipment_id else None,
+            "status": ins.status,
+            "inspection_type": ins.inspection_type,
+            "deleted_at": ins.deleted_at.isoformat() if ins.deleted_at else None,
+            "days_left_to_restore": days_left,
+        })
+    return {"total": len(rows), "items": rows}
 
 
 @router.delete("/api/inspections/cleanup")

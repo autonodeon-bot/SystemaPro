@@ -99,9 +99,15 @@ class InspectionDefectsSection extends StatelessWidget {
                   trailing: IconButton(
                     icon:
                         const Icon(Icons.delete, color: Colors.redAccent),
-                    onPressed: () {
-                      checklist.visualDefects.removeAt(idx);
-                      onStateChanged();
+                    onPressed: () async {
+                      final confirmed = await showConfirmDeleteDialog(
+                        context,
+                        message: 'Вы уверены? Дефект и все его данные будут удалены.',
+                      );
+                      if (confirmed) {
+                        checklist.visualDefects.removeAt(idx);
+                        onStateChanged();
+                      }
                     },
                   ),
                 );

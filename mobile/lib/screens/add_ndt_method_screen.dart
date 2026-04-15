@@ -176,14 +176,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['illumination'] = formData['method_illumination'];
         ad['surface_temp'] = formData['method_surface_temp'];
         ad['defects_list'] = _defectsList
-            .map((d) => {
-                  return {
+            .map<Map<String, String>>((d) => {
                     'element': d['element']?.text ?? '',
                     'description': d['description']?.text ?? '',
                     'size': d['size']?.text ?? '',
                     'classification': d['classification']?.text ?? '',
-                  };
-                })
+                  })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
         break;
@@ -197,14 +195,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['reference_sample'] = formData['method_reference_sample'];
         ad['control_zone'] = formData['method_control_zone'];
         ad['results_list'] = _uzkResults
-            .map((r) => {
-                  return {
+            .map<Map<String, String>>((r) => {
                     'zone': r['zone']?.text ?? '',
                     'coordinate': r['coordinate']?.text ?? '',
                     'amplitude': r['amplitude']?.text ?? '',
                     'equivalent_size': r['equivalent_size']?.text ?? '',
-                  };
-                })
+                  })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
         break;
@@ -216,12 +212,10 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['min_allowed_thickness'] = formData['method_min_thickness'];
         ad['corrosion_rate'] = formData['method_corrosion_rate'];
         ad['measurement_points'] = _measurementPoints
-            .map((p) => {
-                  return {
+            .map<Map<String, String>>((p) => {
                     'location': p['location']?.text ?? '',
                     'thickness': p['thickness']?.text ?? '',
-                  };
-                })
+                  })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
         break;
@@ -232,14 +226,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['field_strength'] = formData['method_field_strength'];
         ad['indicator_suspension'] = formData['method_indicator_suspension'];
         ad['indications_list'] = _indicationsList
-            .map((ind) => {
-                  return {
+            .map<Map<String, String>>((ind) => {
                     'zone': ind['zone']?.text ?? '',
                     'indication': ind['indication']?.text ?? '',
                     'size': ind['size']?.text ?? '',
                     'assessment': ind['assessment']?.text ?? '',
-                  };
-                })
+                  })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
         break;
@@ -251,14 +243,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['penetrant_time_min'] = formData['method_penetrant_time'];
         ad['surface_temp'] = formData['method_surface_temp'];
         ad['indications_list'] = _indicationsList
-            .map((ind) => {
-                  return {
+            .map<Map<String, String>>((ind) => {
                     'zone': ind['zone']?.text ?? '',
                     'indication': ind['indication']?.text ?? '',
                     'size': ind['size']?.text ?? '',
                     'assessment': ind['assessment']?.text ?? '',
-                  };
-                })
+                  })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
         break;
