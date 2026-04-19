@@ -530,35 +530,37 @@ const InspectionsList = () => {
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-2 text-sm text-slate-400">
-        <span className="text-white font-medium">Чек-листы</span>
+      <nav className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Чек-листы</span>
         {selectedEnterpriseId && enterprises.find((e) => e.id === selectedEnterpriseId) && (
           <>
-            <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{enterprises.find((e) => e.id === selectedEnterpriseId)?.name}</span>
+            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+            <span style={{ color: 'var(--text-secondary)' }}>{enterprises.find((e) => e.id === selectedEnterpriseId)?.name}</span>
           </>
         )}
         {selectedBranchId && branches.find((b) => b.id === selectedBranchId) && (
           <>
-            <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{branches.find((b) => b.id === selectedBranchId)?.name}</span>
+            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+            <span style={{ color: 'var(--text-secondary)' }}>{branches.find((b) => b.id === selectedBranchId)?.name}</span>
           </>
         )}
         {selectedWorkshopId && workshops.find((w) => w.id === selectedWorkshopId) && (
           <>
-            <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{workshops.find((w) => w.id === selectedWorkshopId)?.name}</span>
+            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+            <span style={{ color: 'var(--text-secondary)' }}>{workshops.find((w) => w.id === selectedWorkshopId)?.name}</span>
           </>
         )}
       </nav>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FileText className="text-accent" size={28} />
+          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            <FileText className="text-[var(--accent)]" size={26} />
             Чек-листы диагностики
           </h1>
-          <p className="text-slate-400 mt-1">Просмотр и управление чек-листами по предприятиям, филиалам и цехам</p>
+          <p className="mt-1" style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+            Просмотр и управление чек-листами по предприятиям, филиалам и цехам
+          </p>
         </div>
       </div>
 

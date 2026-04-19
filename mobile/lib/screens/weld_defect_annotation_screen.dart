@@ -145,18 +145,13 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
   void _handleImageTap(TapDownDetails details) {
     if (_imageFile == null) return;
 
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset localPosition = renderBox.globalToLocal(details.globalPosition);
-
-    final imageContainer = _getImageContainerBounds();
-    if (imageContainer == null) return;
-
-    final double x = localPosition.dx - imageContainer.left;
-    final double y = localPosition.dy - imageContainer.top;
-
-    if (x < 0 || x > imageContainer.width || y < 0 || y > imageContainer.height) {
-      return;
-    }
+    // См. П.1 ТЗ 2026-04 — использовать details.localPosition от GestureDetector.
+    // Прежняя реализация использовала хардкод Rect.fromLTWH(0, 100, ..., -300), что
+    // давало смещение координат при разных SafeArea/AppBar и на планшетах.
+    final Offset localPosition = details.localPosition;
+    final double x = localPosition.dx;
+    final double y = localPosition.dy;
+    if (x < 0 || y < 0) return;
 
     // Проверяем, не нажали ли на существующий дефект
     for (var defect in _defects) {
@@ -181,10 +176,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
     _showDefectDialog(newDefect);
   }
 
-  Rect? _getImageContainerBounds() {
-    final size = MediaQuery.of(context).size;
-    return Rect.fromLTWH(0, 100, size.width, size.height - 300);
-  }
+  // Удалено — координаты берутся напрямую из details.localPosition.
 
   void _showDefectDialog(WeldDefect defect) {
     String? selectedType = defect.defectType;

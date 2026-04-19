@@ -15,6 +15,41 @@ const Changelog = () => {
   /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
+      version: '3.28.0',
+      date: '19.04.2026',
+      type: 'minor',
+      changes: [
+        { type: 'improved', description: 'Web UI: редизайн AdminPanel и UsersManagement в индустриальной data-dense эстетике 2026 — единые стили sp-surface, sp-stat, sp-pill-nav, ind-chip с семантическими цветами и tabular-nums.' },
+        { type: 'improved', description: 'Web UI: EquipmentHierarchyTree переведён на CSS-токены (var(--accent), var(--success), var(--warning)) вместо 32 hardcoded slate/blue/green цветов; вложенные уровни с пунктирными разделителями.' },
+        { type: 'improved', description: 'Web UI: ReportsAndExpertise — breadcrumb и заголовок раздела переведены на дизайн-токены, добавлена плавная анимация sp-animate-in.' },
+        { type: 'improved', description: 'Web CSS: добавлены алиасы ind-chip--success/--warning/--warn/--ok и sp-pill-nav__item для совместимости стилей между страницами.' },
+        { type: 'improved', description: 'Mobile UI: equipment_list_screen — компактные плоские группы с ind-style border, dense type/дропдауны, chips счётчиков с AppColors.accent, 1-2 строки типографики вместо 4.' },
+        { type: 'improved', description: 'Mobile UI: protocols_registry_screen — таблица реестра с 10.5px моноширинной датой, pill-статусами (success/warning с border), уплотнённая шапка и строки.' },
+        { type: 'improved', description: 'Mobile UI: opo_list_screen — карточки со squircle-иконкой на warning-фоне, двухстрочное название с letter-spacing, chevron-стрелка вместо edit-кнопки.' },
+        { type: 'fixed', description: 'Deploy: скрипт deploy-ssh.ps1 собирает backend и frontend последовательно без --no-cache — устранён OOM на VPS с 3–4 ГБ RAM, BUILD_REF по-прежнему инвалидирует frontend-слой.' },
+        { type: 'changed', description: 'Системный релиз 3.28.0: синхронизированы версии web/backend/mobile.' },
+      ],
+    },
+    {
+      version: '3.27.0',
+      date: '19.04.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Шаблоны чертежей с точками замеров: новый модуль «Шаблоны чертежей» (/drawing-templates) — загрузка растровых схем (PNG/JPG) с привязкой к конкретному оборудованию или типу оборудования, расстановка точек замеров прямо на изображении через интерактивный редактор с pan/zoom.' },
+        { type: 'added', description: 'Бэкенд: новые модели DrawingTemplate и DrawingTemplatePoint, миграция Alembic 005, эндпоинты POST/GET/PATCH/DELETE /api/drawing-templates с отдачей изображений, загрузкой файлов и синхронизацией delta.' },
+        { type: 'added', description: 'Мобильное: новые экраны выбора шаблона чертежа из библиотеки (drawing_template_picker) и аннотирования (drawing_annotation) с отображением предопределённых точек, перетаскиванием и добавлением новых; offline-кэш изображений и точек через sqflite.' },
+        { type: 'added', description: 'Мобильное: интеграция «Шаблон из библиотеки» в экран толщинометрии (ThicknessMeasurementScreen) — точки замеров из веб-шаблона автоматически подтягиваются в форму замеров.' },
+        { type: 'added', description: 'Мобильное: delta-синхронизация drawing templates в SyncService с префетчем для всех заданий инженера.' },
+        { type: 'added', description: 'Карточка оборудования: новый блок «Шаблоны чертежей» показывает привязанные к объекту чертежи с переходом в редактор.' },
+        { type: 'improved', description: 'Web UI: расширена индустриальная data-dense эстетика — новые CSS-токены sp-surface, sp-stat, sp-pill-nav, sp-progress, sp-skeleton, focus-visible; редизайн Dashboard, AssignmentsManagement, VerificationsManagement, EquipmentManagement с семантическими цветами и tabular-nums.' },
+        { type: 'improved', description: 'Mobile UI: новая тема AppTheme 2026 — плотность −1/−1, современная типографика с отрицательным letter-spacing, плоские карточки; обновлённая карточка задания с 3px статусной полосой, pill-чипами статуса/приоритета и компактным индикатором sync.' },
+        { type: 'fixed', description: 'Mobile: исправлены координаты точек на экранах ImageAnnotationScreen и WeldDefectAnnotationScreen — переход с глобальных координат на details.localPosition устранил смещение точек при тапе.' },
+        { type: 'fixed', description: 'Mobile: VesselInspectionScreen — нижняя навигация страниц теперь корректно учитывает SafeArea и не перекрывается системной панелью Android.' },
+        { type: 'fixed', description: 'Web: устранены все pre-existing TypeScript-ошибки (unused imports, import.meta.env, несовместимость LucideIcon) — tsc --noEmit проходит чисто, CI больше не засоряется.' },
+        { type: 'changed', description: 'Системный релиз 3.27.0: синхронизированы версии web/backend/mobile.' },
+      ],
+    },
+    {
       version: '3.26.0',
       date: '07.04.2026',
       type: 'minor',

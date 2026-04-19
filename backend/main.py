@@ -41,12 +41,13 @@ from mobile_stats_api import router as mobile_stats_router
 from notifications_api import router as notifications_router
 from pipeline_map_api import router as pipeline_map_router
 from protocol_templates_api import router as protocol_templates_router
+from drawing_templates_api import router as drawing_templates_router
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.26.0",
+    version="3.28.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -129,6 +130,7 @@ app.include_router(mobile_stats_router)
 app.include_router(notifications_router)
 app.include_router(pipeline_map_router)
 app.include_router(protocol_templates_router)
+app.include_router(drawing_templates_router)
 
 
 # ─── Startup: DB migrations ──────────────────────────────────────────────────
@@ -285,6 +287,44 @@ async def _run_migrations():
             )""",
             "CREATE INDEX IF NOT EXISTS idx_user_devices_user_id ON user_devices(user_id)",
         ]),
+        # drawing_templates + drawing_template_points — шаблоны чертежей с точками замера (П.2 ТЗ 2026-04)
+        ("drawing_templates", [
+            """CREATE TABLE IF NOT EXISTS drawing_templates (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                category VARCHAR(100),
+                equipment_type_id UUID REFERENCES equipment_types(id) ON DELETE SET NULL,
+                equipment_id UUID REFERENCES equipment(id) ON DELETE SET NULL,
+                image_file_path VARCHAR(500) NOT NULL,
+                image_width INTEGER,
+                image_height INTEGER,
+                mime_type VARCHAR(100),
+                file_size INTEGER,
+                version INTEGER NOT NULL DEFAULT 1,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_by UUID REFERENCES users(id),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_drawing_templates_category ON drawing_templates(category)",
+            "CREATE INDEX IF NOT EXISTS ix_drawing_templates_equipment_type_id ON drawing_templates(equipment_type_id)",
+            "CREATE INDEX IF NOT EXISTS ix_drawing_templates_equipment_id ON drawing_templates(equipment_id)",
+            "CREATE INDEX IF NOT EXISTS ix_drawing_templates_is_active ON drawing_templates(is_active)",
+            """CREATE TABLE IF NOT EXISTS drawing_template_points (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                template_id UUID NOT NULL REFERENCES drawing_templates(id) ON DELETE CASCADE,
+                label VARCHAR(50) NOT NULL,
+                point_type VARCHAR(30) NOT NULL DEFAULT 'thickness',
+                x_percent NUMERIC(6,3) NOT NULL,
+                y_percent NUMERIC(6,3) NOT NULL,
+                expected_value NUMERIC(10,3),
+                notes TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_drawing_template_points_template_id ON drawing_template_points(template_id)",
+        ]),
         # audit_log table
         ("audit_log", [
             """CREATE TABLE IF NOT EXISTS audit_log (
@@ -414,7 +454,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.26.0", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.28.0", "status": "running"}
 
 
 @app.get("/health")

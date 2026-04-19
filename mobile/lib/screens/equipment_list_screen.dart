@@ -5,6 +5,7 @@ import '../models/equipment.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import '../services/auth_service.dart';
+import '../theme/app_colors.dart';
 
 final equipmentListProvider = FutureProvider<List<Equipment>>((ref) async {
   final apiService = ApiService();
@@ -292,13 +293,26 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
   
   Widget _buildGroupItem(Map<String, dynamic> group, int level) {
     final groupKey = group['key'] as String;
-    final isExpanded = _expandedGroups[groupKey] ?? (level == 0); // По умолчанию раскрыты только верхние уровни
+    final isExpanded = _expandedGroups[groupKey] ?? (level == 0);
     final items = group['items'] as List;
     final isEquipmentList = items.isNotEmpty && items.first is Equipment;
-    
-    return Card(
-      color: Color(0xFF1e293b + (level * 0x00101010).clamp(0, 0x00202020)),
-      margin: EdgeInsets.only(bottom: 8, left: (level * 16).toDouble()),
+
+    // Левел задаёт offset + чуть более тёмный фон для вложенных уровней
+    final bgLightness = (level * 0x06).clamp(0, 0x18);
+    final bg = Color.fromARGB(
+      0xFF,
+      0x1E + bgLightness,
+      0x29 + bgLightness,
+      0x3B + bgLightness,
+    );
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 4, left: (level * 10).toDouble()),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.darkBorder, width: 1),
+      ),
       child: Column(
         children: [
           // Заголовок группы
@@ -308,57 +322,72 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                 _expandedGroups[groupKey] = !isExpanded;
               });
             },
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
                   Icon(
                     group['icon'] as IconData,
-                    color: const Color(0xFF3b82f6),
-                    size: (20 - (level * 2)).clamp(14, 20).toDouble(),
+                    color: AppColors.accent,
+                    size: (16 - (level * 1)).clamp(12, 16).toDouble(),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           group['title'] as String,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: (16 - (level * 1)).clamp(12, 16).toDouble(),
-                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                            fontSize: (13.5 - (level * 0.5)).clamp(11, 13.5).toDouble(),
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.1,
+                            height: 1.2,
                           ),
                         ),
                         if (group['subtitle'] != null)
                           Text(
                             group['subtitle'] as String,
                             style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontSize: 10.5,
+                              letterSpacing: 0.3,
                             ),
                           ),
                       ],
                     ),
                   ),
                   if (!isEquipmentList)
-                    Text(
-                      '${items.length}',
-                      style: const TextStyle(
-                        color: Color(0xFF3b82f6),
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${items.length}',
+                        style: const TextStyle(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Icon(
                     isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
+                    size: 16,
                   ),
                 ],
               ),
             ),
           ),
-          // Содержимое группы
           if (isExpanded)
             ...isEquipmentList
                 ? (items as List<Equipment>).map((equipment) => _buildEquipmentItem(equipment, level + 1))
@@ -390,86 +419,86 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
         });
       },
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: (16 + (level * 8)).toDouble(),
-          vertical: 12,
+        padding: EdgeInsets.fromLTRB(
+          (12 + (level * 6)).toDouble(),
+          8,
+          10,
+          8,
         ),
         decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            top: BorderSide(color: AppColors.darkBorder, width: 0.6),
           ),
         ),
         child: Row(
           children: [
-            const SizedBox(width: 32),
+            const SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     equipment.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
+                      letterSpacing: -0.1,
+                      height: 1.25,
                     ),
                   ),
-                  if (equipment.typeName != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        'Тип: ${equipment.typeName}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
+                  const SizedBox(height: 2),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    children: [
+                      if (equipment.serialNumber != null)
+                        Text(
+                          '№ ${equipment.serialNumber}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                            letterSpacing: 0.2,
+                          ),
                         ),
-                      ),
-                    ),
-                  if (equipment.serialNumber != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        'Заводской №: ${equipment.serialNumber}',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
+                      if (inventoryNumber != null)
+                        Text(
+                          'Инв: $inventoryNumber',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                            letterSpacing: 0.2,
+                          ),
                         ),
-                      ),
-                    ),
-                  if (inventoryNumber != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        'Инв. №: $inventoryNumber',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
+                      if (manufactureYear != null)
+                        Text(
+                          manufactureYear,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                         ),
-                      ),
-                    ),
-                  if (manufacturer != null || manufactureYear != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        [
-                          if (manufacturer != null) 'Изготовитель: $manufacturer',
-                          if (manufactureYear != null) 'Год: $manufactureYear',
-                        ].join(' • '),
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
+                      if (manufacturer != null)
+                        Text(
+                          manufacturer,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ),
             const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF3b82f6),
+              Icons.chevron_right,
+              color: AppColors.textSecondary,
               size: 16,
             ),
           ],
@@ -490,29 +519,37 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Выбор оборудования'),
-        backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Выбор оборудования',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
       ),
-      backgroundColor: const Color(0xFF0f172a),
       body: Column(
         children: [
           // Фильтры
           Container(
-            padding: const EdgeInsets.all(16),
-            color: const Color(0xFF1e293b),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            decoration: const BoxDecoration(
+              color: AppColors.darkSurface,
+              border: Border(
+                bottom: BorderSide(color: AppColors.darkBorder, width: 1),
+              ),
+            ),
             child: Column(
               children: [
                 // Поиск
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Поиск по названию, номеру, местоположению...',
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                    hintText: 'Поиск по названию, номеру, местоположению',
+                    prefixIcon: const Icon(Icons.search, size: 18),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.white70),
+                            icon: const Icon(Icons.clear, size: 18),
                             onPressed: () {
                               setState(() {
                                 _searchController.clear();
@@ -520,51 +557,23 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                             },
                           )
                         : null,
-                    filled: true,
-                    fillColor: const Color(0xFF0f172a),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF3b82f6)),
-                    ),
+                    isDense: true,
                   ),
-                  style: const TextStyle(color: Colors.white),
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 // Фильтры по иерархии
                 Column(
                   children: [
                     // Предприятие
                     DropdownButtonFormField<String>(
                         value: _selectedEnterprise,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Предприятие',
-                          labelStyle: const TextStyle(color: Colors.white70),
-                          filled: true,
-                          fillColor: const Color(0xFF0f172a),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white24),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white24),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF3b82f6)),
-                          ),
+                          isDense: true,
                         ),
-                        dropdownColor: const Color(0xFF1e293b),
-                        style: const TextStyle(color: Colors.white),
+                        dropdownColor: AppColors.darkSurface,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                         items: [
                           const DropdownMenuItem<String>(
                             value: null,
@@ -583,31 +592,17 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                           });
                         },
                       ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     // Фильтр по филиалу
                     if (_selectedEnterprise != null)
                           DropdownButtonFormField<String>(
                           value: _selectedBranch,
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             labelText: 'Филиал',
-                            labelStyle: const TextStyle(color: Colors.white70),
-                            filled: true,
-                            fillColor: const Color(0xFF0f172a),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.white24),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.white24),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF3b82f6)),
-                            ),
+                            isDense: true,
                           ),
-                          dropdownColor: const Color(0xFF1e293b),
-                          style: const TextStyle(color: Colors.white),
+                          dropdownColor: AppColors.darkSurface,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                           items: [
                             const DropdownMenuItem<String>(
                               value: null,
@@ -627,31 +622,17 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                             });
                           },
                         ),
-                    if (_selectedEnterprise != null) const SizedBox(height: 8),
+                    if (_selectedEnterprise != null) const SizedBox(height: 6),
                     // Фильтр по цеху
                     if (_selectedBranch != null)
                           DropdownButtonFormField<String>(
                           value: _selectedWorkshop,
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             labelText: 'Цех',
-                            labelStyle: const TextStyle(color: Colors.white70),
-                            filled: true,
-                            fillColor: const Color(0xFF0f172a),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.white24),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.white24),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF3b82f6)),
-                            ),
+                            isDense: true,
                           ),
-                          dropdownColor: const Color(0xFF1e293b),
-                          style: const TextStyle(color: Colors.white),
+                          dropdownColor: AppColors.darkSurface,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                           items: [
                             const DropdownMenuItem<String>(
                               value: null,
@@ -670,30 +651,16 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                             });
                           },
                         ),
-                    if (_selectedBranch != null) const SizedBox(height: 8),
+                    if (_selectedBranch != null) const SizedBox(height: 6),
                     // Фильтр по типу оборудования
                     DropdownButtonFormField<String>(
                         value: _selectedType,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Тип оборудования',
-                          labelStyle: const TextStyle(color: Colors.white70),
-                          filled: true,
-                          fillColor: const Color(0xFF0f172a),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white24),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white24),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF3b82f6)),
-                          ),
+                          isDense: true,
                         ),
-                        dropdownColor: const Color(0xFF1e293b),
-                        style: const TextStyle(color: Colors.white),
+                        dropdownColor: AppColors.darkSurface,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                         items: [
                           const DropdownMenuItem<String>(
                             value: null,
@@ -713,25 +680,31 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                   ],
                 ),
                 // Кнопка сброса фильтров
-                if (_selectedEnterprise != null || _selectedBranch != null || 
-                    _selectedWorkshop != null || _selectedType != null || 
+                if (_selectedEnterprise != null || _selectedBranch != null ||
+                    _selectedWorkshop != null || _selectedType != null ||
                     _searchController.text.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _selectedEnterprise = null;
-                          _selectedBranch = null;
-                          _selectedWorkshop = null;
-                          _selectedType = null;
-                          _searchController.clear();
-                        });
-                      },
-                      icon: const Icon(Icons.clear_all, size: 16),
-                      label: const Text('Сбросить фильтры'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF3b82f6),
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedEnterprise = null;
+                            _selectedBranch = null;
+                            _selectedWorkshop = null;
+                            _selectedType = null;
+                            _searchController.clear();
+                          });
+                        },
+                        icon: const Icon(Icons.clear_all, size: 14),
+                        label: const Text('Сбросить', style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.accent,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                       ),
                     ),
                   ),
@@ -750,74 +723,64 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                       _selectedWorkshop != null || _selectedType != null || 
                       _searchController.text.isNotEmpty) {
                     return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: Colors.white38,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Оборудование не найдено',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _selectedEnterprise = null;
-                                  _selectedBranch = null;
-                                  _selectedWorkshop = null;
-                                  _selectedType = null;
-                                  _searchController.clear();
-                                });
-                              },
-                              child: const Text('Сбросить фильтры'),
-                            ),
-          ),
-        ],
-      ),
-                    );
-                  }
-                  
-                  // Если список действительно пустой
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 64,
-                    color: Colors.white38,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Оборудование не найдено',
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                          'Обратитесь к администратору для назначения оборудования',
-                          style: TextStyle(color: Colors.white54, fontSize: 14),
-                    textAlign: TextAlign.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.search_off, size: 44, color: AppColors.textSecondary),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Оборудование не найдено',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () => ref.invalidate(equipmentListProvider),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Обновить'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3b82f6),
-                      foregroundColor: Colors.white,
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedEnterprise = null;
+                                _selectedBranch = null;
+                                _selectedWorkshop = null;
+                                _selectedType = null;
+                                _searchController.clear();
+                              });
+                            },
+                            child: const Text('Сбросить фильтры'),
+                          ),
+                        ),
+                      ],
                     ),
+                  );
+                }
+
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.inventory_2_outlined, size: 44, color: AppColors.textSecondary),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Оборудование не найдено',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      ),
+                      const SizedBox(height: 6),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          'Обратитесь к администратору для назначения оборудования',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: () => ref.invalidate(equipmentListProvider),
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Обновить'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
+                );
+              }
 
                 // Группируем оборудование по иерархии
                 final groupedEquipment = _groupEquipmentByHierarchy(filtered);
@@ -827,7 +790,7 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     ref.invalidate(equipmentListProvider);
                   },
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
                     itemCount: groupedEquipment.length,
                     itemBuilder: (context, index) {
                       final group = groupedEquipment[index];
@@ -835,65 +798,58 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
                     },
                   ),
                 );
-        },
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF3b82f6),
-          ),
-        ),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 48,
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Ошибка загрузки оборудования',
-                style: TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                error.toString(),
-                style: const TextStyle(color: Colors.red, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-                    if (error.toString().contains('AUTH_INVALID') ||
-                        error.toString().contains('Invalid authentication credentials') ||
-                        error.toString().contains('401')) ...[
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          await _authService.logout();
-                          try {
-                            await SyncService().clearOfflineCache();
-                          } catch (_) {}
-                          if (!mounted) return;
-                          context.go('/login');
-                        },
-                        icon: const Icon(Icons.login),
-                        label: const Text('Войти заново'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3b82f6),
-                          foregroundColor: Colors.white,
+              error: (error, stack) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: AppColors.danger, size: 40),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Ошибка загрузки оборудования',
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        error.toString(),
+                        style: const TextStyle(color: AppColors.danger, fontSize: 11),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 14),
+                      if (error.toString().contains('AUTH_INVALID') ||
+                          error.toString().contains('Invalid authentication credentials') ||
+                          error.toString().contains('401')) ...[
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            await _authService.logout();
+                            try {
+                              await SyncService().clearOfflineCache();
+                            } catch (_) {}
+                            if (!mounted) return;
+                            context.go('/login');
+                          },
+                          icon: const Icon(Icons.login, size: 16),
+                          label: const Text('Войти заново'),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () => ref.invalidate(equipmentListProvider),
-                        child: const Text('Повторить'),
-                      ),
-                    ] else
-              ElevatedButton(
-                onPressed: () => ref.invalidate(equipmentListProvider),
-                child: const Text('Повторить'),
+                        const SizedBox(height: 6),
+                        TextButton(
+                          onPressed: () => ref.invalidate(equipmentListProvider),
+                          child: const Text('Повторить'),
+                        ),
+                      ] else
+                        ElevatedButton(
+                          onPressed: () => ref.invalidate(equipmentListProvider),
+                          child: const Text('Повторить'),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ],
-          ),
-        ),
             ),
           ),
         ],

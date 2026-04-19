@@ -11,6 +11,7 @@ import '../models/assignment.dart';
 import 'api_service.dart';
 import 'inspection_archive_service.dart';
 import 'database_service.dart';
+import 'drawing_templates_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
@@ -684,6 +685,36 @@ class SyncService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefsKeyPendingInspections);
     await clearOfflineCache();
+  }
+
+  /// Синхронизировать шаблоны чертежей (П.2 ТЗ 2026-04).
+  ///
+  /// Делает дельта-sync (по last_sync), при необходимости docачивает свежие
+  /// PNG/JPG и обновляет sqflite.drawing_templates.
+  /// Возвращает количество обновлённых шаблонов.
+  Future<int> syncDrawingTemplates({List<String>? equipmentIds}) async {
+    try {
+      final svc = DrawingTemplatesService();
+      return await svc.syncDelta(equipmentIds: equipmentIds);
+    } catch (e) {
+      // ignore: avoid_print
+      print('SyncService.syncDrawingTemplates error: $e');
+      return 0;
+    }
+  }
+
+  /// Предзагрузка шаблонов для набора оборудования (напр., при открытии
+  /// списка заданий, чтобы инженер мог работать офлайн).
+  Future<int> prefetchDrawingTemplatesForAssignments(List<Assignment> assignments) async {
+    final ids = assignments
+        .map((a) => a.equipmentId)
+        .where((e) => e != null && e.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return 0;
+    final svc = DrawingTemplatesService();
+    return svc.prefetchForEquipmentIds(ids);
   }
 
   /// Получить список оборудования из локального хранилища (sqflite)

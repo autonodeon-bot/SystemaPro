@@ -240,25 +240,19 @@ const VerificationsManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Поверки оборудования</h1>
-            <p className="text-slate-400 mt-1">Управление оборудованием для поверок и контроль сроков</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <a
-              href="#/verifications-calendar"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              <Calendar size={20} />
-              Календарь
-            </a>
-          </div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            Поверки оборудования
+          </h1>
+          <p className="mt-1" style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+            Управление оборудованием для поверок и контроль сроков
+          </p>
         </div>
-        <div className="flex items-center justify-between">
-        </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <a href="#/verifications-calendar" className="ind-btn">
+            <Calendar size={14} /> Календарь
+          </a>
           <button
             onClick={() => {
               setShowStatistics(!showStatistics);
@@ -266,66 +260,65 @@ const VerificationsManagement: React.FC = () => {
                 loadUsageStatistics();
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+            className="ind-btn"
             title="Статистика использования"
           >
-            <BarChart3 size={20} />
-            Статистика
+            <BarChart3 size={14} /> Статистика
           </button>
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            title="Экспорт в CSV"
-          >
-            <FileDown size={20} />
-            Экспорт
+          <button onClick={handleExportExcel} className="ind-btn" title="Экспорт в CSV">
+            <FileDown size={14} /> Экспорт
           </button>
           <button
             onClick={() => {
               setEditingItem(null);
               setShowModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition"
+            className="ind-btn ind-btn--primary"
           >
-            <Plus size={20} />
-            Добавить оборудование
+            <Plus size={14} /> Добавить оборудование
           </button>
         </div>
       </div>
 
       {/* Статистика */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
-          <div className="text-slate-400 text-sm">Всего оборудования</div>
-          <div className="text-2xl font-bold text-white mt-1">{equipment.length}</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="sp-stat">
+          <p className="sp-stat__label">Всего оборудования</p>
+          <div className="sp-stat__value">{equipment.length}</div>
         </div>
-        <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
-          <div className="text-red-400 text-sm flex items-center gap-1">
-            <AlertTriangle size={16} />
-            Просрочено
+        <div className="sp-surface-flat p-4" style={{ borderColor: 'rgba(239,68,68,0.25)', background: 'var(--danger-bg)' }}>
+          <div className="text-sm flex items-center gap-1" style={{ color: 'var(--danger)' }}>
+            <AlertTriangle size={15} /> Просрочено
           </div>
-          <div className="text-2xl font-bold text-red-400 mt-1">{expiredCount}</div>
+          <div className="text-2xl font-bold mt-1 tabular-nums" style={{ color: 'var(--danger)' }}>{expiredCount}</div>
         </div>
-        <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/20">
-          <div className="text-yellow-400 text-sm flex items-center gap-1">
-            <Clock size={16} />
-            Предупреждение (≤30 дней)
+        <div
+          className="sp-surface-flat p-4"
+          style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'var(--warning-bg)' }}
+        >
+          <div className="text-sm flex items-center gap-1" style={{ color: 'var(--warning)' }}>
+            <Clock size={15} /> Предупреждение (≤30 дней)
           </div>
-          <div className="text-2xl font-bold text-yellow-400 mt-1">{warning30Count}</div>
+          <div className="text-2xl font-bold mt-1 tabular-nums" style={{ color: 'var(--warning)' }}>{warning30Count}</div>
         </div>
       </div>
 
       {/* Фильтры */}
-      <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="sp-surface p-4">
+        <div className="flex flex-col md:flex-row gap-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2"
+              size={16}
+              style={{ color: 'var(--text-muted)' }}
+            />
             <input
               type="text"
               placeholder="Поиск по названию, серийному номеру, типу..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-primary border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-accent"
+              className="ind-input"
+              style={{ paddingLeft: '36px', height: '40px' }}
             />
           </div>
           <select

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileText, Info, MapPin, Package, Users, Wrench, Eye, X, Sparkles, Download, Trash2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, Info, MapPin, Package, Users, Wrench, Eye, X, Sparkles, Download, Trash2, CheckCircle2, Image as ImageIcon, Target, Upload, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
 
@@ -313,6 +313,16 @@ const EquipmentDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Чертежи и схемы */}
+      {equipment && (
+        <EquipmentDrawingTemplatesSection
+          equipmentId={String(id)}
+          equipmentTypeId={equipment.type_id || equipment.equipment_type_id || null}
+          headers={headers}
+          canEdit={canApprove}
+        />
+      )}
 
       {/* История обследований */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
@@ -663,6 +673,177 @@ const EquipmentDetails = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Секция «Чертежи и схемы оборудования» ───────────────────────────────
+// Работает с API /api/drawing-templates: список для этой единицы (свои + общие по типу).
+
+interface DrawingItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  equipment_id?: string | null;
+  equipment_type_id?: string | null;
+  equipment_name?: string | null;
+  equipment_type_name?: string | null;
+  image_width?: number | null;
+  image_height?: number | null;
+  version: number;
+  points_count?: number;
+  updated_at?: string;
+}
+
+const CATEGORY_RU: Record<string, string> = {
+  vessel: 'Сосуды',
+  pipeline: 'Трубопроводы',
+  ndt_scheme: 'Схема НК',
+  thickness_scheme: 'Схема УЗТ',
+  other: 'Прочее',
+};
+
+const EquipmentDrawingTemplatesSection: React.FC<{
+  equipmentId: string;
+  equipmentTypeId: string | null;
+  headers: HeadersInit | null;
+  canEdit: boolean;
+}> = ({ equipmentId, equipmentTypeId: _equipmentTypeId, headers, canEdit }) => {
+  const [items, setItems] = useState<DrawingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const navigate = useNavigate();
+  const fileInputRef = useMemo(() => ({ current: null as HTMLInputElement | null }), []);
+
+  const load = useCallback(async () => {
+    if (!headers) return;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/drawing-templates?equipment_id=${equipmentId}&active_only=true`,
+        { headers },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.items || []);
+      }
+    } catch (e) {
+      console.error('load drawings', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [equipmentId, headers]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const quickUpload = async (file: File) => {
+    if (!headers) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('name', file.name.replace(/\.[^.]+$/, ''));
+      fd.append('category', 'vessel');
+      fd.append('equipment_id', equipmentId);
+      const res = await fetch(`${API_BASE}/api/drawing-templates`, {
+        method: 'POST',
+        headers,
+        body: fd,
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const created: DrawingItem = await res.json();
+      setItems((prev) => [created, ...prev]);
+    } catch (e) {
+      alert(`Ошибка загрузки: ${(e as Error).message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <ImageIcon className="text-accent" size={20} />
+          Чертежи и схемы ({items.length})
+        </h2>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold cursor-pointer">
+              <Upload size={14} />
+              {uploading ? 'Загрузка...' : 'Загрузить чертёж'}
+              <input
+                ref={(el) => (fileInputRef.current = el)}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) quickUpload(f);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <button
+              onClick={() => navigate('/drawing-templates')}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent/80"
+            >
+              <Plus size={14} /> Менеджер шаблонов
+            </button>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="text-slate-400 text-sm">Загрузка...</div>
+      ) : items.length === 0 ? (
+        <div className="text-slate-400 text-sm text-center py-6 border border-dashed border-slate-700 rounded-lg">
+          <ImageIcon size={32} className="mx-auto mb-2 opacity-40" />
+          Для этого оборудования пока нет чертежей.
+          {canEdit && (
+            <div className="text-xs mt-1">Загрузите схему с точками замера — инженеры смогут использовать её в мобильном приложении.</div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {items.map((t) => {
+            const isOwn = t.equipment_id === equipmentId;
+            return (
+              <button
+                key={t.id}
+                onClick={() => navigate('/drawing-templates')}
+                className="text-left bg-slate-900 hover:bg-slate-700/50 border border-slate-700 hover:border-accent rounded-lg p-3 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="text-white font-semibold text-sm truncate">{t.name}</div>
+                  <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-mono">
+                    v{t.version}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                  <span className="inline-flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                    {CATEGORY_RU[t.category || ''] || t.category || '—'}
+                  </span>
+                  {isOwn ? (
+                    <span className="inline-flex items-center gap-1 text-blue-400">
+                      <Target size={10} /> Своя
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">Общий</span>
+                  )}
+                  <span className="ml-auto font-mono">{t.points_count ?? 0} точек</span>
+                </div>
+                {t.image_width && t.image_height && (
+                  <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                    {t.image_width}×{t.image_height}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

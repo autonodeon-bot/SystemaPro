@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import '../services/auth_service.dart';
+import '../theme/app_colors.dart';
 
 class OpoListScreen extends ConsumerStatefulWidget {
   const OpoListScreen({super.key});
@@ -39,11 +40,9 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
     });
 
     try {
-      // Сначала берём из офлайн-кэша (для режима без сети / PIN-вход)
       var opos = await _syncService.getOfflineOpos();
 
       try {
-        // Пытаемся загрузить с сервера (если есть токен)
         final fromApi = await _apiService.getOpos();
         opos = fromApi;
         await _syncService.saveOposOffline(opos);
@@ -57,16 +56,15 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
           context.go('/login');
           return;
         }
-        // 403 / Not authenticated / нет токена — офлайн: используем кэш, не показываем ошибку
         if (msg.contains('403') ||
             msg.contains('Not authenticated') ||
             msg.contains('Токен авторизации не найден')) {
           if (opos.isNotEmpty && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Режим офлайн: показаны сохранённые ОПО. При появлении интернета выполните синхронизацию.'),
-                backgroundColor: Colors.orange,
-                duration: Duration(seconds: 3),
+                content: Text('Режим офлайн: показаны сохранённые ОПО.'),
+                backgroundColor: AppColors.warning,
+                duration: Duration(seconds: 2),
               ),
             );
           }
@@ -74,7 +72,7 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Не удалось загрузить список ОПО: $e'),
-              backgroundColor: Colors.orange,
+              backgroundColor: AppColors.warning,
             ),
           );
         }
@@ -94,7 +92,7 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Не удалось загрузить список ОПО: $e'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
     }
@@ -114,45 +112,33 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ОПО (Опасные производственные объекты)'),
-        backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'ОПО',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: 20),
             onPressed: _loadOpos,
-            tooltip: 'Обновить список',
+            tooltip: 'Обновить',
           ),
         ],
       ),
-      backgroundColor: const Color(0xFF0f172a),
       body: Column(
         children: [
-          // Поиск
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: TextField(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Поиск по названию или коду ОПО...',
-                hintStyle: const TextStyle(color: Colors.white70),
-                prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                filled: true,
-                fillColor: const Color(0xFF1e293b),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white24),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF3b82f6)),
-                ),
+              decoration: const InputDecoration(
+                hintText: 'Поиск по названию или коду',
+                prefixIcon: Icon(Icons.search, size: 18),
+                isDense: true,
               ),
-              style: const TextStyle(color: Colors.white),
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
@@ -160,11 +146,25 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
               },
             ),
           ),
-          
-          // Список ОПО
+          if (!_isLoading)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+              child: Row(
+                children: [
+                  Text(
+                    '${_filteredOpos.length} объектов',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                 : _filteredOpos.isEmpty
                     ? Center(
                         child: Column(
@@ -172,17 +172,17 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
                           children: [
                             const Icon(
                               Icons.inventory_2_outlined,
-                              size: 64,
-                              color: Colors.white38,
+                              size: 44,
+                              color: AppColors.textSecondary,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             Text(
                               _searchQuery.isEmpty
                                   ? 'Нет ОПО для отображения'
                                   : 'Ничего не найдено',
                               style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
                               ),
                             ),
                           ],
@@ -190,53 +190,21 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
                       )
                     : RefreshIndicator(
                         onRefresh: _loadOpos,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
                           itemCount: _filteredOpos.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 6),
                           itemBuilder: (context, index) {
                             final opo = _filteredOpos[index];
                             final opoId = opo['id']?.toString() ?? '';
                             final opoName = opo['name']?.toString() ?? 'Без названия';
                             final opoCode = opo['code']?.toString() ?? '';
-                            
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              color: const Color(0xFF1e293b),
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.dangerous,
-                                  color: Color(0xFF3b82f6),
-                                  size: 32,
-                                ),
-                                title: Text(
-                                  opoName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: opoCode.isNotEmpty
-                                    ? Text(
-                                        'Код: $opoCode',
-                                        style: const TextStyle(color: Colors.white70),
-                                      )
-                                    : null,
-                                trailing: IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Color(0xFF3b82f6),
-                                  ),
-                                  onPressed: () async {
-                                    final result = await context.push<bool>('/opo-survey', extra: {
-                                      'opoId': opoId,
-                                      'opoName': opoName,
-                                    });
-                                    if (result == true) {
-                                      await _loadOpos();
-                                    }
-                                  },
-                                  tooltip: 'Заполнить опросный лист ОПО',
-                                ),
+
+                            return Material(
+                              color: AppColors.darkSurface,
+                              borderRadius: BorderRadius.circular(10),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(10),
                                 onTap: () async {
                                   final result = await context.push<bool>('/opo-survey', extra: {
                                     'opoId': opoId,
@@ -246,6 +214,67 @@ class _OpoListScreenState extends ConsumerState<OpoListScreen> {
                                     await _loadOpos();
                                   }
                                 },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: AppColors.darkBorder, width: 1),
+                                  ),
+                                  padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.warning.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.dangerous_outlined,
+                                          color: AppColors.warning,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              opoName,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: AppColors.textPrimary,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13.5,
+                                                letterSpacing: -0.1,
+                                                height: 1.25,
+                                              ),
+                                            ),
+                                            if (opoCode.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                opoCode,
+                                                style: const TextStyle(
+                                                  color: AppColors.textSecondary,
+                                                  fontSize: 11,
+                                                  fontFeatures: [FontFeature.tabularFigures()],
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.chevron_right,
+                                        color: AppColors.textSecondary,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             );
                           },

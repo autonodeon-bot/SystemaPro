@@ -176,41 +176,77 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
-        title: const Text('Реестр протоколов / актов'),
-        backgroundColor: AppColors.darkSurface,
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Реестр протоколов',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: 20),
             onPressed: _loadData,
             tooltip: 'Обновить',
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppColors.darkPrimary,
-          labelColor: AppColors.darkPrimary,
-          unselectedLabelColor: Colors.white60,
+          indicatorColor: AppColors.accent,
+          indicatorWeight: 2,
+          labelColor: AppColors.accent,
+          unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
           tabs: [
             Tab(
-              text: 'Незавершённые',
-              icon: Badge(
-                isLabelVisible: _drafts.isNotEmpty,
-                label: Text('${_drafts.length}'),
-                child: const Icon(Icons.pending_actions, size: 18),
+              height: 42,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.pending_actions, size: 15),
+                  const SizedBox(width: 6),
+                  const Text('Черновики'),
+                  if (_drafts.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_drafts.length}',
+                        style: const TextStyle(
+                          color: AppColors.warning,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             const Tab(
-              text: 'Все протоколы',
-              icon: Icon(Icons.list_alt, size: 18),
+              height: 42,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.list_alt, size: 15),
+                  SizedBox(width: 6),
+                  Text('Все протоколы'),
+                ],
+              ),
             ),
           ],
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
           : TabBarView(
               controller: _tabController,
               children: [
@@ -228,10 +264,10 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline, size: 48, color: Colors.white30),
-            SizedBox(height: 16),
+            Icon(Icons.check_circle_outline, size: 40, color: AppColors.textSecondary),
+            SizedBox(height: 12),
             Text('Нет незавершённых протоколов',
-                style: TextStyle(color: Colors.white54)),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ],
         ),
       );
@@ -320,12 +356,13 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.folder_open, size: 48, color: Colors.white30),
-            SizedBox(height: 16),
-            Text('Реестр пуст', style: TextStyle(color: Colors.white54)),
-            SizedBox(height: 8),
+            Icon(Icons.folder_open, size: 40, color: AppColors.textSecondary),
+            SizedBox(height: 12),
+            Text('Реестр пуст',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            SizedBox(height: 4),
             Text('Созданные протоколы будут отображаться здесь',
-                style: TextStyle(color: Colors.white38, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                 textAlign: TextAlign.center),
           ],
         ),
@@ -363,84 +400,96 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
       children: [
         // Шапка таблицы
         Container(
-          color: AppColors.darkSurface,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: const BoxDecoration(
+            color: AppColors.darkSurface,
+            border: Border(
+              bottom: BorderSide(color: AppColors.darkBorder, width: 1),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
             children: [
               const SizedBox(
-                width: 88,
+                width: 82,
                 child: Text('Дата',
                     style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
               ),
               const Expanded(
                 child: Text('Объект',
                     style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
               ),
               SizedBox(
                 width: showDelete ? 104 : 120,
                 child: const Text('Вид контроля',
                     style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
               ),
               SizedBox(
                 width: showDelete ? 86 : 90,
                 child: const Text('Статус',
                     style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
               ),
-              if (showDelete) const SizedBox(width: 32),
+              if (showDelete) const SizedBox(width: 28),
             ],
           ),
         ),
-        const Divider(height: 1, color: Colors.white24),
-        // Строки
         Expanded(
           child: ListView.separated(
             itemCount: rows.length,
-            separatorBuilder: (_, __) =>
-                const Divider(height: 1, color: Colors.white10),
+            separatorBuilder: (_, __) => const Divider(
+              height: 1,
+              color: AppColors.darkBorder,
+            ),
             itemBuilder: (ctx, idx) {
               final item = rows[idx];
               final isCompleted = item['status'] == 'завершён';
-              final statusColor =
-                  isCompleted ? Colors.greenAccent : Colors.redAccent;
+              final statusColor = isCompleted ? AppColors.success : AppColors.warning;
               final statusLabel = isCompleted ? 'завершён' : 'не завершён';
               final isDraft = item['source'] == 'draft';
               return InkWell(
                 onTap: () => onTap(item),
                 child: Container(
                   color: idx.isOdd
-                      ? Colors.white.withOpacity(0.03)
+                      ? Colors.white.withOpacity(0.02)
                       : Colors.transparent,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Row(
                     children: [
                       SizedBox(
-                        width: 88,
+                        width: 82,
                         child: Text(
                           _formatDate(item['date'] as String?),
                           style: const TextStyle(
-                              color: Colors.white54, fontSize: 11),
+                            color: AppColors.textSecondary,
+                            fontSize: 10.5,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
                       Expanded(
                         child: Text(
                           (item['object'] as String?) ?? '',
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500),
+                            color: AppColors.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.1,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -449,7 +498,7 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
                         child: Text(
                           (item['type'] as String?) ?? '',
                           style: const TextStyle(
-                              color: Colors.white60, fontSize: 11),
+                              color: AppColors.textSecondary, fontSize: 11),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -457,17 +506,22 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
                         width: showDelete ? 86 : 90,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 3),
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(4),
+                            color: statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: statusColor.withOpacity(0.35),
+                              width: 1,
+                            ),
                           ),
                           child: Text(
                             statusLabel,
                             style: TextStyle(
                                 color: statusColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -476,13 +530,13 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
                         InkWell(
                           onTap: () => onDelete(item),
                           child: const Padding(
-                            padding: EdgeInsets.all(6),
+                            padding: EdgeInsets.all(5),
                             child: Icon(Icons.delete_outline,
-                                color: Colors.redAccent, size: 16),
+                                color: AppColors.danger, size: 14),
                           ),
                         )
                       else if (showDelete)
-                        const SizedBox(width: 32),
+                        const SizedBox(width: 28),
                     ],
                   ),
                 ),

@@ -10,6 +10,7 @@ import '../services/location_service.dart';
 import '../services/photo_annotation_service.dart';
 import '../services/bluetooth_measurement_service.dart';
 import '../models/equipment.dart';
+import '../models/drawing_template.dart';
 import '../widgets/bluetooth_measurement_widget.dart';
 
 class ThicknessMeasurementScreen extends StatefulWidget {
@@ -125,6 +126,59 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
       });
       _loadImageSize();
     }
+  }
+
+  /// Открывает экран выбора шаблона чертежа с сервера (П.2 ТЗ 2026-04).
+  /// После выбора: подставляет локально кэшированное изображение и
+  /// автоматически заполняет список точек замера на основе предопределённых.
+  Future<void> _pickServerDrawingTemplate() async {
+    if (widget.equipment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Оборудование не задано — нельзя выбрать шаблон'),
+      ));
+      return;
+    }
+    final result = await GoRouter.of(context).push<DrawingTemplate>(
+      '/drawing-template-picker',
+      extra: {
+        'equipment': widget.equipment,
+        'title': 'Выбор шаблона',
+      },
+    );
+    if (result == null || !mounted) return;
+
+    if (result.localImagePath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Изображение шаблона не скачано. Подключитесь к сети и синхронизируйтесь.'),
+      ));
+      return;
+    }
+
+    final file = File(result.localImagePath!);
+    if (!await file.exists()) return;
+
+    // Конвертируем предопределённые точки шаблона в ThicknessMeasurement,
+    // сохраняя % координаты, чтобы они корректно отображались на любом экране.
+    final converted = <ThicknessMeasurement>[];
+    for (final p in result.points) {
+      final m = ThicknessMeasurement(
+        location: p.label,
+        sectionNumber: p.label,
+      );
+      m.xPercent = p.xPercent;
+      m.yPercent = p.yPercent;
+      m.nominalThickness = p.expectedValue;
+      converted.add(m);
+    }
+
+    setState(() {
+      _schemeImage = file;
+      _imageSize = null;
+      if (_measurements.isEmpty && converted.isNotEmpty) {
+        _measurements = converted;
+      }
+    });
+    await _loadImageSize();
   }
 
   void _handleImageTapAtLocal(Offset localPosition, Size imageSize) {
@@ -565,43 +619,61 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                     )
                   : _schemeImage == null
                       ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.image,
-                                size: 64,
-                                color: Colors.white38,
-                              ),
-                              const SizedBox(height: 16),
-                              if (_isVessel())
-                                ElevatedButton.icon(
-                                  onPressed: _loadTemplate,
-                                  icon: const Icon(Icons.download),
-                                  label: const Text('Загрузить шаблон с сервера'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF3b82f6),
-                                    foregroundColor: Colors.white,
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.image,
+                                  size: 64,
+                                  color: Colors.white38,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Выберите или загрузите схему для нанесения точек',
+                                  style: TextStyle(color: Colors.white70),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                if (widget.equipment != null)
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _pickServerDrawingTemplate,
+                                      icon: const Icon(Icons.inventory_2_outlined),
+                                      label: const Text('Шаблон из библиотеки'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF3b82f6),
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                if (_isVessel()) ...[
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _loadTemplate,
+                                      icon: const Icon(Icons.download),
+                                      label: const Text('Базовый шаблон сосуда'),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _pickSchemeImage,
+                                    icon: const Icon(Icons.upload),
+                                    label: const Text('Загрузить из галереи'),
                                   ),
                                 ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Загрузите схему для нанесения точек',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: _pickSchemeImage,
-                            icon: const Icon(Icons.upload),
-                            label: const Text('Загрузить схему'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF3b82f6),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    )
-                  : _buildZoomableScheme(),
+                        )
+                      : _buildZoomableScheme(),
             ),
           ),
           // Список точек

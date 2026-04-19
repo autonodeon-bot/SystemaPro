@@ -5,7 +5,7 @@ import 'dart:convert';
 
 class DatabaseService {
   static Database? _database;
-  static const int _version = 2;
+  static const int _version = 3;
 
   static Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -95,6 +95,24 @@ class DatabaseService {
         updated_at TEXT NOT NULL
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE drawing_templates (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        local_image_path TEXT,
+        equipment_id TEXT,
+        equipment_type_id TEXT,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_drawing_templates_equipment_id ON drawing_templates(equipment_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_drawing_templates_equipment_type_id ON drawing_templates(equipment_type_id)',
+    );
   }
 
   static Future<void> _onUpgrade(
@@ -136,6 +154,25 @@ class DatabaseService {
           updated_at TEXT NOT NULL
         )
       ''');
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS drawing_templates (
+          id TEXT PRIMARY KEY,
+          data TEXT NOT NULL,
+          version INTEGER NOT NULL DEFAULT 1,
+          local_image_path TEXT,
+          equipment_id TEXT,
+          equipment_type_id TEXT,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_drawing_templates_equipment_id ON drawing_templates(equipment_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_drawing_templates_equipment_type_id ON drawing_templates(equipment_type_id)',
+      );
     }
   }
 
@@ -423,6 +460,109 @@ class DatabaseService {
     await db.delete('drafts', where: 'updated_at < ?', whereArgs: [cutoff]);
   }
 
+  // ─── Drawing templates (шаблоны чертежей оборудования, П.2 ТЗ 2026-04) ───
+
+  static Future<void> saveDrawingTemplate({
+    required String id,
+    required Map<String, dynamic> data,
+    required int version,
+    String? localImagePath,
+    String? equipmentId,
+    String? equipmentTypeId,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'drawing_templates',
+      {
+        'id': id,
+        'data': jsonEncode(data),
+        'version': version,
+        'local_image_path': localImagePath,
+        'equipment_id': equipmentId,
+        'equipment_type_id': equipmentTypeId,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<Map<String, dynamic>?> getDrawingTemplate(String id) async {
+    final db = await database;
+    final rows = await db.query('drawing_templates', where: 'id = ?', whereArgs: [id]);
+    if (rows.isEmpty) return null;
+    final r = rows.first;
+    return {
+      'id': r['id'],
+      'data': r['data'],
+      'version': r['version'],
+      'local_image_path': r['local_image_path'],
+      'equipment_id': r['equipment_id'],
+      'equipment_type_id': r['equipment_type_id'],
+      'updated_at': r['updated_at'],
+    };
+  }
+
+  static Future<List<Map<String, dynamic>>> getDrawingTemplatesForEquipment({
+    String? equipmentId,
+    String? equipmentTypeId,
+  }) async {
+    final db = await database;
+    final conditions = <String>[];
+    final args = <dynamic>[];
+
+    if (equipmentId != null) {
+      conditions.add('equipment_id = ?');
+      args.add(equipmentId);
+    }
+    if (equipmentTypeId != null) {
+      if (conditions.isEmpty) {
+        conditions.add('equipment_type_id = ?');
+      } else {
+        conditions.add('OR equipment_type_id = ?');
+      }
+      args.add(equipmentTypeId);
+    }
+    if (conditions.isEmpty) {
+      conditions.add('1=1');
+    }
+    // Универсальные шаблоны (без привязок) тоже нужны
+    conditions.add('OR (equipment_id IS NULL AND equipment_type_id IS NULL)');
+    final rows = await db.query(
+      'drawing_templates',
+      where: conditions.join(' '),
+      whereArgs: args,
+      orderBy: 'updated_at DESC',
+    );
+    return rows.map((r) => {
+          'id': r['id'],
+          'data': r['data'],
+          'version': r['version'],
+          'local_image_path': r['local_image_path'],
+          'equipment_id': r['equipment_id'],
+          'equipment_type_id': r['equipment_type_id'],
+          'updated_at': r['updated_at'],
+        }).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> getAllDrawingTemplates() async {
+    final db = await database;
+    final rows = await db.query('drawing_templates', orderBy: 'updated_at DESC');
+    return rows.map((r) => {
+          'id': r['id'],
+          'data': r['data'],
+          'version': r['version'],
+          'local_image_path': r['local_image_path'],
+          'equipment_id': r['equipment_id'],
+          'equipment_type_id': r['equipment_type_id'],
+          'updated_at': r['updated_at'],
+        }).toList();
+  }
+
+  static Future<void> deleteDrawingTemplate(String id) async {
+    final db = await database;
+    await db.delete('drawing_templates', where: 'id = ?', whereArgs: [id]);
+  }
+
   // Clear all cached data (on logout)
   static Future<void> clearAllCaches() async {
     final db = await database;
@@ -433,6 +573,7 @@ class DatabaseService {
     await db.delete('opos');
     await db.delete('opo_surveys');
     await db.delete('sync_metadata');
+    await db.delete('drawing_templates');
   }
 
   @visibleForTesting

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Plus, Trash2, Printer, Download, Edit3, Save, X, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { FileText, Plus, Trash2, Printer, Download, Edit3, Save, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -88,7 +88,6 @@ const DefectStatement: React.FC = () => {
   // UI
   const [editHeader, setEditHeader] = useState(true);
   const [filterSeverity, setFilterSeverity] = useState<Severity | 'all'>('all');
-  const [saving, setSaving] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // ─── Загрузка обследований ────────────────────────────────────────────────

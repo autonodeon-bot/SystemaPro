@@ -17,9 +17,12 @@ import 'screens/verification_equipment_selection_screen.dart';
 import 'screens/thickness_measurement_screen.dart';
 import 'screens/image_annotation_screen.dart';
 import 'screens/weld_defect_annotation_screen.dart';
+import 'screens/drawing_template_picker_screen.dart';
+import 'screens/drawing_annotation_screen.dart';
 import 'models/equipment.dart';
 import 'models/questionnaire.dart';
 import 'models/vessel_checklist.dart';
+import 'models/drawing_template.dart';
 
 final _authService = AuthService();
 
@@ -130,6 +133,27 @@ final appRouter = GoRouter(
         final extra = state.extra as Map<String, dynamic>? ?? {};
         return WeldDefectAnnotationScreen(
           initialImage: extra['initialImage'] as File?,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/drawing-template-picker',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? {};
+        return DrawingTemplatePickerScreen(
+          equipment: extra['equipment'] as Equipment,
+          title: extra['title'] as String?,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/drawing-annotation',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? {};
+        return DrawingAnnotationScreen(
+          template: extra['template'] as DrawingTemplate,
+          equipmentName: extra['equipmentName'] as String?,
+          existingMeasurements: extra['existingMeasurements'] as Map<String, double>?,
         );
       },
     ),

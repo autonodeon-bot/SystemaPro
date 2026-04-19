@@ -1,6 +1,6 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Outlet, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon } from 'lucide-react';
 import {
   APP_VERSION,
   APP_HEADER_TITLE,
@@ -42,6 +42,7 @@ const ClientPortal = lazy(() => import('./pages/ClientPortal'));
 const PipelineMap = lazy(() => import('./pages/PipelineMap'));
 const ReportsAndExpertise = lazy(() => import('./pages/ReportsAndExpertise'));
 const ProtocolConstructor = lazy(() => import('./pages/ProtocolConstructor'));
+const DrawingTemplatesManager = lazy(() => import('./pages/DrawingTemplatesManager'));
 const DefectStatement = lazy(() => import('./pages/DefectStatement'));
 const InspectionsTrash = lazy(() => import('./pages/InspectionsTrash'));
 const InstrumentRegistry = lazy(() => import('./pages/InstrumentRegistry'));
@@ -181,6 +182,7 @@ const Layout: React.FC = () => {
           {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (<>
             {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Инструменты</p>}
             <SidebarItem to="/protocol-constructor" icon={Layers} label={isSidebarOpen ? "Конструктор" : ""} />
+            <SidebarItem to="/drawing-templates" icon={ImageIcon} label={isSidebarOpen ? "Шаблоны чертежей" : ""} />
           </>)}
 
           {user?.role !== 'client' && (
@@ -452,6 +454,7 @@ const App = () => {
             <Route path="/pipeline-map" element={<PipelineMap />} />
             <Route path="/reports-expertise" element={<ReportsAndExpertise />} />
             <Route path="/protocol-constructor" element={<ProtocolConstructor />} />
+            <Route path="/drawing-templates" element={<DrawingTemplatesManager />} />
             <Route path="/defect-statement" element={<DefectStatement />} />
             <Route path="/inspections-trash" element={<ProtectedRoute requiredRole="chief_operator"><InspectionsTrash /></ProtectedRoute>} />
             <Route path="*" element={<div className="text-center text-slate-500 mt-20">Раздел в разработке</div>} />

@@ -308,60 +308,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: AppColors.darkBackground,
       body: Column(
         children: [
+          // Top status strip — 2026 refined: точечный цветовой индикатор + чип "Ожидают отправки".
           Material(
-              color: _isOffline ? Colors.orange.shade900 : AppColors.darkBackgroundDeep,
-              child: SafeArea(
-                child: Semantics(
-                  label: _isOffline
-                      ? 'Режим офлайн. Нажмите для перехода к синхронизации'
-                      : 'Подключено к серверу. Нажмите для перехода к синхронизации',
-                  button: true,
-                  child: InkWell(
-                  onTap: () {
-                    setState(() => _currentIndex = 3);
-                  },
+            color: AppColors.darkBackgroundDeep,
+            child: SafeArea(
+              bottom: false,
+              child: Semantics(
+                label: _isOffline
+                    ? 'Режим офлайн. Нажмите для перехода к синхронизации'
+                    : 'Подключено к серверу. Нажмите для перехода к синхронизации',
+                button: true,
+                child: InkWell(
+                  onTap: () => setState(() => _currentIndex = 4),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     child: Row(
                       children: [
-                        Icon(
-                          _isOffline ? Icons.offline_bolt : Icons.cloud_queue,
-                          color: Colors.white70,
-                          size: 20,
-                          semanticLabel: _isOffline ? 'Нет подключения' : 'Подключено к серверу',
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _isOffline ? AppColors.warning : AppColors.success,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: (_isOffline ? AppColors.warning : AppColors.success).withOpacity(0.45),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Text(
                           _isOffline ? 'Режим офлайн' : 'Онлайн',
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                        if (_pendingCount > 0) ...[
-                          const SizedBox(width: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Ожидают отправки: $_pendingCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.touch_app, color: Colors.white54, size: 16, semanticLabel: 'Нажмите'),
-                        ],
+                        ),
+                        const Spacer(),
+                        if (_pendingCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withOpacity(0.14),
+                              border: Border.all(color: AppColors.warning.withOpacity(0.35)),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.sync_problem, size: 13, color: AppColors.warning),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'В очереди: $_pendingCount',
+                                  style: const TextStyle(
+                                    color: AppColors.warning,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          const Icon(Icons.chevron_right, size: 18, color: Colors.white38),
                       ],
                     ),
                   ),
                 ),
-                ),
               ),
             ),
+          ),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,

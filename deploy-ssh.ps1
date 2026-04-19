@@ -60,7 +60,7 @@ if (Test-Path "styles") { scp -r styles/* "${dest}/styles/" }
 $rootFiles = @(
     "docker-compose.yml", "frontend.Dockerfile", "App.tsx", "index.html", "index.tsx", "index.css",
     "package.json", "vite.config.ts", "tsconfig.json", "tailwind.config.js", "postcss.config.js",
-    "constants.ts", "types.ts"
+    "constants.ts", "types.ts", "vite-env.d.ts"
 )
 foreach ($f in $rootFiles) {
     if (Test-Path $f) {
@@ -68,6 +68,9 @@ foreach ($f in $rootFiles) {
     }
 }
 if (Test-Path "package-lock.json") { scp package-lock.json "${dest}/" }
+# .dockerignore ОБЯЗАТЕЛЬНО: без него frontend build context раздувается до 1-2 GB
+# и `docker-compose build frontend` падает по OOM на VPS с 3-4 GB RAM.
+if (Test-Path ".dockerignore") { scp .dockerignore "${dest}/.dockerignore" }
 Write-Host "  Files copied" -ForegroundColor Green
 Write-Host ""
 
@@ -113,11 +116,18 @@ if (Test-Path $apkPath) {
 }
 Write-Host ""
 
-Write-Host "[4/7] Building containers (no cache, BUILD_REF for fresh frontend)..." -ForegroundColor Yellow
+Write-Host "[4/7] Building containers (BUILD_REF for fresh frontend, cache reused for backend)..." -ForegroundColor Yellow
 $buildRef = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-ssh $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build --no-cache backend frontend"
+# Build sequentially to avoid OOM on small VPS (3-4 GB RAM).
+# BUILD_REF invalidates frontend COPY layer so bundle always refreshes; backend reuses cache unless requirements changed.
+ssh $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build backend"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Build failed. Check output above." -ForegroundColor Red
+    Write-Host "ERROR: Backend build failed. Check output above." -ForegroundColor Red
+    exit 1
+}
+ssh $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build frontend"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Frontend build failed. Check output above." -ForegroundColor Red
     exit 1
 }
 Write-Host "  Build done" -ForegroundColor Green

@@ -527,36 +527,41 @@ const AssignmentsManagement = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400">Загрузка заданий...</div>
+        <div className="flex flex-col items-center gap-3" style={{ color: 'var(--text-muted)' }}>
+          <div className="w-8 h-8 rounded-full border-2 border-transparent border-t-[var(--accent)] border-r-[var(--accent)] animate-spin" />
+          <span className="text-sm">Загрузка заданий...</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <ClipboardList className="text-accent" size={32} />
-          <h1 className="text-3xl font-bold text-white">Управление заданиями</h1>
+          <ClipboardList className="text-[var(--accent)]" size={28} />
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            Управление заданиями
+          </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowObjectStats(!showObjectStats)}
-            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
+            className={`ind-btn ${showObjectStats ? 'ind-btn--primary' : ''}`}
           >
-            <span>Назначения по объектам</span>
+            Назначения по объектам
           </button>
           <button
             onClick={() => setShowStatistics(!showStatistics)}
-            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
+            className={`ind-btn ${showStatistics ? 'ind-btn--primary' : ''}`}
           >
-            <span>Статистика по инженерам</span>
+            Статистика по инженерам
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+            className="ind-btn ind-btn--primary"
           >
-            <Plus size={20} />
+            <Plus size={16} />
             <span>Создать задание</span>
           </button>
         </div>
@@ -564,37 +569,40 @@ const AssignmentsManagement = () => {
 
       {/* Назначения инженеров по объектам + прогресс */}
       {showObjectStats && (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Назначения по объектам и прогресс</h2>
+        <div className="sp-surface p-5 sp-animate-in">
+          <h2 className="sp-section-title">Назначения по объектам и прогресс</h2>
           {objectStats.length === 0 ? (
-            <div className="text-slate-400">Нет данных по назначениям</div>
+            <div style={{ color: 'var(--text-muted)' }}>Нет данных по назначениям</div>
           ) : (
             <div className="space-y-3">
               {objectStats.map((obj: any) => (
-                <div key={`${obj.object_type}-${obj.object_id}`} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                <div key={`${obj.object_type}-${obj.object_id}`} className="sp-surface-flat p-4">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
-                      <div className="text-white font-semibold">{obj.object_name}</div>
-                      <div className="text-xs text-slate-500">{getObjectTypeLabel(obj.object_type)}</div>
+                      <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>{obj.object_name}</div>
+                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{getObjectTypeLabel(obj.object_type)}</div>
                     </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {(obj.engineers || []).map((eng: any) => (
-                      <div key={eng.user_id} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                        <div className="text-white font-semibold">{eng.full_name || eng.username}</div>
-                        <div className="text-xs text-slate-400 mt-1">
-                          Выполнено: <span className="text-green-400 font-bold">{eng.completed}</span> /{' '}
-                          <span className="text-white font-bold">{eng.total}</span>
-                          {' '}· Осталось: <span className="text-yellow-400 font-bold">{eng.remaining}</span>
+                      <div key={eng.user_id} className="sp-surface-flat p-3">
+                        <div className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{eng.full_name || eng.username}</div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                          Выполнено: <span className="font-bold tabular-nums" style={{ color: 'var(--success)' }}>{eng.completed}</span> /{' '}
+                          <span className="font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{eng.total}</span>
+                          {' '}· Осталось: <span className="font-bold tabular-nums" style={{ color: 'var(--warning)' }}>{eng.remaining}</span>
                         </div>
-                        <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                        <div className="sp-progress mt-2">
                           <div
-                            className="bg-green-500 h-2"
-                            style={{ width: `${Math.min(Math.max(eng.progress_pct || 0, 0), 100)}%` }}
+                            className="sp-progress__bar"
+                            style={{
+                              width: `${Math.min(Math.max(eng.progress_pct || 0, 0), 100)}%`,
+                              background: 'var(--success)',
+                            }}
                           />
                         </div>
-                        <div className="text-xs text-slate-500 mt-1">{eng.progress_pct || 0}%</div>
+                        <div className="text-xs mt-1 ind-mono" style={{ color: 'var(--text-muted)' }}>{eng.progress_pct || 0}%</div>
                       </div>
                     ))}
                   </div>
@@ -607,33 +615,33 @@ const AssignmentsManagement = () => {
 
       {/* Статистика по инженерам */}
       {showStatistics && (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Статистика по инженерам</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="sp-surface p-5 sp-animate-in">
+          <h2 className="sp-section-title">Статистика по инженерам</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {statistics.map((stat) => (
-              <div key={stat.engineer_id} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                <h3 className="text-lg font-semibold text-white mb-2">{stat.engineer_name}</h3>
+              <div key={stat.engineer_id} className="sp-surface-flat p-4">
+                <h3 className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>{stat.engineer_name}</h3>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Всего заданий:</span>
-                    <span className="text-white font-bold">{stat.total}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Всего заданий:</span>
+                    <span className="font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{stat.total}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-yellow-400">Ожидает:</span>
-                    <span className="text-yellow-400 font-bold">{stat.pending}</span>
+                    <span style={{ color: 'var(--warning)' }}>Ожидает:</span>
+                    <span className="font-bold tabular-nums" style={{ color: 'var(--warning)' }}>{stat.pending}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-blue-400">В работе:</span>
-                    <span className="text-blue-400 font-bold">{stat.in_progress}</span>
+                    <span style={{ color: 'var(--accent)' }}>В работе:</span>
+                    <span className="font-bold tabular-nums" style={{ color: 'var(--accent)' }}>{stat.in_progress}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-green-400">Завершено:</span>
-                    <span className="text-green-400 font-bold">{stat.completed}</span>
+                    <span style={{ color: 'var(--success)' }}>Завершено:</span>
+                    <span className="font-bold tabular-nums" style={{ color: 'var(--success)' }}>{stat.completed}</span>
                   </div>
                   {stat.cancelled > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-red-400">Отменено:</span>
-                      <span className="text-red-400 font-bold">{stat.cancelled}</span>
+                      <span style={{ color: 'var(--danger)' }}>Отменено:</span>
+                      <span className="font-bold tabular-nums" style={{ color: 'var(--danger)' }}>{stat.cancelled}</span>
                     </div>
                   )}
                 </div>
@@ -644,37 +652,38 @@ const AssignmentsManagement = () => {
       )}
 
       {/* Расширенные фильтры и настройки */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+      <div className="sp-surface p-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+              className="ind-btn"
             >
-              <Filter size={16} />
+              <Filter size={14} />
               {showFilters ? 'Скрыть фильтры' : 'Показать фильтры'}
             </button>
-            <div className="flex items-center gap-2">
+            <div className="sp-pill-nav">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition ${viewMode === 'list' ? 'bg-accent text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                className={viewMode === 'list' ? 'active' : ''}
                 title="Список"
               >
-                <List size={18} />
+                <List size={14} /> Список
               </button>
               <button
                 onClick={() => setViewMode('hierarchy')}
-                className={`p-2 rounded-lg transition ${viewMode === 'hierarchy' ? 'bg-accent text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                className={viewMode === 'hierarchy' ? 'active' : ''}
                 title="Иерархия"
               >
-                <Layers size={18} />
+                <Layers size={14} /> Иерархия
               </button>
             </div>
             {viewMode === 'hierarchy' && (
               <select
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value as any)}
-                className="px-3 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                className="ind-input"
+                style={{ width: 'auto' }}
               >
                 <option value="enterprise">Группировать по предприятию</option>
                 <option value="branch">Группировать по филиалу</option>
@@ -690,7 +699,8 @@ const AssignmentsManagement = () => {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+              className="ind-input"
+              style={{ width: 'auto' }}
             >
               <option value="created_at">По дате создания</option>
               <option value="due_date">По сроку выполнения</option>
@@ -700,55 +710,51 @@ const AssignmentsManagement = () => {
             </select>
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+              className="ind-btn"
               title={sortOrder === 'asc' ? 'По убыванию' : 'По возрастанию'}
             >
-              <ArrowUpDown size={16} />
+              <ArrowUpDown size={14} />
             </button>
           </div>
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 pt-4 border-t border-slate-700">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 pt-4 sp-animate-in"
+            style={{ borderTop: '1px solid var(--border-subtle)' }}
+          >
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+              <Search
+                className="absolute left-3 top-1/2 transform -translate-y-1/2"
+                size={16}
+                style={{ color: 'var(--text-muted)' }}
+              />
               <input
                 type="text"
                 placeholder="Поиск..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-400 focus:outline-none focus:border-accent"
+                className="ind-input"
+                style={{ paddingLeft: '34px' }}
               />
             </div>
-            
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
-            >
+
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="ind-input">
               <option value="all">Все статусы</option>
               <option value="PENDING">Ожидает</option>
               <option value="IN_PROGRESS">В работе</option>
               <option value="COMPLETED">Завершено</option>
               <option value="CANCELLED">Отменено</option>
             </select>
-            
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
-            >
+
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="ind-input">
               <option value="all">Все типы</option>
               {ASSIGNMENT_TYPE_SELECT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
 
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
-            >
+            <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="ind-input">
               <option value="all">Все приоритеты</option>
               <option value="LOW">Низкий</option>
               <option value="NORMAL">Обычный</option>
@@ -756,55 +762,51 @@ const AssignmentsManagement = () => {
               <option value="URGENT">Срочный</option>
             </select>
 
-            <select
-              value={filterEngineer}
-              onChange={(e) => setFilterEngineer(e.target.value)}
-              className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
-            >
+            <select value={filterEngineer} onChange={(e) => setFilterEngineer(e.target.value)} className="ind-input">
               <option value="all">Все инженеры</option>
-              {engineersList.map(eng => (
+              {engineersList.map((eng) => (
                 <option key={eng.id} value={eng.id}>{eng.full_name || eng.username}</option>
               ))}
             </select>
 
-            <select
-              value={filterEnterprise}
-              onChange={(e) => setFilterEnterprise(e.target.value)}
-              className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
-            >
+            <select value={filterEnterprise} onChange={(e) => setFilterEnterprise(e.target.value)} className="ind-input">
               <option value="all">Все предприятия</option>
-              {enterprises.map(ent => (
+              {enterprises.map((ent) => (
                 <option key={ent.id} value={ent.id}>{ent.name}</option>
               ))}
             </select>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
               <input
                 type="checkbox"
                 checked={showArchived}
                 onChange={(e) => setShowArchived(e.target.checked)}
-                className="rounded bg-slate-900 border-slate-600 text-accent focus:ring-accent"
+                className="accent-[var(--accent)]"
               />
-              <span className="text-slate-300 text-sm">Показать архивные</span>
+              <span className="text-sm">Показать архивные</span>
             </label>
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-700 text-sm">
-          <div className="text-slate-400">
-            Найдено: <span className="text-white font-bold">{filteredAssignments.length}</span> заданий
+        <div
+          className="flex items-center justify-between mt-4 pt-4 text-sm"
+          style={{ borderTop: '1px solid var(--border-subtle)' }}
+        >
+          <div style={{ color: 'var(--text-muted)' }}>
+            Найдено:{' '}
+            <span className="font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {filteredAssignments.length}
+            </span>{' '}
+            заданий
             {selectedAssignments.size > 0 && (
-              <span className="ml-3 text-accent">
+              <span className="ml-3" style={{ color: 'var(--accent)' }}>
                 Выбрано: {selectedAssignments.size}
               </span>
             )}
           </div>
           {selectedAssignments.size > 0 && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSelectedAssignments(new Set())}
-                className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition"
-              >
+              <button onClick={() => setSelectedAssignments(new Set())} className="ind-btn ind-btn--sm">
                 Снять выделение
               </button>
             </div>
@@ -815,9 +817,9 @@ const AssignmentsManagement = () => {
       {/* Список заданий */}
       <div className="space-y-4">
         {filteredAssignments.length === 0 ? (
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
-            <ClipboardList className="mx-auto text-slate-600 mb-4" size={48} />
-            <p className="text-slate-400">Задания не найдены</p>
+          <div className="sp-surface p-8 text-center">
+            <ClipboardList className="mx-auto mb-4" size={48} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+            <p style={{ color: 'var(--text-muted)' }}>Задания не найдены</p>
           </div>
         ) : viewMode === 'hierarchy' ? (
           // Иерархический вид

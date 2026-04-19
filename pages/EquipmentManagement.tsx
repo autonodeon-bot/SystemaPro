@@ -507,7 +507,9 @@ const EquipmentManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Управление оборудованием</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+          Управление оборудованием
+        </h1>
       </div>
 
       <EquipmentHierarchySearch searchTerm={searchTerm} onSearchTermChange={setSearchTerm} />

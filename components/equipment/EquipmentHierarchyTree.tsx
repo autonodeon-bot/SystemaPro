@@ -52,6 +52,16 @@ export interface EquipmentHierarchyTreeProps {
   onDeleteEquipment: (id: string) => void;
 }
 
+const rowBase: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '8px 10px',
+  borderRadius: 'var(--radius-xs, 6px)',
+  transition: 'background 0.12s ease, border-color 0.12s ease',
+  border: '1px solid transparent',
+};
+
 const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
   enterprises,
   branches,
@@ -68,261 +78,319 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
   onAssignEngineers,
   onDeleteEquipment,
 }) => (
-  <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-    <div className="mb-4">
+  <div className="sp-surface" style={{ padding: '16px' }}>
+    <div className="mb-3">
       <button
         type="button"
         onClick={onCreateEnterprise}
-        className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
+        className="ind-btn ind-btn--primary"
       >
-        <Plus size={16} /> Создать предприятие
+        <Plus size={14} /> Создать предприятие
       </button>
     </div>
 
     {enterprises.map((enterprise) => (
-      <div key={enterprise.id} className="mb-4">
-        <div className="flex items-center justify-between p-3 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors">
-          <div className="flex items-center gap-3 flex-1">
+      <div key={enterprise.id} className="mb-3">
+        <div
+          style={{
+            ...rowBase,
+            background: 'var(--bg-tertiary)',
+            borderColor: 'var(--border-subtle, var(--border))',
+          }}
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => onToggleExpand(`enterprise_${enterprise.id}`)}
-              className="text-slate-400 hover:text-white"
+              className="ind-btn"
+              style={{ height: 24, width: 24, padding: 0, color: 'var(--text-muted)' }}
+              aria-label={expanded[`enterprise_${enterprise.id}`] ? 'Свернуть' : 'Развернуть'}
             >
               {expanded[`enterprise_${enterprise.id}`] ? (
-                <ChevronDown size={20} />
+                <ChevronDown size={16} />
               ) : (
-                <ChevronRight size={20} />
+                <ChevronRight size={16} />
               )}
             </button>
-            <Building2 className="text-accent" size={20} />
-            <span className="text-white font-bold">{enterprise.name}</span>
+            <Building2 size={16} style={{ color: 'var(--accent)' }} />
+            <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+              {enterprise.name}
+            </span>
             {enterprise.code && (
-              <span className="text-slate-400 text-sm">({enterprise.code})</span>
+              <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                ({enterprise.code})
+              </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               type="button"
               onClick={() => onShowInfo('enterprise', enterprise.id, enterprise.name)}
-              className="text-blue-400 hover:text-blue-300 p-2 rounded hover:bg-slate-700"
+              className="ind-btn"
+              style={{ padding: '0 6px', color: 'var(--accent)' }}
               title="Информация"
             >
-              <Info size={18} />
+              <Info size={14} />
             </button>
             <button
               type="button"
               onClick={() => onAssignEngineers('enterprise', enterprise.id, enterprise.name)}
-              className="text-green-400 hover:text-green-300 p-2 rounded hover:bg-slate-700"
+              className="ind-btn"
+              style={{ padding: '0 6px', color: 'var(--success)' }}
               title="Назначить инженеров"
             >
-              <Users size={18} />
+              <Users size={14} />
             </button>
             <button
               type="button"
               onClick={() => onCreateClick('branch', enterprise.id, enterprise.name)}
-              className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+              className="ind-btn"
+              style={{ padding: '0 6px', color: 'var(--accent)' }}
               title="Создать филиал"
             >
-              <Plus size={18} />
+              <Plus size={14} />
             </button>
           </div>
         </div>
 
         {expanded[`enterprise_${enterprise.id}`] && (
-          <div className="ml-8 mt-2 space-y-2">
+          <div className="ml-6 mt-1.5 space-y-1.5" style={{ borderLeft: '1px dashed var(--border)', paddingLeft: '10px' }}>
             {(branches[enterprise.id] || []).map((branch) => (
-              <div key={branch.id} className="mb-2">
-                <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg hover:bg-slate-800 transition-colors">
-                  <div className="flex items-center gap-3 flex-1">
+              <div key={branch.id}>
+                <div
+                  style={{
+                    ...rowBase,
+                    background: 'color-mix(in srgb, var(--bg-tertiary) 60%, transparent)',
+                  }}
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <button
                       type="button"
                       onClick={() => onToggleExpand(`branch_${branch.id}`)}
-                      className="text-slate-400 hover:text-white"
+                      className="ind-btn"
+                      style={{ height: 22, width: 22, padding: 0, color: 'var(--text-muted)' }}
                     >
                       {expanded[`branch_${branch.id}`] ? (
-                        <ChevronDown size={18} />
+                        <ChevronDown size={14} />
                       ) : (
-                        <ChevronRight size={18} />
+                        <ChevronRight size={14} />
                       )}
                     </button>
-                    <Network className="text-blue-400" size={18} />
-                    <span className="text-slate-200">{branch.name}</span>
+                    <Network size={14} style={{ color: 'var(--accent)' }} />
+                    <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                      {branch.name}
+                    </span>
                     {branch.code && (
-                      <span className="text-slate-500 text-sm">({branch.code})</span>
+                      <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                        ({branch.code})
+                      </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => onShowInfo('branch', branch.id, branch.name)}
-                      className="text-blue-400 hover:text-blue-300 p-2 rounded hover:bg-slate-700"
+                      className="ind-btn"
+                      style={{ padding: '0 6px', color: 'var(--accent)' }}
                       title="Информация"
                     >
-                      <Info size={16} />
+                      <Info size={13} />
                     </button>
                     <button
                       type="button"
                       onClick={() => onAssignEngineers('branch', branch.id, branch.name)}
-                      className="text-green-400 hover:text-green-300 p-2 rounded hover:bg-slate-700"
+                      className="ind-btn"
+                      style={{ padding: '0 6px', color: 'var(--success)' }}
                       title="Назначить инженеров"
                     >
-                      <Users size={16} />
+                      <Users size={13} />
                     </button>
                     <button
                       type="button"
                       onClick={() => onCreateClick('workshop', branch.id, branch.name)}
-                      className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                      className="ind-btn"
+                      style={{ padding: '0 6px', color: 'var(--accent)' }}
                       title="Создать цех"
                     >
-                      <Plus size={16} />
+                      <Plus size={13} />
                     </button>
                   </div>
                 </div>
 
                 {expanded[`branch_${branch.id}`] && (
-                  <div className="ml-6 mt-2 space-y-2">
+                  <div className="ml-5 mt-1.5 space-y-1.5" style={{ borderLeft: '1px dashed var(--border)', paddingLeft: '10px' }}>
                     {(workshops[branch.id] || []).map((workshop) => (
-                      <div key={workshop.id} className="mb-2">
-                        <div className="flex items-center justify-between p-2 bg-slate-900/30 rounded-lg hover:bg-slate-800 transition-colors">
-                          <div className="flex items-center gap-3 flex-1">
+                      <div key={workshop.id}>
+                        <div
+                          style={{
+                            ...rowBase,
+                            background: 'color-mix(in srgb, var(--bg-tertiary) 40%, transparent)',
+                          }}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
                             <button
                               type="button"
                               onClick={() => onToggleExpand(`workshop_${workshop.id}`)}
-                              className="text-slate-400 hover:text-white"
+                              className="ind-btn"
+                              style={{ height: 20, width: 20, padding: 0, color: 'var(--text-muted)' }}
                             >
                               {expanded[`workshop_${workshop.id}`] ? (
-                                <ChevronDown size={16} />
+                                <ChevronDown size={13} />
                               ) : (
-                                <ChevronRight size={16} />
+                                <ChevronRight size={13} />
                               )}
                             </button>
-                            <Factory className="text-green-400" size={16} />
-                            <span className="text-slate-300 text-sm">{workshop.name}</span>
+                            <Factory size={13} style={{ color: 'var(--success)' }} />
+                            <span className="text-xs truncate" style={{ color: 'var(--text-primary)' }}>
+                              {workshop.name}
+                            </span>
                             {workshop.code && (
-                              <span className="text-slate-500 text-xs">({workshop.code})</span>
+                              <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                                ({workshop.code})
+                              </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             <button
                               type="button"
                               onClick={() => onShowInfo('workshop', workshop.id, workshop.name)}
-                              className="text-blue-400 hover:text-blue-300 p-2 rounded hover:bg-slate-700"
+                              className="ind-btn"
+                              style={{ padding: '0 5px', color: 'var(--accent)' }}
                               title="Информация"
                             >
-                              <Info size={14} />
+                              <Info size={12} />
                             </button>
                             <button
                               type="button"
                               onClick={() => onAssignEngineers('workshop', workshop.id, workshop.name)}
-                              className="text-green-400 hover:text-green-300 p-2 rounded hover:bg-slate-700"
+                              className="ind-btn"
+                              style={{ padding: '0 5px', color: 'var(--success)' }}
                               title="Назначить инженеров"
                             >
-                              <Users size={14} />
+                              <Users size={12} />
                             </button>
                             <button
                               type="button"
                               onClick={() => onCreateClick('equipment', workshop.id, workshop.name)}
-                              className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                              className="ind-btn"
+                              style={{ padding: '0 5px', color: 'var(--accent)' }}
                               title="Создать оборудование"
                             >
-                              <Plus size={14} />
+                              <Plus size={12} />
                             </button>
                           </div>
                         </div>
 
                         {expanded[`workshop_${workshop.id}`] && (
-                          <div className="ml-6 mt-2 space-y-2">
+                          <div className="ml-5 mt-1.5 space-y-1.5" style={{ borderLeft: '1px dashed var(--border)', paddingLeft: '10px' }}>
                             {equipmentTypes.map((type) => (
-                              <div key={type.id} className="mb-2">
-                                <div className="flex items-center justify-between p-2 bg-slate-900/20 rounded-lg hover:bg-slate-800 transition-colors">
-                                  <div className="flex items-center gap-3 flex-1">
+                              <div key={type.id}>
+                                <div
+                                  style={{
+                                    ...rowBase,
+                                    padding: '6px 10px',
+                                    background: 'transparent',
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
                                     <button
                                       type="button"
                                       onClick={() =>
                                         onToggleExpand(`type_${workshop.id}_${type.id}`)
                                       }
-                                      className="text-slate-400 hover:text-white"
+                                      className="ind-btn"
+                                      style={{ height: 20, width: 20, padding: 0, color: 'var(--text-muted)' }}
                                     >
                                       {expanded[`type_${workshop.id}_${type.id}`] ? (
-                                        <ChevronDown size={14} />
+                                        <ChevronDown size={12} />
                                       ) : (
-                                        <ChevronRight size={14} />
+                                        <ChevronRight size={12} />
                                       )}
                                     </button>
-                                    <Box className="text-yellow-400" size={14} />
-                                    <span className="text-slate-300 text-sm">{type.name}</span>
+                                    <Box size={12} style={{ color: 'var(--warning)' }} />
+                                    <span className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                                      {type.name}
+                                    </span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onPrepareEquipmentCreateFromType(
-                                          workshop.id,
-                                          workshop.name,
-                                          type.id
-                                        )
-                                      }
-                                      className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
-                                      title="Создать оборудование в этом типе"
-                                    >
-                                      <Plus size={14} />
-                                    </button>
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onPrepareEquipmentCreateFromType(
+                                        workshop.id,
+                                        workshop.name,
+                                        type.id
+                                      )
+                                    }
+                                    className="ind-btn"
+                                    style={{ padding: '0 5px', color: 'var(--accent)' }}
+                                    title="Создать оборудование в этом типе"
+                                  >
+                                    <Plus size={12} />
+                                  </button>
                                 </div>
 
                                 {expanded[`type_${workshop.id}_${type.id}`] && (
-                                  <div className="ml-6 mt-2 space-y-1">
+                                  <div className="ml-5 mt-1 space-y-1">
                                     {(equipment[workshop.id] || [])
                                       .filter((eq) => eq.type_id === type.id)
                                       .map((eq) => (
                                         <div
                                           key={eq.id}
-                                          className="flex items-center justify-between p-2 bg-slate-950 rounded hover:bg-slate-900 transition-colors"
+                                          style={{
+                                            ...rowBase,
+                                            padding: '6px 10px',
+                                            background: 'var(--bg-tertiary)',
+                                            fontSize: '12px',
+                                          }}
                                         >
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <MapPin className="text-slate-500" size={12} />
+                                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <MapPin size={11} style={{ color: 'var(--text-muted)' }} />
                                             <button
                                               type="button"
                                               onClick={() => navigate(`/equipment/${eq.id}`)}
-                                              className="text-slate-200 hover:text-white text-xs underline-offset-2 hover:underline text-left"
+                                              className="text-xs text-left truncate hover:underline underline-offset-2"
+                                              style={{ color: 'var(--text-primary)', background: 'transparent', border: 'none', padding: 0 }}
                                               title="Открыть карточку оборудования"
                                             >
                                               {eq.name}
                                             </button>
                                             {eq.serial_number && (
-                                              <span className="text-slate-500 text-xs">
+                                              <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
                                                 №{eq.serial_number}
                                               </span>
                                             )}
                                           </div>
-                                          <div className="flex items-center gap-1">
+                                          <div className="flex items-center gap-0.5 flex-shrink-0">
                                             <button
                                               type="button"
                                               onClick={() =>
                                                 onShowInfo('equipment', eq.id, eq.name)
                                               }
-                                              className="text-blue-400 hover:text-blue-300 p-1"
+                                              className="ind-btn"
+                                              style={{ padding: '0 4px', color: 'var(--accent)' }}
                                               title="Информация"
                                             >
-                                              <Info size={12} />
+                                              <Info size={11} />
                                             </button>
                                             <button
                                               type="button"
                                               onClick={() =>
                                                 onAssignEngineers('equipment', eq.id, eq.name)
                                               }
-                                              className="text-green-400 hover:text-green-300 p-1"
+                                              className="ind-btn"
+                                              style={{ padding: '0 4px', color: 'var(--success)' }}
                                               title="Назначить инженеров"
                                             >
-                                              <Users size={12} />
+                                              <Users size={11} />
                                             </button>
                                             <button
                                               type="button"
                                               onClick={() => onDeleteEquipment(eq.id)}
-                                              className="text-red-400 hover:text-red-300 p-1"
+                                              className="ind-btn"
+                                              style={{ padding: '0 4px', color: 'var(--danger)' }}
                                               title="Удалить"
                                             >
-                                              <Trash2 size={12} />
+                                              <Trash2 size={11} />
                                             </button>
                                           </div>
                                         </div>
@@ -345,8 +413,10 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
     ))}
 
     {enterprises.length === 0 && (
-      <div className="text-center text-slate-400 py-10">
-        Предприятия не добавлены. Нажмите &quot;Создать предприятие&quot; для начала.
+      <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+        <Building2 className="mx-auto mb-3 opacity-40" size={36} />
+        <p className="text-sm">Предприятия не добавлены.</p>
+        <p className="text-xs mt-1">Нажмите «Создать предприятие» для начала.</p>
       </div>
     )}
   </div>

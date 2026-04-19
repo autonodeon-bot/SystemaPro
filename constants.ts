@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.26.0';
+export const APP_VERSION = '3.28.0';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -333,8 +333,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.26.0';
-export const MOBILE_APP_BUILD = '26';
+export const MOBILE_APP_VERSION = '3.28.0';
+export const MOBILE_APP_BUILD = '28';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

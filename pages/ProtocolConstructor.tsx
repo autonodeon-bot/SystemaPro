@@ -61,7 +61,7 @@ interface ProtocolTemplate {
 
 const CATEGORIES = ['ВИК', 'УЗТ', 'УЗК', 'ПВК(МПД)', 'ТД(ЭПБ)', 'Другое'];
 
-const BLOCK_DEFS: { type: BlockType; label: string; icon: React.FC<{size?:number,className?:string}>; hint: string }[] = [
+const BLOCK_DEFS: { type: BlockType; label: string; icon: React.ComponentType<any>; hint: string }[] = [
   { type: 'section_header',   label: 'Заголовок раздела',   icon: LayoutList,   hint: 'Разделитель с заголовком' },
   { type: 'text_field',       label: 'Текстовое поле',       icon: Type,         hint: 'Однострочный ввод' },
   { type: 'date_field',       label: 'Поле даты',            icon: Calendar,     hint: 'Выбор даты' },

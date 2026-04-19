@@ -630,41 +630,46 @@ const ReportsAndExpertise = () => {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="text-center text-slate-400">Загрузка...</div>
+        <div className="sp-surface flex flex-col items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)', borderRightColor: 'var(--accent)' }}></div>
+          <p className="mt-4 text-sm" style={{ color: 'var(--text-muted)' }}>Загрузка...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6">
-      <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4">
-        <span className="text-white font-medium">Отчёты и экспертизы</span>
+    <div className="p-4 sm:p-6 sp-animate-in">
+      <nav className="flex items-center gap-2 text-xs mb-3 flex-wrap" style={{ color: 'var(--text-muted)' }}>
+        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Отчёты и экспертизы</span>
         {selectedEnterpriseId && enterprises.find((e) => e.id === selectedEnterpriseId) && (
           <>
-            <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">
+            <ChevronRight size={14} />
+            <span style={{ color: 'var(--text-secondary)' }}>
               {enterprises.find((e) => e.id === selectedEnterpriseId)?.name}
             </span>
           </>
         )}
         {selectedBranchId && branches.find((b) => b.id === selectedBranchId) && (
           <>
-            <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{branches.find((b) => b.id === selectedBranchId)?.name}</span>
+            <ChevronRight size={14} />
+            <span style={{ color: 'var(--text-secondary)' }}>{branches.find((b) => b.id === selectedBranchId)?.name}</span>
           </>
         )}
         {selectedWorkshopId && workshops.find((w) => w.id === selectedWorkshopId) && (
           <>
-            <ChevronRight size={16} className="text-slate-500" />
-            <span className="text-slate-300">{workshops.find((w) => w.id === selectedWorkshopId)?.name}</span>
+            <ChevronRight size={14} />
+            <span style={{ color: 'var(--text-secondary)' }}>{workshops.find((w) => w.id === selectedWorkshopId)?.name}</span>
           </>
         )}
       </nav>
 
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Отчеты и Экспертизы</h1>
-        <p className="text-slate-400 text-sm sm:text-base">
-          Управление техническими отчетами, экспертизами и опросными листами по предприятиям, филиалам и цехам
+      <div className="mb-5">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-1" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+          Отчёты и экспертизы
+        </h1>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Управление техническими отчётами, экспертизами и опросными листами по предприятиям, филиалам и цехам
         </p>
       </div>
 

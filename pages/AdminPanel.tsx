@@ -80,12 +80,12 @@ const AdminPanel = () => {
   if (!hasRole('admin')) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Shield className="mx-auto text-red-400 mb-4" size={48} />
-          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
-          <p className="text-slate-400">Эта страница доступна только администраторам</p>
+        <div className="sp-surface text-center" style={{ padding: '40px', maxWidth: '420px' }}>
+          <Shield className="mx-auto mb-4" size={40} style={{ color: 'var(--danger)' }} />
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Доступ запрещён</h2>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Эта страница доступна только администраторам</p>
           {user && (
-            <p className="text-slate-500 mt-2">Ваша роль: {user.role}</p>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Ваша роль: {user.role}</p>
           )}
         </div>
       </div>
@@ -214,22 +214,22 @@ const AdminPanel = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sp-animate-in">
       {/* Заголовок */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Shield className="text-accent" size={28} />
+          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            <Shield size={28} style={{ color: 'var(--accent)' }} />
             Админ панель
           </h1>
-          <p className="text-slate-400 mt-1">
-            Управление системой, пользователями, документами и отчетами
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+            Управление системой, пользователями, документами и отчётами
           </p>
         </div>
       </div>
 
       {/* Вкладки */}
-      <div className="flex gap-2 border-b border-slate-700 overflow-x-auto">
+      <div className="sp-pill-nav overflow-x-auto">
         {[
           { id: 'users', label: 'Пользователи', icon: Users },
           { id: 'engineers', label: 'Сотрудники', icon: UserPlus },
@@ -240,29 +240,26 @@ const AdminPanel = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
+            className={`sp-pill-nav__item ${activeTab === tab.id ? 'is-active' : ''}`}
           >
-            <tab.icon size={18} />
-            <span className="font-medium">{tab.label}</span>
+            <tab.icon size={16} />
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
       {/* Поиск */}
       {(activeTab === 'users' || activeTab === 'engineers' || activeTab === 'certifications') && (
-        <div className="bg-secondary/50 rounded-lg p-4">
+        <div className="sp-surface" style={{ padding: '12px' }}>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={16} style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Поиск..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+              className="ind-input w-full pl-9"
+              style={{ height: '40px' }}
             />
           </div>
         </div>
@@ -270,71 +267,64 @@ const AdminPanel = () => {
 
       {/* Контент вкладок */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-          <p className="text-slate-400 mt-4">Загрузка данных...</p>
+        <div className="sp-surface flex flex-col items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)', borderRightColor: 'var(--accent)' }}></div>
+          <p className="mt-4 text-sm" style={{ color: 'var(--text-muted)' }}>Загрузка данных...</p>
         </div>
       ) : (
         <>
           {activeTab === 'users' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white">Пользователи системы</h2>
+                <h2 className="sp-section-title">Пользователи системы</h2>
                 <button
                   onClick={() => setShowAddUser(true)}
-                  className="px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-white font-medium flex items-center gap-2"
+                  className="ind-btn ind-btn--primary"
                 >
-                  <Plus size={20} />
+                  <Plus size={16} />
                   Добавить пользователя
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredUsers.map(user => (
-                  <div
-                    key={user.id}
-                    className="bg-secondary/50 rounded-lg p-6 border border-slate-700 hover:border-accent/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-4">
+                  <div key={user.id} className="sp-surface" style={{ padding: '16px' }}>
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-white font-bold">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white" style={{ background: 'var(--accent)', fontSize: '14px' }}>
                           {user.full_name?.[0]?.toUpperCase() || user.username[0].toUpperCase()}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-white">{user.full_name || user.username}</h3>
-                          <p className="text-sm text-slate-400">{user.email}</p>
+                          <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{user.full_name || user.username}</h3>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{user.email}</p>
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        user.is_active
-                          ? 'bg-green-500/20 text-green-400'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
+                      <span className={`ind-chip ${user.is_active ? 'ind-chip--success' : 'ind-chip--danger'}`}>
                         {user.is_active ? 'Активен' : 'Неактивен'}
                       </span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-400">Роль:</span>
-                        <span className="text-white font-medium">{user.role}</span>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-muted)' }}>Роль</span>
+                        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{user.role}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-400">Логин:</span>
-                        <span className="text-white">{user.username}</span>
+                      <div className="flex items-center justify-between">
+                        <span style={{ color: 'var(--text-muted)' }}>Логин</span>
+                        <span style={{ color: 'var(--text-primary)' }}>{user.username}</span>
                       </div>
                       {user.last_login && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-slate-400">Последний вход:</span>
-                          <span className="text-white">{formatDate(user.last_login)}</span>
+                        <div className="flex items-center justify-between">
+                          <span style={{ color: 'var(--text-muted)' }}>Последний вход</span>
+                          <span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatDate(user.last_login)}</span>
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2 mt-4 pt-4 border-t border-slate-700">
-                      <button className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white">
-                        <Edit size={16} className="inline mr-1" />
+                    <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                      <button className="ind-btn flex-1">
+                        <Edit size={14} />
                         Редактировать
                       </button>
-                      <button className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400">
-                        <Trash2 size={16} />
+                      <button className="ind-btn" style={{ color: 'var(--danger)' }}>
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -346,62 +336,55 @@ const AdminPanel = () => {
           {activeTab === 'engineers' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white">Сотрудники</h2>
+                <h2 className="sp-section-title">Сотрудники</h2>
                 <button
                   onClick={() => setShowAddEngineer(true)}
-                  className="px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-white font-medium flex items-center gap-2"
+                  className="ind-btn ind-btn--primary"
                 >
-                  <Plus size={20} />
+                  <Plus size={16} />
                   Добавить сотрудника
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredEngineers.map(engineer => (
-                  <div
-                    key={engineer.id}
-                    className="bg-secondary/50 rounded-lg p-6 border border-slate-700"
-                  >
-                    <div className="flex items-start justify-between mb-4">
+                  <div key={engineer.id} className="sp-surface" style={{ padding: '16px' }}>
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-white font-bold">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white" style={{ background: 'var(--accent)', fontSize: '14px' }}>
                           {engineer.full_name[0].toUpperCase()}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-white">{engineer.full_name}</h3>
+                          <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{engineer.full_name}</h3>
                           {engineer.position && (
-                            <p className="text-sm text-slate-400">{engineer.position}</p>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{engineer.position}</p>
                           )}
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        engineer.is_active
-                          ? 'bg-green-500/20 text-green-400'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
+                      <span className={`ind-chip ${engineer.is_active ? 'ind-chip--success' : 'ind-chip--danger'}`}>
                         {engineer.is_active ? 'Активен' : 'Неактивен'}
                       </span>
                     </div>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 text-xs">
                       {engineer.email && (
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Mail size={14} />
-                          <span>{engineer.email}</span>
+                        <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                          <Mail size={13} />
+                          <span className="truncate">{engineer.email}</span>
                         </div>
                       )}
                       {engineer.phone && (
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Phone size={14} />
+                        <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                          <Phone size={13} />
                           <span>{engineer.phone}</span>
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2 mt-4 pt-4 border-t border-slate-700">
-                      <button className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white">
-                        <Edit size={16} className="inline mr-1" />
+                    <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                      <button className="ind-btn flex-1">
+                        <Edit size={14} />
                         Редактировать
                       </button>
-                      <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white">
-                        <Eye size={16} />
+                      <button className="ind-btn">
+                        <Eye size={14} />
                       </button>
                     </div>
                   </div>
@@ -412,61 +395,58 @@ const AdminPanel = () => {
 
           {activeTab === 'certifications' && (
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-white">Сертификаты сотрудников</h2>
-              <div className="space-y-3">
+              <h2 className="sp-section-title">Сертификаты сотрудников</h2>
+              <div className="space-y-2">
                 {filteredCertifications.map(cert => {
                   const isExpired = cert.expiry_date && new Date(cert.expiry_date) < new Date();
                   return (
                     <div
                       key={cert.id}
-                      className={`bg-secondary/50 rounded-lg p-4 border ${
-                        isExpired ? 'border-red-500/50' : 'border-slate-700'
-                      }`}
+                      className="sp-surface"
+                      style={{ padding: '14px', borderColor: isExpired ? 'var(--danger-soft-border, color-mix(in srgb, var(--danger) 35%, transparent))' : undefined }}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Award className={isExpired ? 'text-red-400' : 'text-yellow-400'} size={20} />
-                            <h3 className="font-semibold text-white">{cert.certification_type}</h3>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Award size={16} style={{ color: isExpired ? 'var(--danger)' : 'var(--warning)' }} />
+                            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{cert.certification_type}</h3>
                             {isExpired && (
-                              <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">
-                                Просрочен
-                              </span>
+                              <span className="ind-chip ind-chip--danger">Просрочен</span>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 text-xs">
                             {cert.method && (
-                              <div>
-                                <span className="text-slate-400">Метод:</span>
-                                <span className="text-white ml-2">{cert.method}</span>
+                              <div className="flex gap-1">
+                                <span style={{ color: 'var(--text-muted)' }}>Метод:</span>
+                                <span style={{ color: 'var(--text-primary)' }}>{cert.method}</span>
                               </div>
                             )}
                             {cert.level && (
-                              <div>
-                                <span className="text-slate-400">Уровень:</span>
-                                <span className="text-white ml-2">{cert.level}</span>
+                              <div className="flex gap-1">
+                                <span style={{ color: 'var(--text-muted)' }}>Уровень:</span>
+                                <span style={{ color: 'var(--text-primary)' }}>{cert.level}</span>
                               </div>
                             )}
-                            <div>
-                              <span className="text-slate-400">Номер:</span>
-                              <span className="text-white ml-2">{cert.number}</span>
+                            <div className="flex gap-1">
+                              <span style={{ color: 'var(--text-muted)' }}>№</span>
+                              <span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{cert.number}</span>
                             </div>
-                            <div>
-                              <span className="text-slate-400">Выдан:</span>
-                              <span className="text-white ml-2">{cert.issued_by}</span>
+                            <div className="flex gap-1">
+                              <span style={{ color: 'var(--text-muted)' }}>Выдан:</span>
+                              <span style={{ color: 'var(--text-primary)' }}>{cert.issued_by}</span>
                             </div>
                             {cert.expiry_date && (
-                              <div>
-                                <span className="text-slate-400">Действителен до:</span>
-                                <span className={isExpired ? 'text-red-400 ml-2' : 'text-white ml-2'}>
+                              <div className="flex gap-1">
+                                <span style={{ color: 'var(--text-muted)' }}>До:</span>
+                                <span className="tabular-nums" style={{ color: isExpired ? 'var(--danger)' : 'var(--text-primary)' }}>
                                   {formatDate(cert.expiry_date)}
                                 </span>
                               </div>
                             )}
                           </div>
                         </div>
-                        <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white">
-                          <Eye size={16} />
+                        <button className="ind-btn">
+                          <Eye size={14} />
                         </button>
                       </div>
                     </div>
@@ -478,40 +458,36 @@ const AdminPanel = () => {
 
           {activeTab === 'reports' && (
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-white">Отчеты и экспертизы</h2>
-              <div className="space-y-3">
+              <h2 className="sp-section-title">Отчёты и экспертизы</h2>
+              <div className="space-y-2">
                 {reports.map(report => (
-                  <div
-                    key={report.id}
-                    className="bg-secondary/50 rounded-lg p-4 border border-slate-700"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white mb-2">{report.title}</h3>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-slate-400">Тип:</span>
-                          <span className="text-white">{report.report_type}</span>
-                          <span className="text-slate-400">Статус:</span>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            report.status === 'APPROVED' ? 'bg-green-500/20 text-green-400' :
-                            report.status === 'DRAFT' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-slate-700 text-slate-300'
+                  <div key={report.id} className="sp-surface" style={{ padding: '14px' }}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{report.title}</h3>
+                        <div className="flex items-center gap-x-3 gap-y-1 text-xs flex-wrap">
+                          <span style={{ color: 'var(--text-muted)' }}>Тип:</span>
+                          <span style={{ color: 'var(--text-primary)' }}>{report.report_type}</span>
+                          <span className={`ind-chip ${
+                            report.status === 'APPROVED' ? 'ind-chip--success' :
+                            report.status === 'DRAFT' ? 'ind-chip--warning' :
+                            ''
                           }`}>
                             {report.status}
                           </span>
-                          <span className="text-slate-400">Создан:</span>
-                          <span className="text-white">{formatDate(report.created_at)}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>Создан:</span>
+                          <span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatDate(report.created_at)}</span>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         {report.file_path && (
-                          <button className="px-3 py-2 bg-accent hover:bg-accent/80 rounded text-sm text-white">
-                            <Download size={16} className="inline mr-1" />
+                          <button className="ind-btn ind-btn--primary">
+                            <Download size={14} />
                             Скачать
                           </button>
                         )}
-                        <button className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white">
-                          <Eye size={16} />
+                        <button className="ind-btn">
+                          <Eye size={14} />
                         </button>
                       </div>
                     </div>
@@ -522,48 +498,48 @@ const AdminPanel = () => {
           )}
 
           {activeTab === 'stats' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-slate-400 font-medium">Всего пользователей</h3>
-                  <Users className="text-accent" size={24} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="sp-stat">
+                <div className="sp-stat__head">
+                  <span className="sp-stat__label">Всего пользователей</span>
+                  <Users size={16} style={{ color: 'var(--accent)' }} />
                 </div>
-                <p className="text-3xl font-bold text-white">{stats.totalUsers}</p>
+                <div className="sp-stat__value tabular-nums">{stats.totalUsers}</div>
               </div>
-              <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-slate-400 font-medium">Сотрудников</h3>
-                  <UserPlus className="text-accent" size={24} />
+              <div className="sp-stat">
+                <div className="sp-stat__head">
+                  <span className="sp-stat__label">Сотрудников</span>
+                  <UserPlus size={16} style={{ color: 'var(--accent)' }} />
                 </div>
-                <p className="text-3xl font-bold text-white">{stats.totalEngineers}</p>
+                <div className="sp-stat__value tabular-nums">{stats.totalEngineers}</div>
               </div>
-              <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-slate-400 font-medium">Активных сертификатов</h3>
-                  <CheckCircle className="text-green-400" size={24} />
+              <div className="sp-stat">
+                <div className="sp-stat__head">
+                  <span className="sp-stat__label">Активных сертификатов</span>
+                  <CheckCircle size={16} style={{ color: 'var(--success)' }} />
                 </div>
-                <p className="text-3xl font-bold text-white">{stats.activeCertifications}</p>
+                <div className="sp-stat__value tabular-nums" style={{ color: 'var(--success)' }}>{stats.activeCertifications}</div>
               </div>
-              <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-slate-400 font-medium">Просроченных сертификатов</h3>
-                  <XCircle className="text-red-400" size={24} />
+              <div className="sp-stat">
+                <div className="sp-stat__head">
+                  <span className="sp-stat__label">Просроченных сертификатов</span>
+                  <XCircle size={16} style={{ color: 'var(--danger)' }} />
                 </div>
-                <p className="text-3xl font-bold text-red-400">{stats.expiredCertifications}</p>
+                <div className="sp-stat__value tabular-nums" style={{ color: 'var(--danger)' }}>{stats.expiredCertifications}</div>
               </div>
-              <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-slate-400 font-medium">Всего отчетов</h3>
-                  <FileText className="text-accent" size={24} />
+              <div className="sp-stat">
+                <div className="sp-stat__head">
+                  <span className="sp-stat__label">Всего отчётов</span>
+                  <FileText size={16} style={{ color: 'var(--accent)' }} />
                 </div>
-                <p className="text-3xl font-bold text-white">{stats.totalReports}</p>
+                <div className="sp-stat__value tabular-nums">{stats.totalReports}</div>
               </div>
-              <div className="bg-secondary/50 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-slate-400 font-medium">Отчетов в работе</h3>
-                  <AlertTriangle className="text-yellow-400" size={24} />
+              <div className="sp-stat">
+                <div className="sp-stat__head">
+                  <span className="sp-stat__label">Отчётов в работе</span>
+                  <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
                 </div>
-                <p className="text-3xl font-bold text-yellow-400">{stats.pendingReports}</p>
+                <div className="sp-stat__value tabular-nums" style={{ color: 'var(--warning)' }}>{stats.pendingReports}</div>
               </div>
             </div>
           )}

@@ -148,19 +148,14 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
   void _handleTapDown(TapDownDetails details, Size imageSize) {
     if (_imageFile == null) return;
 
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset localPosition = renderBox.globalToLocal(details.globalPosition);
+    // Используем localPosition от GestureDetector — корректно относительно области изображения.
+    // Прежний хардкод Rect.fromLTWH(0, 100, width, height-300) давал неверные координаты при
+    // разных высотах экрана, AppBar и тулбарах. См. П.1 ТЗ 2026-04 (устранение overlap'ов).
+    final Offset localPosition = details.localPosition;
+    final double x = localPosition.dx;
+    final double y = localPosition.dy;
 
-    // Находим контейнер изображения
-    final imageContainer = _getImageContainerBounds();
-    if (imageContainer == null) return;
-
-    final double x = localPosition.dx - imageContainer.left;
-    final double y = localPosition.dy - imageContainer.top;
-
-    if (x < 0 || x > imageContainer.width || y < 0 || y > imageContainer.height) {
-      return;
-    }
+    if (x < 0 || y < 0) return;
 
     // Проверяем, не нажали ли на существующую аннотацию
     for (var annotation in _annotations) {
@@ -186,10 +181,8 @@ class _ImageAnnotationScreenState extends State<ImageAnnotationScreen> {
     _showAnnotationDialog(newAnnotation);
   }
 
-  Rect? _getImageContainerBounds() {
-    final size = MediaQuery.of(context).size;
-    return Rect.fromLTWH(0, 100, size.width, size.height - 300);
-  }
+  // Удалено: хардкод Rect.fromLTWH(0, 100, width, height-300). Теперь координаты
+  // берутся из details.localPosition — они уже относительны области изображения.
 
   void _showAnnotationDialog(AnnotationPoint annotation) {
     final textController = TextEditingController(text: annotation.text ?? '');

@@ -1,12 +1,38 @@
-# Контекст сборки — корень репозитория (frontend + backend). backend/ не исключаем.
+# Контекст сборки — корень репозитория (frontend + backend).
+# ВАЖНО: этот файл должен копироваться на сервер deploy-скриптом, иначе
+# build context раздувается до 1-2 GB и падает по OOM.
 .git
 .github
+.vscode
+.idea
+.cursor
 **/.DS_Store
 **/node_modules
 **/dist
 **/build
+**/__pycache__
+**/*.pyc
+# Flutter/мобильное приложение не нужно ни frontend, ни backend образу
 mobile
+mobile-apk
+# Документация/markdown в рантайме не нужны
 *.md
+# Секреты
 .env
 .env.*
 !.env.example
+# Артефакты backend/runtime (не нужны для сборки frontend)
+backend/uploads
+backend/reports
+backend/certs
+backend/logs
+backend/*.db
+backend/*.sqlite*
+backend/alembic/versions/__pycache__
+# Артефакты CI/локальные
+terminals
+agent-transcripts
+coverage
+.pytest_cache
+.ruff_cache
+.mypy_cache

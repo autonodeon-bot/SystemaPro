@@ -5,33 +5,50 @@ import '../../services/sync_service.dart';
 import '../../theme/app_colors.dart';
 import 'assignment_sync_badges.dart';
 
+/// Mobile 2026: плотная карточка задания с цветной боковой «пульсацией» статуса,
+/// чипами и семантической палитрой из AppColors.
 Color _statusColor(String status) {
   switch (status) {
     case 'PENDING':
-      return Colors.orange;
+      return AppColors.warning;
     case 'IN_PROGRESS':
-      return Colors.blue;
+      return AppColors.accent;
     case 'COMPLETED':
-      return Colors.green;
+      return AppColors.success;
     case 'CANCELLED':
-      return Colors.red;
+      return AppColors.danger;
     default:
-      return Colors.grey;
+      return AppColors.textSecondary;
   }
 }
 
 Color _priorityColor(String priority) {
   switch (priority) {
     case 'LOW':
-      return Colors.grey;
+      return AppColors.textSecondary;
     case 'NORMAL':
-      return Colors.blue;
+      return AppColors.accent;
     case 'HIGH':
-      return Colors.orange;
+      return AppColors.warning;
     case 'URGENT':
-      return Colors.red;
+      return AppColors.danger;
     default:
-      return Colors.grey;
+      return AppColors.textSecondary;
+  }
+}
+
+String _priorityLabel(String priority) {
+  switch (priority) {
+    case 'LOW':
+      return 'Низкий';
+    case 'NORMAL':
+      return 'Обычный';
+    case 'HIGH':
+      return 'Высокий';
+    case 'URGENT':
+      return 'Срочный';
+    default:
+      return priority;
   }
 }
 
@@ -59,34 +76,78 @@ class AssignmentCard extends StatelessWidget {
     final overdue = due != null &&
         due.isBefore(DateTime.now()) &&
         assignment.status != 'COMPLETED';
+    final hasPendingSync =
+        localInspectionState.hasDraft || localInspectionState.hasSigned;
 
-    return Card(
-      color: AppColors.darkBackground,
-      margin: EdgeInsets.zero,
-      child: Semantics(
-        label:
-            '${assignment.equipmentName}, статус: ${assignment.statusLabel}, приоритет: ${assignment.priority}',
-        button: assignment.status != 'CANCELLED',
+    return Semantics(
+      label:
+          '${assignment.equipmentName}, статус: ${assignment.statusLabel}, приоритет: ${assignment.priority}',
+      button: assignment.status != 'CANCELLED',
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.darkSurface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: overdue
+                    ? AppColors.danger.withOpacity(0.45)
+                    : AppColors.darkBorder,
+                width: 1,
+              ),
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 3,
+                    decoration: BoxDecoration(
+                      color: statusCol,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(14),
+                        bottomLeft: Radius.circular(14),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            assignment.equipmentCode,
-                            style: const TextStyle(
-                              color: AppColors.darkPrimary,
-                              fontSize: 12,
-                              fontFamily: 'monospace',
-                            ),
+                          // Верхняя строка: код + статус + sync-индикатор
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  assignment.equipmentCode,
+                                  style: const TextStyle(
+                                    color: AppColors.darkPrimary,
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              _statusChip(assignment.statusLabel, statusCol),
+                              if (hasPendingSync)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6),
+                                  child: Icon(
+                                    Icons.cloud_off,
+                                    size: 16,
+                                    color: AppColors.warning,
+                                    semanticLabel: 'Ожидает отправки на сервер',
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -94,100 +155,106 @@ class AssignmentCard extends StatelessWidget {
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                              letterSpacing: -0.1,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              _pill(
+                                icon: Icons.assignment_outlined,
+                                text: assignment.typeLabel,
+                                color: AppColors.textSecondary,
+                              ),
+                              _pill(
+                                icon: Icons.flag_outlined,
+                                text: _priorityLabel(assignment.priority),
+                                color: priCol,
+                                filled: true,
+                              ),
+                              if (due != null)
+                                _pill(
+                                  icon: Icons.calendar_today_outlined,
+                                  text: 'Срок: ${formatDate(due)}',
+                                  color: overdue ? AppColors.danger : AppColors.textSecondary,
+                                  filled: overdue,
+                                ),
+                            ],
+                          ),
+                          AssignmentSyncBadges(
+                            assignment: assignment,
+                            localState: localInspectionState,
+                            opoDataFilled: opoSurveyFilled,
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusCol.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        assignment.statusLabel,
-                        style: TextStyle(
-                          color: statusCol,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    if (localInspectionState.hasDraft || localInspectionState.hasSigned)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Icon(
-                          Icons.cloud_off,
-                          size: 18,
-                          color: Colors.orange.shade300,
-                          semanticLabel: 'Ожидает отправки на сервер',
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.assignment,
-                        size: 14, color: Colors.grey[400], semanticLabel: 'Тип задания'),
-                    const SizedBox(width: 4),
-                    Text(
-                      assignment.typeLabel,
-                      style: TextStyle(color: Colors.grey[300], fontSize: 12),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: priCol.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        assignment.priority,
-                        style: TextStyle(
-                          color: priCol,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                AssignmentSyncBadges(
-                  assignment: assignment,
-                  localState: localInspectionState,
-                  opoDataFilled: opoSurveyFilled,
-                ),
-                if (due != null) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 14,
-                        color: overdue ? Colors.red : Colors.grey[400],
-                        semanticLabel: 'Срок выполнения',
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Срок: ${formatDate(due)}',
-                        style: TextStyle(
-                          color: overdue ? Colors.red : Colors.grey[300],
-                          fontSize: 11,
-                          fontWeight: overdue ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                    ],
                   ),
                 ],
-              ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _statusChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        border: Border.all(color: color.withOpacity(0.35)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _pill({
+    required IconData icon,
+    required String text,
+    required Color color,
+    bool filled = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: filled ? color.withOpacity(0.12) : Colors.transparent,
+        border: Border.all(
+          color: filled ? color.withOpacity(0.3) : AppColors.darkBorder,
+        ),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

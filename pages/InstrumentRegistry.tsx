@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Wrench, Plus, Search, Filter, RefreshCw, Edit2, Trash2,
-  CheckCircle, AlertTriangle, XCircle, Clock, Link2, User,
-  ChevronDown, ChevronUp, X, ExternalLink,
+  CheckCircle, AlertTriangle, XCircle, Link2, User,
+  ChevronDown, ChevronUp, X,
 } from 'lucide-react';
 import { API_BASE } from '../constants';
 import { useAuth } from '../contexts/AuthContext';

@@ -1791,7 +1791,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       bottom: 0,
       left: 0,
       right: 0,
-      child: GestureDetector(
+      // SafeArea исключает overlap с системной панелью жестов/кнопок Android.
+      child: SafeArea(
+        top: false,
+        child: GestureDetector(
         onTap: () {}, // Не скрывать при тапе на само меню
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1856,6 +1859,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               ),
             ],
           ),
+        ),
         ),
       ),
     );

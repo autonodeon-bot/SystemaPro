@@ -275,54 +275,60 @@ const UsersManagement = () => {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className={`text-center ${textSecondaryClass} mt-20`}>
-        <Shield className="mx-auto mb-4" size={48} />
-        <p>Доступ запрещен. Только администратор может просматривать список пользователей.</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="sp-surface text-center" style={{ padding: '40px', maxWidth: '420px' }}>
+          <Shield className="mx-auto mb-4" size={40} style={{ color: 'var(--danger)' }} />
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Доступ запрещён</h2>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Только администратор может просматривать список пользователей.</p>
+        </div>
       </div>
     );
   }
 
   if (loading) {
-    return <div className={`text-center ${textSecondaryClass} mt-20`}>Загрузка...</div>;
+    return (
+      <div className="sp-surface flex flex-col items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)', borderRightColor: 'var(--accent)' }}></div>
+        <p className="mt-4 text-sm" style={{ color: 'var(--text-muted)' }}>Загрузка...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sp-animate-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Users className="text-accent" size={32} />
-          <h1 className={`text-3xl font-bold ${textClass}`}>Сотрудники</h1>
+          <Users size={28} style={{ color: 'var(--accent)' }} />
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Сотрудники</h1>
         </div>
         <button
-          onClick={() => {
-            resetForm();
-            setShowCreateModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-medium"
+          onClick={() => { resetForm(); setShowCreateModal(true); }}
+          className="ind-btn ind-btn--primary"
         >
-          <Plus size={20} />
+          <Plus size={16} />
           Добавить сотрудника
         </button>
       </div>
 
       {/* Фильтры */}
-      <div className={`${cardBgClass} rounded-xl border ${borderClass} p-4`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="sp-surface" style={{ padding: '12px' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="relative">
-            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${textSecondaryClass}`} size={20} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={16} style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Поиск по имени, логину, email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} placeholder-slate-400 focus:outline-none focus:border-accent`}
+              className="ind-input w-full pl-9"
+              style={{ height: '40px' }}
             />
           </div>
-          
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className={`px-4 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
+            className="ind-input"
+            style={{ height: '40px' }}
           >
             <option value="all">Все роли</option>
             <option value="admin">Администратор</option>
@@ -335,72 +341,60 @@ const UsersManagement = () => {
       </div>
 
       {/* Список пользователей */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredUsers.map((user) => (
-          <div
-            key={user.id}
-            className={`${cardBgClass} rounded-xl border ${borderClass} p-6 hover:border-accent/50 transition-colors`}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
+          <div key={user.id} className="sp-surface" style={{ padding: '16px' }}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3 min-w-0">
                 {user.photo_url || photoPreview ? (
-                  <img 
-                    src={user.photo_url || photoPreview || ''} 
+                  <img
+                    src={user.photo_url || photoPreview || ''}
                     alt={user.full_name || user.username}
-                    className="w-12 h-12 rounded-full object-cover"
+                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                   />
                 ) : (
-                  <div className="bg-accent/10 p-3 rounded-lg">
-                    <User className="text-accent" size={24} />
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent-glow)' }}>
+                    <User size={18} style={{ color: 'var(--accent)' }} />
                   </div>
                 )}
-                <div>
-                  <h3 className={`text-lg font-bold ${textClass}`}>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
                     {user.full_name || user.username}
                   </h3>
-                  <p className={`text-sm ${textSecondaryClass}`}>{user.username}</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user.username}</p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => openEditModal(user)}
-                  className="p-2 hover:bg-slate-700 rounded text-blue-400"
-                  title="Редактировать"
-                >
-                  <Edit size={16} />
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => openEditModal(user)} className="ind-btn" title="Редактировать" style={{ padding: '0 8px' }}>
+                  <Edit size={14} />
                 </button>
-                <button
-                  onClick={() => handleDeleteUser(user.id)}
-                  className="p-2 hover:bg-slate-700 rounded text-red-400"
-                  title="Удалить"
-                >
-                  <Trash2 size={16} />
+                <button onClick={() => handleDeleteUser(user.id)} className="ind-btn" title="Удалить" style={{ padding: '0 8px', color: 'var(--danger)' }}>
+                  <Trash2 size={14} />
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {user.email && (
-                <div className={`flex items-center gap-2 text-sm ${textSecondaryClass}`}>
-                  <Mail size={14} />
-                  <span>{user.email}</span>
+                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <Mail size={13} />
+                  <span className="truncate">{user.email}</span>
                 </div>
               )}
               {user.phone && (
-                <div className={`flex items-center gap-2 text-sm ${textSecondaryClass}`}>
-                  <Phone size={14} />
+                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <Phone size={13} />
                   <span>{user.phone}</span>
                 </div>
               )}
               {user.position && (
-                <div className={`flex items-center gap-2 text-sm ${textSecondaryClass}`}>
-                  <Briefcase size={14} />
-                  <span>{user.position}</span>
+                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <Briefcase size={13} />
+                  <span className="truncate">{user.position}</span>
                 </div>
               )}
-
-              <div className="flex items-center gap-2">
-                <Shield size={14} className={textSecondaryClass} />
+              <div className="flex items-center gap-2 pt-1">
+                <Shield size={13} style={{ color: 'var(--text-muted)' }} />
                 <span className={`px-2 py-1 rounded text-xs font-semibold border ${getRoleColor(user.role)}`}>
                   {getRoleLabel(user.role)}
                 </span>
@@ -411,9 +405,9 @@ const UsersManagement = () => {
       </div>
 
       {filteredUsers.length === 0 && (
-        <div className={`text-center ${textSecondaryClass} py-20`}>
-          <Users className="mx-auto mb-4 opacity-50" size={48} />
-          <p>Пользователи не найдены</p>
+        <div className="sp-surface text-center" style={{ padding: '60px 20px' }}>
+          <Users className="mx-auto mb-3 opacity-40" size={40} style={{ color: 'var(--text-muted)' }} />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Пользователи не найдены</p>
         </div>
       )}
 

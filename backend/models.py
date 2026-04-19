@@ -522,5 +522,52 @@ class UserDevice(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+class DrawingTemplate(Base):
+    """Шаблон чертежа оборудования (растровая схема с точками замера).
+    Привязка — одна из двух (или обе пустые для универсального шаблона):
+      * equipment_type_id — общий шаблон на тип (доступен всем единицам этого типа)
+      * equipment_id      — индивидуальный шаблон конкретного экземпляра
+    """
+    __tablename__ = "drawing_templates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=True, index=True)  # 'vessel', 'pipeline', 'ndt_scheme', и т.д.
+    equipment_type_id = Column(UUID(as_uuid=True), ForeignKey("equipment_types.id", ondelete="SET NULL"), nullable=True, index=True)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    image_file_path = Column(String(500), nullable=False)
+    image_width = Column(Integer, nullable=True)
+    image_height = Column(Integer, nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    file_size = Column(Integer, nullable=True)
+
+    version = Column(Integer, nullable=False, default=1, server_default='1')
+    is_active = Column(Boolean, default=True, server_default='true')
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DrawingTemplatePoint(Base):
+    """Предопределённая точка замера на шаблоне чертежа.
+    Координаты x_percent / y_percent — в процентах (0-100) от размеров изображения шаблона,
+    чтобы отрисовка корректно работала на любом разрешении/устройстве.
+    """
+    __tablename__ = "drawing_template_points"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    template_id = Column(UUID(as_uuid=True), ForeignKey("drawing_templates.id", ondelete="CASCADE"), nullable=False, index=True)
+    label = Column(String(50), nullable=False)  # 'T1', 'УЗК-3', etc.
+    point_type = Column(String(30), nullable=False, default='thickness', server_default='thickness')
+    x_percent = Column(Numeric(6, 3), nullable=False)  # 0.000 - 100.000
+    y_percent = Column(Numeric(6, 3), nullable=False)
+    expected_value = Column(Numeric(10, 3), nullable=True)  # например, проектная толщина
+    notes = Column(Text, nullable=True)
+    sort_order = Column(Integer, default=0, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 # Алиас для импорта в main.py
 Opo = OPO
