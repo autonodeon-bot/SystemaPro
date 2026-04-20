@@ -47,7 +47,7 @@ from drawing_templates_api import router as drawing_templates_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.28.0",
+    version="3.29.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -454,7 +454,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.28.0", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.29.0", "status": "running"}
 
 
 @app.get("/health")

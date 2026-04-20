@@ -15,6 +15,21 @@ const Changelog = () => {
   /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
+      version: '3.29.0',
+      date: '19.04.2026',
+      type: 'minor',
+      changes: [
+        { type: 'improved', description: 'Mobile UI: SyncScreen полностью переработан — новый индикатор сети (онлайн/офлайн чип с glow), статистические плитки «В очереди / Черновики / Подписаны» с tabular-figures, компактный блок разбивки SIGNED (Готовы / Проверить), моно-дата последней синхронизации и прогресс-бар аплоада с МБ/сек.' },
+        { type: 'improved', description: 'Mobile UI: AssignmentsScreen — новый AppBar с бейджем количества активных заданий, прозрачный фильтр-индикатор в акцентном цвете, переработанный empty-state с круглой иконкой на поверхности и подсказкой вместо плоского текста.' },
+        { type: 'improved', description: 'Mobile UI: ProfileScreen — шапка с круглым avatar-инициалом (AA) в акцентном glow, pill-бейдж роли, плотные info-карточки с моноширинной версией, чистая типографика −0.2 letter-spacing и редизайн версии приложения.' },
+        { type: 'improved', description: 'Mobile: унификация AppBar по тёмному indicator-стилю — backgroundDeep, без теней, заголовки 16 px / w600 / letter-spacing −0.2, иконки 20 px для стыковки с вебом.' },
+        { type: 'improved', description: 'Deploy hardening: .dockerignore расширен (backend/uploads|reports|certs, mobile-apk, __pycache__, terminals) — frontend build context сжался с 1.6 GB до десятков MB, устранены OOM-обрывы по SSH при vite build на VPS.' },
+        { type: 'improved', description: 'deploy-ssh.ps1 теперь копирует .dockerignore и vite-env.d.ts на сервер, чтобы локальные исключения контекста применялись и в проде.' },
+        { type: 'fixed', description: 'Security: .env удалён из git-индекса (git rm --cached); файл уже был в .gitignore, но отслеживался исторически — креды БД и JWT в историю не попадали, теперь защита от случайного коммита.' },
+        { type: 'changed', description: 'Системный релиз 3.29.0: синхронизированы версии web 3.29.0, backend 3.29.0, mobile 3.29.0+29.' },
+      ],
+    },
+    {
       version: '3.28.0',
       date: '19.04.2026',
       type: 'minor',

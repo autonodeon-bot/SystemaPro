@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import '../services/sync_service.dart';
 import '../providers/theme_provider.dart';
+import '../theme/app_colors.dart';
 import 'instrument_park_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -372,94 +375,123 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF0f172a),
+        backgroundColor: AppColors.darkBackground,
         body: Center(
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
         ),
       );
     }
 
     if (_user == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0f172a),
+        backgroundColor: AppColors.darkBackground,
         appBar: AppBar(
-          title: const Text('Личный кабинет'),
-          backgroundColor: const Color(0xFF0f172a),
+          title: const Text('Профиль', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2)),
+          backgroundColor: AppColors.darkBackgroundDeep,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
         ),
         body: const Center(
           child: Text(
             'Пользователь не найден',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: AppColors.textPrimary),
           ),
         ),
       );
     }
 
+    final initials = _extractInitials(_user!.fullName ?? _user!.username);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
-        title: const Text('Личный кабинет'),
-        backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
+        title: const Text('Профиль', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2)),
+        backgroundColor: AppColors.darkBackgroundDeep,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
-          Card(
-            color: const Color(0xFF1e293b),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.darkSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.darkBorder),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.5), width: 1.5),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const CircleAvatar(
-                        radius: 40,
-                        backgroundColor: Color(0xFF3b82f6),
-                        child: Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.white,
+                      Text(
+                        _user!.fullName ?? _user!.username,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _user!.fullName ?? _user!.username,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${_user!.username}',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      ),
+                      if (_user!.role != null) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.darkBorder,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.35)),
+                          ),
+                          child: Text(
+                            _getRoleName(_user!.role!),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
                             ),
-                            if (_user!.email != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                _user!.email!,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          _buildInfoCard('Логин', _user!.username),
-          if (_user!.role != null)
-            _buildInfoCard('Роль', _getRoleName(_user!.role!)),
-          const SizedBox(height: 16),
-          _buildInfoCard('Версия приложения', _appVersion),
+          if (_user!.email != null) ...[
+            const SizedBox(height: 8),
+            _buildInfoCard('Email', _user!.email!),
+          ],
+          const SizedBox(height: 8),
+          _buildInfoCard('Версия', _appVersion),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -690,33 +722,49 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildInfoCard(String label, String value) {
-    return Card(
-      color: const Color(0xFF1e293b),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
             ),
-            Text(
+          ),
+          Flexible(
+            child: Text(
               value,
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
+                color: AppColors.textPrimary,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  String _extractInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
   }
 
   String _getRoleName(String role) {

@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -738,15 +740,49 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
-        title: const Text('Мои задания'),
-        backgroundColor: AppColors.darkBackground,
-        foregroundColor: Colors.white,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Задания',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+            if (_filteredAssignments.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.darkBorder,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${_filteredAssignments.length}',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        backgroundColor: AppColors.darkBackgroundDeep,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
         actions: [
           Semantics(
             label: 'Показать или скрыть фильтры',
             child: IconButton(
               icon: Icon(
                 _showFilters ? Icons.filter_list : Icons.filter_list_off,
+                size: 20,
+                color: _showFilters ? AppColors.accent : AppColors.textPrimary,
                 semanticLabel: _showFilters ? 'Фильтры активны' : 'Фильтры скрыты',
               ),
               onPressed: () {
@@ -762,18 +798,19 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             child: IconButton(
               icon: _isSyncing
                   ? const SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
                       ),
                     )
-                  : const Icon(Icons.sync),
+                  : const Icon(Icons.sync, size: 20),
               onPressed: _isSyncing ? null : _syncAssignments,
               tooltip: 'Синхронизировать',
             ),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -817,33 +854,47 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : (_filteredAssignments.isEmpty && _recentItems.isEmpty)
                     ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.assignment_outlined,
-                              size: 64,
-                              color: Colors.grey[600],
-                              semanticLabel: 'Нет заданий',
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Нет заданий',
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 18,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  color: AppColors.darkSurface,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppColors.darkBorder),
+                                ),
+                                child: const Icon(
+                                  Icons.assignment_outlined,
+                                  size: 36,
+                                  color: AppColors.textSecondary,
+                                  semanticLabel: 'Нет заданий',
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Нажмите кнопку синхронизации для загрузки заданий',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Список заданий пуст',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.2,
+                                ),
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Нажмите иконку синхронизации вверху,\nчтобы загрузить задания с сервера',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                  height: 1.5,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : RefreshIndicator(

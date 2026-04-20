@@ -1,8 +1,11 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/sync_service.dart';
 import '../services/api_service.dart';
 import '../screens/equipment_list_screen.dart';
+import '../theme/app_colors.dart';
 import 'package:intl/intl.dart';
 
 class SyncScreen extends ConsumerStatefulWidget {
@@ -224,310 +227,423 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Синхронизация данных'),
-        backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Синхронизация',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
+        backgroundColor: AppColors.darkBackgroundDeep,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
         actions: [
           IconButton(
             tooltip: 'Обновить',
             onPressed: _isSyncing ? null : _loadData,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: 20),
           ),
         ],
       ),
-      backgroundColor: const Color(0xFF0f172a),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Статистика
-            Card(
-              color: const Color(0xFF1e293b),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: AppColors.darkBackground,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        children: [
+          _buildStatusStrip(),
+          const SizedBox(height: 12),
+          _buildStatsGrid(),
+          if (_signedCount > 0) ...[
+            const SizedBox(height: 12),
+            _buildSignedBreakdown(),
+          ],
+          const SizedBox(height: 12),
+          _buildLastSyncRow(),
+          const SizedBox(height: 20),
+          _buildSyncButton(),
+          if (_isSyncing && _uploadReportTotal > 0) ...[
+            const SizedBox(height: 16),
+            _buildUploadProgress(),
+          ],
+          if (_pendingCount == 0 && !_isSyncing) ...[
+            const SizedBox(height: 16),
+            _buildEmptyHint(),
+          ],
+          if (_pendingCount > 0 && !_isSyncing) ...[
+            const SizedBox(height: 12),
+            _buildPendingHint(),
+          ],
+          const SizedBox(height: 16),
+          _buildQuickHelp(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusStrip() {
+    final online = _isOnline == true;
+    final color = online ? AppColors.success : AppColors.warning;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 1),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            online ? 'Онлайн' : 'Офлайн',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            online ? 'Готов к отправке' : 'Нет сети — данные в очереди',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsGrid() {
+    return Row(
+      children: [
+        Expanded(child: _statTile('В очереди', '$_pendingCount', AppColors.accent)),
+        const SizedBox(width: 8),
+        Expanded(child: _statTile('Черновики', '$_draftCount', AppColors.warning)),
+        const SizedBox(width: 8),
+        Expanded(child: _statTile('Подписаны', '$_signedCount', AppColors.success)),
+      ],
+    );
+  }
+
+  Widget _statTile(String label, String value, Color accent) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: accent,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignedBreakdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _miniStat(
+              icon: Icons.check_circle_outline,
+              color: AppColors.success,
+              label: 'Готовы',
+              value: '$_signedReadyCount',
+            ),
+          ),
+          Container(width: 1, height: 28, color: AppColors.darkBorder),
+          Expanded(
+            child: _miniStat(
+              icon: Icons.error_outline,
+              color: AppColors.warning,
+              label: 'Проверить',
+              value: '$_signedNeedsAttentionCount',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat({required IconData icon, required Color color, required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLastSyncRow() {
+    final label = _lastSyncTime != null
+        ? DateFormat('dd.MM.yyyy HH:mm').format(_lastSyncTime!)
+        : 'Никогда';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 10),
+          const Text(
+            'Последняя синхронизация',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const Spacer(),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSyncButton() {
+    return Semantics(
+      label: 'Синхронизировать данные с сервером. Отправляет черновики и подписанные осмотры.',
+      button: true,
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _isSyncing ? null : _syncNow,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.darkBorder,
+            disabledForegroundColor: AppColors.textSecondary,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: _isSyncing
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Статистика',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Состояние сети:',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _isOnline == true
-                                ? Colors.green.withValues(alpha: 0.18)
-                                : Colors.orange.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _isOnline == true
-                                  ? Colors.green
-                                  : Colors.orange,
-                            ),
-                          ),
-                          child: Text(
-                            _isOnline == true ? 'Онлайн' : 'Офлайн',
-                            style: TextStyle(
-                              color: _isOnline == true
-                                  ? Colors.greenAccent
-                                  : Colors.orangeAccent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                    SizedBox(width: 12),
+                    Text(
+                      'Синхронизация…',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.2),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Всего ожидает синхронизации:',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        Text(
-                          '$_pendingCount',
-                          style: const TextStyle(
-                            color: Color(0xFF3b82f6),
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_draftCount > 0 || _signedCount > 0) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            '  • Черновики (DRAFT):',
-                            style: TextStyle(color: Colors.white70, fontSize: 14),
-                          ),
-                          Text(
-                            '$_draftCount',
-                            style: const TextStyle(
-                              color: Colors.orange,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.sync, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      _pendingCount > 0 ? 'Отправить $_pendingCount в очереди' : 'Обновить данные',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            '  • Подписанные (SIGNED):',
-                            style: TextStyle(color: Colors.white70, fontSize: 14),
-                          ),
-                          Text(
-                            '$_signedCount',
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_signedCount > 0) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '  • Готово к отправке:',
-                              style: TextStyle(color: Colors.white70, fontSize: 14),
-                            ),
-                            Text(
-                              '$_signedReadyCount',
-                              style: const TextStyle(
-                                color: Colors.lightGreenAccent,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '  • Требует проверки:',
-                              style: TextStyle(color: Colors.white70, fontSize: 14),
-                            ),
-                            Text(
-                              '$_signedNeedsAttentionCount',
-                              style: const TextStyle(
-                                color: Colors.orangeAccent,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Последняя синхронизация:',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        Text(
-                          _lastSyncTime != null
-                              ? DateFormat('dd.MM.yyyy HH:mm').format(_lastSyncTime!)
-                              : 'Никогда',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            if (_pendingCount > 0)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 16),
-                child: Text(
-                  'Есть неотправленные обследования (в т.ч. фото). Подключитесь к интернету и нажмите кнопку ниже.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.orange, fontSize: 14),
-                ),
-              ),
-            // Кнопка синхронизации
-            Semantics(
-              label: 'Синхронизировать данные с сервером. Отправляет черновики и подписанные осмотры.',
-              button: true,
-              child: ElevatedButton(
-                onPressed: _isSyncing ? null : _syncNow,
-                style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3b82f6),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: _isSyncing
-                  ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text('Синхронизация...'),
-                      ],
-                    )
-                  : Text(
-                      _pendingCount > 0
-                          ? 'Подключиться и синхронизировать'
-                          : 'Синхронизировать сейчас',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-              ),
-            ),
+        ),
+      ),
+    );
+  }
 
-            if (_isSyncing && _uploadReportTotal > 0) ...[
-              const SizedBox(height: 16),
+  Widget _buildUploadProgress() {
+    final progress = _uploadBytesTotal > 0 ? _uploadBytesSent / _uploadBytesTotal : null;
+    final sent = (_uploadBytesSent / 1024 / 1024).toStringAsFixed(1);
+    final total = (_uploadBytesTotal / 1024 / 1024).toStringAsFixed(1);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
               Text(
                 'Отчёт $_uploadReportIndex из $_uploadReportTotal',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: _uploadBytesTotal > 0 ? _uploadBytesSent / _uploadBytesTotal : null,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3b82f6)),
-              ),
-              const SizedBox(height: 4),
+              const Spacer(),
               Text(
-                '${(_uploadBytesSent / 1024 / 1024).toStringAsFixed(1)} МБ из ${(_uploadBytesTotal / 1024 / 1024).toStringAsFixed(1)} МБ',
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                '$sent / $total МБ',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
             ],
-            
-            if (_pendingCount == 0)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
-                child: Text(
-                  'Нет данных для отправки на сервер. Нажмите «Синхронизировать сейчас» для обновления списка оборудования.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70),
-                ),
-              ),
-            const SizedBox(height: 16),
-            Theme(
-              data: Theme.of(context).copyWith(
-                dividerColor: Colors.transparent,
-              ),
-              child: const Card(
-                color: Color(0xFF1e293b),
-                child: ExpansionTile(
-                  iconColor: Colors.white70,
-                  collapsedIconColor: Colors.white54,
-                  title: Text(
-                    'Быстрая помощь',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '• Офлайн: данные сохраняются локально в очереди.\n'
-                        '• Если часть файлов не отправилась — нажмите «Синхронизировать» повторно.\n'
-                        '• При ошибке авторизации: войдите в приложение заново и повторите синхронизацию.\n'
-                        '• Для больших фото нужна стабильная сеть — лучше Wi-Fi или хороший 4G.',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          height: 1.45,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.darkBorder,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyHint() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.cloud_done_outlined, size: 18, color: AppColors.success),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Очередь пуста. Нажмите, чтобы обновить список оборудования с сервера.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingHint() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, size: 18, color: AppColors.warning),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Есть неотправленные данные (включая фото). Подключитесь к сети и запустите синхронизацию.',
+              style: TextStyle(color: AppColors.warning, fontSize: 12, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickHelp() {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.darkSurface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.darkBorder),
+        ),
+        child: const ExpansionTile(
+          iconColor: AppColors.textSecondary,
+          collapsedIconColor: AppColors.textSecondary,
+          tilePadding: EdgeInsets.symmetric(horizontal: 12),
+          title: Text(
+            'Быстрая помощь',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          childrenPadding: EdgeInsets.fromLTRB(12, 0, 12, 12),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '• Офлайн — данные копятся локально в очереди.\n'
+                '• Часть файлов не ушла? Нажмите «Синхронизировать» снова.\n'
+                '• При ошибке авторизации — перелогиньтесь и повторите.\n'
+                '• Для больших фото лучше Wi-Fi или стабильный 4G.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
               ),
             ),
           ],
