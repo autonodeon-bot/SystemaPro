@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:workmanager/workmanager.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
@@ -10,6 +11,7 @@ import 'services/api_service.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 import 'router.dart';
+import 'config/app_config.dart';
 
 const backgroundSyncTask = 'backgroundSync';
 
@@ -37,7 +39,7 @@ void callbackDispatcher() {
   });
 }
 
-void main() async {
+Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
@@ -63,6 +65,23 @@ void main() async {
   );
 
   runApp(const ProviderScope(child: MyApp()));
+}
+
+void main() async {
+  if (AppConfig.isSentryEnabled) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = AppConfig.sentryDsn;
+        options.environment = AppConfig.sentryEnvironment;
+        options.tracesSampleRate = AppConfig.sentryTracesSampleRate;
+        options.sendDefaultPii = false;
+        options.attachStacktrace = true;
+      },
+      appRunner: _bootstrap,
+    );
+  } else {
+    await _bootstrap();
+  }
 }
 
 class MyApp extends ConsumerStatefulWidget {

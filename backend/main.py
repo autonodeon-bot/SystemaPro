@@ -11,17 +11,22 @@ import time
 import traceback
 from typing import Dict, Optional, Any
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from database import get_db, engine, Base
+from observability import get_logger, init_observability, metrics_router
+from security import limiter
 from shared import metrics as _metrics
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 from auth_api import router as auth_router
+from auth_2fa_api import router as auth_2fa_router
 from access_management import router as access_router
 from hierarchy_management import router as hierarchy_router
 from assignments_api import router as assignments_router
@@ -42,12 +47,14 @@ from notifications_api import router as notifications_router
 from pipeline_map_api import router as pipeline_map_router
 from protocol_templates_api import router as protocol_templates_router
 from drawing_templates_api import router as drawing_templates_router
+from diagnostic_engine.api import router as diagnostic_router
+from report_verify_api import router as report_verify_router
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.29.0",
+    version="3.30.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -63,6 +70,15 @@ app = FastAPI(
         {"name": "notifications", "description": "Уведомления"},
     ],
 )
+
+# ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
+os.environ.setdefault("APP_VERSION", "3.30.0")
+init_observability(app)
+log = get_logger("main")
+
+# ─── Rate limiting (slowapi) ──────────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 _cors_origins = os.getenv(
@@ -111,6 +127,8 @@ async def add_charset_header(request, call_next):
 
 # ─── Include all routers ──────────────────────────────────────────────────────
 app.include_router(auth_router)
+app.include_router(auth_2fa_router)
+app.include_router(metrics_router)
 app.include_router(access_router)
 app.include_router(hierarchy_router)
 app.include_router(assignments_router)
@@ -131,6 +149,8 @@ app.include_router(notifications_router)
 app.include_router(pipeline_map_router)
 app.include_router(protocol_templates_router)
 app.include_router(drawing_templates_router)
+app.include_router(diagnostic_router)
+app.include_router(report_verify_router)
 
 
 # ─── Startup: DB migrations ──────────────────────────────────────────────────
@@ -262,6 +282,34 @@ async def _run_migrations():
         # users.client_id — привязка пользователя к клиенту
         ("users.client_id", [
             "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id)",
+        ]),
+        # users 2FA + lockout (S1: security)
+        ("users.totp_and_lockout", [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT false",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_recovery_codes JSONB",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP WITH TIME ZONE",
+        ]),
+        # report_signatures — реестр выданных/подписанных заключений (S3)
+        ("report_signatures", [
+            """CREATE TABLE IF NOT EXISTS report_signatures (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+                signer_user_id UUID REFERENCES users(id),
+                signer_name VARCHAR(255),
+                signer_role VARCHAR(50),
+                signed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                content_sha256 VARCHAR(64) NOT NULL,
+                signature_type VARCHAR(20) NOT NULL DEFAULT 'internal',
+                signature_blob BYTEA,
+                verification_token VARCHAR(64) UNIQUE NOT NULL,
+                revoked_at TIMESTAMP WITH TIME ZONE,
+                revoke_reason TEXT
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_report_signatures_report_id ON report_signatures(report_id)",
+            "CREATE INDEX IF NOT EXISTS ix_report_signatures_verification_token ON report_signatures(verification_token)",
+            "CREATE INDEX IF NOT EXISTS ix_report_signatures_signed_at ON report_signatures(signed_at)",
         ]),
         # Индексы для assignments и reports
         ("assignments+reports indexes", [
@@ -454,11 +502,12 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.29.0", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.30.0", "status": "running"}
 
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
+    """Liveness probe — процесс жив."""
     try:
         await db.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
@@ -466,8 +515,37 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=503, detail=f"Database unhealthy: {str(e)}")
 
 
-@app.get("/metrics")
-async def get_metrics():
+@app.get("/ready")
+async def ready_check(db: AsyncSession = Depends(get_db)):
+    """Readiness probe — сервис готов принимать трафик.
+
+    Проверяем: БД, доступность критичных таблиц (users), наличие alembic.
+    """
+    checks: Dict[str, Any] = {}
+    ok = True
+    try:
+        result = await db.execute(text("SELECT COUNT(*) FROM users"))
+        checks["users_table"] = {"ok": True, "rows": int(result.scalar() or 0)}
+    except Exception as e:
+        ok = False
+        checks["users_table"] = {"ok": False, "error": str(e)[:200]}
+
+    try:
+        result = await db.execute(text("SELECT 1"))
+        checks["db"] = {"ok": True}
+    except Exception as e:
+        ok = False
+        checks["db"] = {"ok": False, "error": str(e)[:200]}
+
+    checks["version"] = os.getenv("APP_VERSION", "3.30.0")
+    if not ok:
+        return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
+    return {"status": "ready", **checks}
+
+
+@app.get("/metrics/legacy", include_in_schema=False)
+async def get_metrics_legacy():
+    """Старый JSON-формат метрик (совместимость). Основной — /metrics (Prometheus)."""
     return _metrics
 
 

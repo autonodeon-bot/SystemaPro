@@ -231,6 +231,13 @@ class User(Base):
     permissions = Column(JSONB)  # Дополнительные права доступа
     is_active = Column(Boolean, default=True, server_default='true')
     last_login = Column(DateTime(timezone=True))
+    # 2FA TOTP (S1: Security)
+    totp_secret = Column(String(64), nullable=True)
+    totp_enabled = Column(Boolean, default=False, server_default='false', nullable=False)
+    totp_recovery_codes = Column(JSONB, nullable=True)  # хэшированные sha256
+    # Счётчик провалов — для временной блокировки
+    failed_login_count = Column(Integer, default=0, nullable=False, server_default='0')
+    locked_until = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -567,6 +574,28 @@ class DrawingTemplatePoint(Base):
     notes = Column(Text, nullable=True)
     sort_order = Column(Integer, default=0, server_default='0')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReportSignature(Base):
+    """Реестр подписей заключений (S3: юридическая значимость).
+
+    На каждое подписание отчёта в PDF создаётся запись. `verification_token`
+    попадает в QR-штамп и используется для публичной проверки подлинности.
+    """
+    __tablename__ = "report_signatures"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    report_id = Column(UUID(as_uuid=True), ForeignKey("reports.id", ondelete="CASCADE"), nullable=False, index=True)
+    signer_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    signer_name = Column(String(255), nullable=True)
+    signer_role = Column(String(50), nullable=True)
+    signed_at = Column(DateTime(timezone=True), server_default=func.now())
+    content_sha256 = Column(String(64), nullable=False)
+    signature_type = Column(String(20), nullable=False, default="internal", server_default="internal")
+    signature_blob = Column(Text, nullable=True)  # base64, если PAdES подписано внешне
+    verification_token = Column(String(64), unique=True, nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoke_reason = Column(Text, nullable=True)
 
 
 # Алиас для импорта в main.py

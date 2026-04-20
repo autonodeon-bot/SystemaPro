@@ -1,0 +1,29 @@
+# Staging-конфигурация для прогона релиза на отдельном домене/порту
+# перед продом. Использование:
+#   docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Отличия от prod:
+#   - Публичные порты сдвинуты (8100 / 8443) — не конфликтуют с prod на той же
+#     машине, если stagingи prod делят хост.
+#   - Отдельная БД (через STG_DATABASE_URL в .env).
+#   - Sentry environment=staging, TRACES_SAMPLE_RATE=1.0 (всё трассируется).
+#   - Имена контейнеров суффиксированы `_staging`.
+services:
+  backend:
+    container_name: es_td_ngo_backend_staging
+    ports:
+      - "8100:8000"
+    environment:
+      - SENTRY_ENVIRONMENT=staging
+      - SENTRY_TRACES_SAMPLE_RATE=1.0
+      - LOG_LEVEL=DEBUG
+      - LOG_JSON=1
+    env_file:
+      - path: .env.staging
+        required: false
+
+  frontend:
+    container_name: es_td_ngo_frontend_staging
+    ports:
+      - "8080:80"
+      - "8443:443"

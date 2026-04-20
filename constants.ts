@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.29.0';
+export const APP_VERSION = '3.30.0';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -296,15 +296,15 @@ export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
 export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
 
 /** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
-export const RELEASE_NOTES_DATE = '31.03.2026';
+export const RELEASE_NOTES_DATE = '19.04.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
-  'Клиентский портал: данные и скачивание отчётов по правам клиента, привязка через предприятие и проекты',
-  'Календарь поверок: данные из API, неделя с понедельника, локальные даты и легенда сроков (7 / 8–30 / >30 дней)',
-  'Карта трубопроводов: сегменты из БД и координаты в attributes оборудования; при отсутствии данных — демо с подсказкой',
-  'База данных: колонка enterprises.client_id, миграция Alembic 003, загрузка .env для alembic; DB_SSLMODE=disable для локального Postgres',
-  'Отображаемое имя продукта в интерфейсах: «Монитор» (кодовое имя SystemaPro / ЕС ТД НГО)',
+  'Наблюдаемость: Sentry + Prometheus /metrics + structured logging (loguru), /ready endpoint',
+  'Безопасность: 2FA TOTP, rate-limit на /auth/*, блокировка аккаунта при переборе, политика паролей',
+  'Доменный движок: расчёт остаточного ресурса (РД 09-539-03) и конструктор ЭПБ сосудов (СА 03-008-08)',
+  'Подлинность заключений: QR-штамп на PDF + публичная верификация /api/verify/report/{token}, hook PAdES-T',
+  'Инфраструктура: staging-compose, ADR-документация, email-service (SMTP), очередь фоновых задач',
 ];
 
 /** Коды типов заданий (совпадают с backend VALID_ASSIGNMENT_TYPES) и подписи для UI */
@@ -333,8 +333,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.29.0';
-export const MOBILE_APP_BUILD = '29';
+export const MOBILE_APP_VERSION = '3.30.0';
+export const MOBILE_APP_BUILD = '30';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

@@ -15,6 +15,23 @@ const Changelog = () => {
   /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
+      version: '3.30.0',
+      date: '19.04.2026',
+      type: 'minor',
+      changes: [
+        { type: 'added', description: 'Наблюдаемость: интеграция Sentry на backend/frontend/mobile (включается переменной SENTRY_DSN), Prometheus-совместимый /metrics на FastAPI (http_requests_total, http_request_duration_seconds, report_generation_seconds, auth_login_total), structured logging через loguru (JSON в проде), новый /ready endpoint для readiness probe.' },
+        { type: 'added', description: 'Безопасность: 2FA TOTP (pyotp) — новый роутер /api/auth/2fa/{setup,enable,disable,verify,status}, QR-код для Google/Yandex Authenticator, 8 одноразовых recovery-кодов; rate-limit через slowapi (10/min на /auth/login, 5/min на /auth/2fa/verify); блокировка аккаунта после 5 провалов на 15 минут (HTTP 423); единая политика паролей (минимум 10 символов, 3 класса, блок-лист).' },
+        { type: 'added', description: 'RBAC: единая матрица прав в backend/security.py (PERMISSION_MATRIX), новая dependency-фабрика require_rbac("users.write") — fail-closed на неизвестные permissions; старый require_permission сохранён для совместимости.' },
+        { type: 'added', description: 'Доменный движок: новый пакет backend/diagnostic_engine с расчётом остаточного ресурса по РД 09-539-03 (учёт опасности ОПО через safety_factor), конструктором заключения ЭПБ сосуда по СА 03-008-08, картой объект × метод НК → нормы (NORMS_MAP); API /api/diagnostic/residual-life, /api/diagnostic/epb-vessel, /api/diagnostic/norms; покрытие тестами.' },
+        { type: 'added', description: 'Подлинность PDF-заключений: QR-штамп на последней странице со ссылкой /api/verify/report/{token}, публичная верификация (метаданные + sha256), проверка целостности загруженного PDF (POST .../check-hash), реестр report_signatures с полем revoked_at для отзыва; подготовлен hook для PAdES-T (pyhanko, включается PADES_ENABLED=1).' },
+        { type: 'added', description: 'Инфраструктура: email-service (aiosmtplib, dry-run если SMTP_HOST пуст), шаблоны welcome/report-ready; очередь фоновых задач (FastAPI BackgroundTasks с ограничением параллелизма) — интерфейс готов для миграции на Celery+Redis; staging-compose (docker-compose.staging.yml) с изолированным SENTRY_ENVIRONMENT=staging.' },
+        { type: 'added', description: 'Документация: новый README с архитектурной схемой, ADR-записи 0001 (observability), 0002 (RBAC+2FA), 0003 (diagnostic engine), 0004 (PDF verification/PAdES).' },
+        { type: 'improved', description: 'nginx: добавлены security-заголовки HSTS (max-age=1 год, includeSubDomains), X-Content-Type-Options nosniff, X-Frame-Options SAMEORIGIN, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy для geolocation/camera.' },
+        { type: 'improved', description: 'БД: новые колонки users.totp_secret, totp_enabled, totp_recovery_codes, failed_login_count, locked_until; новая таблица report_signatures с индексами по report_id, verification_token, signed_at.' },
+        { type: 'changed', description: 'Системный релиз 3.30.0: web 3.30.0, backend 3.30.0, mobile 3.30.0+30. requirements.txt пополнен (sentry-sdk, prometheus-client, loguru, slowapi, pyotp, qrcode, aiosmtplib, pypdf). package.json: @sentry/react. pubspec.yaml: sentry_flutter.' },
+      ],
+    },
+    {
       version: '3.29.0',
       date: '19.04.2026',
       type: 'minor',

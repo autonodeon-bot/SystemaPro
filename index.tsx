@@ -4,6 +4,9 @@ import App from './App';
 import './index.css';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { initSentry } from './lib/sentry';
+
+initSentry();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

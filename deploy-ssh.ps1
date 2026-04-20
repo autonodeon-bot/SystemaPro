@@ -27,7 +27,7 @@ Write-Host "  OK" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[2/7] Creating remote directories..." -ForegroundColor Yellow
-ssh $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/components $REMOTE/contexts $REMOTE/utils $REMOTE/styles $REMOTE/mobile-apk"
+ssh $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/components $REMOTE/contexts $REMOTE/utils $REMOTE/styles $REMOTE/lib $REMOTE/mobile-apk"
 Write-Host "  Done" -ForegroundColor Green
 Write-Host ""
 
@@ -56,9 +56,10 @@ if (Test-Path "components") { scp -r components/* "${dest}/components/" }
 if (Test-Path "contexts") { scp -r contexts/* "${dest}/contexts/" }
 if (Test-Path "utils") { scp -r utils/* "${dest}/utils/" }
 if (Test-Path "styles") { scp -r styles/* "${dest}/styles/" }
+if (Test-Path "lib") { scp -r lib/* "${dest}/lib/" }
 
 $rootFiles = @(
-    "docker-compose.yml", "frontend.Dockerfile", "App.tsx", "index.html", "index.tsx", "index.css",
+    "docker-compose.yml", "docker-compose.staging.yml", "frontend.Dockerfile", "App.tsx", "index.html", "index.tsx", "index.css",
     "package.json", "vite.config.ts", "tsconfig.json", "tailwind.config.js", "postcss.config.js",
     "constants.ts", "types.ts", "vite-env.d.ts"
 )

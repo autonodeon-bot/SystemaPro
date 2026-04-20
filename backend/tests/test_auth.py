@@ -134,6 +134,24 @@ class TestPermissions:
         assert exc.value.status_code == 403
 
 
+def _make_request() -> "Request":
+    """Минимальный starlette Request для тестов (slowapi требует instance)."""
+    from starlette.requests import Request as _Req
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/auth/login",
+        "headers": [(b"host", b"testserver")],
+        "client": ("127.0.0.1", 0),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "query_string": b"",
+        "app": MagicMock(),
+    }
+    return _Req(scope)
+
+
 @pytest.mark.asyncio
 class TestLogin:
     async def test_login_should_succeed_for_fallback_admin(self):
@@ -145,7 +163,7 @@ class TestLogin:
         mock_db = MagicMock()
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        out = await login(form, mock_db)
+        out = await login(_make_request(), form, mock_db)
         assert out["token_type"] == "bearer"
         assert out["role"] == "admin"
         assert "access_token" in out
@@ -162,7 +180,7 @@ class TestLogin:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with pytest.raises(HTTPException) as exc:
-            await login(form, mock_db)
+            await login(_make_request(), form, mock_db)
         assert exc.value.status_code == 401
 
     async def test_login_should_reject_wrong_db_password(self):
@@ -176,14 +194,18 @@ class TestLogin:
         mock_user.password_hash = hash_password("right")
         mock_user.role = "engineer"
         mock_user.username = "dbuser"
+        mock_user.failed_login_count = 0
+        mock_user.locked_until = None
+        mock_user.totp_enabled = False
 
         mock_db = MagicMock()
+        mock_db.commit = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_user
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with pytest.raises(HTTPException) as exc:
-            await login(form, mock_db)
+            await login(_make_request(), form, mock_db)
         assert exc.value.status_code == 401
 
     async def test_login_should_reject_inactive_db_user(self):
@@ -199,7 +221,7 @@ class TestLogin:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with pytest.raises(HTTPException) as exc:
-            await login(form, mock_db)
+            await login(_make_request(), form, mock_db)
         assert exc.value.status_code == 403
 
 
