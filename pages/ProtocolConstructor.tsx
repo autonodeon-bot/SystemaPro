@@ -28,6 +28,8 @@ type BlockType =
   | 'signature'
   | 'checkbox_list';
 
+type TemplateStatus = 'draft' | 'published' | 'archived';
+
 interface TableColumn {
   key: string;
   label: string;
@@ -57,6 +59,14 @@ interface ProtocolTemplate {
   created_at?: string;
   updated_at?: string;
   is_active?: boolean;
+  status?: TemplateStatus;
+  version?: number;
+}
+
+interface TemplateVersionInfo {
+  version: number;
+  created_by?: string;
+  created_at?: string;
 }
 
 const CATEGORIES = ['ВИК', 'УЗТ', 'УЗК', 'ПВК(МПД)', 'ТД(ЭПБ)', 'Другое'];
@@ -94,6 +104,7 @@ const emptyTemplate = (): Omit<ProtocolTemplate, 'id' | 'created_at' | 'updated_
   category: 'Другое',
   structure: [],
   is_active: true,
+  status: 'draft',
 });
 
 // ─── Иконка типа блока ─────────────────────────────────────────────────────
@@ -425,12 +436,18 @@ const ProtocolConstructor: React.FC = () => {
   // Режим просмотра или редактирования
   const [mode, setMode] = useState<'list' | 'edit' | 'create'>('list');
   const [editingTemplate, setEditingTemplate] = useState<Partial<ProtocolTemplate> | null>(null);
+  const [templateVersions, setTemplateVersions] = useState<TemplateVersionInfo[]>([]);
+  const [restoreVersion, setRestoreVersion] = useState<number | ''>('');
+  const [diffFromVersion, setDiffFromVersion] = useState<number | ''>('');
+  const [diffToVersion, setDiffToVersion] = useState<number | ''>('');
+  const [diffResult, setDiffResult] = useState<{ added: string[]; removed: string[]; unchanged_count: number } | null>(null);
 
   // Редактирование конкретного блока
   const [editingBlock, setEditingBlock] = useState<TemplateBlock | null>(null);
 
   // Превью
   const [previewMode, setPreviewMode] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   // ── Загрузка шаблонов ──
   const loadTemplates = useCallback(async () => {
@@ -450,6 +467,28 @@ const ProtocolConstructor: React.FC = () => {
 
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
+  const loadTemplateVersions = useCallback(async (templateId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/protocol-templates/${templateId}/versions`, { headers });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setTemplateVersions(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+      setTemplateVersions([]);
+    }
+  }, []);
+
+  const startEditTemplate = useCallback((tmpl: ProtocolTemplate) => {
+    setEditingTemplate(tmpl);
+    setMode('edit');
+    setDiffResult(null);
+    setRestoreVersion('');
+    setDiffFromVersion('');
+    setDiffToVersion('');
+    void loadTemplateVersions(tmpl.id);
+  }, [loadTemplateVersions]);
+
   // ── Сохранение шаблона ──
   const saveTemplate = async () => {
     if (!editingTemplate) return;
@@ -466,12 +505,82 @@ const ProtocolConstructor: React.FC = () => {
         throw new Error(err.detail ?? 'Ошибка сохранения');
       }
       await loadTemplates();
+      if (editingTemplate.id) {
+        await loadTemplateVersions(editingTemplate.id);
+      }
       setMode('list');
       setEditingTemplate(null);
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const publishTemplate = async () => {
+    if (!editingTemplate?.id) return;
+    try {
+      setSaving(true);
+      const res = await fetch(`${API_BASE}/api/protocol-templates/${editingTemplate.id}/publish`, {
+        method: 'POST',
+        headers,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? 'Ошибка публикации');
+      }
+      await loadTemplates();
+      await loadTemplateVersions(editingTemplate.id);
+      setEditingTemplate(prev => prev ? { ...prev, status: 'published' } : prev);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const restoreTemplateVersion = async () => {
+    if (!editingTemplate?.id || restoreVersion === '') return;
+    try {
+      setSaving(true);
+      const res = await fetch(`${API_BASE}/api/protocol-templates/${editingTemplate.id}/restore/${restoreVersion}`, {
+        method: 'POST',
+        headers,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? 'Ошибка отката версии');
+      }
+      const fresh = await fetch(`${API_BASE}/api/protocol-templates/${editingTemplate.id}?active_only=false`, { headers });
+      if (fresh.ok) {
+        setEditingTemplate(await fresh.json());
+      }
+      await loadTemplates();
+      await loadTemplateVersions(editingTemplate.id);
+      setRestoreVersion('');
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const compareTemplateVersions = async () => {
+    if (!editingTemplate?.id || diffFromVersion === '' || diffToVersion === '') return;
+    try {
+      const params = new URLSearchParams({
+        from_version: String(diffFromVersion),
+        to_version: String(diffToVersion),
+      });
+      const res = await fetch(`${API_BASE}/api/protocol-templates/${editingTemplate.id}/diff?${params.toString()}`, { headers });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? 'Ошибка сравнения версий');
+      }
+      const data = await res.json();
+      setDiffResult(data);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
     }
   };
 
@@ -533,6 +642,22 @@ const ProtocolConstructor: React.FC = () => {
     }));
   };
 
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    if (dragIndex === null || !editingTemplate?.structure || dragIndex === targetIndex) {
+      setDragIndex(null);
+      return;
+    }
+    const arr = [...editingTemplate.structure];
+    const [moved] = arr.splice(dragIndex, 1);
+    arr.splice(targetIndex, 0, moved);
+    setEditingTemplate(prev => ({ ...prev, structure: arr }));
+    setDragIndex(null);
+  };
+
   // ── Рендер списка шаблонов ──
   if (mode === 'list') {
     return (
@@ -546,7 +671,12 @@ const ProtocolConstructor: React.FC = () => {
           </div>
           {canEdit && (
             <button
-              onClick={() => { setEditingTemplate(emptyTemplate()); setMode('create'); }}
+              onClick={() => {
+                setEditingTemplate(emptyTemplate());
+                setTemplateVersions([]);
+                setDiffResult(null);
+                setMode('create');
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-xl font-medium transition-colors"
             >
               <Plus size={18} /> Новый шаблон
@@ -590,12 +720,17 @@ const ProtocolConstructor: React.FC = () => {
                         Архив
                       </span>
                     )}
+                    {tmpl.status && (
+                      <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded-full ml-1">
+                        {tmpl.status === 'published' ? 'Опубликован' : tmpl.status === 'archived' ? 'Архив' : 'Черновик'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {canEdit && (
                       <>
                         <button
-                          onClick={() => { setEditingTemplate(tmpl); setMode('edit'); }}
+                          onClick={() => startEditTemplate(tmpl)}
                           className="p-1.5 text-slate-400 hover:text-accent rounded hover:bg-slate-700"
                           title="Редактировать"
                         >
@@ -618,6 +753,7 @@ const ProtocolConstructor: React.FC = () => {
                 )}
                 <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
                   <span>{tmpl.structure.length} блоков</span>
+                  <span>v{tmpl.version ?? 1}</span>
                   {tmpl.created_at && (
                     <span>{new Date(tmpl.created_at).toLocaleDateString('ru')}</span>
                   )}
@@ -649,7 +785,12 @@ const ProtocolConstructor: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => { setMode('list'); setEditingTemplate(null); }}
+            onClick={() => {
+              setMode('list');
+              setEditingTemplate(null);
+              setTemplateVersions([]);
+              setDiffResult(null);
+            }}
             className="text-slate-400 hover:text-white text-sm flex items-center gap-1"
           >
             ← Назад к списку
@@ -729,7 +870,97 @@ const ProtocolConstructor: React.FC = () => {
                 Активный (доступен в приложении)
               </label>
             )}
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Статус шаблона</label>
+              <select
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm focus:border-accent focus:outline-none"
+                value={editingTemplate?.status ?? 'draft'}
+                onChange={e => setEditingTemplate(prev => ({ ...prev, status: e.target.value as TemplateStatus }))}
+              >
+                <option value="draft">Черновик</option>
+                <option value="published">Опубликован</option>
+                <option value="archived">Архив</option>
+              </select>
+            </div>
+            {!isCreating && canEdit && (
+              <button
+                onClick={publishTemplate}
+                disabled={saving}
+                className="w-full px-3 py-2 bg-emerald-600/90 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm"
+              >
+                Опубликовать текущую версию
+              </button>
+            )}
           </div>
+
+          {!isCreating && (
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+              <h2 className="text-white font-semibold text-sm">Версии шаблона</h2>
+              <div className="max-h-40 overflow-auto space-y-1">
+                {templateVersions.length === 0 ? (
+                  <p className="text-xs text-slate-500">История версий пока пуста</p>
+                ) : (
+                  templateVersions.map(v => (
+                    <div key={v.version} className="text-xs text-slate-300 flex items-center justify-between bg-slate-700/40 rounded px-2 py-1">
+                      <span>v{v.version}</span>
+                      <span className="text-slate-500">{v.created_at ? new Date(v.created_at).toLocaleString('ru-RU') : ''}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  className="bg-slate-700 border border-slate-600 rounded p-2 text-xs text-white"
+                  value={restoreVersion}
+                  onChange={e => setRestoreVersion(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">Версия для отката</option>
+                  {templateVersions.map(v => <option key={`restore-${v.version}`} value={v.version}>v{v.version}</option>)}
+                </select>
+                <button
+                  onClick={restoreTemplateVersion}
+                  disabled={restoreVersion === '' || saving}
+                  className="bg-amber-600/90 hover:bg-amber-600 disabled:opacity-50 text-white text-xs rounded p-2"
+                >
+                  Откатить
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  className="bg-slate-700 border border-slate-600 rounded p-2 text-xs text-white"
+                  value={diffFromVersion}
+                  onChange={e => setDiffFromVersion(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">С версии</option>
+                  {templateVersions.map(v => <option key={`from-${v.version}`} value={v.version}>v{v.version}</option>)}
+                </select>
+                <select
+                  className="bg-slate-700 border border-slate-600 rounded p-2 text-xs text-white"
+                  value={diffToVersion}
+                  onChange={e => setDiffToVersion(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">До версии</option>
+                  {templateVersions.map(v => <option key={`to-${v.version}`} value={v.version}>v{v.version}</option>)}
+                </select>
+              </div>
+              <button
+                onClick={compareTemplateVersions}
+                disabled={diffFromVersion === '' || diffToVersion === ''}
+                className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-xs rounded p-2"
+              >
+                Сравнить версии
+              </button>
+              {diffResult && (
+                <div className="text-xs text-slate-300 bg-slate-700/30 border border-slate-600 rounded p-2 space-y-1">
+                  <div>Добавлено полей: {diffResult.added.length}</div>
+                  <div>Удалено полей: {diffResult.removed.length}</div>
+                  <div>Без изменений: {diffResult.unchanged_count}</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Типы блоков для добавления */}
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
@@ -792,17 +1023,25 @@ const ProtocolConstructor: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {blocks.map((block, idx) => (
-                    <BlockCard
+                    <div
                       key={block.id}
-                      block={block}
-                      index={idx}
-                      total={blocks.length}
-                      onMoveUp={() => moveBlock(idx, -1)}
-                      onMoveDown={() => moveBlock(idx, 1)}
-                      onEdit={() => setEditingBlock(block)}
-                      onDelete={() => deleteBlock(block.id)}
-                      onDuplicate={() => duplicateBlock(block)}
-                    />
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => handleDrop(idx)}
+                      className={dragIndex === idx ? 'opacity-50' : ''}
+                    >
+                      <BlockCard
+                        block={block}
+                        index={idx}
+                        total={blocks.length}
+                        onMoveUp={() => moveBlock(idx, -1)}
+                        onMoveDown={() => moveBlock(idx, 1)}
+                        onEdit={() => setEditingBlock(block)}
+                        onDelete={() => deleteBlock(block.id)}
+                        onDuplicate={() => duplicateBlock(block)}
+                      />
+                    </div>
                   ))}
                 </div>
               )}

@@ -72,9 +72,9 @@ const ReportTemplates = () => {
       const token = localStorage.getItem('token');
       if (token) headers['Authorization'] = `Bearer ${token}`;
       
-      const url = editingTemplate 
-        ? `${API_BASE}/api/report-templates/${editingTemplate.id}`
-        : `${API_BASE}/api/report-templates`;
+      const url = editingTemplate
+        ? `${API_BASE}/api/report-templates-db/${editingTemplate.id}`
+        : `${API_BASE}/api/report-templates-db`;
       
       const method = editingTemplate ? 'PUT' : 'POST';
       

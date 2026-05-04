@@ -15,7 +15,6 @@ import 'drawing_templates_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
-  static const String _prefsKeyPendingInspections = 'pending_inspections';
   static const String _prefsKeyLastSync = 'last_sync';
   static const String _prefsKeyOfflineMode = 'offline_mode';
 
@@ -80,16 +79,7 @@ class SyncService {
     String status = 'DRAFT', // DRAFT / SIGNED
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingRaw = prefs.getStringList(_prefsKeyPendingInspections) ?? [];
-      final pendingInspections = <Map<String, dynamic>>[];
-      for (final item in pendingRaw) {
-        try {
-          pendingInspections.add(json.decode(item) as Map<String, dynamic>);
-        } catch (_) {
-          // Игнорируем поврежденные записи в очереди.
-        }
-      }
+      final pendingInspections = await DatabaseService.getPendingInspections();
 
       final checklistJson = checklist.toJson();
       // Добавляем информацию о файлах документов (единый формат: docNumber -> {file_path, file_name})
@@ -174,7 +164,7 @@ class SyncService {
         }
       }
 
-      final inspectionData = {
+      final inspectionData = <String, dynamic>{
         'equipment_id': equipmentId,
         'data': checklistJson,
         'conclusion': conclusion,
@@ -193,6 +183,7 @@ class SyncService {
         'verification_equipment_ids': verificationEquipmentIds ??
             [], // ID выбранного оборудования для поверок
       };
+      inspectionData['id'] = _queueKey(inspectionData);
 
       final newStatus = _normalizedStatus(inspectionData);
       final cleaned = pendingInspections.where((existing) {
@@ -214,10 +205,7 @@ class SyncService {
       }).toList();
 
       cleaned.add(inspectionData);
-      await prefs.setStringList(
-        _prefsKeyPendingInspections,
-        cleaned.map((item) => json.encode(item)).toList(),
-      );
+      await DatabaseService.replacePendingInspections(cleaned);
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
     }
@@ -226,13 +214,7 @@ class SyncService {
   /// Получить список ожидающих синхронизации диагностик
   Future<List<Map<String, dynamic>>> getPendingInspections() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingInspections =
-          prefs.getStringList(_prefsKeyPendingInspections) ?? [];
-
-      return pendingInspections.map((item) {
-        return json.decode(item) as Map<String, dynamic>;
-      }).toList();
+      return await DatabaseService.getPendingInspections();
     } catch (e) {
       return [];
     }
@@ -508,10 +490,7 @@ class SyncService {
       }).toList();
       
       // Сохраняем только неудачные попытки и черновики
-      final remainingInspectionsJson = remainingInspections
-          .map((s) => json.encode(s))
-          .toList();
-      await prefs.setStringList(_prefsKeyPendingInspections, remainingInspectionsJson);
+      await DatabaseService.replacePendingInspections(remainingInspections);
 
       // Синхронизация ОПО опросников
       try {
@@ -605,8 +584,7 @@ class SyncService {
 
   /// Очистить все ожидающие диагностики
   Future<void> clearPendingInspections() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyPendingInspections);
+    await DatabaseService.clearPendingInspections();
   }
 
   /// Установить режим офлайн
@@ -682,8 +660,7 @@ class SyncService {
 
   /// Полная очистка, включая очередь неотправленных обследований (только по явному запросу пользователя).
   Future<void> clearOfflineCacheIncludingPending() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyPendingInspections);
+    await DatabaseService.clearPendingInspections();
     await clearOfflineCache();
   }
 

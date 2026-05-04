@@ -221,6 +221,20 @@ class DatabaseService {
   }
 
   // Pending inspections
+  static String _pendingInspectionId(Map<String, dynamic> data) {
+    final existingId = data['id']?.toString().trim();
+    if (existingId != null && existingId.isNotEmpty) return existingId;
+    final assignmentId = data['assignment_id']?.toString().trim() ?? '';
+    final equipmentId = data['equipment_id']?.toString().trim() ?? '';
+    final datePerformed = data['date_performed']?.toString().trim() ?? '';
+    final base = '$assignmentId|$equipmentId|$datePerformed';
+    if (assignmentId.isNotEmpty && equipmentId.isNotEmpty && datePerformed.isNotEmpty) {
+      return base;
+    }
+    final timestamp = data['timestamp']?.toString().trim() ?? DateTime.now().toUtc().toIso8601String();
+    return '$base|$timestamp';
+  }
+
   static Future<void> savePendingInspection(
       String id, Map<String, dynamic> data) async {
     final db = await database;
@@ -247,6 +261,35 @@ class DatabaseService {
         ...decoded,
       };
     }).toList();
+  }
+
+  static Future<void> replacePendingInspections(
+    List<Map<String, dynamic>> inspections,
+  ) async {
+    final db = await database;
+    final batch = db.batch();
+    final now = DateTime.now().toUtc().toIso8601String();
+    batch.delete('pending_inspections');
+    for (final item in inspections) {
+      final id = _pendingInspectionId(item);
+      final payload = <String, dynamic>{...item, 'id': id};
+      batch.insert(
+        'pending_inspections',
+        {
+          'id': id,
+          'data': jsonEncode(payload),
+          'created_at': now,
+          'status': 'pending',
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> clearPendingInspections() async {
+    final db = await database;
+    await db.delete('pending_inspections');
   }
 
   static Future<void> markInspectionSynced(String id) async {

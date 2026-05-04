@@ -37,6 +37,21 @@ _metrics = metrics
 router = APIRouter(tags=["reports"])
 
 
+async def _load_user_by_login(db: AsyncSession, username: str) -> Optional[User]:
+    result = await db.execute(
+        select(User).where(or_(User.username == username, User.email == username))
+    )
+    return result.scalar_one_or_none()
+
+
+def _ensure_template_permissions(user: Optional[User]) -> None:
+    allowed_roles = {"admin", "chief_operator", "operator"}
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if getattr(user, "role", None) not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для управления шаблонами")
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -1106,6 +1121,8 @@ async def get_report_templates_db(
     """Получить список шаблонов отчетов из БД"""
     try:
         from models import ReportTemplate
+        current_user = await _load_user_by_login(db, username)
+        _ensure_template_permissions(current_user)
         query = select(ReportTemplate).where(ReportTemplate.is_active == True)
         
         if client_id:
@@ -1148,8 +1165,8 @@ async def create_report_template_db(
     """Создать шаблон отчета в БД"""
     try:
         from models import ReportTemplate
-        user_result = await db.execute(select(User).where(User.username == username))
-        current_user = user_result.scalar_one_or_none()
+        current_user = await _load_user_by_login(db, username)
+        _ensure_template_permissions(current_user)
         
         client_id = None
         if template_data.get("client_id"):
@@ -1198,6 +1215,8 @@ async def update_report_template_db(
     """Обновить шаблон отчета в БД"""
     try:
         from models import ReportTemplate
+        current_user = await _load_user_by_login(db, username)
+        _ensure_template_permissions(current_user)
         template_uuid = uuid_lib.UUID(template_id)
         result = await db.execute(
             select(ReportTemplate).where(ReportTemplate.id == template_uuid)
@@ -1257,6 +1276,8 @@ async def delete_report_template_db(
     """Удалить шаблон отчета из БД"""
     try:
         from models import ReportTemplate
+        current_user = await _load_user_by_login(db, username)
+        _ensure_template_permissions(current_user)
         template_uuid = uuid_lib.UUID(template_id)
         result = await db.execute(
             select(ReportTemplate).where(ReportTemplate.id == template_uuid)
