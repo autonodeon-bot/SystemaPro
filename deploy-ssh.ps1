@@ -137,7 +137,7 @@ Write-Host "  Build done" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[5/7] Legacy DB scripts (ignore errors) and start stack..." -ForegroundColor Yellow
-ssh @SshAlive $SERVER "cd $REMOTE; docker-compose run --rm backend python add_certification_area_column.py 2>/dev/null; docker-compose run --rm backend python add_certification_areas_column.py 2>/dev/null; docker-compose run --rm backend python add_inspection_grouping_columns.py 2>/dev/null; docker-compose up -d"
+ssh @SshAlive $SERVER "cd $REMOTE; docker-compose run --rm backend python add_certification_area_column.py 2>/dev/null; docker-compose run --rm backend python add_certification_areas_column.py 2>/dev/null; docker-compose run --rm backend python add_inspection_grouping_columns.py 2>/dev/null; docker-compose up -d --remove-orphans"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build or start failed. Check output above." -ForegroundColor Red
     exit 1
