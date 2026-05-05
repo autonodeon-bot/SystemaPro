@@ -104,18 +104,45 @@ const DefectStatement: React.FC = () => {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const opts: InspectionOption[] = (data.inspections || data || []).map((ins: Record<string, unknown>) => {
-        const cl = (ins.checklist_data as Record<string, unknown>) || {};
-        const vessel = (cl.vessel_name as string) || (cl.object_name as string) || (ins.equipment_id as string) || '—';
-        const dateRaw = (ins.inspection_date as string) || (ins.created_at as string) || '';
+      const rawList: unknown[] = Array.isArray(data)
+        ? data
+        : (data.items as unknown[]) || (data.inspections as unknown[]) || [];
+      const opts: InspectionOption[] = rawList.map((raw) => {
+        const ins = raw as Record<string, unknown>;
+        const checklist = (ins.checklist_data as Record<string, unknown>) || {};
+        const payload = (ins.data as Record<string, unknown>) || {};
+        const cl = { ...payload, ...checklist };
+        const vessel =
+          (cl.vessel_name as string) ||
+          (cl.object_name as string) ||
+          (ins.equipment_name as string) ||
+          (ins.equipment_id as string) ||
+          '—';
+        const dateRaw =
+          (ins.date_performed as string) ||
+          (ins.inspection_date as string) ||
+          (cl.inspection_date as string) ||
+          (ins.created_at as string) ||
+          '';
         let dateFmt = dateRaw;
         try { dateFmt = new Date(dateRaw).toLocaleDateString('ru-RU'); } catch (_) {}
+        const fromMain = (cl.defects as Array<Record<string, unknown>>) || [];
+        const visual = (cl.visual_defects as Array<Record<string, unknown>>) || [];
+        const fromVisual = visual.map(v => ({
+          type: (v.defect_type as string) || 'Визуальный',
+          name: (v.description as string) || (v.defect_type as string) || '',
+          location: (v.location as string) || '',
+          size: (v.size as string) || '',
+          severity: 'minor',
+          recommendation: '',
+          notes: '',
+        }));
         return {
           id: (ins.id as string) || '',
           label: `${dateFmt} — ${vessel}`,
           objectName: vessel,
           date: dateFmt,
-          defects: (cl.defects as Array<Record<string, unknown>>) || [],
+          defects: [...fromMain, ...fromVisual],
         };
       });
       setInspections(opts);

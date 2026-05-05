@@ -15,6 +15,17 @@ const Changelog = () => {
   /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
+      version: '3.30.1',
+      date: '05.05.2026',
+      type: 'patch',
+      changes: [
+        { type: 'added', description: 'Скрипт backend/scripts/seed_demo_data.py — идемпотентные демо-данные: клиент, предприятие, ОПО, оборудование (сосуд/трубопровод), инженеры и пользователи demo.*, поверочные приборы, реестр приборов, задания всех типов, обследование с дефектами в JSON, методы НК, сегмент трубопровода, шаблон чертежа с точками, шаблон отчёта, запись protocol_templates; встроенная verify() после загрузки.' },
+        { type: 'added', description: 'Демо-пользователь demo.client с доступом к оборудованию (user_equipment_access), опросный лист, отчёт и нормативный документ для полноты стенда.' },
+        { type: 'fixed', description: 'Ведомость дефектов: импорт из обследований учитывает ответ API { items }, поле data и date_performed; объединение checklist_data с data; подтягивание визуальных дефектов из visual_defects.' },
+        { type: 'changed', description: 'Системный релиз 3.30.1: web 3.30.1, backend 3.30.1, mobile 3.30.1+31.' },
+      ],
+    },
+    {
       version: '3.30.0',
       date: '19.04.2026',
       type: 'minor',

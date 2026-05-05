@@ -16,11 +16,8 @@ main (production)
 ```
 
 ## Версионирование (SemVer)
-- Текущая версия: **3.25.0**
-- Обновлять синхронно в 3 местах:
-  1. `package.json` → `"version": "3.xx.x"`
-  2. `mobile/pubspec.yaml` → `version: 3.xx.x+build`
-  3. `backend/main.py` → `FastAPI(version="3.xx.x")`
+- Текущая версия: **3.30.1**
+- Обновлять синхронно: `package.json`, `package-lock.json`, `mobile/pubspec.yaml`, `backend/main.py` (и `APP_VERSION`), `constants.ts` (`APP_VERSION`, `MOBILE_*`), `backend/mobile_stats_api.py`, запись в `pages/Changelog.tsx`.
 
 ## Коммиты
 Формат: `тип(область): описание на русском`
