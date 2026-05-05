@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 import { FileText, Package, MapPin, Calendar, Download } from 'lucide-react';
 import { checklistDocumentNames } from '../../pages/checklistDocumentNames';
 import { API_BASE } from '../../constants';
@@ -72,7 +72,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
         aria-modal="true"
         aria-labelledby="inspection-detail-title"
       >
-        <div className="sticky top-0 bg-secondary border-b border-slate-700 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-secondary border-b border-app-line p-6 flex items-center justify-between">
           <h2 id="inspection-detail-title" className="text-xl font-bold text-white flex items-center gap-2">
             <FileText className="text-accent" size={24} />
             Детали чек-листа
@@ -80,7 +80,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-app-text3 hover:text-app-text transition-colors"
           >
             ✕
           </button>
@@ -88,54 +88,54 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Оборудование</label>
+              <label className="text-xs text-app-text3 mb-1 block">Оборудование</label>
               <div className="flex items-center gap-2">
                 <Package size={16} className="text-accent" />
                 <span className="font-medium">{insp.equipment_name || 'Не указано'}</span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Местоположение</label>
+              <label className="text-xs text-app-text3 mb-1 block">Местоположение</label>
               <div className="flex items-center gap-2">
                 <MapPin size={16} className="text-accent" />
                 <span>{insp.equipment_location || 'Не указано'}</span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Дата обследования</label>
+              <label className="text-xs text-app-text3 mb-1 block">Дата обследования</label>
               <div className="flex items-center gap-2">
                 <Calendar size={16} className="text-accent" />
                 <span>{formatInspectionDate(insp.date_performed)}</span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Статус</label>
+              <label className="text-xs text-app-text3 mb-1 block">Статус</label>
               <InspectionStatusBadge status={insp.status} />
             </div>
           </div>
 
           {typeof data.executors === 'string' && data.executors && (
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Исполнители</label>
+              <label className="text-xs text-app-text3 mb-1 block">Исполнители</label>
               <p className="text-white">{data.executors}</p>
             </div>
           )}
 
           {typeof data.organization === 'string' && data.organization && (
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Организация</label>
+              <label className="text-xs text-app-text3 mb-1 block">Организация</label>
               <p className="text-white">{data.organization}</p>
             </div>
           )}
 
           {hasDocuments && (
             <div>
-              <label className="text-xs text-slate-400 mb-2 block">Перечень рассмотренных документов</label>
+              <label className="text-xs text-app-text3 mb-2 block">Перечень рассмотренных документов</label>
               <div className="space-y-2">
                 {Object.entries(documents as Record<string, unknown>).map(([key, value]) => (
                   <div key={key} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
                     <div className="flex-1 pr-3">
-                      <div className="text-sm text-slate-300">
+                      <div className="text-sm text-app-text2">
                         {checklistDocumentNames[String(key)] ?? `Документ ${key}`}
                       </div>
                       {docsFilesByNumber[String(key)]?.length ? (
@@ -156,7 +156,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
                           ))}
                         </div>
                       ) : (
-                        <div className="mt-1 text-xs text-slate-500">Файл не приложен</div>
+                        <div className="mt-1 text-xs text-app-text3">Файл не приложен</div>
                       )}
                     </div>
 
@@ -171,33 +171,33 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
                 ))}
               </div>
               {loadingQuestionnaire && (
-                <div className="text-xs text-slate-500 mt-2">Загрузка вложений документов...</div>
+                <div className="text-xs text-app-text3 mt-2">Загрузка вложений документов...</div>
               )}
               {docsInfo?.questionnaire_id &&
                 Object.keys(docsFilesByNumber).length === 0 &&
                 !loadingQuestionnaire && (
-                  <div className="text-xs text-slate-500 mt-2">Документы не загружены</div>
+                  <div className="text-xs text-app-text3 mt-2">Документы не загружены</div>
                 )}
             </div>
           )}
 
           {typeof data.vesselName === 'string' && data.vesselName && (
             <div>
-              <label className="text-xs text-slate-400 mb-2 block">Карта обследования</label>
+              <label className="text-xs text-app-text3 mb-2 block">Карта обследования</label>
               <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/50 rounded">
                 <div>
-                  <span className="text-xs text-slate-400">Наименование сосуда</span>
+                  <span className="text-xs text-app-text3">Наименование сосуда</span>
                   <p className="text-white font-medium">{data.vesselName}</p>
                 </div>
                 {typeof data.serialNumber === 'string' && data.serialNumber && (
                   <div>
-                    <span className="text-xs text-slate-400">Заводской номер</span>
+                    <span className="text-xs text-app-text3">Заводской номер</span>
                     <p className="text-white font-medium">{data.serialNumber}</p>
                   </div>
                 )}
                 {typeof data.regNumber === 'string' && data.regNumber && (
                   <div>
-                    <span className="text-xs text-slate-400">Регистрационный номер</span>
+                    <span className="text-xs text-app-text3">Регистрационный номер</span>
                     <p className="text-white font-medium">{data.regNumber}</p>
                   </div>
                 )}
@@ -207,12 +207,12 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
 
           {docsInfo?.questionnaire_id && attachmentKeys.length > 0 && (
             <div>
-              <label className="text-xs text-slate-400 mb-2 block">Приложенные файлы</label>
+              <label className="text-xs text-app-text3 mb-2 block">Приложенные файлы</label>
               <div className="space-y-2">
                 {attachmentKeys.map((k) => (
                   <div key={k} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
                     <div className="flex-1 pr-3">
-                      <div className="text-sm text-slate-300 font-medium">{ATTACHMENT_LABELS[k] || k}</div>
+                      <div className="text-sm text-app-text2 font-medium">{ATTACHMENT_LABELS[k] || k}</div>
                       <div className="mt-1 flex flex-wrap gap-2">
                         {(docsFilesByNumber[k] || []).map((f) => (
                           <a
@@ -238,12 +238,12 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
 
           {docsInfo?.questionnaire_id && otherAttachmentKeys.length > 0 && (
             <div>
-              <label className="text-xs text-slate-400 mb-2 block">Прочие вложения</label>
+              <label className="text-xs text-app-text3 mb-2 block">Прочие вложения</label>
               <div className="space-y-2">
                 {otherAttachmentKeys.map((k) => (
                   <div key={k} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
                     <div className="flex-1 pr-3">
-                      <div className="text-sm text-slate-300 font-medium">{k}</div>
+                      <div className="text-sm text-app-text2 font-medium">{k}</div>
                       <div className="mt-1 flex flex-wrap gap-2">
                         {(docsFilesByNumber[k] || []).map((f) => (
                           <a
@@ -278,7 +278,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
 
           {insp.conclusion && (
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Заключение</label>
+              <label className="text-xs text-app-text3 mb-1 block">Заключение</label>
               <div className="p-4 bg-secondary/50 rounded">
                 <p className="text-white whitespace-pre-wrap">{insp.conclusion}</p>
               </div>
@@ -287,10 +287,10 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
 
           {Object.keys(data).length > 0 && (
             <details className="mt-4">
-              <summary className="cursor-pointer text-sm text-slate-400 hover:text-white">
+              <summary className="cursor-pointer text-sm text-app-text3 hover:text-app-text">
                 Показать все данные
               </summary>
-              <pre className="mt-2 p-4 bg-secondary/50 rounded text-xs overflow-auto text-slate-300">
+              <pre className="mt-2 p-4 bg-secondary/50 rounded text-xs overflow-auto text-app-text2">
                 {JSON.stringify(data, null, 2)}
               </pre>
             </details>

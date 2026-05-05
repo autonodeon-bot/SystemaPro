@@ -16,7 +16,7 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-body.light {
+html.light body {
   background: var(--gradient-bg);
   background-attachment: fixed;
 }
@@ -34,7 +34,7 @@ body.light {
 
 /* ─── Leaflet map ────────────────────────────────────────────────────── */
 .leaflet-container {
-  background: #111827;
+  background: var(--bg-primary);
   font-family: inherit;
 }
 .leaflet-popup-content-wrapper {
@@ -472,6 +472,22 @@ body.light {
 }
 .light .sp-divider {
   background: rgba(59,100,200,0.1);
+}
+
+/* Бейджи и опасная кнопка — читаемый контраст на светлом фоне */
+.light .sp-badge-success { color: var(--success); }
+.light .sp-badge-warning { color: var(--warning); }
+.light .sp-badge-danger { color: var(--danger); }
+.light .sp-badge-info { color: var(--info); }
+.light .sp-badge-neutral { color: var(--text-secondary); }
+.light .sp-btn-danger {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+.light .sp-btn-danger:hover {
+  color: #991b1b;
+  background: rgba(220, 38, 38, 0.14);
 }
 
 /* ══════════════════════════════════════════════════════════════════════ */

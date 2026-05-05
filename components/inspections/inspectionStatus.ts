@@ -1,4 +1,4 @@
-export function getInspectionStatusColorClass(status: string): string {
+﻿export function getInspectionStatusColorClass(status: string): string {
   switch (status) {
     case 'SIGNED':
       return 'bg-green-500/20 text-green-400 border-green-500/30';
@@ -7,7 +7,7 @@ export function getInspectionStatusColorClass(status: string): string {
     case 'REJECTED':
       return 'bg-red-500/20 text-red-400 border-red-500/30';
     default:
-      return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+      return 'bg-app-text3/20 text-app-text3 border-app-text3/30';
   }
 }
 

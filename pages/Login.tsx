@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn } from 'lucide-react';
@@ -31,14 +31,14 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-app-deep via-app-panel to-app-soft p-4">
       <div className="w-full max-w-md">
-        <div className="bg-secondary/60 rounded-2xl shadow-soft p-8 border border-slate-700/70 backdrop-blur-sm">
+        <div className="sp-glass rounded-2xl shadow-soft p-8">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-accent/20 rounded-full mb-4">
               <LogIn className="w-8 h-8 text-accent" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Вход в систему</h1>
+            <h1 className="text-2xl font-bold text-app-text mb-2">Вход в систему</h1>
             <p className="text-accent font-semibold text-sm leading-snug">{PLATFORM_FULL_TITLE}</p>
           </div>
 
@@ -50,7 +50,7 @@ const Login: React.FC = () => {
             )}
 
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-app-text2 mb-2">
                 Логин
               </label>
               <input
@@ -59,14 +59,14 @@ const Login: React.FC = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                className="w-full px-4 py-3 bg-app-panel border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
                 placeholder="Введите логин"
                 autoComplete="username"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-app-text2 mb-2">
                 Пароль
               </label>
               <input
@@ -75,7 +75,7 @@ const Login: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                className="w-full px-4 py-3 bg-app-panel border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
                 placeholder="Введите пароль"
                 autoComplete="current-password"
               />
@@ -100,7 +100,7 @@ const Login: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-slate-400">
+          <div className="mt-6 text-center text-sm text-app-text3">
             <p>Версия системы: v{APP_VERSION}</p>
           </div>
         </div>

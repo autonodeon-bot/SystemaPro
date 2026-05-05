@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles, BarChart2, FileText, ClipboardList, Calendar, User } from 'lucide-react';
 import {
@@ -58,7 +58,7 @@ const StatCard = ({ title, value, sub, icon: Icon, color, loading }: {
 
 const getPriorityBadge = (p: string) => {
   const map: Record<string, { label: string; cls: string }> = {
-    LOW: { label: 'Низкий', cls: 'bg-slate-500/20 text-slate-300 border-slate-500/30' },
+    LOW: { label: 'Низкий', cls: 'bg-app-text3/20 text-app-text2 border-app-text3/30' },
     NORMAL: { label: 'Обычный', cls: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
     HIGH: { label: 'Высокий', cls: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
     URGENT: { label: 'Срочный', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
@@ -318,7 +318,7 @@ const Dashboard = () => {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-400">
+              <div className="flex items-center justify-center h-full text-app-text3">
                 {statsLoading ? (
                   <div className="flex items-center gap-3">
                     <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />

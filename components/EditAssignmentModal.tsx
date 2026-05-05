@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
 import { API_BASE } from '../constants';
 import { useToast } from '../contexts/ToastContext';
@@ -84,28 +84,28 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-lg"
+        className="bg-app-panel rounded-2xl border border-app-line shadow-2xl w-full max-w-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
+        <div className="flex items-center justify-between p-5 border-b border-app-line">
           <div>
-            <h2 className="text-lg font-bold text-white">Редактировать задание</h2>
-            <p className="text-sm text-slate-400 mt-0.5">
+            <h2 className="text-lg font-bold text-app-text">Редактировать задание</h2>
+            <p className="text-sm text-app-text3 mt-0.5">
               {assignment.equipment_code} — {assignment.equipment_name}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition">
+          <button onClick={onClose} className="p-2 hover:bg-app-soft rounded-lg text-app-text3 hover:text-app-text transition">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Статус</label>
+            <label className="block text-sm font-medium text-app-text2 mb-1.5">Статус</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
             >
               {STATUS_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -114,11 +114,11 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Приоритет</label>
+            <label className="block text-sm font-medium text-app-text2 mb-1.5">Приоритет</label>
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
             >
               {PRIORITY_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -127,32 +127,32 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Срок выполнения</label>
+            <label className="block text-sm font-medium text-app-text2 mb-1.5">Срок выполнения</label>
             <input
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Описание</label>
+            <label className="block text-sm font-medium text-app-text2 mb-1.5">Описание</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               placeholder="Описание задания..."
-              className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none placeholder-slate-500"
+              className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none placeholder-app-text3"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-700">
+        <div className="flex items-center justify-end gap-3 p-5 border-t border-app-line">
           <button
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+            className="px-4 py-2.5 bg-app-soft hover:bg-app-softer text-app-text text-sm font-medium rounded-lg transition disabled:opacity-50"
           >
             Отмена
           </button>

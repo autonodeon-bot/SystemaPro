@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Download, FileText, MapPin, Search } from 'lucide-react';
 import { API_BASE } from '../constants';
 
@@ -124,7 +124,7 @@ const ClientPortal = () => {
   );
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   return (
@@ -132,13 +132,13 @@ const ClientPortal = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-white">Клиентский портал</h1>
         <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-app-text3" size={20} />
           <input
             type="text"
             placeholder="Поиск оборудования..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500"
+            className="w-full bg-app-panel border border-app-line rounded-lg pl-10 pr-4 py-2 text-app-text placeholder-app-text3"
           />
         </div>
       </div>
@@ -152,12 +152,12 @@ const ClientPortal = () => {
           return (
             <div
               key={eq.id}
-              className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
+              className="bg-app-panel p-4 rounded-xl border border-app-line hover:border-accent/50 transition-colors cursor-pointer"
               onClick={() => setSelectedEquipment(eq)}
             >
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-white">{eq.name}</h3>
-                <span className="text-xs text-slate-400 bg-slate-700 px-2 py-1 rounded">
+                <h3 className="text-lg font-bold text-app-text">{eq.name}</h3>
+                <span className="text-xs text-app-text3 bg-app-soft px-2 py-1 rounded">
                   {eqInspections.length} диагностик
                 </span>
               </div>
@@ -170,11 +170,11 @@ const ClientPortal = () => {
               )}
               
               {eq.serial_number && (
-                <p className="text-sm text-slate-400 mb-2">№ {eq.serial_number}</p>
+                <p className="text-sm text-app-text3 mb-2">№ {eq.serial_number}</p>
               )}
 
-              <div className="mt-3 pt-3 border-t border-slate-700">
-                <p className="text-xs text-slate-400 mb-1">Отчетов: {eqReports.length}</p>
+              <div className="mt-3 pt-3 border-t border-app-line">
+                <p className="text-xs text-app-text3 mb-1">Отчетов: {eqReports.length}</p>
                 {eqReports.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {eqReports.slice(0, 2).map((report) => (
@@ -199,11 +199,11 @@ const ClientPortal = () => {
       </div>
 
       {filteredEquipment.length === 0 && (
-        <div className="text-center text-slate-400 py-20 max-w-lg mx-auto space-y-2">
+        <div className="text-center text-app-text3 py-20 max-w-lg mx-auto space-y-2">
           {equipment.length === 0 && searchTerm.trim() === '' ? (
             <>
               <p>Для вашей учётной записи пока нет доступного оборудования.</p>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-app-text3">
                 Администратор должен указать организацию клиента в профиле пользователя и привязать предприятие
                 (поле «Клиент» у предприятия) или проекты с заданиями/обследованиями по вашему оборудованию.
               </p>
@@ -217,10 +217,10 @@ const ClientPortal = () => {
       {/* Модальное окно с деталями */}
       {selectedEquipment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedEquipment(null)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white">{selectedEquipment.name}</h2>
-              <button onClick={() => setSelectedEquipment(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setSelectedEquipment(null)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
 
             {selectedEquipment.location && (
@@ -232,23 +232,23 @@ const ClientPortal = () => {
 
             {/* Диагностики */}
             <div className="mb-6">
-              <h3 className="text-lg font-bold text-white mb-3">История диагностик</h3>
+              <h3 className="text-lg font-bold text-app-text mb-3">История диагностик</h3>
               {getEquipmentInspections(selectedEquipment.id).length === 0 ? (
-                <p className="text-slate-400">Диагностики не найдены</p>
+                <p className="text-app-text3">Диагностики не найдены</p>
               ) : (
                 <div className="space-y-3">
                   {getEquipmentInspections(selectedEquipment.id).map((insp) => (
-                    <div key={insp.id} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                    <div key={insp.id} className="bg-app-deep p-4 rounded-lg border border-app-line">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <p className="text-white font-bold">
                             {insp.date_performed ? new Date(insp.date_performed).toLocaleDateString('ru-RU') : 'Дата не указана'}
                           </p>
-                          <p className="text-sm text-slate-400">Статус: {insp.status}</p>
+                          <p className="text-sm text-app-text3">Статус: {insp.status}</p>
                         </div>
                       </div>
                       {insp.conclusion && (
-                        <p className="text-slate-300 mt-2 text-sm">{insp.conclusion}</p>
+                        <p className="text-app-text2 mt-2 text-sm">{insp.conclusion}</p>
                       )}
                     </div>
                   ))}
@@ -258,16 +258,16 @@ const ClientPortal = () => {
 
             {/* Отчеты */}
             <div>
-              <h3 className="text-lg font-bold text-white mb-3">Отчеты и экспертизы</h3>
+              <h3 className="text-lg font-bold text-app-text mb-3">Отчеты и экспертизы</h3>
               {getEquipmentReports(selectedEquipment.id).length === 0 ? (
-                <p className="text-slate-400">Отчеты не найдены</p>
+                <p className="text-app-text3">Отчеты не найдены</p>
               ) : (
                 <div className="space-y-2">
                   {getEquipmentReports(selectedEquipment.id).map((report) => (
-                    <div key={report.id} className="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center">
+                    <div key={report.id} className="bg-app-deep p-3 rounded-lg border border-app-line flex justify-between items-center">
                       <div>
                         <p className="text-white font-bold">{report.title}</p>
-                        <p className="text-sm text-slate-400">
+                        <p className="text-sm text-app-text3">
                           {report.report_type === 'TECHNICAL_REPORT' ? 'Технический отчет' : 
                            report.report_type === 'EXPERTISE' ? 'Экспертиза ПБ' : 'Отчет'}
                           {' • '}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Award, Plus, Download,
@@ -271,7 +271,7 @@ const EngineerPanel = () => {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-slate-400">Загрузка данных пользователя...</p>
+        <p className="text-app-text3">Загрузка данных пользователя...</p>
       </div>
     );
   }
@@ -282,7 +282,7 @@ const EngineerPanel = () => {
         <div className="text-center">
           <AlertTriangle className="mx-auto text-yellow-400 mb-4" size={48} />
           <h2 className="text-2xl font-bold text-white mb-2">Профиль инженера не найден</h2>
-          <p className="text-slate-400">Обратитесь к администратору для привязки профиля инженера</p>
+          <p className="text-app-text3">Обратитесь к администратору для привязки профиля инженера</p>
         </div>
       </div>
     );
@@ -307,13 +307,13 @@ const EngineerPanel = () => {
           <Wrench className="text-accent" size={28} />
           Моя панель
         </h1>
-        <p className="text-slate-400 mt-1">
+        <p className="text-app-text3 mt-1">
           Сертификаты, задания, отчёты и доступное оборудование
         </p>
       </div>
 
       {/* Табы */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-700 pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-app-line pb-2">
         {tabs.map(({ id, label, icon }) => (
           <button
             key={id}
@@ -321,7 +321,7 @@ const EngineerPanel = () => {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === id
                 ? 'bg-accent text-white'
-                : 'bg-secondary/50 text-slate-400 hover:text-white hover:bg-secondary'
+                : 'bg-secondary/50 text-app-text3 hover:text-app-text hover:bg-secondary'
             }`}
           >
             {icon}
@@ -362,7 +362,7 @@ const EngineerPanel = () => {
               .map((cert) => {
                 const days = daysUntilExpiry(cert.expiry_date);
                 return (
-                  <div key={cert.id} className="text-sm text-slate-300">
+                  <div key={cert.id} className="text-sm text-app-text2">
                     <span className="font-medium text-white">{cert.certification_type}</span>
                     {' - '}
                     <span>{cert.method_code || cert.method || 'Не указан'}</span>
@@ -381,13 +381,13 @@ const EngineerPanel = () => {
       {loading ? (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-          <p className="text-slate-400 mt-4">Загрузка сертификатов...</p>
+          <p className="text-app-text3 mt-4">Загрузка сертификатов...</p>
         </div>
       ) : certifications.length === 0 ? (
         <div className="text-center py-12 bg-secondary/50 rounded-lg">
-          <Award className="mx-auto text-slate-400 mb-4" size={48} />
-          <p className="text-slate-400">Сертификаты не найдены</p>
-          <p className="text-slate-500 text-sm mt-2">Добавьте свой первый сертификат</p>
+          <Award className="mx-auto text-app-text3 mb-4" size={48} />
+          <p className="text-app-text3">Сертификаты не найдены</p>
+          <p className="text-app-text3 text-sm mt-2">Добавьте свой первый сертификат</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -404,7 +404,7 @@ const EngineerPanel = () => {
                     ? 'border-red-500/50 bg-red-500/10'
                     : expiringSoon
                     ? 'border-yellow-500/50'
-                    : 'border-slate-700'
+                    : 'border-app-line'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -429,27 +429,27 @@ const EngineerPanel = () => {
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       {cert.method && (
                         <div>
-                          <span className="text-slate-400">Метод:</span>
+                          <span className="text-app-text3">Метод:</span>
                           <span className="text-white ml-2">{cert.method}</span>
                         </div>
                       )}
                       {cert.level && (
                         <div>
-                          <span className="text-slate-400">Уровень:</span>
+                          <span className="text-app-text3">Уровень:</span>
                           <span className="text-white ml-2">{cert.level}</span>
                         </div>
                       )}
                       <div>
-                        <span className="text-slate-400">Номер:</span>
+                        <span className="text-app-text3">Номер:</span>
                         <span className="text-white ml-2">{cert.number}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400">Выдан:</span>
+                        <span className="text-app-text3">Выдан:</span>
                         <span className="text-white ml-2">{cert.issued_by}</span>
                       </div>
                       {cert.expiry_date && (
                         <div>
-                          <span className="text-slate-400">Действителен до:</span>
+                          <span className="text-app-text3">Действителен до:</span>
                           <span
                             className={`ml-2 ${
                               expired ? 'text-red-400' : expiringSoon ? 'text-yellow-400' : 'text-green-400'
@@ -466,7 +466,7 @@ const EngineerPanel = () => {
                       href={`${API_BASE}/api/certifications/${cert.id}/scan`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 text-accent hover:bg-slate-700 rounded transition-colors"
+                      className="p-2 text-accent hover:bg-app-soft rounded transition-colors"
                       title="Скачать документ"
                     >
                       <Download size={20} />
@@ -489,14 +489,14 @@ const EngineerPanel = () => {
             className="bg-secondary rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-secondary border-b border-slate-700 p-6 flex items-center justify-between">
+            <div className="sticky top-0 bg-secondary border-b border-app-line p-6 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <Award className="text-accent" size={24} />
                 Добавить сертификат
               </h2>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-app-text3 hover:text-app-text transition-colors"
               >
                 ✕
               </button>
@@ -504,14 +504,14 @@ const EngineerPanel = () => {
             <form onSubmit={handleAddCertification} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-app-text2 mb-2">
                     Метод контроля <span className="text-red-400">*</span>
                   </label>
                   <select
                     required
                     value={formData.method}
                     onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                    className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
                   >
                     <option value="">Выберите метод</option>
                     <option value="УЗК">УЗК (Ультразвуковой контроль)</option>
@@ -526,14 +526,14 @@ const EngineerPanel = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-app-text2 mb-2">
                     Уровень <span className="text-red-400">*</span>
                   </label>
                   <select
                     required
                     value={formData.level}
                     onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                    className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
                   >
                     <option value="">Выберите уровень</option>
                     <option value="I">I уровень</option>
@@ -544,7 +544,7 @@ const EngineerPanel = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-app-text2 mb-2">
                   Тип сертификата <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -553,13 +553,13 @@ const EngineerPanel = () => {
                   value={formData.certification_type}
                   onChange={(e) => setFormData({ ...formData, certification_type: e.target.value })}
                   placeholder="Например: Допуск к ультразвуковому контролю"
-                  className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+                  className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-app-text2 mb-2">
                     Номер сертификата <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -568,12 +568,12 @@ const EngineerPanel = () => {
                     value={formData.number}
                     onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                     placeholder="CERT-2024-001"
-                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+                    className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-app-text2 mb-2">
                     Выдан организацией <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -582,26 +582,26 @@ const EngineerPanel = () => {
                     value={formData.issued_by}
                     onChange={(e) => setFormData({ ...formData, issued_by: e.target.value })}
                     placeholder="Ростехнадзор"
-                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+                    className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-app-text2 mb-2">
                     Дата выдачи
                   </label>
                   <input
                     type="date"
                     value={formData.issue_date}
                     onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
-                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                    className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-app-text2 mb-2">
                     Дата окончания <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -609,23 +609,23 @@ const EngineerPanel = () => {
                     required
                     value={formData.expiry_date}
                     onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
-                    className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+                    className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-app-text2 mb-2">
                   Фото документа
                 </label>
                 <input
                   type="file"
                   accept="image/*,.pdf"
                   onChange={(e) => setFormData({ ...formData, file: e.target.files?.[0] || null })}
-                  className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-accent/80"
+                  className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-accent/80"
                 />
                 {formData.file && (
-                  <p className="text-xs text-slate-400 mt-1">Выбран файл: {formData.file.name}</p>
+                  <p className="text-xs text-app-text3 mt-1">Выбран файл: {formData.file.name}</p>
                 )}
               </div>
 
@@ -640,7 +640,7 @@ const EngineerPanel = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition-colors"
+                  className="px-4 py-2 bg-app-soft hover:bg-app-softer rounded-lg text-app-text font-medium transition-colors"
                 >
                   Отмена
                 </button>
@@ -660,9 +660,9 @@ const EngineerPanel = () => {
             Мои задания
           </h2>
           {loading ? (
-            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+            <div className="text-center py-8 text-app-text3">Загрузка...</div>
           ) : assignments.length === 0 ? (
-            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-app-text3">
               Нет назначенных заданий
             </div>
           ) : (
@@ -670,11 +670,11 @@ const EngineerPanel = () => {
               {assignments.map((a) => (
                 <div
                   key={a.id}
-                  className="bg-secondary/50 rounded-lg p-4 border border-slate-700 flex items-center justify-between flex-wrap gap-2"
+                  className="bg-secondary/50 rounded-lg p-4 border border-app-line flex items-center justify-between flex-wrap gap-2"
                 >
                   <div>
                     <p className="font-medium text-white">{a.equipment_name || a.equipment_id}</p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-app-text3">
                       Срок: {a.due_date ? formatDate(a.due_date) : '—'} · Приоритет: {a.priority} · {a.status}
                     </p>
                   </div>
@@ -699,9 +699,9 @@ const EngineerPanel = () => {
             Мои отчёты
           </h2>
           {loading ? (
-            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+            <div className="text-center py-8 text-app-text3">Загрузка...</div>
           ) : reports.length === 0 ? (
-            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-app-text3">
               Нет отчётов
             </div>
           ) : (
@@ -709,11 +709,11 @@ const EngineerPanel = () => {
               {reports.slice(0, 100).map((r) => (
                 <div
                   key={r.id}
-                  className="bg-secondary/50 rounded-lg p-4 border border-slate-700 flex items-center justify-between flex-wrap gap-2"
+                  className="bg-secondary/50 rounded-lg p-4 border border-app-line flex items-center justify-between flex-wrap gap-2"
                 >
                   <div>
                     <p className="font-medium text-white">{r.title || r.equipment_name || r.id}</p>
-                    <p className="text-sm text-slate-400">{r.created_at ? formatDate(r.created_at) : ''}</p>
+                    <p className="text-sm text-app-text3">{r.created_at ? formatDate(r.created_at) : ''}</p>
                   </div>
                   <a
                     href={`${API_BASE}/api/reports/${r.id}/download`}
@@ -727,7 +727,7 @@ const EngineerPanel = () => {
                 </div>
               ))}
               {reports.length > 100 && (
-                <p className="text-slate-400 text-sm">Показаны первые 100 из {reports.length}</p>
+                <p className="text-app-text3 text-sm">Показаны первые 100 из {reports.length}</p>
               )}
             </div>
           )}
@@ -742,7 +742,7 @@ const EngineerPanel = () => {
             Оборудование по моим заданиям
           </h2>
           {uniqueEquipmentFromAssignments.length === 0 ? (
-            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-app-text3">
               Загрузите задания во вкладке «Мои задания»
             </div>
           ) : (
@@ -750,7 +750,7 @@ const EngineerPanel = () => {
               {uniqueEquipmentFromAssignments.map((eq) => (
                 <div
                   key={eq.id}
-                  className="bg-secondary/50 rounded-lg p-4 border border-slate-700 flex items-center justify-between"
+                  className="bg-secondary/50 rounded-lg p-4 border border-app-line flex items-center justify-between"
                 >
                   <p className="font-medium text-white">{eq.name || eq.id}</p>
                   <button
@@ -774,16 +774,16 @@ const EngineerPanel = () => {
             Приборы поверки (справочник)
           </h2>
           {loading ? (
-            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+            <div className="text-center py-8 text-app-text3">Загрузка...</div>
           ) : verificationEquipment.length === 0 ? (
-            <div className="bg-secondary/50 rounded-lg p-8 text-center text-slate-400">
+            <div className="bg-secondary/50 rounded-lg p-8 text-center text-app-text3">
               Нет данных
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="text-slate-400 border-b border-slate-700">
+                  <tr className="text-app-text3 border-b border-app-line">
                     <th className="py-2 pr-4">Тип</th>
                     <th className="py-2 pr-4">Серийный номер</th>
                     <th className="py-2 pr-4">Производитель</th>
@@ -792,11 +792,11 @@ const EngineerPanel = () => {
                 </thead>
                 <tbody>
                   {verificationEquipment.map((v) => (
-                    <tr key={v.id} className="border-b border-slate-700/50">
+                    <tr key={v.id} className="border-b border-app-line/50">
                       <td className="py-2 pr-4 text-white">{v.equipment_type}</td>
                       <td className="py-2 pr-4 text-white">{v.serial_number}</td>
-                      <td className="py-2 pr-4 text-slate-300">{v.manufacturer || '—'}</td>
-                      <td className="py-2 pr-4 text-slate-300">{v.expiry_date ? formatDate(v.expiry_date) : '—'}</td>
+                      <td className="py-2 pr-4 text-app-text2">{v.manufacturer || '—'}</td>
+                      <td className="py-2 pr-4 text-app-text2">{v.expiry_date ? formatDate(v.expiry_date) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 interface SkeletonProps {
   className?: string;
@@ -8,13 +8,13 @@ interface SkeletonProps {
 
 export const Skeleton: React.FC<SkeletonProps> = ({ className = '', width, height }) => (
   <div
-    className={`animate-pulse bg-slate-700/50 rounded ${className}`}
+    className={`animate-pulse bg-app-soft/50 rounded ${className}`}
     style={{ width: width ?? undefined, height: height ?? undefined }}
   />
 );
 
 export const SkeletonCard: React.FC = () => (
-  <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+  <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
     <div className="flex gap-3">
       <Skeleton className="w-12 h-12 rounded-lg flex-shrink-0" />
       <div className="flex-1">

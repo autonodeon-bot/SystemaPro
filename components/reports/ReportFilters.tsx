@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Search, Trash2, LayoutGrid, List } from 'lucide-react';
 import type { Branch, Enterprise, Workshop } from './types';
 
@@ -76,12 +76,12 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
 
   return (
     <div className="mb-6 space-y-4">
-      <div className="flex items-center justify-between p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
+      <div className="flex items-center justify-between p-3 bg-app-panel/50 border border-app-line rounded-lg">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onToggleSelectAll}
-            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold"
+            className="px-3 py-1.5 bg-app-soft hover:bg-app-softer text-app-text rounded-lg text-sm font-semibold"
           >
             {allSelected ? 'Снять все' : 'Выделить все'}
           </button>
@@ -110,7 +110,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
             <button
               type="button"
               onClick={onClearSelection}
-              className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-semibold"
+              className="px-4 py-2 bg-app-softer hover:bg-app-soft text-app-text rounded-lg text-sm font-semibold"
             >
               Снять выделение
             </button>
@@ -120,7 +120,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
           <Search
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-app-text3"
             size={20}
           />
           <input
@@ -128,7 +128,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
             placeholder="Поиск по названию, оборудованию, локации..."
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500"
+            className="w-full pl-10 pr-4 py-2 bg-app-deep border border-app-line rounded-lg text-app-text placeholder-app-text3"
           />
         </div>
       </div>
@@ -137,7 +137,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         <select
           value={filterType}
           onChange={(e) => onFilterTypeChange(e.target.value)}
-          className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+          className="px-4 py-2 bg-app-deep border border-app-line rounded-lg text-app-text"
         >
           <option value="all">Все типы</option>
           <option value="TECHNICAL_REPORT">Технические отчеты</option>
@@ -149,7 +149,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         <select
           value={filterStatus}
           onChange={(e) => onFilterStatusChange(e.target.value)}
-          className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+          className="px-4 py-2 bg-app-deep border border-app-line rounded-lg text-app-text"
         >
           <option value="all">Все статусы</option>
           <option value="DRAFT">Черновик</option>
@@ -159,7 +159,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         </select>
 
         {showMineOnlyVisible && (
-          <label className="flex items-center gap-2 text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+          <label className="flex items-center gap-2 text-app-text text-sm bg-app-deep border border-app-line rounded-lg px-3 py-2">
             <input
               type="checkbox"
               checked={showMineOnly}
@@ -170,13 +170,13 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
           </label>
         )}
 
-        <div className="w-full flex flex-wrap gap-3 items-end pt-2 border-t border-slate-600/50 mt-2">
+        <div className="w-full flex flex-wrap gap-3 items-end pt-2 border-t border-app-line/50 mt-2">
           <div className="min-w-[160px]">
-            <label className="block text-xs text-slate-400 mb-1">Предприятие</label>
+            <label className="block text-xs text-app-text3 mb-1">Предприятие</label>
             <select
               value={selectedEnterpriseId}
               onChange={(e) => onEnterpriseChange(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             >
               <option value="">Все предприятия</option>
               {enterprises.map((ent) => (
@@ -187,12 +187,12 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
             </select>
           </div>
           <div className="min-w-[160px]">
-            <label className="block text-xs text-slate-400 mb-1">Филиал</label>
+            <label className="block text-xs text-app-text3 mb-1">Филиал</label>
             <select
               value={selectedBranchId}
               onChange={(e) => onBranchChange(e.target.value)}
               disabled={!selectedEnterpriseId}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
             >
               <option value="">Все филиалы</option>
               {branches.map((b) => (
@@ -203,12 +203,12 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
             </select>
           </div>
           <div className="min-w-[160px]">
-            <label className="block text-xs text-slate-400 mb-1">Цех</label>
+            <label className="block text-xs text-app-text3 mb-1">Цех</label>
             <select
               value={selectedWorkshopId}
               onChange={(e) => onWorkshopChange(e.target.value)}
               disabled={!selectedBranchId}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
             >
               <option value="">Все цеха</option>
               {workshops.map((w) => (
@@ -223,7 +223,7 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         <select
           value={groupBy}
           onChange={(e) => onGroupByChange(e.target.value)}
-          className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+          className="px-4 py-2 bg-app-deep border border-app-line rounded-lg text-app-text"
           title="Группировка отчетов"
         >
           <option value="none">Без группировки</option>
@@ -234,14 +234,14 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         </select>
 
         <div
-          className="inline-flex rounded-lg border border-slate-700 overflow-hidden"
+          className="inline-flex rounded-lg border border-app-line overflow-hidden"
           title="Вид списка"
         >
           <button
             type="button"
             onClick={() => onListLayoutChange('cards')}
             className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium ${
-              listLayout === 'cards' ? 'bg-accent text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
+              listLayout === 'cards' ? 'bg-accent text-white' : 'bg-app-deep text-app-text3 hover:text-app-text'
             }`}
           >
             <LayoutGrid size={16} /> Карточки
@@ -249,8 +249,8 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
           <button
             type="button"
             onClick={() => onListLayoutChange('table')}
-            className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium border-l border-slate-700 ${
-              listLayout === 'table' ? 'bg-accent text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
+            className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium border-l border-app-line ${
+              listLayout === 'table' ? 'bg-accent text-white' : 'bg-app-deep text-app-text3 hover:text-app-text'
             }`}
           >
             <List size={16} /> Таблица
@@ -258,11 +258,11 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         </div>
 
         <div className="flex items-center gap-2 sm:ml-auto">
-          <span className="text-slate-400 text-sm hidden sm:inline">Очистка:</span>
+          <span className="text-app-text3 text-sm hidden sm:inline">Очистка:</span>
           <select
             value={cleanupReportsDays}
             onChange={(e) => onCleanupReportsDaysChange(parseInt(e.target.value, 10))}
-            className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+            className="px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm"
             title="Удалить отчеты старше N дней"
           >
             <option value={30}>Старше 30 дней</option>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   X,
   Users,
@@ -121,7 +121,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
         role="presentation"
       >
         <div
-          className="bg-slate-800 rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
+          className="bg-app-panel rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -135,7 +135,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
                   : 'Цех'}
               : {modal.name}
             </h2>
-            <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+            <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
               <X size={24} />
             </button>
           </div>
@@ -147,22 +147,22 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
                 Назначенные инженеры ({assignedEngineers.length})
               </h3>
               {assignedEngineers.length === 0 ? (
-                <p className="text-slate-400">Инженеры не назначены</p>
+                <p className="text-app-text3">Инженеры не назначены</p>
               ) : (
                 <div className="space-y-2">
                   {assignedEngineers.map((engineer) => (
                     <div
                       key={engineer.user_id}
-                      className="bg-slate-900 rounded-lg p-3 border border-slate-700"
+                      className="bg-app-deep rounded-lg p-3 border border-app-line"
                     >
                       <div className="text-white font-medium">
                         {engineer.full_name || engineer.username}
                       </div>
                       {engineer.email && (
-                        <div className="text-sm text-slate-400">{engineer.email}</div>
+                        <div className="text-sm text-app-text3">{engineer.email}</div>
                       )}
                       {engineer.granted_at && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-app-text3 mt-1">
                           Назначен: {new Date(engineer.granted_at).toLocaleDateString('ru-RU')}
                         </div>
                       )}
@@ -187,7 +187,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
               >
                 Закрыть
               </button>
@@ -205,7 +205,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
       role="presentation"
     >
       <div
-        className="bg-slate-800 rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-app-panel rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -215,17 +215,17 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
             <Settings className="text-accent" size={24} />
             {modal.name}
           </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+          <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
             <X size={24} />
           </button>
         </div>
 
         {loading ? (
-          <div className="text-center text-slate-400 py-10">Загрузка...</div>
+          <div className="text-center text-app-text3 py-10">Загрузка...</div>
         ) : (
           <div className="space-y-6">
             {equipmentData && (
-              <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+              <div className="bg-app-deep rounded-lg p-4 border border-app-line">
                 <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                   <Settings className="text-accent" size={20} />
                   Характеристики
@@ -233,19 +233,19 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   {equipmentData.serial_number && (
                     <div>
-                      <p className="text-sm text-slate-400">Серийный номер</p>
+                      <p className="text-sm text-app-text3">Серийный номер</p>
                       <p className="text-white font-medium">{equipmentData.serial_number}</p>
                     </div>
                   )}
                   {equipmentData.location && (
                     <div>
-                      <p className="text-sm text-slate-400">Местоположение</p>
+                      <p className="text-sm text-app-text3">Местоположение</p>
                       <p className="text-white font-medium">{equipmentData.location}</p>
                     </div>
                   )}
                   {equipmentData.commissioning_date && (
                     <div>
-                      <p className="text-sm text-slate-400">Дата ввода в эксплуатацию</p>
+                      <p className="text-sm text-app-text3">Дата ввода в эксплуатацию</p>
                       <p className="text-white font-medium">
                         {new Date(equipmentData.commissioning_date).toLocaleDateString('ru-RU')}
                       </p>
@@ -253,7 +253,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
                   )}
                   {equipmentData.type_name && (
                     <div>
-                      <p className="text-sm text-slate-400">Тип оборудования</p>
+                      <p className="text-sm text-app-text3">Тип оборудования</p>
                       <p className="text-white font-medium">{equipmentData.type_name}</p>
                     </div>
                   )}
@@ -261,9 +261,9 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
                 {equipmentData.attributes &&
                   Object.keys(equipmentData.attributes).length > 0 && (
                     <div className="mt-4">
-                      <p className="text-sm text-slate-400 mb-2">Дополнительные характеристики</p>
-                      <div className="bg-slate-950 rounded p-3">
-                        <pre className="text-xs text-slate-300 whitespace-pre-wrap">
+                      <p className="text-sm text-app-text3 mb-2">Дополнительные характеристики</p>
+                      <div className="bg-app-deep rounded p-3">
+                        <pre className="text-xs text-app-text2 whitespace-pre-wrap">
                           {JSON.stringify(equipmentData.attributes, null, 2)}
                         </pre>
                       </div>
@@ -272,29 +272,29 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               </div>
             )}
 
-            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+            <div className="bg-app-deep rounded-lg p-4 border border-app-line">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 <FileText className="text-accent" size={20} />
                 История обследований ({inspectionHistory.length})
               </h3>
               {inspectionHistory.length === 0 ? (
-                <p className="text-slate-400">Обследования не проводились</p>
+                <p className="text-app-text3">Обследования не проводились</p>
               ) : (
                 <div className="space-y-2">
                   {inspectionHistory.slice(0, 10).map((inspection) => (
-                    <div key={inspection.id} className="bg-slate-950 rounded p-3 border border-slate-700">
+                    <div key={inspection.id} className="bg-app-deep rounded p-3 border border-app-line">
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="text-white font-medium">
                             {inspection.inspection_type || 'Обследование'}
                           </p>
                           {inspection.inspection_date && (
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-app-text3">
                               {new Date(inspection.inspection_date).toLocaleDateString('ru-RU')}
                             </p>
                           )}
                           {inspection.inspector_name && (
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-xs text-app-text3 mt-1">
                               Инженер: {inspection.inspector_name}
                             </p>
                           )}
@@ -319,27 +319,27 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               )}
             </div>
 
-            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+            <div className="bg-app-deep rounded-lg p-4 border border-app-line">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 <Wrench className="text-accent" size={20} />
                 Журнал ремонтов ({repairJournal.length})
               </h3>
               {repairJournal.length === 0 ? (
-                <p className="text-slate-400">Ремонты не проводились</p>
+                <p className="text-app-text3">Ремонты не проводились</p>
               ) : (
                 <div className="space-y-2">
                   {repairJournal.slice(0, 10).map((repair) => (
-                    <div key={repair.id} className="bg-slate-950 rounded p-3 border border-slate-700">
+                    <div key={repair.id} className="bg-app-deep rounded p-3 border border-app-line">
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="text-white font-medium">{repair.repair_type || 'Ремонт'}</p>
                           {repair.repair_date && (
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-app-text3">
                               {new Date(repair.repair_date).toLocaleDateString('ru-RU')}
                             </p>
                           )}
                           {repair.description && (
-                            <p className="text-sm text-slate-300 mt-1">{repair.description}</p>
+                            <p className="text-sm text-app-text2 mt-1">{repair.description}</p>
                           )}
                         </div>
                         {repair.cost != null && (
@@ -352,31 +352,31 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               )}
             </div>
 
-            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+            <div className="bg-app-deep rounded-lg p-4 border border-app-line">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 <FileText className="text-accent" size={20} />
                 Документы по диагностике ({reports.length})
               </h3>
               {reports.length === 0 ? (
-                <p className="text-slate-400">Документы отсутствуют</p>
+                <p className="text-app-text3">Документы отсутствуют</p>
               ) : (
                 <div className="space-y-2">
                   {reports.map((report) => (
                     <div
                       key={report.id}
-                      className="bg-slate-950 rounded p-3 border border-slate-700 flex items-center justify-between"
+                      className="bg-app-deep rounded p-3 border border-app-line flex items-center justify-between"
                     >
                       <div>
                         <p className="text-white font-medium">
                           {report.title || report.report_type}
                         </p>
                         {report.inspector_name && (
-                          <p className="text-sm text-slate-400">
+                          <p className="text-sm text-app-text3">
                             Инженер: {report.inspector_name}
                           </p>
                         )}
                         {report.created_at && (
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-app-text3">
                             {new Date(report.created_at).toLocaleDateString('ru-RU')}
                           </p>
                         )}
@@ -399,25 +399,25 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               )}
             </div>
 
-            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+            <div className="bg-app-deep rounded-lg p-4 border border-app-line">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 <Users className="text-accent" size={20} />
                 Назначенные инженеры ({assignedEngineers.length})
               </h3>
               {assignedEngineers.length === 0 ? (
-                <p className="text-slate-400">Инженеры не назначены</p>
+                <p className="text-app-text3">Инженеры не назначены</p>
               ) : (
                 <div className="space-y-2">
                   {assignedEngineers.map((engineer) => (
                     <div
                       key={engineer.user_id}
-                      className="bg-slate-950 rounded p-3 border border-slate-700"
+                      className="bg-app-deep rounded p-3 border border-app-line"
                     >
                       <div className="text-white font-medium">
                         {engineer.full_name || engineer.username}
                       </div>
                       {engineer.email && (
-                        <div className="text-sm text-slate-400">{engineer.email}</div>
+                        <div className="text-sm text-app-text3">{engineer.email}</div>
                       )}
                     </div>
                   ))}
@@ -440,7 +440,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
               >
                 Закрыть
               </button>

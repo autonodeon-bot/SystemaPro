@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 interface TooltipProps {
   children: React.ReactNode;
@@ -28,7 +28,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ children, content, position = 
       </div>
       {show && content && (
         <div
-          className={`absolute z-50 px-3 py-2 text-sm text-white bg-slate-800 rounded-lg shadow-lg border border-slate-600 whitespace-nowrap max-w-xs ${posClasses[position]}`}
+          className={`absolute z-50 px-3 py-2 text-sm text-app-text bg-app-panel rounded-lg shadow-lg border border-app-line whitespace-nowrap max-w-xs ${posClasses[position]}`}
           role="tooltip"
         >
           {content}

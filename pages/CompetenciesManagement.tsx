@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { User, Award, Plus, AlertTriangle, CheckCircle, Edit, Trash2, X, FileText, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
@@ -491,7 +491,7 @@ const CompetenciesManagement = () => {
   const { validCount = 0, expiringSoonCount = 0, expiredCount = 0 } = statistics;
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   const CERTIFICATION_TYPES = [
@@ -585,38 +585,38 @@ const CompetenciesManagement = () => {
 
       {/* Статистика по сертификатам */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        <div className="bg-app-panel rounded-xl border border-app-line p-4">
           <div className="flex items-center gap-3">
             <FileText className="text-blue-400" size={24} />
             <div>
-              <p className="text-slate-400 text-sm">Всего сертификатов</p>
+              <p className="text-app-text3 text-sm">Всего сертификатов</p>
               <p className="text-white text-2xl font-bold">{certifications.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl border border-green-500/50 p-4">
+        <div className="bg-app-panel rounded-xl border border-green-500/50 p-4">
           <div className="flex items-center gap-3">
             <CheckCircle className="text-green-400" size={24} />
             <div>
-              <p className="text-slate-400 text-sm">Действительных</p>
+              <p className="text-app-text3 text-sm">Действительных</p>
               <p className="text-white text-2xl font-bold">{validCount}</p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl border border-yellow-500/50 p-4">
+        <div className="bg-app-panel rounded-xl border border-yellow-500/50 p-4">
           <div className="flex items-center gap-3">
             <Clock className="text-yellow-400" size={24} />
             <div>
-              <p className="text-slate-400 text-sm">Истекающих скоро</p>
+              <p className="text-app-text3 text-sm">Истекающих скоро</p>
               <p className="text-white text-2xl font-bold">{expiringSoonCount}</p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 rounded-xl border border-red-500/50 p-4">
+        <div className="bg-app-panel rounded-xl border border-red-500/50 p-4">
           <div className="flex items-center gap-3">
             <AlertTriangle className="text-red-400" size={24} />
             <div>
-              <p className="text-slate-400 text-sm">Истекших</p>
+              <p className="text-app-text3 text-sm">Истекших</p>
               <p className="text-white text-2xl font-bold">{expiredCount}</p>
             </div>
           </div>
@@ -625,45 +625,45 @@ const CompetenciesManagement = () => {
 
       {/* Форма добавления */}
       {showAddForm && (
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600">
+        <div className="bg-app-panel p-6 rounded-xl border border-app-line">
           <h2 className="text-xl font-bold text-white mb-4">Добавить инженера</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-slate-400 block mb-1">ФИО *</label>
+                <label className="text-sm text-app-text3 block mb-1">ФИО *</label>
                 <input
                   type="text"
                   required
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Должность</label>
+                <label className="text-sm text-app-text3 block mb-1">Должность</label>
                 <input
                   type="text"
                   value={formData.position}
                   onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Email</label>
+                <label className="text-sm text-app-text3 block mb-1">Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Телефон</label>
+                <label className="text-sm text-app-text3 block mb-1">Телефон</label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
             </div>
@@ -677,7 +677,7 @@ const CompetenciesManagement = () => {
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                className="bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
               >
                 Отмена
               </button>
@@ -696,8 +696,8 @@ const CompetenciesManagement = () => {
           return (
             <div
               key={engineer.id}
-              className={`bg-slate-800 p-4 rounded-xl border transition-colors cursor-pointer ${
-                hasExpiredCerts ? 'border-red-500/50' : hasExpiringCerts ? 'border-yellow-500/50' : 'border-slate-700 hover:border-accent/50'
+              className={`bg-app-panel p-4 rounded-xl border transition-colors cursor-pointer ${
+                hasExpiredCerts ? 'border-red-500/50' : hasExpiringCerts ? 'border-yellow-500/50' : 'border-app-line hover:border-accent/50'
               }`}
               onClick={() => setSelectedEngineer(engineer)}
             >
@@ -706,9 +706,9 @@ const CompetenciesManagement = () => {
                   <User className="text-accent" size={20} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-bold text-white">{engineer.full_name}</h3>
+                  <h3 className="text-lg font-bold text-app-text">{engineer.full_name}</h3>
                   {engineer.position && (
-                    <p className="text-sm text-slate-400">{engineer.position}</p>
+                    <p className="text-sm text-app-text3">{engineer.position}</p>
                   )}
                 </div>
                 {hasExpiredCerts && <AlertTriangle className="text-red-400" size={20} />}
@@ -717,10 +717,10 @@ const CompetenciesManagement = () => {
 
               {engineer.qualifications && engineer.qualifications.length > 0 && (
                 <div className="mb-2">
-                  <p className="text-xs text-slate-400 mb-1">Квалификации:</p>
+                  <p className="text-xs text-app-text3 mb-1">Квалификации:</p>
                   <div className="flex flex-wrap gap-1">
                     {engineer.qualifications.slice(0, 3).map((qual, idx) => (
-                      <span key={idx} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
+                      <span key={idx} className="text-xs bg-app-soft text-app-text2 px-2 py-1 rounded">
                         {toDisplayStr(qual)}
                       </span>
                     ))}
@@ -728,14 +728,14 @@ const CompetenciesManagement = () => {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 text-sm text-slate-400">
+              <div className="flex items-center gap-2 text-sm text-app-text3">
                 <Award size={14} />
                 <span>Сертификатов: {engCerts.length}</span>
               </div>
 
               {engineer.equipment_types && engineer.equipment_types.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-xs text-slate-400 mb-1">Типы оборудования:</p>
+                  <p className="text-xs text-app-text3 mb-1">Типы оборудования:</p>
                   <div className="flex flex-wrap gap-1">
                     {engineer.equipment_types.slice(0, 2).map((type, idx) => (
                       <span key={idx} className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
@@ -751,7 +751,7 @@ const CompetenciesManagement = () => {
       </div>
 
       {engineers.length === 0 && (
-        <div className="text-center text-slate-400 py-20">
+        <div className="text-center text-app-text3 py-20">
           Инженеры не найдены
         </div>
       )}
@@ -759,37 +759,37 @@ const CompetenciesManagement = () => {
       {/* Модальное окно с деталями */}
       {selectedEngineer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedEngineer(null)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h2 className="text-xl font-bold text-white">{selectedEngineer.full_name}</h2>
                 {selectedEngineer.position && (
-                  <p className="text-slate-400">{selectedEngineer.position}</p>
+                  <p className="text-app-text3">{selectedEngineer.position}</p>
                 )}
               </div>
-              <button onClick={() => setSelectedEngineer(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setSelectedEngineer(null)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
 
             <div className="space-y-4">
               {selectedEngineer.email && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Email</p>
+                  <p className="text-sm text-app-text3 mb-1">Email</p>
                   <p className="text-white">{selectedEngineer.email}</p>
                 </div>
               )}
               {selectedEngineer.phone && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Телефон</p>
+                  <p className="text-sm text-app-text3 mb-1">Телефон</p>
                   <p className="text-white">{selectedEngineer.phone}</p>
                 </div>
               )}
 
               {selectedEngineer.qualifications && selectedEngineer.qualifications.length > 0 && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-2">Квалификации</p>
+                  <p className="text-sm text-app-text3 mb-2">Квалификации</p>
                   <div className="flex flex-wrap gap-2">
                     {selectedEngineer.qualifications.map((qual, idx) => (
-                      <span key={idx} className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-sm">
+                      <span key={idx} className="bg-app-soft text-app-text2 px-3 py-1 rounded text-sm">
                         {toDisplayStr(qual)}
                       </span>
                     ))}
@@ -799,7 +799,7 @@ const CompetenciesManagement = () => {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <p className="text-sm text-slate-400">Сертификаты и допуски</p>
+                  <p className="text-sm text-app-text3">Сертификаты и допуски</p>
                   {(currentUser?.role === 'admin' || currentUser?.role === 'chief_operator') && (
                     <button
                       onClick={() => handleAddCertification(selectedEngineer.id)}
@@ -810,7 +810,7 @@ const CompetenciesManagement = () => {
                   )}
                 </div>
                 {getEngineerCertifications(selectedEngineer.id).length === 0 ? (
-                  <p className="text-slate-400">Сертификаты не найдены</p>
+                  <p className="text-app-text3">Сертификаты не найдены</p>
                 ) : (
                   <div className="space-y-2">
                     {getEngineerCertifications(selectedEngineer.id).map((cert) => {
@@ -821,27 +821,27 @@ const CompetenciesManagement = () => {
                       return (
                         <div
                           key={cert.id}
-                          className={`bg-slate-900 p-3 rounded-lg border ${
-                            isExpired ? 'border-red-500/50' : isExpiring ? 'border-yellow-500/50' : 'border-slate-700'
+                          className={`bg-app-deep p-3 rounded-lg border ${
+                            isExpired ? 'border-red-500/50' : isExpiring ? 'border-yellow-500/50' : 'border-app-line'
                           }`}
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <p className="text-white font-bold">{cert.certification_type}</p>
-                              <p className="text-sm text-slate-400">№ {cert.certificate_number || cert.number}</p>
+                              <p className="text-sm text-app-text3">№ {cert.certificate_number || cert.number}</p>
                               {(cert.certification_areas?.length || (cert.certification_area ? 1 : 0)) > 0 && (
                                 <p className="text-sm text-accent/90">
                                   Области аттестации: {(cert.certification_areas?.length ? cert.certification_areas : [cert.certification_area]).map(toDisplayStr).filter(Boolean).join('; ')}
                                 </p>
                               )}
-                              <p className="text-sm text-slate-400">
+                              <p className="text-sm text-app-text3">
                                 Выдан: {cert.issuing_organization || cert.issued_by}
                               </p>
                               {cert.scan_file_name && (
                                 <button
                                   type="button"
                                   onClick={() => downloadCertScan(cert)}
-                                  className="mt-2 inline-flex items-center gap-2 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded text-slate-200"
+                                  className="mt-2 inline-flex items-center gap-2 text-xs bg-app-panel hover:bg-app-soft border border-app-line px-2 py-1 rounded text-app-text"
                                   title="Скачать скан (фото/PDF)"
                                 >
                                   <FileText size={14} className="text-accent" />
@@ -849,7 +849,7 @@ const CompetenciesManagement = () => {
                                 </button>
                               )}
                               {cert.document_number && (
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-app-text3 mt-1">
                                   Документ: {cert.document_number}
                                   {formatDateRu(cert.document_date) && ` от ${formatDateRu(cert.document_date)}`}
                                 </p>
@@ -884,13 +884,13 @@ const CompetenciesManagement = () => {
                             </div>
                           </div>
                           {cert.issue_date && (
-                            <p className="text-xs text-slate-500 mt-2">
+                            <p className="text-xs text-app-text3 mt-2">
                               Выдан: {formatDateRu(cert.issue_date) || '—'}
                             </p>
                           )}
                           {cert.expiry_date && (
                             <p className={`text-xs mt-1 ${
-                              isExpired ? 'text-red-400' : isExpiring ? 'text-yellow-400' : 'text-slate-400'
+                              isExpired ? 'text-red-400' : isExpiring ? 'text-yellow-400' : 'text-app-text3'
                             }`}>
                               Действует до: {formatDateRu(cert.expiry_date) || '—'}
                               {isExpired && ' (Истек)'}
@@ -907,7 +907,7 @@ const CompetenciesManagement = () => {
 
               {selectedEngineer.equipment_types && selectedEngineer.equipment_types.length > 0 && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-2">Типы оборудования</p>
+                  <p className="text-sm text-app-text3 mb-2">Типы оборудования</p>
                   <div className="flex flex-wrap gap-2">
                     {selectedEngineer.equipment_types.map((type, idx) => (
                       <span key={idx} className="bg-accent/10 text-accent px-3 py-1 rounded text-sm">
@@ -925,12 +925,12 @@ const CompetenciesManagement = () => {
       {/* Модальное окно создания/редактирования сертификата */}
       {showCertForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCertForm(false)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white">
                 {editingCert ? 'Редактировать сертификат' : 'Добавить сертификат'}
               </h2>
-              <button onClick={() => setShowCertForm(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowCertForm(false)} className="text-app-text3 hover:text-app-text">
                 <X size={24} />
               </button>
             </div>
@@ -938,12 +938,12 @@ const CompetenciesManagement = () => {
             <form onSubmit={handleCertSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Тип сертификата *</label>
+                  <label className="text-sm text-app-text3 block mb-1">Тип сертификата *</label>
                   <select
                     required
                     value={certFormData.certification_type}
                     onChange={(e) => setCertFormData({ ...certFormData, certification_type: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   >
                     <option value="">Выберите тип</option>
                     {CERTIFICATION_TYPES.map(type => (
@@ -952,22 +952,22 @@ const CompetenciesManagement = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Номер сертификата *</label>
+                  <label className="text-sm text-app-text3 block mb-1">Номер сертификата *</label>
                   <input
                     type="text"
                     required
                     value={certFormData.certificate_number}
                     onChange={(e) => setCertFormData({ ...certFormData, certificate_number: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="СЕРТ-2024-123456"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Метод НК</label>
+                  <label className="text-sm text-app-text3 block mb-1">Метод НК</label>
                   <select
                     value={certFormData.method_code}
                     onChange={(e) => setCertFormData({ ...certFormData, method_code: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   >
                     <option value="">Выберите метод</option>
                     {ndtMethods.map(method => (
@@ -978,7 +978,7 @@ const CompetenciesManagement = () => {
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="text-sm text-slate-400 block mb-1">Области аттестации (можно несколько, до 10 и более)</label>
+                  <label className="text-sm text-app-text3 block mb-1">Области аттестации (можно несколько, до 10 и более)</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {AREA_GROUPS.map((gr) => {
                       const allIn = gr.areas.every((a) => certFormData.certification_areas.includes(a));
@@ -988,7 +988,7 @@ const CompetenciesManagement = () => {
                             type="button"
                             onClick={() => (allIn ? removeAreaGroup(gr.areas) : addAreaGroup(gr.areas))}
                             className={`px-3 py-1.5 rounded text-sm font-medium border ${
-                              allIn ? 'bg-accent/20 text-accent border-accent/50' : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-accent/50'
+                              allIn ? 'bg-accent/20 text-accent border-accent/50' : 'bg-app-panel text-app-text2 border-app-line hover:border-accent/50'
                             }`}
                           >
                             {allIn ? '− ' : '+ '}{gr.label}
@@ -997,29 +997,29 @@ const CompetenciesManagement = () => {
                       );
                     })}
                   </div>
-                  <div className="max-h-48 overflow-y-auto border border-slate-700 rounded-lg p-3 bg-slate-900 space-y-1.5">
+                  <div className="max-h-48 overflow-y-auto border border-app-line rounded-lg p-3 bg-app-deep space-y-1.5">
                     {CERTIFICATION_AREAS.map((area) => (
-                      <label key={area} className="flex items-start gap-2 cursor-pointer text-sm text-slate-200 hover:text-white">
+                      <label key={area} className="flex items-start gap-2 cursor-pointer text-sm text-app-text hover:text-white">
                         <input
                           type="checkbox"
                           checked={certFormData.certification_areas.includes(area)}
                           onChange={() => toggleCertificationArea(area)}
-                          className="mt-1 rounded border-slate-600 text-accent bg-slate-800"
+                          className="mt-1 rounded border-app-line text-accent bg-app-panel"
                         />
                         <span className="flex-1">{area}</span>
                       </label>
                     ))}
                   </div>
                   {certFormData.certification_areas.length > 0 && (
-                    <p className="text-xs text-slate-500 mt-1">Выбрано: {certFormData.certification_areas.length}</p>
+                    <p className="text-xs text-app-text3 mt-1">Выбрано: {certFormData.certification_areas.length}</p>
                   )}
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Тип оборудования</label>
+                  <label className="text-sm text-app-text3 block mb-1">Тип оборудования</label>
                   <select
                     value={certFormData.equipment_type_id}
                     onChange={(e) => setCertFormData({ ...certFormData, equipment_type_id: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   >
                     <option value="">Выберите тип оборудования</option>
                     {equipmentTypes.map(type => (
@@ -1030,66 +1030,66 @@ const CompetenciesManagement = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Организация, выдавшая сертификат *</label>
+                  <label className="text-sm text-app-text3 block mb-1">Организация, выдавшая сертификат *</label>
                   <input
                     type="text"
                     required
                     value={certFormData.issuing_organization}
                     onChange={(e) => setCertFormData({ ...certFormData, issuing_organization: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="Ростехнадзор"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Номер документа о продлении</label>
+                  <label className="text-sm text-app-text3 block mb-1">Номер документа о продлении</label>
                   <input
                     type="text"
                     value={certFormData.document_number}
                     onChange={(e) => setCertFormData({ ...certFormData, document_number: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="ДОК-2024-1234"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Дата выдачи *</label>
+                  <label className="text-sm text-app-text3 block mb-1">Дата выдачи *</label>
                   <input
                     type="date"
                     required
                     value={certFormData.issue_date}
                     onChange={(e) => setCertFormData({ ...certFormData, issue_date: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Дата окончания действия *</label>
+                  <label className="text-sm text-app-text3 block mb-1">Дата окончания действия *</label>
                   <input
                     type="date"
                     required
                     value={certFormData.expiry_date}
                     onChange={(e) => setCertFormData({ ...certFormData, expiry_date: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Дата документа о продлении</label>
+                  <label className="text-sm text-app-text3 block mb-1">Дата документа о продлении</label>
                   <input
                     type="date"
                     value={certFormData.document_date}
                     onChange={(e) => setCertFormData({ ...certFormData, document_date: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   />
                 </div>
               </div>
 
-              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-                <label className="text-sm text-slate-300 block mb-2">Скан сертификата (фото/PDF)</label>
+              <div className="bg-app-deep/50 border border-app-line rounded-lg p-4">
+                <label className="text-sm text-app-text2 block mb-2">Скан сертификата (фото/PDF)</label>
                 <input
                   type="file"
                   accept="application/pdf,image/*"
                   onChange={(e) => setCertScanFile(e.target.files?.[0] || null)}
-                  className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30"
+                  className="block w-full text-sm text-app-text2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30"
                 />
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-app-text3 mt-2">
                   Файл будет загружен после сохранения сертификата.
                 </p>
               </div>
@@ -1104,7 +1104,7 @@ const CompetenciesManagement = () => {
                 <button
                   type="button"
                   onClick={() => setShowCertForm(false)}
-                  className="flex-1 bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                  className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
                 >
                   Отмена
                 </button>

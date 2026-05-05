@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState } from 'react';
 import { VESSEL_SCHEMA, HIERARCHY_TREE } from '../constants';
 import { FormField, ModuleSchema, HierarchyNode, NodeType, MaintenanceEvent, AttachedDocument, DocCategory, EquipmentAttributes } from '../types';
@@ -60,7 +60,7 @@ const ThicknessMeasurementWidget = () => {
    return (
       <div className="space-y-4">
          {/* Drawing Area */}
-         <div className="relative border-2 border-dashed border-slate-600 rounded-lg min-h-[300px] bg-slate-900/50 flex items-center justify-center overflow-hidden group">
+         <div className="relative border-2 border-dashed border-app-line rounded-lg min-h-[300px] bg-app-deep/50 flex items-center justify-center overflow-hidden group">
             {image ? (
                <div className="relative w-full h-full cursor-crosshair" onClick={handleImageClick}>
                   <img src={image} alt="Scheme" className="w-full h-auto object-contain select-none pointer-events-none" />
@@ -79,9 +79,9 @@ const ThicknessMeasurementWidget = () => {
                </div>
             ) : (
                <div className="text-center p-8">
-                  <Upload className="mx-auto text-slate-500 mb-2" size={32} />
-                  <p className="text-slate-400 text-sm mb-4">Загрузите схему/чертеж для нанесения точек замера</p>
-                  <label className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded cursor-pointer text-white text-sm">
+                  <Upload className="mx-auto text-app-text3 mb-2" size={32} />
+                  <p className="text-app-text3 text-sm mb-4">Загрузите схему/чертеж для нанесения точек замера</p>
+                  <label className="px-4 py-2 bg-app-soft hover:bg-app-softer rounded cursor-pointer text-app-text text-sm">
                      Выбрать файл
                      <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                   </label>
@@ -91,9 +91,9 @@ const ThicknessMeasurementWidget = () => {
          
          {/* Points Table */}
          {points.length > 0 && (
-            <div className="overflow-x-auto border border-slate-700 rounded-lg">
+            <div className="overflow-x-auto border border-app-line rounded-lg">
                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-800 text-slate-300 uppercase text-xs">
+                  <thead className="bg-app-panel text-app-text2 uppercase text-xs">
                      <tr>
                         <th className="px-4 py-3 w-16">№</th>
                         <th className="px-4 py-3">T min (мм)</th>
@@ -102,7 +102,7 @@ const ThicknessMeasurementWidget = () => {
                         <th className="px-4 py-3 w-10"></th>
                      </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700 bg-slate-900/30">
+                  <tbody className="divide-y divide-app-line bg-app-deep/30">
                      {points.map(p => {
                          const isCritical = p.value && p.min && parseFloat(p.value) < parseFloat(p.min);
                          return (
@@ -111,7 +111,7 @@ const ThicknessMeasurementWidget = () => {
                               <td className="px-4 py-2">
                                  <input 
                                     type="number" 
-                                    className="bg-slate-800 border border-slate-600 rounded px-2 py-1 w-24 text-white focus:border-accent outline-none" 
+                                    className="bg-app-panel border border-app-line rounded px-2 py-1 w-24 text-app-text focus:border-accent outline-none" 
                                     placeholder="0.0"
                                     value={p.min}
                                     onChange={(e) => updatePoint(p.id, 'min', e.target.value)}
@@ -120,7 +120,7 @@ const ThicknessMeasurementWidget = () => {
                               <td className="px-4 py-2">
                                  <input 
                                     type="number" 
-                                    className={`bg-slate-800 border rounded px-2 py-1 w-24 text-white focus:border-accent outline-none ${isCritical ? 'border-red-500 text-red-200' : 'border-slate-600'}`} 
+                                    className={`bg-app-panel border rounded px-2 py-1 w-24 text-app-text focus:border-accent outline-none ${isCritical ? 'border-red-500 text-red-200' : 'border-app-line'}`} 
                                     placeholder="0.0"
                                     value={p.value}
                                     onChange={(e) => updatePoint(p.id, 'value', e.target.value)}
@@ -129,14 +129,14 @@ const ThicknessMeasurementWidget = () => {
                               <td className="px-4 py-2">
                                  <input 
                                     type="text" 
-                                    className="bg-slate-800 border border-slate-600 rounded px-2 py-1 w-full text-white focus:border-accent outline-none"
+                                    className="bg-app-panel border border-app-line rounded px-2 py-1 w-full text-app-text focus:border-accent outline-none"
                                     placeholder="..." 
                                     value={p.comment}
                                     onChange={(e) => updatePoint(p.id, 'comment', e.target.value)}
                                  />
                               </td>
                               <td className="px-4 py-2 text-center">
-                                 <button onClick={() => setPoints(points.filter(pt => pt.id !== p.id))} className="text-slate-500 hover:text-red-400">
+                                 <button onClick={() => setPoints(points.filter(pt => pt.id !== p.id))} className="text-app-text3 hover:text-red-400">
                                     <X size={16} />
                                  </button>
                               </td>
@@ -160,24 +160,24 @@ interface FormFieldRendererProps {
 const FormFieldRenderer: React.FC<FormFieldRendererProps> = ({ field }) => {
   return (
     <div className="mb-6">
-      <label className="block text-sm font-medium text-slate-300 mb-2">
+      <label className="block text-sm font-medium text-app-text2 mb-2">
         {field.label} {field.required && <span className="text-danger">*</span>}
       </label>
       
       {field.type === 'text' && (
-        <input type="text" className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-accent outline-none" placeholder="..." />
+        <input type="text" className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none" placeholder="..." />
       )}
       
       {field.type === 'select' && (
-        <select className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-accent outline-none">
+        <select className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none">
           {field.options?.map(opt => <option key={opt}>{opt}</option>)}
         </select>
       )}
 
       {field.type === 'number' && (
         <div className="relative">
-           <input type="number" className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white focus:ring-2 focus:ring-accent outline-none pr-10" placeholder="0.00" />
-           {field.unit && <span className="absolute right-3 top-2 text-slate-500 text-sm">{field.unit}</span>}
+           <input type="number" className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none pr-10" placeholder="0.00" />
+           {field.unit && <span className="absolute right-3 top-2 text-app-text3 text-sm">{field.unit}</span>}
         </div>
       )}
       
@@ -193,9 +193,9 @@ const FormFieldRenderer: React.FC<FormFieldRendererProps> = ({ field }) => {
       )}
 
       {field.type === 'photo' && (
-        <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-800 transition">
-           <Camera className="text-slate-400 mb-2" />
-           <p className="text-xs text-slate-400">Нажмите для загрузки фото</p>
+        <div className="border-2 border-dashed border-app-line rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-app-panel transition">
+           <Camera className="text-app-text3 mb-2" />
+           <p className="text-xs text-app-text3">Нажмите для загрузки фото</p>
            <button className="mt-2 text-xs text-accent flex items-center gap-1">
              <PenTool size={12}/> Gemini Vision Analysis
            </button>
@@ -219,7 +219,7 @@ const StatusIndicator = ({ status }: { status?: string }) => {
      'CRITICAL': 'bg-danger'
    };
    // @ts-ignore
-   return <div className={`w-2.5 h-2.5 border border-slate-900 rounded-full ${colors[status] || 'bg-slate-500'}`} />;
+   return <div className={`w-2.5 h-2.5 border border-app-deep rounded-full ${colors[status] || 'bg-app-text3'}`} />;
 };
 
 const NodeIcon = ({ type, isOpen }: { type: NodeType, isOpen: boolean }) => {
@@ -227,8 +227,8 @@ const NodeIcon = ({ type, isOpen }: { type: NodeType, isOpen: boolean }) => {
     case NodeType.ROOT: return <Network size={16} className="text-blue-400" />;
     case NodeType.COMPANY: return <Building2 size={16} className="text-indigo-400" />;
     case NodeType.BRANCH: return <Network size={16} className="text-violet-400" />;
-    case NodeType.DEPARTMENT: return <Factory size={16} className="text-slate-400" />;
-    case NodeType.DIVISION: return <Box size={16} className="text-slate-400" />;
+    case NodeType.DEPARTMENT: return <Factory size={16} className="text-app-text3" />;
+    case NodeType.DIVISION: return <Box size={16} className="text-app-text3" />;
     case NodeType.GROUP: return isOpen ? <FolderOpen size={16} className="text-yellow-500" /> : <Folder size={16} className="text-yellow-500" />;
     case NodeType.EQUIPMENT: return <Tag size={16} className="text-green-400" />;
     default: return <FileText size={16} />;
@@ -266,7 +266,7 @@ const TreeNodeItem: React.FC<TreeNodeProps> = ({ node, level, expandedNodes, tog
       <div 
         className={`
            flex items-center gap-2 py-1.5 px-2 cursor-pointer transition-colors select-none text-sm
-           ${isSelected ? 'bg-accent/20 text-white border-r-2 border-accent' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
+           ${isSelected ? 'bg-accent/20 text-app-text border-r-2 border-accent' : 'text-app-text3 hover:text-app-text hover:bg-app-panel'}
         `}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={handleClick}
@@ -334,21 +334,21 @@ const PassportTab: React.FC<PassportTabProps> = ({ node, onUpdate }) => {
   const renderField = (key: keyof EquipmentAttributes, label: string, unit?: string) => {
      if (isEditing) {
         return (
-           <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
-              <span className="text-slate-400 text-sm">{label}</span>
+           <div className="flex justify-between items-center py-2 border-b border-app-line/50">
+              <span className="text-app-text3 text-sm">{label}</span>
               <input 
                   type="text" 
                   value={formData[key] || ''} 
                   onChange={(e) => setFormData({...formData, [key]: e.target.value})}
-                  className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white w-1/2 text-right focus:border-accent outline-none"
+                  className="bg-app-deep border border-app-line rounded px-2 py-1 text-sm text-app-text w-1/2 text-right focus:border-accent outline-none"
               />
            </div>
         )
      }
      return (
-       <div className="flex justify-between py-2 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 px-2 rounded">
-         <span className="text-slate-400 text-sm">{label}</span>
-         <span className="text-white font-medium text-sm text-right">{formData[key]} <span className="text-slate-500 text-xs">{unit}</span></span>
+       <div className="flex justify-between py-2 border-b border-app-line/50 last:border-0 hover:bg-app-panel/30 px-2 rounded">
+         <span className="text-app-text3 text-sm">{label}</span>
+         <span className="text-white font-medium text-sm text-right">{formData[key]} <span className="text-app-text3 text-xs">{unit}</span></span>
        </div>
      );
   };
@@ -358,17 +358,17 @@ const PassportTab: React.FC<PassportTabProps> = ({ node, onUpdate }) => {
       <div className="absolute top-0 right-0 z-10">
          {isEditing ? (
             <div className="flex gap-2">
-               <button onClick={() => setIsEditing(false)} className="bg-slate-700 text-white px-3 py-1.5 rounded text-sm hover:bg-slate-600">Отмена</button>
+               <button onClick={() => setIsEditing(false)} className="bg-app-soft text-app-text px-3 py-1.5 rounded text-sm hover:bg-app-softer">Отмена</button>
                <button onClick={handleSave} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-500 flex items-center gap-2"><Save size={14}/> Сохранить</button>
             </div>
          ) : (
-            <button onClick={() => setIsEditing(true)} className="bg-slate-700 text-accent px-3 py-1.5 rounded text-sm hover:bg-slate-600 flex items-center gap-2 border border-slate-600">
+            <button onClick={() => setIsEditing(true)} className="bg-app-soft text-accent px-3 py-1.5 rounded text-sm hover:bg-app-softer flex items-center gap-2 border border-app-line">
                <Edit2 size={14}/> Редактировать
             </button>
          )}
       </div>
 
-      <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
+      <div className="bg-app-panel/50 rounded-xl p-5 border border-app-line">
          <h4 className="text-white font-bold mb-4 flex items-center gap-2"><Info size={18} className="text-accent"/> Основные сведения</h4>
          <div className="space-y-1">
             {renderField('serialNumber', 'Заводской номер')}
@@ -380,7 +380,7 @@ const PassportTab: React.FC<PassportTabProps> = ({ node, onUpdate }) => {
          </div>
       </div>
 
-      <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
+      <div className="bg-app-panel/50 rounded-xl p-5 border border-app-line">
          <h4 className="text-white font-bold mb-4 flex items-center gap-2"><Calculator size={18} className="text-accent"/> Технические параметры</h4>
          <div className="space-y-1">
             {renderField('volume', 'Объем', 'м³')}
@@ -425,18 +425,18 @@ const HistoryTab = ({ events, onAddEvent }: { events?: MaintenanceEvent[], onAdd
        </div>
 
        {showAddForm && (
-          <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 shadow-xl mb-6">
+          <div className="bg-app-panel p-4 rounded-xl border border-app-line shadow-xl mb-6">
              <h4 className="text-white font-bold mb-4">Новая запись в журнале</h4>
              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                   <label className="text-xs text-slate-400 block mb-1">Дата</label>
-                   <input type="date" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" 
+                   <label className="text-xs text-app-text3 block mb-1">Дата</label>
+                   <input type="date" className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text" 
                      value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})}
                    />
                 </div>
                 <div>
-                   <label className="text-xs text-slate-400 block mb-1">Тип работ</label>
-                   <select className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                   <label className="text-xs text-app-text3 block mb-1">Тип работ</label>
+                   <select className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                      value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value as any})}
                    >
                       <option value="MAINTENANCE">ТО и Ремонт</option>
@@ -445,37 +445,37 @@ const HistoryTab = ({ events, onAddEvent }: { events?: MaintenanceEvent[], onAdd
                    </select>
                 </div>
                 <div className="col-span-2">
-                   <label className="text-xs text-slate-400 block mb-1">Заголовок</label>
-                   <input type="text" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="Например: Замена манометра"
+                   <label className="text-xs text-app-text3 block mb-1">Заголовок</label>
+                   <input type="text" className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text" placeholder="Например: Замена манометра"
                       value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})}
                    />
                 </div>
                 <div className="col-span-2">
-                   <label className="text-xs text-slate-400 block mb-1">Описание</label>
-                   <textarea className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white h-20" placeholder="Подробное описание..."
+                   <label className="text-xs text-app-text3 block mb-1">Описание</label>
+                   <textarea className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text h-20" placeholder="Подробное описание..."
                       value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}
                    />
                 </div>
              </div>
              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowAddForm(false)} className="text-slate-400 px-4 py-2 text-sm hover:text-white">Отмена</button>
+                <button onClick={() => setShowAddForm(false)} className="text-app-text3 px-4 py-2 text-sm hover:text-white">Отмена</button>
                 <button onClick={handleAdd} className="bg-success text-white px-4 py-2 rounded text-sm font-bold hover:bg-green-600">Сохранить запись</button>
              </div>
           </div>
        )}
 
-       {(!events || events.length === 0) ? <div className="text-center text-slate-500 py-10">История эксплуатации пуста</div> :
+       {(!events || events.length === 0) ? <div className="text-center text-app-text3 py-10">История эксплуатации пуста</div> :
        events.map((event) => (
-         <div key={event.id} className="relative pl-8 border-l border-slate-700 last:border-0">
+         <div key={event.id} className="relative pl-8 border-l border-app-line last:border-0">
             {/* Dot */}
-            <div className={`absolute -left-2 top-0 w-4 h-4 rounded-full border-2 border-slate-900 ${
+            <div className={`absolute -left-2 top-0 w-4 h-4 rounded-full border-2 border-app-deep ${
                event.type === 'INCIDENT' ? 'bg-danger' : 
                event.type === 'INSPECTION' ? 'bg-accent' : 
                event.type === 'ATTRIBUTE_CHANGE' ? 'bg-indigo-500' :
                'bg-success'
             }`}></div>
             
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 hover:border-slate-600 transition -mt-1">
+            <div className="bg-app-panel/50 p-4 rounded-lg border border-app-line hover:border-app-line transition -mt-1">
                <div className="flex justify-between items-start mb-2">
                   <div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded mr-2 ${
@@ -488,11 +488,11 @@ const HistoryTab = ({ events, onAddEvent }: { events?: MaintenanceEvent[], onAdd
                     </span>
                     <span className="text-sm font-bold text-white">{event.title}</span>
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">{event.date}</span>
+                  <span className="text-xs text-app-text3 font-mono">{event.date}</span>
                </div>
-               <p className="text-slate-300 text-sm mb-2 whitespace-pre-line">{event.description}</p>
-               <div className="flex justify-between items-center pt-2 border-t border-slate-700/50">
-                  <span className="text-xs text-slate-500 flex items-center gap-1"><User size={12}/> {event.performer}</span>
+               <p className="text-app-text2 text-sm mb-2 whitespace-pre-line">{event.description}</p>
+               <div className="flex justify-between items-center pt-2 border-t border-app-line/50">
+                  <span className="text-xs text-app-text3 flex items-center gap-1"><User size={12}/> {event.performer}</span>
                   {event.documentRef && (
                      <span className="text-xs text-accent cursor-pointer hover:underline flex items-center gap-1">
                         <FileText size={12}/> {event.documentRef}
@@ -507,7 +507,7 @@ const HistoryTab = ({ events, onAddEvent }: { events?: MaintenanceEvent[], onAdd
 };
 
 const DocsTab = ({ docs }: { docs?: AttachedDocument[] }) => {
-   if (!docs || docs.length === 0) return <div className="text-center text-slate-500 py-10">Нет прикрепленных документов</div>;
+   if (!docs || docs.length === 0) return <div className="text-center text-app-text3 py-10">Нет прикрепленных документов</div>;
    
    // Group docs by category excluding EPB Reports (they have their own tab)
    const categories = [
@@ -527,30 +527,30 @@ const DocsTab = ({ docs }: { docs?: AttachedDocument[] }) => {
 
            return (
              <div key={cat.id}>
-                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 border-b border-slate-700 pb-1">{cat.label}</h4>
+                <h4 className="text-sm font-bold text-app-text3 uppercase tracking-wider mb-3 border-b border-app-line pb-1">{cat.label}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                    {catDocs.map(doc => (
-                      <div key={doc.id} className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-slate-500 transition group relative">
+                      <div key={doc.id} className="p-4 bg-app-panel border border-app-line rounded-lg hover:border-app-line transition group relative">
                          <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-3">
-                               <div className="p-2 bg-slate-700 rounded text-slate-300">
+                               <div className="p-2 bg-app-soft rounded text-app-text2">
                                   <FileText size={20} />
                                </div>
                                <div>
                                   <p className="font-medium text-white line-clamp-1 text-sm">{doc.name}</p>
-                                  <p className="text-xs text-slate-500">{doc.size} • {doc.extension.toUpperCase()}</p>
+                                  <p className="text-xs text-app-text3">{doc.size} • {doc.extension.toUpperCase()}</p>
                                </div>
                             </div>
                          </div>
                          
-                         <div className="mt-2 pt-2 border-t border-slate-700/50 flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 text-xs text-slate-400" title={doc.uploadedBy.role}>
-                               <div className="w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center text-[10px] text-white">
+                         <div className="mt-2 pt-2 border-t border-app-line/50 flex justify-between items-center">
+                            <div className="flex items-center gap-1.5 text-xs text-app-text3" title={doc.uploadedBy.role}>
+                               <div className="w-5 h-5 rounded-full bg-app-softer flex items-center justify-center text-[10px] text-app-text">
                                  {doc.uploadedBy.avatar}
                                </div>
                                <span>{doc.uploadedBy.name}</span>
                             </div>
-                            <span className="text-xs text-slate-500">{doc.uploadDate}</span>
+                            <span className="text-xs text-app-text3">{doc.uploadDate}</span>
                          </div>
                       </div>
                    ))}
@@ -559,7 +559,7 @@ const DocsTab = ({ docs }: { docs?: AttachedDocument[] }) => {
            )
         })}
         
-        <div className="border-2 border-dashed border-slate-700 rounded-lg flex flex-col items-center justify-center text-slate-500 hover:text-white hover:border-slate-500 transition cursor-pointer h-32 mt-4">
+        <div className="border-2 border-dashed border-app-line rounded-lg flex flex-col items-center justify-center text-app-text3 hover:text-white hover:border-app-line transition cursor-pointer h-32 mt-4">
            <Download size={24} className="mb-2" />
            <p className="text-sm">Загрузить новый документ</p>
         </div>
@@ -587,12 +587,12 @@ const ExpertiseTab = ({ node }: { node: HierarchyNode }) => {
    if (reportPreview) {
       return (
          <div className="animate-in fade-in zoom-in-95 duration-300 h-full flex flex-col">
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-700">
-               <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-app-line">
+               <h3 className="text-lg font-bold text-app-text flex items-center gap-2">
                   <FileText className="text-accent" /> Предварительный просмотр заключения ЭПБ
                </h3>
                <div className="flex gap-2">
-                  <button onClick={() => setReportPreview(false)} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white">Закрыть</button>
+                  <button onClick={() => setReportPreview(false)} className="px-3 py-1.5 text-sm text-app-text3 hover:text-app-text">Закрыть</button>
                   <button className="px-3 py-1.5 bg-accent hover:bg-blue-600 text-white rounded text-sm flex items-center gap-2">
                      <Printer size={16} /> Печать / PDF
                   </button>
@@ -658,20 +658,20 @@ const ExpertiseTab = ({ node }: { node: HierarchyNode }) => {
             {epbDocs.length > 0 ? (
                <div className="space-y-3">
                   {epbDocs.map(doc => (
-                     <div key={doc.id} className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex items-center justify-between group">
+                     <div key={doc.id} className="bg-app-panel p-4 rounded-lg border border-app-line flex items-center justify-between group">
                         <div className="flex items-center gap-4">
                            <div className="p-2 bg-green-500/10 text-green-500 rounded"><ShieldCheck size={24}/></div>
                            <div>
                               <p className="text-white font-medium">{doc.name}</p>
-                              <p className="text-xs text-slate-400">Внесен в реестр РТН: {doc.uploadDate}</p>
+                              <p className="text-xs text-app-text3">Внесен в реестр РТН: {doc.uploadDate}</p>
                            </div>
                         </div>
-                        <button className="px-3 py-1.5 bg-slate-700 text-slate-300 text-sm rounded hover:bg-slate-600">Открыть</button>
+                        <button className="px-3 py-1.5 bg-app-soft text-app-text2 text-sm rounded hover:bg-app-softer">Открыть</button>
                      </div>
                   ))}
                </div>
             ) : (
-               <div className="bg-slate-800/50 p-8 rounded-lg border border-slate-700 text-center text-slate-500">
+               <div className="bg-app-panel/50 p-8 rounded-lg border border-app-line text-center text-app-text3">
                   <ShieldCheck size={48} className="mx-auto mb-3 opacity-20" />
                   <p>Действующих заключений не найдено</p>
                </div>
@@ -679,7 +679,7 @@ const ExpertiseTab = ({ node }: { node: HierarchyNode }) => {
             
             <div className="mt-8">
                <h3 className="text-white font-bold mb-4">Требования ФНиП</h3>
-               <div className="bg-slate-800/30 p-4 rounded text-sm text-slate-400 border border-slate-700">
+               <div className="bg-app-panel/30 p-4 rounded text-sm text-app-text3 border border-app-line">
                   <p className="mb-2">Согласно Приказу Ростехнадзора № 420, экспертиза проводится в случаях:</p>
                   <ul className="list-disc pl-5 space-y-1">
                      <li>Истечения срока службы (20 лет)</li>
@@ -691,18 +691,18 @@ const ExpertiseTab = ({ node }: { node: HierarchyNode }) => {
          </div>
 
          {/* Generator Action Panel */}
-         <div className="bg-secondary p-6 rounded-xl border border-slate-700 h-fit">
-            <h3 className="text-lg font-bold text-white mb-2">Генератор Заключения</h3>
-            <p className="text-sm text-slate-400 mb-6">Автоматическое формирование проекта заключения на основе данных паспорта и последней диагностики.</p>
+         <div className="bg-secondary p-6 rounded-xl border border-app-line h-fit">
+            <h3 className="text-lg font-bold text-app-text mb-2">Генератор Заключения</h3>
+            <p className="text-sm text-app-text3 mb-6">Автоматическое формирование проекта заключения на основе данных паспорта и последней диагностики.</p>
             
             <div className="space-y-4 mb-6">
-               <div className="flex items-center gap-2 text-sm text-slate-300">
+               <div className="flex items-center gap-2 text-sm text-app-text2">
                   <Check size={16} className="text-green-500" /> Паспортные данные валидны
                </div>
-               <div className="flex items-center gap-2 text-sm text-slate-300">
+               <div className="flex items-center gap-2 text-sm text-app-text2">
                   <Check size={16} className="text-green-500" /> Диагностика проведена
                </div>
-               <div className="flex items-center gap-2 text-sm text-slate-300">
+               <div className="flex items-center gap-2 text-sm text-app-text2">
                   <Check size={16} className="text-green-500" /> Дефекты устранены
                </div>
             </div>
@@ -731,15 +731,15 @@ const InspectionForm = ({ schema }: { schema: ModuleSchema }) => {
   return (
     <div className="flex gap-6 h-full min-h-0 animate-in fade-in duration-300">
       <div className="w-64 hidden xl:block overflow-y-auto pr-2 shrink-0">
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
+        <div className="bg-app-deep/50 rounded-xl p-4 border border-app-line">
             <nav className="space-y-1">
               {schema.sections.map((section, idx) => (
                   <button 
                     key={idx}
                     onClick={() => setActiveSection(idx)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-3 ${activeSection === idx ? 'bg-accent/10 text-accent' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-3 ${activeSection === idx ? 'bg-accent/10 text-accent' : 'text-app-text3 hover:text-app-text hover:bg-app-panel'}`}
                   >
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border shrink-0 ${activeSection === idx ? 'border-accent bg-accent text-white' : 'border-slate-600'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border shrink-0 ${activeSection === idx ? 'border-accent bg-accent text-white' : 'border-app-line'}`}>
                       {activeSection > idx ? <Check size={10}/> : idx + 1}
                     </div>
                     <span className="line-clamp-2">{section.title}</span>
@@ -749,8 +749,8 @@ const InspectionForm = ({ schema }: { schema: ModuleSchema }) => {
         </div>
       </div>
 
-      <div className="flex-1 bg-slate-800/30 rounded-xl border border-slate-700 p-6 overflow-y-auto">
-          <h3 className="text-lg font-bold text-white mb-6 pb-2 border-b border-slate-700 sticky top-0 bg-[#151e32] z-10">
+      <div className="flex-1 bg-app-panel/30 rounded-xl border border-app-line p-6 overflow-y-auto">
+          <h3 className="text-lg font-bold text-app-text mb-6 pb-2 border-b border-app-line sticky top-0 bg-[#151e32] z-10">
             {schema.sections[activeSection].title}
           </h3>
           
@@ -760,17 +760,17 @@ const InspectionForm = ({ schema }: { schema: ModuleSchema }) => {
               ))}
           </div>
 
-          <div className="mt-8 pt-6 border-t border-slate-700 flex justify-between">
+          <div className="mt-8 pt-6 border-t border-app-line flex justify-between">
               <button 
                 disabled={activeSection === 0}
                 onClick={() => setActiveSection(p => p - 1)}
-                className="px-4 py-2 text-slate-400 hover:text-white disabled:opacity-50 text-sm"
+                className="px-4 py-2 text-app-text3 hover:text-app-text disabled:opacity-50 text-sm"
               >
                 Назад
               </button>
               <button 
                 onClick={() => setActiveSection(p => Math.min(schema.sections.length - 1, p + 1))}
-                className="px-6 py-2 bg-white text-slate-900 font-bold rounded hover:bg-slate-200 transition text-sm"
+                className="px-6 py-2 bg-app-panel text-app-text font-bold rounded border border-app-line hover:bg-app-soft transition text-sm"
               >
                 {activeSection === schema.sections.length - 1 ? 'Подписать ЭЦП' : 'Далее'}
               </button>
@@ -828,7 +828,7 @@ const DynamicInspection = () => {
   const renderContent = () => {
      if (!selectedNode) {
         return (
-           <div className="h-full flex flex-col items-center justify-center text-slate-500">
+           <div className="h-full flex flex-col items-center justify-center text-app-text3">
               <Network size={64} className="mb-4 opacity-20" />
               <p>Выберите объект или оборудование в дереве навигации</p>
            </div>
@@ -840,12 +840,12 @@ const DynamicInspection = () => {
         return (
            <div className="p-8">
               <div className="flex items-center gap-3 mb-6">
-                 <div className="p-3 bg-slate-800 rounded-lg">
+                 <div className="p-3 bg-app-panel rounded-lg">
                     <NodeIcon type={selectedNode.type} isOpen={true} />
                  </div>
                  <div>
                     <h2 className="text-2xl font-bold text-white">{selectedNode.name}</h2>
-                    <p className="text-sm text-slate-400">Уровень иерархии: {selectedNode.type}</p>
+                    <p className="text-sm text-app-text3">Уровень иерархии: {selectedNode.type}</p>
                  </div>
               </div>
                {selectedNode.children && selectedNode.children.length > 0 ? (
@@ -854,7 +854,7 @@ const DynamicInspection = () => {
                        <div 
                          key={child.id} 
                          onClick={() => { setSelectedNode(child); toggleNode(selectedNode.id); }}
-                         className="p-4 bg-secondary border border-slate-700 rounded-lg hover:border-slate-500 cursor-pointer transition group"
+                         className="p-4 bg-secondary border border-app-line rounded-lg hover:border-app-line cursor-pointer transition group"
                        >
                           <div className="flex justify-between items-start mb-2">
                              <NodeIcon type={child.type} isOpen={false} />
@@ -864,7 +864,7 @@ const DynamicInspection = () => {
                        </div>
                     ))}
                  </div>
-              ) : ( <p className="text-slate-500 italic">Нет объектов</p> )}
+              ) : ( <p className="text-app-text3 italic">Нет объектов</p> )}
            </div>
         );
      }
@@ -881,10 +881,10 @@ const DynamicInspection = () => {
      return (
         <div className="h-full flex flex-col">
            {/* Equipment Header */}
-           <div className="bg-secondary border-b border-slate-700 px-6 py-4 shrink-0">
+           <div className="bg-secondary border-b border-app-line px-6 py-4 shrink-0">
               <div className="flex justify-between items-start mb-4">
                  <div>
-                    <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-xs text-app-text3 mb-1 uppercase tracking-wider">
                        <span>{selectedNode.equipmentType}</span>
                        <span>•</span>
                        <span className={selectedNode.status === 'OK' ? 'text-success' : selectedNode.status === 'WARNING' ? 'text-warning' : 'text-danger'}>
@@ -896,10 +896,10 @@ const DynamicInspection = () => {
                  
                  {/* Next Inspection Alert */}
                  {selectedNode.nextInspectionDate && (
-                    <div className={`px-4 py-2 rounded-lg border flex items-center gap-3 ${isOverdue ? 'bg-danger/10 border-danger/30' : isUrgent ? 'bg-warning/10 border-warning/30' : 'bg-slate-800 border-slate-700'}`}>
-                       <Calendar size={20} className={isOverdue ? 'text-danger' : isUrgent ? 'text-warning' : 'text-slate-400'} />
+                    <div className={`px-4 py-2 rounded-lg border flex items-center gap-3 ${isOverdue ? 'bg-danger/10 border-danger/30' : isUrgent ? 'bg-warning/10 border-warning/30' : 'bg-app-panel border-app-line'}`}>
+                       <Calendar size={20} className={isOverdue ? 'text-danger' : isUrgent ? 'text-warning' : 'text-app-text3'} />
                        <div className="text-right">
-                          <p className="text-xs text-slate-400">Следующая диагностика</p>
+                          <p className="text-xs text-app-text3">Следующая диагностика</p>
                           <p className={`font-bold ${isOverdue ? 'text-danger' : 'text-white'}`}>
                              {selectedNode.nextInspectionDate} 
                              <span className="text-xs font-normal ml-1 opacity-70">
@@ -925,8 +925,8 @@ const DynamicInspection = () => {
                       onClick={() => setActiveTab(tab.id as any)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium transition-colors border-t border-x whitespace-nowrap ${
                          activeTab === tab.id 
-                         ? 'bg-primary border-slate-700 text-white translate-y-[1px] border-b-primary z-10' 
-                         : 'bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-slate-800/50'
+                         ? 'bg-primary border-app-line text-white translate-y-[1px] border-b-primary z-10' 
+                         : 'bg-transparent border-transparent text-app-text3 hover:text-app-text hover:bg-app-panel/50'
                       }`}
                     >
                        <tab.icon size={16} /> {tab.label}
@@ -950,16 +950,16 @@ const DynamicInspection = () => {
   return (
     <div className="h-[calc(100vh-6rem)] flex -m-6">
       {/* Sidebar Tree */}
-      <div className="w-80 bg-[#0b1120] border-r border-slate-800 flex flex-col shrink-0 pt-4">
-         <div className="px-4 pb-4 border-b border-slate-800 bg-[#0b1120] sticky top-0 z-10">
-            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-2">Навигатор объектов</h3>
+      <div className="w-80 bg-[#0b1120] border-r border-app-line flex flex-col shrink-0 pt-4">
+         <div className="px-4 pb-4 border-b border-app-line bg-[#0b1120] sticky top-0 z-10">
+            <h3 className="text-sm font-bold text-app-text2 uppercase tracking-wider mb-2">Навигатор объектов</h3>
             <div className="relative">
                <input 
                   type="text" 
                   placeholder="Поиск по шифру/имени..." 
-                  className="w-full bg-slate-800 text-xs text-white px-3 py-2 rounded border border-slate-700 focus:border-accent outline-none pl-8"
+                  className="w-full bg-app-panel text-xs text-app-text px-3 py-2 rounded border border-app-line focus:border-accent outline-none pl-8"
                />
-               <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
+               <Search size={14} className="absolute left-2.5 top-2.5 text-app-text3" />
             </div>
          </div>
          <div className="flex-1 overflow-y-auto overflow-x-auto p-2 custom-scrollbar">

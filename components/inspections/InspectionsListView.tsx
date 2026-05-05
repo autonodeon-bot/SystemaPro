@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { FileText, Building2, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Inspection } from './types';
 import InspectionCard from './InspectionCard';
@@ -36,7 +36,7 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
     return (
       <div className="text-center py-12">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
-        <p className="text-slate-400 mt-4">Загрузка чек-листов...</p>
+        <p className="text-app-text3 mt-4">Загрузка чек-листов...</p>
       </div>
     );
   }
@@ -44,8 +44,8 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
   if (filteredInspections.length === 0) {
     return (
       <div className="text-center py-12 bg-secondary/50 rounded-lg">
-        <FileText className="mx-auto text-slate-400 mb-4" size={48} />
-        <p className="text-slate-400">Чек-листы не найдены</p>
+        <FileText className="mx-auto text-app-text3 mb-4" size={48} />
+        <p className="text-app-text3">Чек-листы не найдены</p>
       </div>
     );
   }
@@ -57,7 +57,7 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
           const isCollapsed = expandedGroups.has(groupKey);
           const isExpanded = expandedGroups.size === 0 || !isCollapsed;
           return (
-            <div key={groupKey} className="rounded-lg border border-slate-700 overflow-hidden">
+            <div key={groupKey} className="rounded-lg border border-app-line overflow-hidden">
               <button
                 type="button"
                 onClick={() => onToggleGroup(groupKey)}
@@ -66,7 +66,7 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
                 {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 <Building2 size={18} className="text-accent" />
                 <span>{groupKey}</span>
-                <span className="text-slate-400 text-sm font-normal">({items.length})</span>
+                <span className="text-app-text3 text-sm font-normal">({items.length})</span>
               </button>
               {isExpanded && (
                 <div className="p-2 space-y-2 bg-secondary/30">

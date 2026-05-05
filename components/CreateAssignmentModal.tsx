@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { API_BASE, ASSIGNMENT_TYPE_SELECT_OPTIONS } from '../constants';
 
 interface CreateAssignmentModalProps {
@@ -307,8 +307,8 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-slate-700">
+      <div className="bg-app-panel rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
+        <div className="p-6 border-b border-app-line">
           <h2 className="text-xl font-semibold text-white">Создать задание</h2>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -319,15 +319,15 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-app-text2 mb-2">
               Оборудование * ({formData.selectedEquipmentIds.length} выбрано)
             </label>
             {loadingHierarchy ? (
-              <div className="text-slate-400 text-sm">Загрузка иерархии...</div>
+              <div className="text-app-text3 text-sm">Загрузка иерархии...</div>
             ) : (
-              <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-h-96 overflow-y-auto">
+              <div className="bg-app-deep border border-app-line rounded-lg p-4 max-h-96 overflow-y-auto">
                 {enterprises.length === 0 ? (
-                  <div className="text-slate-400 text-sm">Нет доступных предприятий</div>
+                  <div className="text-app-text3 text-sm">Нет доступных предприятий</div>
                 ) : (
                   enterprises.map((enterprise) => (
                     <div key={enterprise.id} className="mb-2">
@@ -335,7 +335,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
                         <button
                           type="button"
                           onClick={() => toggleExpand(`enterprise-${enterprise.id}`)}
-                          className="text-slate-400 hover:text-white"
+                          className="text-app-text3 hover:text-app-text"
                         >
                           {expanded[`enterprise-${enterprise.id}`] ? '▼' : '▶'}
                         </button>
@@ -368,7 +368,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
                             <button
                               type="button"
                               onClick={() => toggleExpand(`branch-${branch.id}`)}
-                              className="text-slate-400 hover:text-white"
+                              className="text-app-text3 hover:text-app-text"
                             >
                               {expanded[`branch-${branch.id}`] ? '▼' : '▶'}
                             </button>
@@ -382,7 +382,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
                               onClick={(e) => e.stopPropagation()}
                               className="rounded"
                             />
-                            <span className="text-slate-300">{branch.name}</span>
+                            <span className="text-app-text2">{branch.name}</span>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -400,7 +400,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
                                 <button
                                   type="button"
                                   onClick={() => toggleExpand(`workshop-${workshop.id}`)}
-                                  className="text-slate-400 hover:text-white"
+                                  className="text-app-text3 hover:text-app-text"
                                 >
                                   {expanded[`workshop-${workshop.id}`] ? '▼' : '▶'}
                                 </button>
@@ -414,7 +414,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
                                   onClick={(e) => e.stopPropagation()}
                                   className="rounded"
                                 />
-                                <span className="text-slate-400">{workshop.name}</span>
+                                <span className="text-app-text3">{workshop.name}</span>
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -435,7 +435,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
                                       onChange={() => toggleEquipment(eq.id)}
                                       className="rounded"
                                     />
-                                    <span className="text-slate-400 text-sm">
+                                    <span className="text-app-text3 text-sm">
                                       {eq.equipment_code} - {eq.name}
                                     </span>
                                   </label>
@@ -453,14 +453,14 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
+            <label className="block text-sm font-medium text-app-text2 mb-1">
               Тип задания *
             </label>
             <select
               required
               value={formData.assignment_type}
               onChange={(e) => setFormData({ ...formData, assignment_type: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             >
               {ASSIGNMENT_TYPE_SELECT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -469,14 +469,14 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
+            <label className="block text-sm font-medium text-app-text2 mb-1">
               Назначить инженеру *
             </label>
             <select
               required
               value={formData.assigned_to}
               onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             >
               <option value="">Выберите инженера</option>
               {engineersList.map((eng) => (
@@ -488,14 +488,14 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
+            <label className="block text-sm font-medium text-app-text2 mb-1">
               Приоритет *
             </label>
             <select
               required
               value={formData.priority}
               onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             >
               <option value="LOW">Низкий</option>
               <option value="NORMAL">Обычный</option>
@@ -505,35 +505,35 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
+            <label className="block text-sm font-medium text-app-text2 mb-1">
               Срок выполнения
             </label>
             <input
               type="date"
               value={formData.due_date}
               onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
+            <label className="block text-sm font-medium text-app-text2 mb-1">
               Описание
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={4}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               placeholder="Дополнительная информация о задании..."
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
+          <div className="flex justify-end gap-3 pt-4 border-t border-app-line">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-400 hover:text-white transition"
+              className="px-4 py-2 text-app-text3 hover:text-app-text transition"
               disabled={saving}
             >
               Отмена

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Package, Calendar, FileText, MapPin, Eye, Trash2, CheckCircle2, Building2 } from 'lucide-react';
 import type { Inspection } from './types';
 import InspectionStatusBadge from './InspectionStatusBadge';
@@ -26,7 +26,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
   const hierarchy = inspectionHierarchySubtitle(insp);
 
   return (
-    <div className="bg-secondary/50 rounded-lg p-4 hover:bg-secondary/70 transition-colors border border-slate-700">
+    <div className="bg-secondary/50 rounded-lg p-4 hover:bg-secondary/70 transition-colors border border-app-line">
       <div className="flex items-start justify-between gap-3">
         <input
           type="checkbox"
@@ -51,28 +51,28 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
             </span>
           </div>
           {hierarchy && (
-            <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
+            <p className="text-xs text-app-text3 mb-2 flex items-center gap-1">
               <Building2 size={12} />
               {hierarchy}
             </p>
           )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             {insp.equipment_location && (
-              <div className="flex items-center gap-2 text-slate-400">
+              <div className="flex items-center gap-2 text-app-text3">
                 <MapPin size={14} />
                 <span>{insp.equipment_location}</span>
               </div>
             )}
-            <div className="flex items-center gap-2 text-slate-400">
+            <div className="flex items-center gap-2 text-app-text3">
               <Calendar size={14} />
               <span>{formatInspectionDate(insp.date_performed)}</span>
             </div>
-            <div className="flex items-center gap-2 text-slate-400">
+            <div className="flex items-center gap-2 text-app-text3">
               <FileText size={14} />
               <span>ID: {insp.id.substring(0, 8)}...</span>
             </div>
             {insp.conclusion && (
-              <div className="text-slate-300 truncate">
+              <div className="text-app-text2 truncate">
                 {insp.conclusion.substring(0, 50)}...
               </div>
             )}
@@ -109,7 +109,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
               e.stopPropagation();
               onOpenDetails(insp);
             }}
-            className="p-2 text-slate-400 hover:text-accent hover:bg-secondary rounded transition-colors"
+            className="p-2 text-app-text3 hover:text-accent hover:bg-secondary rounded transition-colors"
             title="Просмотр деталей"
           >
             <Eye size={20} />

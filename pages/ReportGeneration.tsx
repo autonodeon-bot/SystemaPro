@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../constants';
 import ReportGenerationToolbar from '../components/report-generation/ReportGenerationToolbar';
@@ -579,7 +579,7 @@ const ReportGeneration = () => {
   const groupedItems = groupItems(filteredInspections, filteredReports);
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   return (

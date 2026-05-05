@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Plus, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, Clock, FileDown, History, BarChart3 } from 'lucide-react';
 import { API_BASE } from '../constants';
 
@@ -232,7 +232,7 @@ const VerificationsManagement: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   const expiredCount = equipment.filter(item => item.is_expired).length;
@@ -324,7 +324,7 @@ const VerificationsManagement: React.FC = () => {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+            className="px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="all">Все типы</option>
             {getEquipmentTypes().map(type => (
@@ -334,7 +334,7 @@ const VerificationsManagement: React.FC = () => {
           <select
             value={filterExpiry}
             onChange={(e) => setFilterExpiry(e.target.value)}
-            className="px-4 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+            className="px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="all">Все сроки</option>
             <option value="expired">Просрочено</option>
@@ -347,28 +347,28 @@ const VerificationsManagement: React.FC = () => {
 
       {/* Статистика использования */}
       {showStatistics && usageStatistics && (
-        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+        <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-white">Статистика использования оборудования</h3>
             <button
               onClick={() => setShowStatistics(false)}
-              className="text-slate-400 hover:text-white"
+              className="text-app-text3 hover:text-app-text"
             >
               <XCircle size={20} />
             </button>
           </div>
           <div className="mb-4">
-            <div className="text-slate-400 text-sm">
+            <div className="text-app-text3 text-sm">
               За последние {usageStatistics.period_days} дней: {usageStatistics.total_uses} использований, {usageStatistics.equipment_count} единиц оборудования
             </div>
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {usageStatistics.equipment.slice(0, 10).map((eq: any) => (
-              <div key={eq.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+              <div key={eq.id} className="bg-app-panel rounded-lg p-3 border border-app-line">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-semibold text-white">{eq.name}</div>
-                    <div className="text-sm text-slate-400">
+                    <div className="text-sm text-app-text3">
                       {eq.equipment_type} • {eq.serial_number}
                     </div>
                   </div>
@@ -383,37 +383,37 @@ const VerificationsManagement: React.FC = () => {
       )}
 
       {/* Таблица */}
-      <div className="bg-secondary/50 rounded-lg border border-slate-700 overflow-hidden">
+      <div className="bg-secondary/50 rounded-lg border border-app-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-800/50">
+            <thead className="bg-app-panel/50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Название</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Тип</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Серийный номер</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Следующая поверка</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Статус</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Скан</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Действия</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Название</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Тип</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Серийный номер</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Следующая поверка</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Статус</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Скан</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-app-line">
               {filteredEquipment.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-app-text3">
                     Оборудование не найдено
                   </td>
                 </tr>
               ) : (
                 filteredEquipment.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/30 transition">
+                  <tr key={item.id} className="hover:bg-app-panel/30 transition">
                     <td className="px-4 py-3 text-white">{item.name}</td>
-                    <td className="px-4 py-3 text-slate-300">{item.equipment_type}</td>
-                    <td className="px-4 py-3 text-slate-300">{item.serial_number}</td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 text-app-text2">{item.equipment_type}</td>
+                    <td className="px-4 py-3 text-app-text2">{item.serial_number}</td>
+                    <td className="px-4 py-3 text-app-text2">
                       {item.next_verification_date ? new Date(item.next_verification_date).toLocaleDateString('ru-RU') : '-'}
                       {item.days_until_expiry !== null && (
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-app-text3 mt-1">
                           {item.days_until_expiry > 0 ? `через ${item.days_until_expiry} дн.` : 'просрочено'}
                         </div>
                       )}
@@ -429,14 +429,14 @@ const VerificationsManagement: React.FC = () => {
                           Просмотр
                         </button>
                       ) : (
-                        <span className="text-slate-500 text-sm">Нет скана</span>
+                        <span className="text-app-text3 text-sm">Нет скана</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleViewHistory(item.id)}
-                          className="p-1 text-slate-400 hover:text-blue-400 transition"
+                          className="p-1 text-app-text3 hover:text-blue-400 transition"
                           title="История поверок"
                         >
                           <History size={16} />
@@ -446,14 +446,14 @@ const VerificationsManagement: React.FC = () => {
                             setEditingItem(item);
                             setShowModal(true);
                           }}
-                          className="p-1 text-slate-400 hover:text-accent transition"
+                          className="p-1 text-app-text3 hover:text-accent transition"
                           title="Редактировать"
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
-                          className="p-1 text-slate-400 hover:text-red-400 transition"
+                          className="p-1 text-app-text3 hover:text-red-400 transition"
                           title="Удалить"
                         >
                           <Trash2 size={16} />
@@ -472,11 +472,11 @@ const VerificationsManagement: React.FC = () => {
       {showScanModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+            <div className="p-4 border-b border-app-line flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">Скан свидетельства о поверке</h3>
               <button
                 onClick={() => setShowScanModal(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-app-text3 hover:text-app-text"
               >
                 <XCircle size={24} />
               </button>
@@ -484,7 +484,7 @@ const VerificationsManagement: React.FC = () => {
             <div className="p-4">
               <iframe
                 src={`${API_BASE}/api/verification-equipment/${showScanModal}/scan?inline=true`}
-                className="w-full h-[70vh] border border-slate-700 rounded"
+                className="w-full h-[70vh] border border-app-line rounded"
                 title="Скан поверки"
               />
             </div>
@@ -496,53 +496,53 @@ const VerificationsManagement: React.FC = () => {
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+            <div className="p-4 border-b border-app-line flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">История поверок</h3>
               <button
                 onClick={() => {
                   setShowHistoryModal(null);
                   setHistoryData([]);
                 }}
-                className="text-slate-400 hover:text-white"
+                className="text-app-text3 hover:text-app-text"
               >
                 <XCircle size={24} />
               </button>
             </div>
             <div className="p-4">
               {historyData.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">История поверок отсутствует</p>
+                <p className="text-app-text3 text-center py-8">История поверок отсутствует</p>
               ) : (
                 <div className="space-y-4">
                   {historyData.map((history: any, idx: number) => (
-                    <div key={idx} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                    <div key={idx} className="bg-app-panel rounded-lg p-4 border border-app-line">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="text-slate-400">Предыдущая поверка:</span>
+                          <span className="text-app-text3">Предыдущая поверка:</span>
                           <p className="text-white">{new Date(history.previous_verification_date).toLocaleDateString('ru-RU')}</p>
                         </div>
                         <div>
-                          <span className="text-slate-400">Новая поверка:</span>
+                          <span className="text-app-text3">Новая поверка:</span>
                           <p className="text-white">{new Date(history.new_verification_date).toLocaleDateString('ru-RU')}</p>
                         </div>
                         <div>
-                          <span className="text-slate-400">Следующая поверка:</span>
+                          <span className="text-app-text3">Следующая поверка:</span>
                           <p className="text-white">{new Date(history.new_next_verification_date).toLocaleDateString('ru-RU')}</p>
                         </div>
                         {history.certificate_number && (
                           <div>
-                            <span className="text-slate-400">Номер свидетельства:</span>
+                            <span className="text-app-text3">Номер свидетельства:</span>
                             <p className="text-white">{history.certificate_number}</p>
                           </div>
                         )}
                         {history.organization && (
                           <div>
-                            <span className="text-slate-400">Организация:</span>
+                            <span className="text-app-text3">Организация:</span>
                             <p className="text-white">{history.organization}</p>
                           </div>
                         )}
                         {history.recorded_at && (
                           <div>
-                            <span className="text-slate-400">Записано:</span>
+                            <span className="text-app-text3">Записано:</span>
                             <p className="text-white">{new Date(history.recorded_at).toLocaleDateString('ru-RU')}</p>
                           </div>
                         )}
@@ -642,7 +642,7 @@ const VerificationEquipmentModal: React.FC<{
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-secondary rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-slate-700">
+        <div className="p-6 border-b border-app-line">
           <h2 className="text-xl font-semibold text-white">
             {item ? 'Редактировать оборудование' : 'Добавить оборудование'}
           </h2>
@@ -650,22 +650,22 @@ const VerificationEquipmentModal: React.FC<{
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Название *</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Название *</label>
               <input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Тип оборудования *</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Тип оборудования *</label>
               <select
                 required
                 value={formData.equipment_type}
                 onChange={(e) => setFormData({ ...formData, equipment_type: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               >
                 <option value="">Выберите тип</option>
                 <option value="ВИК">ВИК (Визуальный и измерительный контроль)</option>
@@ -679,107 +679,107 @@ const VerificationEquipmentModal: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Серийный номер *</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Серийный номер *</label>
               <input
                 type="text"
                 required
                 value={formData.serial_number}
                 onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Производитель</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Производитель</label>
               <input
                 type="text"
                 value={formData.manufacturer}
                 onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Модель</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Модель</label>
               <input
                 type="text"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Инвентарный номер</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Инвентарный номер</label>
               <input
                 type="text"
                 value={formData.inventory_number}
                 onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Дата поверки *</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Дата поверки *</label>
               <input
                 type="date"
                 required
                 value={formData.verification_date}
                 onChange={(e) => setFormData({ ...formData, verification_date: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Следующая поверка *</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Следующая поверка *</label>
               <input
                 type="date"
                 required
                 value={formData.next_verification_date}
                 onChange={(e) => setFormData({ ...formData, next_verification_date: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Номер свидетельства</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Номер свидетельства</label>
               <input
                 type="text"
                 value={formData.verification_certificate_number}
                 onChange={(e) => setFormData({ ...formData, verification_certificate_number: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Организация поверки</label>
+              <label className="block text-sm font-medium text-app-text2 mb-1">Организация поверки</label>
               <input
                 type="text"
                 value={formData.verification_organization}
                 onChange={(e) => setFormData({ ...formData, verification_organization: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Скан свидетельства о поверке</label>
+            <label className="block text-sm font-medium text-app-text2 mb-1">Скан свидетельства о поверке</label>
             <input
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
               onChange={(e) => setScanFile(e.target.files?.[0] || null)}
-              className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
             {item?.scan_file_name && (
-              <p className="text-xs text-slate-400 mt-1">Текущий файл: {item.scan_file_name}</p>
+              <p className="text-xs text-app-text3 mt-1">Текущий файл: {item.scan_file_name}</p>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Примечания</label>
+            <label className="block text-sm font-medium text-app-text2 mb-1">Примечания</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 bg-primary border border-slate-700 rounded-lg text-white focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
+          <div className="flex justify-end gap-3 pt-4 border-t border-app-line">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-400 hover:text-white transition"
+              className="px-4 py-2 text-app-text3 hover:text-app-text transition"
             >
               Отмена
             </button>

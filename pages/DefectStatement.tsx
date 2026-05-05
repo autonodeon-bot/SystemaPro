@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { FileText, Plus, Trash2, Printer, Download, Edit3, Save, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -278,12 +278,12 @@ const DefectStatement: React.FC = () => {
             <FileText size={26} className="text-accent" />
             Ведомость дефектов
           </h1>
-          <p className="text-slate-400 text-sm mt-1">Официальный бланк результатов НК (П.6)</p>
+          <p className="text-app-text3 text-sm mt-1">Официальный бланк результатов НК (П.6)</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition"
+            className="flex items-center gap-2 px-4 py-2 bg-app-softer hover:bg-app-soft text-app-text rounded-lg text-sm transition"
           >
             <Printer size={16} /> Печать / PDF
           </button>
@@ -291,18 +291,18 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Импорт из обследования ── */}
-      <div className="bg-secondary rounded-xl p-4 border border-slate-700">
+      <div className="bg-secondary rounded-xl p-4 border border-app-line">
         <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
           <Download size={16} className="text-accent" />
           Импортировать дефекты из обследования
         </h3>
         <div className="flex gap-3 items-end">
           <div className="flex-1">
-            <label className="block text-xs text-slate-400 mb-1">Выбрать обследование</label>
+            <label className="block text-xs text-app-text3 mb-1">Выбрать обследование</label>
             <select
               value={selectedId}
               onChange={e => importFromInspection(e.target.value)}
-              className="w-full bg-primary border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
+              className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
             >
               <option value="">— выбрать или заполнить вручную —</option>
               {loadingInsp && <option disabled>Загрузка...</option>}
@@ -313,18 +313,18 @@ const DefectStatement: React.FC = () => {
           </div>
           <button
             onClick={loadInspections}
-            className="px-3 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm"
+            className="px-3 py-2 bg-app-softer hover:bg-app-soft text-app-text rounded-lg text-sm"
             title="Обновить список"
           >↻</button>
         </div>
-        <p className="text-xs text-slate-500 mt-2">
+        <p className="text-xs text-app-text3 mt-2">
           <Info size={12} className="inline mr-1" />
           Дефекты будут импортированы автоматически. При необходимости их можно отредактировать.
         </p>
       </div>
 
       {/* ── Шапка документа (редактируемая) ── */}
-      <div className="bg-secondary rounded-xl border border-slate-700 overflow-hidden">
+      <div className="bg-secondary rounded-xl border border-app-line overflow-hidden">
         <button
           onClick={() => setEditHeader(!editHeader)}
           className="w-full flex items-center justify-between px-4 py-3 text-white hover:bg-white/5 transition"
@@ -335,7 +335,7 @@ const DefectStatement: React.FC = () => {
           {editHeader ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
         {editHeader && (
-          <div className="p-4 border-t border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="p-4 border-t border-app-line grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {([
               ['statementNumber', '№ ведомости'],
               ['date', 'Дата контроля'],
@@ -348,12 +348,12 @@ const DefectStatement: React.FC = () => {
               ['organization', 'Организация'],
             ] as [keyof StatementHeader, string][]).map(([field, label]) => (
               <div key={field}>
-                <label className="block text-xs text-slate-400 mb-1">{label}</label>
+                <label className="block text-xs text-app-text3 mb-1">{label}</label>
                 <input
                   type="text"
                   value={header[field]}
                   onChange={e => setHeader(h => ({ ...h, [field]: e.target.value }))}
-                  className="w-full bg-primary border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
                 />
               </div>
             ))}
@@ -364,21 +364,21 @@ const DefectStatement: React.FC = () => {
       {/* ── Статистика ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Всего дефектов', value: stats.total, color: 'text-white', bg: 'bg-slate-700' },
+          { label: 'Всего дефектов', value: stats.total, color: 'text-app-text', bg: 'bg-app-soft' },
           { label: 'Критических', value: stats.critical, color: 'text-red-400', bg: 'bg-red-900/30' },
           { label: 'Значительных', value: stats.significant, color: 'text-orange-400', bg: 'bg-orange-900/30' },
           { label: 'Малозначимых', value: stats.minor, color: 'text-green-400', bg: 'bg-green-900/30' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-400 mt-1">{s.label}</p>
+            <p className="text-xs text-app-text3 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* ── Фильтр по степени ── */}
       <div className="flex gap-2 flex-wrap">
-        <span className="text-xs text-slate-400 self-center">Фильтр:</span>
+        <span className="text-xs text-app-text3 self-center">Фильтр:</span>
         {(['all', 'critical', 'significant', 'minor'] as const).map(sev => (
           <button
             key={sev}
@@ -386,7 +386,7 @@ const DefectStatement: React.FC = () => {
             className={`px-3 py-1 rounded-full text-xs font-medium transition ${
               filterSeverity === sev
                 ? 'bg-accent text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                : 'bg-app-soft text-app-text2 hover:bg-app-softer'
             }`}
           >
             {sev === 'all' ? 'Все' : SEVERITY_CONFIG[sev].label}
@@ -398,8 +398,8 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Таблица дефектов ── */}
-      <div className="bg-secondary rounded-xl border border-slate-700 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+      <div className="bg-secondary rounded-xl border border-app-line overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-app-line">
           <h3 className="text-white font-semibold">Таблица дефектов</h3>
           <button
             onClick={addRow}
@@ -411,7 +411,7 @@ const DefectStatement: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-700/50 text-slate-300 text-xs">
+              <tr className="bg-app-soft/50 text-app-text2 text-xs">
                 <th className="px-3 py-2 text-left w-8">№</th>
                 <th className="px-3 py-2 text-left min-w-[160px]">Наименование / тип дефекта</th>
                 <th className="px-3 py-2 text-left min-w-[120px]">Место расположения</th>
@@ -425,7 +425,7 @@ const DefectStatement: React.FC = () => {
             <tbody>
               {visibleDefects.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center text-slate-500 py-8">
+                  <td colSpan={8} className="text-center text-app-text3 py-8">
                     Нет дефектов для отображения
                   </td>
                 </tr>
@@ -436,22 +436,22 @@ const DefectStatement: React.FC = () => {
                 return (
                   <tr
                     key={row.id}
-                    className={`border-t border-slate-700 hover:bg-white/5 transition ${
+                    className={`border-t border-app-line hover:bg-white/5 transition ${
                       row.severity === 'critical' ? 'bg-red-900/10' :
                       row.severity === 'significant' ? 'bg-orange-900/10' : ''
                     }`}
                   >
-                    <td className="px-3 py-2 text-slate-400 font-mono text-xs">{row.number}</td>
+                    <td className="px-3 py-2 text-app-text3 font-mono text-xs">{row.number}</td>
                     <td className="px-3 py-2">
                       {isEditing ? (
                         <input
                           autoFocus
                           value={row.name}
                           onChange={e => updateRow(row.id, 'name', e.target.value)}
-                          className="w-full bg-primary border border-slate-600 rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
                         />
                       ) : (
-                        <span className="text-white">{row.name || <span className="text-slate-500 italic">—</span>}</span>
+                        <span className="text-white">{row.name || <span className="text-app-text3 italic">—</span>}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -459,10 +459,10 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.location}
                           onChange={e => updateRow(row.id, 'location', e.target.value)}
-                          className="w-full bg-primary border border-slate-600 rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
                         />
                       ) : (
-                        <span className="text-slate-300">{row.location || '—'}</span>
+                        <span className="text-app-text2">{row.location || '—'}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -470,10 +470,10 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.size}
                           onChange={e => updateRow(row.id, 'size', e.target.value)}
-                          className="w-full bg-primary border border-slate-600 rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
                         />
                       ) : (
-                        <span className="text-slate-300 font-mono text-xs">{row.size || '—'}</span>
+                        <span className="text-app-text2 font-mono text-xs">{row.size || '—'}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -481,7 +481,7 @@ const DefectStatement: React.FC = () => {
                         <select
                           value={row.severity}
                           onChange={e => updateRow(row.id, 'severity', e.target.value)}
-                          className="w-full bg-primary border border-slate-600 rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
                         >
                           <option value="critical">Критический</option>
                           <option value="significant">Значительный</option>
@@ -498,10 +498,10 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.recommendation}
                           onChange={e => updateRow(row.id, 'recommendation', e.target.value)}
-                          className="w-full bg-primary border border-slate-600 rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
                         />
                       ) : (
-                        <span className="text-slate-300 text-xs">{row.recommendation || '—'}</span>
+                        <span className="text-app-text2 text-xs">{row.recommendation || '—'}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -509,24 +509,24 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.notes}
                           onChange={e => updateRow(row.id, 'notes', e.target.value)}
-                          className="w-full bg-primary border border-slate-600 rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
                         />
                       ) : (
-                        <span className="text-slate-400 text-xs">{row.notes || ''}</span>
+                        <span className="text-app-text3 text-xs">{row.notes || ''}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => setEditingRowId(isEditing ? null : row.id)}
-                          className="p-1 text-slate-400 hover:text-accent rounded"
+                          className="p-1 text-app-text3 hover:text-accent rounded"
                           title={isEditing ? 'Сохранить' : 'Редактировать'}
                         >
                           {isEditing ? <Save size={13} /> : <Edit3 size={13} />}
                         </button>
                         <button
                           onClick={() => deleteRow(row.id)}
-                          className="p-1 text-slate-500 hover:text-red-400 rounded"
+                          className="p-1 text-app-text3 hover:text-red-400 rounded"
                           title="Удалить дефект"
                         >
                           <Trash2 size={13} />
@@ -542,7 +542,7 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Заключение ── */}
-      <div className="bg-secondary rounded-xl border border-slate-700 p-4">
+      <div className="bg-secondary rounded-xl border border-app-line p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-white font-semibold">Заключение</h3>
           <button
@@ -556,32 +556,32 @@ const DefectStatement: React.FC = () => {
           value={conclusion}
           onChange={e => setConclusion(e.target.value)}
           rows={4}
-          className="w-full bg-primary border border-slate-600 rounded-lg px-3 py-2 text-white text-sm resize-none"
+          className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm resize-none"
           placeholder="Заключение по результатам контроля..."
         />
       </div>
 
       {/* ── Подписи ── */}
-      <div className="bg-secondary rounded-xl border border-slate-700 p-4">
+      <div className="bg-secondary rounded-xl border border-app-line p-4">
         <h3 className="text-white font-semibold mb-3">Подписи</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-slate-400 block mb-1">ФИО и должность исполнителя</label>
+            <label className="text-xs text-app-text3 block mb-1">ФИО и должность исполнителя</label>
             <input
               type="text"
               value={sigExecutor || header.executor}
               onChange={e => setSigExecutor(e.target.value)}
-              className="w-full bg-primary border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
+              className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
               placeholder="Иванов И.И., инженер-дефектоскопист"
             />
           </div>
           <div>
-            <label className="text-xs text-slate-400 block mb-1">Дата подписания</label>
+            <label className="text-xs text-app-text3 block mb-1">Дата подписания</label>
             <input
               type="text"
               value={sigDate}
               onChange={e => setSigDate(e.target.value)}
-              className="w-full bg-primary border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
+              className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
             />
           </div>
         </div>

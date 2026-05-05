@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   Users, Shield, FileText, BarChart3, Search, 
   Plus, Edit, Trash2, Download, Eye, 
@@ -549,10 +549,10 @@ const AdminPanel = () => {
       {/* Модальное окно добавления инженера */}
       {showAddEngineer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddEngineer(false)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white">Добавить инженера</h2>
-              <button onClick={() => setShowAddEngineer(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setShowAddEngineer(false)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
             <AddEngineerForm onClose={() => setShowAddEngineer(false)} onSuccess={() => {
               setShowAddEngineer(false);
@@ -649,53 +649,53 @@ const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> 
       )}
 
       <div>
-        <label className="text-sm text-slate-400 block mb-1">ФИО *</label>
+        <label className="text-sm text-app-text3 block mb-1">ФИО *</label>
         <input
           type="text"
           required
           value={formData.full_name}
           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-          className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+          className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
           placeholder="Иванов Иван Иванович"
         />
       </div>
 
       <div>
-        <label className="text-sm text-slate-400 block mb-1">Должность</label>
+        <label className="text-sm text-app-text3 block mb-1">Должность</label>
         <input
           type="text"
           value={formData.position}
           onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-          className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+          className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
           placeholder="Инженер-диагност"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-sm text-slate-400 block mb-1">Email</label>
+          <label className="text-sm text-app-text3 block mb-1">Email</label>
           <input
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+            className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
             placeholder="ivanov@example.com"
           />
         </div>
         <div>
-          <label className="text-sm text-slate-400 block mb-1">Телефон</label>
+          <label className="text-sm text-app-text3 block mb-1">Телефон</label>
           <input
             type="tel"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+            className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
             placeholder="+7 (XXX) XXX-XX-XX"
           />
         </div>
       </div>
 
       <div>
-        <label className="text-sm text-slate-400 block mb-2">Квалификации</label>
+        <label className="text-sm text-app-text3 block mb-2">Квалификации</label>
         <div className="flex gap-2 mb-2">
           <input
             type="text"
@@ -710,7 +710,7 @@ const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> 
                 }
               }
             }}
-            className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-white"
+            className="flex-1 bg-app-deep border border-app-line rounded p-2 text-app-text"
             placeholder="Введите квалификацию и нажмите Enter"
           />
           <button
@@ -729,7 +729,7 @@ const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> 
         {formData.qualifications.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
             {formData.qualifications.map((qual, idx) => (
-              <span key={idx} className="bg-slate-700 text-slate-300 px-3 py-1 rounded text-sm flex items-center gap-2">
+              <span key={idx} className="bg-app-soft text-app-text2 px-3 py-1 rounded text-sm flex items-center gap-2">
                 {qual}
                 <button
                   type="button"
@@ -747,8 +747,8 @@ const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> 
       </div>
 
       <div>
-        <label className="text-sm text-slate-400 block mb-2">Типы оборудования, с которыми работает</label>
-        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto bg-slate-900 border border-slate-700 rounded p-3">
+        <label className="text-sm text-app-text3 block mb-2">Типы оборудования, с которыми работает</label>
+        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto bg-app-deep border border-app-line rounded p-3">
           {equipmentTypes.map((type) => (
             <label key={type.id} className="flex items-center gap-2 cursor-pointer">
               <input
@@ -783,7 +783,7 @@ const AddEngineerForm: React.FC<{ onClose: () => void; onSuccess: () => void }> 
         <button
           type="button"
           onClick={onClose}
-          className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+          className="bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
         >
           Отмена
         </button>

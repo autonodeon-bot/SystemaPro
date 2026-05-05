@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Search, BookOpen } from 'lucide-react';
 import { API_BASE } from '../constants';
 
@@ -59,7 +59,7 @@ const RegulatoryDocuments = () => {
   const documentTypes = Array.from(new Set(documents.map(d => d.document_type)));
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   return (
@@ -71,19 +71,19 @@ const RegulatoryDocuments = () => {
       {/* Поиск и фильтры */}
       <div className="flex gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-app-text3" size={20} />
           <input
             type="text"
             placeholder="Поиск по названию, номеру, описанию..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500"
+            className="w-full bg-app-panel border border-app-line rounded-lg pl-10 pr-4 py-2 text-app-text placeholder-app-text3"
           />
         </div>
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white"
+          className="bg-app-panel border border-app-line rounded-lg px-4 py-2 text-app-text"
         >
           <option value="ALL">Все типы</option>
           {documentTypes.map(type => (
@@ -97,7 +97,7 @@ const RegulatoryDocuments = () => {
         {filteredDocuments.map((doc) => (
           <div
             key={doc.id}
-            className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
+            className="bg-app-panel p-4 rounded-xl border border-app-line hover:border-accent/50 transition-colors cursor-pointer"
             onClick={() => setSelectedDoc(doc)}
           >
             <div className="flex items-start gap-3 mb-2">
@@ -109,18 +109,18 @@ const RegulatoryDocuments = () => {
                   <span className="text-xs text-accent bg-accent/10 px-2 py-1 rounded">
                     {getDocumentTypeLabel(doc.document_type)}
                   </span>
-                  <span className="text-xs text-slate-400">{doc.number}</span>
+                  <span className="text-xs text-app-text3">{doc.number}</span>
                 </div>
-                <h3 className="text-lg font-bold text-white">{doc.name}</h3>
+                <h3 className="text-lg font-bold text-app-text">{doc.name}</h3>
               </div>
             </div>
             
             {doc.description && (
-              <p className="text-sm text-slate-400 line-clamp-2 mb-3">{doc.description}</p>
+              <p className="text-sm text-app-text3 line-clamp-2 mb-3">{doc.description}</p>
             )}
 
             {doc.effective_date && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-app-text3">
                 Действует с: {new Date(doc.effective_date).toLocaleDateString('ru-RU')}
               </p>
             )}
@@ -129,7 +129,7 @@ const RegulatoryDocuments = () => {
       </div>
 
       {filteredDocuments.length === 0 && (
-        <div className="text-center text-slate-400 py-20">
+        <div className="text-center text-app-text3 py-20">
           Документы не найдены
         </div>
       )}
@@ -137,23 +137,23 @@ const RegulatoryDocuments = () => {
       {/* Модальное окно с деталями */}
       {selectedDoc && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedDoc(null)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-sm text-accent bg-accent/10 px-2 py-1 rounded">
                     {getDocumentTypeLabel(selectedDoc.document_type)}
                   </span>
-                  <span className="text-sm text-slate-400">{selectedDoc.number}</span>
+                  <span className="text-sm text-app-text3">{selectedDoc.number}</span>
                 </div>
                 <h2 className="text-xl font-bold text-white">{selectedDoc.name}</h2>
               </div>
-              <button onClick={() => setSelectedDoc(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setSelectedDoc(null)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
 
             {selectedDoc.description && (
               <div className="mb-4">
-                <p className="text-sm text-slate-400 mb-1">Описание</p>
+                <p className="text-sm text-app-text3 mb-1">Описание</p>
                 <p className="text-white">{selectedDoc.description}</p>
               </div>
             )}
@@ -161,13 +161,13 @@ const RegulatoryDocuments = () => {
             <div className="grid grid-cols-2 gap-4 mb-4">
               {selectedDoc.effective_date && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Дата вступления в силу</p>
+                  <p className="text-sm text-app-text3 mb-1">Дата вступления в силу</p>
                   <p className="text-white">{new Date(selectedDoc.effective_date).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
               {selectedDoc.expiry_date && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Дата окончания действия</p>
+                  <p className="text-sm text-app-text3 mb-1">Дата окончания действия</p>
                   <p className="text-white">{new Date(selectedDoc.expiry_date).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
@@ -175,10 +175,10 @@ const RegulatoryDocuments = () => {
 
             {selectedDoc.equipment_types && selectedDoc.equipment_types.length > 0 && (
               <div>
-                <p className="text-sm text-slate-400 mb-2">Применимо к типам оборудования:</p>
+                <p className="text-sm text-app-text3 mb-2">Применимо к типам оборудования:</p>
                 <div className="flex flex-wrap gap-2">
                   {selectedDoc.equipment_types.map((type, idx) => (
-                    <span key={idx} className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
+                    <span key={idx} className="text-xs bg-app-soft text-app-text2 px-2 py-1 rounded">
                       {type}
                     </span>
                   ))}

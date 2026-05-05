@@ -52,6 +52,16 @@
   --gradient-accent:  linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
   --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --gradient-bg:      linear-gradient(160deg, #111827 0%, #0d1625 50%, #111827 100%);
+
+  /* RGB для Tailwind app-* (opacity modifiers) */
+  --tw-app-deep: 15 23 42;
+  --tw-app-panel: 30 41 59;
+  --tw-app-soft: 51 65 85;
+  --tw-app-softer: 71 85 105;
+  --tw-app-text: 248 250 252;
+  --tw-app-text2: 203 213 225;
+  --tw-app-text3: 148 163 184;
+  --tw-app-br: 71 85 105;
 }
 
 /* ===== LIGHT THEME — современный, с градиентами ===== */
@@ -101,4 +111,13 @@
   --gradient-accent:  linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
   --gradient-success: linear-gradient(135deg, #059669 0%, #047857 100%);
   --gradient-bg:      linear-gradient(145deg, #dce8ff 0%, #eef2fb 35%, #e8f0fe 65%, #dce8ff 100%);
+
+  --tw-app-deep: 248 250 252;
+  --tw-app-panel: 255 255 255;
+  --tw-app-soft: 241 245 255;
+  --tw-app-softer: 226 232 255;
+  --tw-app-text: 15 27 53;
+  --tw-app-text2: 61 82 128;
+  --tw-app-text3: 120 138 175;
+  --tw-app-br: 186 200 230;
 }

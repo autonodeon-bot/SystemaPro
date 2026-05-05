@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   Download,
   FileText,
@@ -52,7 +52,7 @@ const ReportTableRow: React.FC<ReportTableRowProps> = ({
   const isQ = item.itemType === 'questionnaire';
 
   return (
-    <tr className="border-b border-slate-700/80 hover:bg-slate-800/60">
+    <tr className="border-b border-app-line/80 hover:bg-app-panel/60">
       <td className="px-2 py-2 align-middle w-10">
         <input
           type="checkbox"
@@ -65,17 +65,17 @@ const ReportTableRow: React.FC<ReportTableRowProps> = ({
         <div className="font-medium text-white truncate" title={item.title}>
           {item.title}
         </div>
-        <div className="text-xs text-slate-500 truncate">{item.equipment_name}</div>
+        <div className="text-xs text-app-text3 truncate">{item.equipment_name}</div>
       </td>
       <td className="px-2 py-2 align-middle whitespace-nowrap">
         <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(item.status)}`}>
           {getStatusLabel(item.status)}
         </span>
       </td>
-      <td className="px-2 py-2 align-middle text-xs text-slate-300 whitespace-nowrap">
+      <td className="px-2 py-2 align-middle text-xs text-app-text2 whitespace-nowrap">
         {getReportTypeLabel(item.report_type)}
       </td>
-      <td className="px-2 py-2 align-middle text-xs text-slate-400 whitespace-nowrap">
+      <td className="px-2 py-2 align-middle text-xs text-app-text3 whitespace-nowrap">
         {shortDate(item.created_at)}
       </td>
       <td className="px-2 py-2 align-middle text-right">
@@ -121,7 +121,7 @@ const ReportTableRow: React.FC<ReportTableRowProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenFileManager(item as Questionnaire)}
-                className="px-2 py-1 rounded bg-slate-600 text-white text-xs"
+                className="px-2 py-1 rounded bg-app-softer text-app-text text-xs"
                 title="Файлы"
               >
                 <Upload size={12} className="inline" />
@@ -143,7 +143,7 @@ const ReportTableRow: React.FC<ReportTableRowProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateReportViewer(item.inspection_id!)}
-                  className="px-2 py-1 rounded bg-slate-600 text-white text-xs"
+                  className="px-2 py-1 rounded bg-app-softer text-app-text text-xs"
                   title="Просмотр"
                 >
                   <FileText size={12} />

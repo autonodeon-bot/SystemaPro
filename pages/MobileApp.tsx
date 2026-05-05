@@ -1,4 +1,4 @@
-import { Download, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
+﻿import { Download, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
 import { MOBILE_APK_URL, MOBILE_APP_BUILD, MOBILE_APP_VERSION } from '../constants';
 
 const MobileApp = () => {
@@ -12,7 +12,7 @@ const MobileApp = () => {
       </div>
 
       {/* Ссылка на скачивание вверху */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+      <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <a
             href={downloadUrl}
@@ -30,37 +30,37 @@ const MobileApp = () => {
               navigator.clipboard.writeText(downloadUrl);
               alert('Ссылка скопирована в буфер обмена!');
             }}
-            className="flex items-center justify-center gap-3 bg-slate-700 hover:bg-slate-600 text-white font-bold px-6 py-4 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-3 bg-app-soft hover:bg-app-softer text-app-text font-bold px-6 py-4 rounded-lg transition-colors"
           >
             <span>Копировать ссылку</span>
           </button>
         </div>
-        <div className="text-sm text-slate-400">
+        <div className="text-sm text-app-text3">
           <p>Прямая ссылка: <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline break-all">{downloadUrl}</a></p>
         </div>
       </div>
 
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+      <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <div className="flex items-start gap-4 mb-6">
           <div className="bg-accent/20 p-3 rounded-lg">
             <Smartphone className="text-accent" size={32} />
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-white mb-2">Монитор — мобильное приложение</h2>
-            <p className="text-slate-400 mb-1">Версия: {MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD}) — последняя версия</p>
+            <p className="text-app-text3 mb-1">Версия: {MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD}) — последняя версия</p>
             <p className="text-sm text-green-400 mb-2">✓ Доступна новая версия для скачивания</p>
-            <p className="text-slate-300">
+            <p className="text-app-text2">
               Мобильное приложение для инженеров диагностики. Позволяет заполнять и отправлять отчеты обследования оборудования прямо с мобильного устройства.
             </p>
           </div>
         </div>
 
-        <div className="bg-slate-900 rounded-lg p-4 mb-6">
-          <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+        <div className="bg-app-deep rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-bold text-app-text mb-3 flex items-center gap-2">
             <CheckCircle className="text-green-400" size={20} />
             Возможности приложения
           </h3>
-          <ul className="space-y-2 text-slate-300">
+          <ul className="space-y-2 text-app-text2">
             <li className="flex items-start gap-2">
               <span className="text-accent mt-1">•</span>
               <span>Выбор оборудования из списка с фильтрацией по предприятиям и цехам</span>
@@ -125,7 +125,7 @@ const MobileApp = () => {
             <AlertCircle className="text-yellow-400 mt-0.5" size={20} />
             <div>
               <h3 className="text-yellow-400 font-bold mb-2">Важно перед установкой</h3>
-              <ul className="text-sm text-slate-300 space-y-1">
+              <ul className="text-sm text-app-text2 space-y-1">
                 <li>• Удалите старую версию приложения, если она установлена</li>
                 <li>• Разрешите установку из неизвестных источников в настройках Android</li>
                 <li>• Убедитесь, что на устройстве достаточно свободного места (минимум 100 MB)</li>
@@ -139,10 +139,10 @@ const MobileApp = () => {
             <CheckCircle className="text-green-400" size={20} />
             <h3 className="text-green-400 font-bold">Новая версия {MOBILE_APP_VERSION} доступна!</h3>
           </div>
-          <p className="text-sm text-slate-300 mb-4">
+          <p className="text-sm text-app-text2 mb-4">
             Скачайте последнюю версию мобильного приложения ({MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD})) для получения всех обновлений и исправлений, включая:
           </p>
-          <ul className="text-sm text-slate-300 space-y-1 ml-4">
+          <ul className="text-sm text-app-text2 space-y-1 ml-4">
             <li>• Новая генерация отчетов для сосудов с полной структурой разделов 1-15</li>
             <li>• Автоматическая загрузка шаблонов чертежей с сервера</li>
             <li>• Работа с шаблонами чертежей для нанесения точек замера</li>
@@ -154,9 +154,9 @@ const MobileApp = () => {
         </div>
 
 
-        <div className="mt-6 pt-6 border-t border-slate-700">
-          <h3 className="text-lg font-bold text-white mb-3">Инструкция по установке</h3>
-          <ol className="space-y-2 text-slate-300 text-sm">
+        <div className="mt-6 pt-6 border-t border-app-line">
+          <h3 className="text-lg font-bold text-app-text mb-3">Инструкция по установке</h3>
+          <ol className="space-y-2 text-app-text2 text-sm">
             <li className="flex items-start gap-2">
               <span className="font-bold text-accent">1.</span>
               <span>Скачайте APK файл на ваше Android устройство</span>

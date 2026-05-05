@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Trash2, RotateCcw, AlertTriangle, RefreshCw, Shield, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -82,7 +82,7 @@ const InspectionsTrash: React.FC = () => {
   }
 
   function daysColor(days: number | null) {
-    if (days === null) return 'text-slate-400';
+    if (days === null) return 'text-app-text3';
     if (days <= 7) return 'text-red-400 font-bold';
     if (days <= 20) return 'text-orange-400';
     return 'text-green-400';
@@ -99,7 +99,7 @@ const InspectionsTrash: React.FC = () => {
             <Trash2 size={26} className="text-red-400" />
             Корзина обследований
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-app-text3 text-sm mt-1">
             Мягко удалённые обследования хранятся 60 дней, после чего удаляются автоматически
           </p>
         </div>
@@ -107,7 +107,7 @@ const InspectionsTrash: React.FC = () => {
           <button
             onClick={load}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition"
+            className="flex items-center gap-2 px-3 py-2 bg-app-soft hover:bg-app-softer text-app-text rounded-lg text-sm transition"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Обновить
@@ -154,17 +154,17 @@ const InspectionsTrash: React.FC = () => {
           <p>{error}</p>
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center text-slate-500 py-16">
+        <div className="text-center text-app-text3 py-16">
           <Trash2 size={48} className="mx-auto mb-4 opacity-30" />
           <p className="text-lg">Корзина пуста</p>
           <p className="text-sm mt-1">Удалённые обследования будут отображаться здесь</p>
         </div>
       ) : (
-        <div className="bg-secondary rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-secondary rounded-xl border border-app-line overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-700/50 text-slate-300 text-xs">
+                <tr className="bg-app-soft/50 text-app-text2 text-xs">
                   <th className="px-4 py-3 text-left">ID обследования</th>
                   <th className="px-4 py-3 text-left">Тип</th>
                   <th className="px-4 py-3 text-left">Статус</th>
@@ -181,22 +181,22 @@ const InspectionsTrash: React.FC = () => {
                 {items.map((item, idx) => (
                   <tr
                     key={item.id}
-                    className={`border-t border-slate-700 hover:bg-white/5 transition ${
+                    className={`border-t border-app-line hover:bg-white/5 transition ${
                       idx % 2 === 1 ? 'bg-white/[0.02]' : ''
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs text-slate-400">{item.id.slice(0, 8)}…</span>
+                      <span className="font-mono text-xs text-app-text3">{item.id.slice(0, 8)}…</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-white text-xs">{item.inspection_type || '—'}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 bg-slate-600 rounded text-xs text-slate-300">
+                      <span className="inline-block px-2 py-0.5 bg-app-softer rounded text-xs text-app-text2">
                         {item.status || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs">
+                    <td className="px-4 py-3 text-app-text3 text-xs">
                       {formatDate(item.deleted_at)}
                     </td>
                     <td className="px-4 py-3">
@@ -225,7 +225,7 @@ const InspectionsTrash: React.FC = () => {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-3 border-t border-slate-700 text-xs text-slate-500">
+          <div className="px-4 py-3 border-t border-app-line text-xs text-app-text3">
             Всего в корзине: {items.length} записей
           </div>
         </div>

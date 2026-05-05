@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LogIn,
@@ -20,6 +20,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { APP_VERSION, SYSTEM_SHORT_NAME, PLATFORM_FULL_TITLE } from '../constants';
+import { useTheme } from '../contexts/ThemeContext';
 
 const FEATURES = [
   {
@@ -74,9 +75,9 @@ const FEATURES = [
     icon: FileText,
     title: 'Нормативные документы',
     text: 'База нормативов и регламентов для технического диагностирования.',
-    color: 'from-slate-500/20 to-slate-600/20',
-    iconBg: 'bg-slate-500/20',
-    iconColor: 'text-slate-300',
+    color: 'from-app-text3/20 to-app-text3/20',
+    iconBg: 'bg-app-text3/20',
+    iconColor: 'text-app-text2',
   },
   {
     icon: Users,
@@ -98,9 +99,9 @@ const FEATURES = [
     icon: Shield,
     title: 'Администрирование',
     text: 'Шаблоны отчётов, настройки системы, резервное копирование.',
-    color: 'from-slate-600/20 to-slate-700/20',
-    iconBg: 'bg-slate-600/20',
-    iconColor: 'text-slate-400',
+    color: 'from-app-text3/20 to-app-soft/20',
+    iconBg: 'bg-app-softer/20',
+    iconColor: 'text-app-text3',
   },
 ];
 
@@ -113,6 +114,9 @@ const STATS = [
 
 const Landing: React.FC = () => {
   const [mounted, setMounted] = useState(false);
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const heroHeading = isDark ? 'text-white' : 'text-app-text';
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setMounted(true));
@@ -120,26 +124,36 @@ const Landing: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-screen overflow-y-auto overflow-x-hidden bg-[#0a0f1a]">
+    <div className={`h-screen overflow-y-auto overflow-x-hidden ${isDark ? 'bg-[#0a0f1a]' : 'bg-[var(--bg-primary)]'}`}>
       {/* Background effects */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900/95 to-slate-950" />
         <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: `radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.25), transparent),
+          className={
+            isDark
+              ? 'absolute inset-0 bg-gradient-to-br from-app-deep via-app-panel/95 to-app-deep'
+              : 'absolute inset-0 bg-gradient-to-br from-[var(--bg-primary)] via-[var(--bg-elevated)] to-[var(--bg-tertiary)]'
+          }
+        />
+        {isDark && (
+          <>
+            <div
+              className="absolute inset-0 opacity-30"
+              style={{
+                backgroundImage: `radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.25), transparent),
                              radial-gradient(ellipse 60% 40% at 80% 50%, rgba(59, 130, 246, 0.08), transparent),
                              radial-gradient(ellipse 50% 30% at 20% 80%, rgba(99, 102, 241, 0.06), transparent)`,
-          }}
-        />
-        <div
-          className="absolute inset-0 opacity-40"
-          style={{
-            backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.7) 1px, transparent 1px),
+              }}
+            />
+            <div
+              className="absolute inset-0 opacity-40"
+              style={{
+                backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.7) 1px, transparent 1px),
                              linear-gradient(90deg, rgba(15, 23, 42, 0.7) 1px, transparent 1px)`,
-            backgroundSize: '64px 64px',
-          }}
-        />
+                backgroundSize: '64px 64px',
+              }}
+            />
+          </>
+        )}
       </div>
 
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
@@ -160,21 +174,21 @@ const Landing: React.FC = () => {
             mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl mb-8 landing-float border border-slate-700/80 bg-gradient-to-br from-accent/20 to-blue-600/20 shadow-lg shadow-accent/10">
-            <span className="text-4xl font-black tracking-tight text-white drop-shadow-sm">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl mb-8 landing-float border border-app-line/80 bg-gradient-to-br from-accent/20 to-blue-600/20 shadow-lg shadow-accent/10">
+            <span className={`text-4xl font-black tracking-tight drop-shadow-sm ${heroHeading}`}>
               <span className="text-accent">М</span>
             </span>
           </div>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black text-white tracking-tight mb-4">
+          <h1 className={`text-5xl sm:text-6xl md:text-7xl font-black tracking-tight mb-4 ${heroHeading}`}>
             {SYSTEM_SHORT_NAME}
           </h1>
-          <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto mb-4 font-medium leading-relaxed px-2">
+          <p className="text-lg sm:text-xl text-app-text2 max-w-3xl mx-auto mb-4 font-medium leading-relaxed px-2">
             {PLATFORM_FULL_TITLE}
           </p>
-          <p className="text-sm sm:text-base text-slate-500 max-w-2xl mx-auto mb-4">
+          <p className="text-sm sm:text-base text-app-text3 max-w-2xl mx-auto mb-4">
             Техническое диагностирование и неразрушающий контроль оборудования на ОПО
           </p>
-          <p className="text-sm text-slate-500 mb-6">Версия {APP_VERSION}</p>
+          <p className="text-sm text-app-text3 mb-6">Версия {APP_VERSION}</p>
           <Link
             to="/login"
             className="inline-flex items-center gap-3 bg-accent hover:bg-blue-600 text-white font-semibold px-8 py-4 rounded-xl shadow-lg shadow-accent/25 hover:scale-105 active:scale-100 transition-all duration-300"
@@ -193,21 +207,21 @@ const Landing: React.FC = () => {
           {STATS.map((s, i) => (
             <div
               key={s.value}
-              className="flex flex-col items-center text-center p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 backdrop-blur-sm hover:border-accent/30 hover:bg-slate-800/60 transition-all duration-300 group"
+              className="flex flex-col items-center text-center p-5 rounded-2xl bg-app-panel/40 border border-app-line/60 backdrop-blur-sm hover:border-accent/30 hover:bg-app-panel/60 transition-all duration-300 group"
               style={{ transitionDelay: `${250 + i * 50}ms` }}
             >
               <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-accent/30 transition-transform duration-300">
                 <s.icon className="text-accent" size={22} />
               </div>
-              <span className="font-bold text-white text-sm">{s.value}</span>
-              <span className="text-xs text-slate-500 mt-0.5">{s.label}</span>
+              <span className={`font-bold text-sm ${heroHeading}`}>{s.value}</span>
+              <span className="text-xs text-app-text3 mt-0.5">{s.label}</span>
             </div>
           ))}
         </section>
 
         {/* Section title */}
         <h2
-          className={`text-2xl sm:text-3xl font-bold text-white mb-10 flex items-center gap-3 transition-all duration-700 delay-300 ${
+          className={`text-2xl sm:text-3xl font-bold mb-10 flex items-center gap-3 transition-all duration-700 delay-300 ${heroHeading} ${
             mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
@@ -220,7 +234,7 @@ const Landing: React.FC = () => {
           {FEATURES.map((f, i) => (
             <div
               key={f.title}
-              className={`rounded-2xl border bg-gradient-to-br ${f.color} border-slate-700/60 backdrop-blur-sm overflow-hidden opacity-0 p-5 sm:p-6 group hover:border-slate-600 transition-all duration-300 ${
+              className={`rounded-2xl border bg-gradient-to-br ${f.color} border-app-line/60 backdrop-blur-sm overflow-hidden opacity-0 p-5 sm:p-6 group hover:border-app-line transition-all duration-300 ${
                 mounted ? 'landing-fade-in-up landing-stagger-' + (Math.min(i + 1, 10)) : ''
               }`}
             >
@@ -231,11 +245,11 @@ const Landing: React.FC = () => {
                   <f.icon size={26} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-white mb-1.5 flex items-center gap-1">
+                  <h3 className={`font-semibold mb-1.5 flex items-center gap-1 ${heroHeading}`}>
                     {f.title}
                     <ChevronRight className="opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 -translate-x-0.5 transition-all duration-200 flex-shrink-0" size={18} />
                   </h3>
-                  <p className="text-sm text-slate-400 leading-relaxed">{f.text}</p>
+                  <p className="text-sm text-app-text3 leading-relaxed">{f.text}</p>
                 </div>
               </div>
             </div>
@@ -248,8 +262,8 @@ const Landing: React.FC = () => {
             mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
         >
-          <div className="inline-flex flex-col sm:flex-row items-center gap-4 p-8 rounded-3xl bg-slate-800/50 border border-slate-700/70 backdrop-blur-sm">
-            <p className="text-slate-300 font-medium">
+          <div className="inline-flex flex-col sm:flex-row items-center gap-4 p-8 rounded-3xl bg-app-panel/50 border border-app-line/70 backdrop-blur-sm">
+            <p className="text-app-text2 font-medium">
               Войдите в систему для доступа к дашборду, оборудованию и отчётам
             </p>
             <Link
@@ -262,7 +276,7 @@ const Landing: React.FC = () => {
           </div>
         </section>
 
-        <footer className="mt-20 pt-10 border-t border-slate-800 text-center text-slate-500 text-sm">
+        <footer className="mt-20 pt-10 border-t border-app-line text-center text-app-text3 text-sm">
           NeftMonitor — единая платформа для учёта оборудования, обследований и отчётности
         </footer>
       </div>

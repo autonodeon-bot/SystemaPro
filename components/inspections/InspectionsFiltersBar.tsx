@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Search, Download, Trash2 } from 'lucide-react';
 import type { Equipment, Enterprise, Branch, Workshop } from './types';
 
@@ -91,7 +91,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           <button
             type="button"
             onClick={onClearSelection}
-            className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-semibold"
+            className="px-4 py-2 bg-app-softer hover:bg-app-soft text-app-text rounded-lg text-sm font-semibold"
           >
             Снять выделение
           </button>
@@ -101,13 +101,13 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
     <div className="flex flex-wrap gap-4">
       <div className="flex-1 min-w-[200px]">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-app-text3" size={18} />
           <input
             type="text"
             placeholder="Поиск по оборудованию, заключению..."
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+            className="w-full pl-10 pr-4 py-2 bg-primary border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
           />
         </div>
       </div>
@@ -116,7 +116,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={selectedEquipment}
           onChange={(e) => onSelectedEquipmentChange(e.target.value)}
-          className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+          className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все оборудование</option>
           {equipment.map((eq) => (
@@ -131,7 +131,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={selectedStatus}
           onChange={(e) => onSelectedStatusChange(e.target.value)}
-          className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+          className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все статусы</option>
           <option value="DRAFT">Черновик</option>
@@ -144,7 +144,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={selectedInspectionType}
           onChange={(e) => onSelectedInspectionTypeChange(e.target.value)}
-          className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+          className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все типы обследования</option>
           <option value="VISUAL">VISUAL</option>
@@ -154,13 +154,13 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         </select>
       </div>
 
-      <div className="w-full flex flex-wrap gap-4 pt-2 border-t border-slate-600/50 mt-2">
+      <div className="w-full flex flex-wrap gap-4 pt-2 border-t border-app-line/50 mt-2">
         <div className="min-w-[180px]">
-          <label className="block text-xs text-slate-400 mb-1">Предприятие</label>
+          <label className="block text-xs text-app-text3 mb-1">Предприятие</label>
           <select
             value={selectedEnterpriseId}
             onChange={(e) => onEnterpriseChange(e.target.value)}
-            className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="">Все предприятия</option>
             {enterprises.map((ent) => (
@@ -171,12 +171,12 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           </select>
         </div>
         <div className="min-w-[180px]">
-          <label className="block text-xs text-slate-400 mb-1">Филиал</label>
+          <label className="block text-xs text-app-text3 mb-1">Филиал</label>
           <select
             value={selectedBranchId}
             onChange={(e) => onBranchChange(e.target.value)}
             disabled={!selectedEnterpriseId}
-            className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
           >
             <option value="">Все филиалы</option>
             {branches.map((b) => (
@@ -187,12 +187,12 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           </select>
         </div>
         <div className="min-w-[180px]">
-          <label className="block text-xs text-slate-400 mb-1">Цех</label>
+          <label className="block text-xs text-app-text3 mb-1">Цех</label>
           <select
             value={selectedWorkshopId}
             onChange={(e) => onWorkshopChange(e.target.value)}
             disabled={!selectedBranchId}
-            className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent disabled:opacity-50"
+            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
           >
             <option value="">Все цеха</option>
             {workshops.map((w) => (
@@ -203,11 +203,11 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           </select>
         </div>
         <div className="min-w-[160px]">
-          <label className="block text-xs text-slate-400 mb-1">Группировка</label>
+          <label className="block text-xs text-app-text3 mb-1">Группировка</label>
           <select
             value={groupBy}
             onChange={(e) => onGroupByChange(e.target.value as InspectionsGroupBy)}
-            className="w-full px-4 py-2 bg-primary border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent"
+            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="none">Без группировки</option>
             <option value="enterprise">По предприятию</option>
@@ -231,7 +231,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={cleanupInspectionsDays}
           onChange={(e) => onCleanupDaysChange(parseInt(e.target.value, 10))}
-          className="px-3 py-2 bg-primary border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+          className="px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
           title="Удалить чек-листы старше N дней"
         >
           <option value={30}>Старше 30 дней</option>

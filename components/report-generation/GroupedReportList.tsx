@@ -1,4 +1,4 @@
-import {
+﻿import {
   FileText,
   FileCode,
   Download,
@@ -65,28 +65,28 @@ const GroupedReportList = ({
             <button
               type="button"
               onClick={() => onToggleGroup(group.key)}
-              className="w-full p-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors rounded-t-xl"
+              className="w-full p-4 flex items-center justify-between hover:bg-app-soft/50 transition-colors rounded-t-xl"
             >
               <div className="flex items-center gap-3">
                 {isExpanded ? (
-                  <ChevronDown className="text-slate-400" size={20} />
+                  <ChevronDown className="text-app-text3" size={20} />
                 ) : (
-                  <ChevronRight className="text-slate-400" size={20} />
+                  <ChevronRight className="text-app-text3" size={20} />
                 )}
-                {group.enterprise_name && <Building2 className="text-slate-400" size={18} />}
-                {group.workshop_name && <Factory className="text-slate-400" size={18} />}
+                {group.enterprise_name && <Building2 className="text-app-text3" size={18} />}
+                {group.workshop_name && <Factory className="text-app-text3" size={18} />}
                 <span className="text-white font-bold">{getGroupDisplayName(group)}</span>
-                <span className="text-sm text-slate-400">
+                <span className="text-sm text-app-text3">
                   ({totalItems} {totalItems === 1 ? 'элемент' : totalItems < 5 ? 'элемента' : 'элементов'})
                 </span>
               </div>
             </button>
 
             {isExpanded && (
-              <div className="p-4 space-y-4 border-t border-slate-700">
+              <div className="p-4 space-y-4 border-t border-app-line">
                 {group.inspections.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-bold text-slate-400 mb-2">Чек-листы ({group.inspections.length})</h3>
+                    <h3 className="text-sm font-bold text-app-text3 mb-2">Чек-листы ({group.inspections.length})</h3>
                     <div className="space-y-3">
                       {group.inspections.map((inspection: Inspection) => {
                         const existingReport = getInspectionReport(inspection.id);
@@ -96,8 +96,8 @@ const GroupedReportList = ({
                           <div key={inspection.id} className="sp-card">
                             <div className="flex justify-between items-start mb-4">
                               <div className="flex-1">
-                                <h3 className="text-lg font-bold text-white mb-1">{eqName}</h3>
-                                <p className="text-sm text-slate-400">
+                                <h3 className="text-lg font-bold text-app-text mb-1">{eqName}</h3>
+                                <p className="text-sm text-app-text3">
                                   {inspection.date_performed
                                     ? formatDateRu(inspection.date_performed)
                                     : 'Дата не указана'}
@@ -114,7 +114,7 @@ const GroupedReportList = ({
                                 <button
                                   type="button"
                                   onClick={() => onArchiveInspection(inspection.id, !inspection.is_archived)}
-                                  className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 rounded"
+                                  className="p-2 text-app-text3 hover:text-yellow-400 hover:bg-app-panel rounded"
                                   title={inspection.is_archived ? 'Восстановить из архива' : 'Переместить в архив'}
                                 >
                                   {inspection.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
@@ -122,7 +122,7 @@ const GroupedReportList = ({
                                 <button
                                   type="button"
                                   onClick={() => onDeleteInspection(inspection.id)}
-                                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded"
+                                  className="p-2 text-app-text3 hover:text-red-400 hover:bg-app-panel rounded"
                                   title="Удалить"
                                 >
                                   <Trash2 size={16} />
@@ -131,7 +131,7 @@ const GroupedReportList = ({
                             </div>
 
                             {inspection.conclusion && (
-                              <p className="text-sm text-slate-300 mb-4 line-clamp-2">{inspection.conclusion}</p>
+                              <p className="text-sm text-app-text2 mb-4 line-clamp-2">{inspection.conclusion}</p>
                             )}
 
                             <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
@@ -208,19 +208,19 @@ const GroupedReportList = ({
 
                 {group.reports.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-bold text-slate-400 mb-2">Отчеты ({group.reports.length})</h3>
+                    <h3 className="text-sm font-bold text-app-text3 mb-2">Отчеты ({group.reports.length})</h3>
                     <div className="space-y-2">
                       {group.reports.map((report: Report) => (
                         <div
                           key={report.id}
-                          className="bg-slate-900 p-3 rounded-lg border border-slate-700 flex justify-between items-center"
+                          className="bg-app-deep p-3 rounded-lg border border-app-line flex justify-between items-center"
                         >
                           <div className="flex-1">
                             <p className="text-white font-bold">{report.title}</p>
                             {report.equipment_name && (
-                              <p className="text-sm text-slate-400">Оборудование: {report.equipment_name}</p>
+                              <p className="text-sm text-app-text3">Оборудование: {report.equipment_name}</p>
                             )}
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-app-text3">
                               {report.report_type === 'TECHNICAL_REPORT'
                                 ? 'Технический отчет'
                                 : report.report_type === 'EXPERTISE'
@@ -237,7 +237,7 @@ const GroupedReportList = ({
                               <button
                                 type="button"
                                 onClick={() => onPreviewReport(report.id, 'pdf')}
-                                className="bg-slate-500/10 text-slate-200 border border-slate-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-500/20"
+                                className="bg-app-text3/10 text-app-text border border-app-text3/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-app-text3/20"
                                 title="Открыть PDF в браузере"
                               >
                                 <Eye size={16} />
@@ -259,7 +259,7 @@ const GroupedReportList = ({
                               <button
                                 type="button"
                                 onClick={() => onPreviewReport(report.id, 'docx')}
-                                className="bg-slate-500/10 text-slate-200 border border-slate-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-500/20"
+                                className="bg-app-text3/10 text-app-text border border-app-text3/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-app-text3/20"
                                 title="Открыть DOCX в браузере"
                               >
                                 <Eye size={16} />
@@ -278,12 +278,12 @@ const GroupedReportList = ({
                               </button>
                             )}
                             {!report.file_path && !report.word_file_path && (
-                              <span className="text-slate-500 text-sm">Файл не сгенерирован</span>
+                              <span className="text-app-text3 text-sm">Файл не сгенерирован</span>
                             )}
                             <button
                               type="button"
                               onClick={() => onArchiveReport(report.id, !report.is_archived)}
-                              className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 rounded"
+                              className="p-2 text-app-text3 hover:text-yellow-400 hover:bg-app-panel rounded"
                               title={report.is_archived ? 'Восстановить из архива' : 'Переместить в архив'}
                             >
                               {report.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
@@ -291,7 +291,7 @@ const GroupedReportList = ({
                             <button
                               type="button"
                               onClick={() => onDeleteReport(report.id)}
-                              className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded"
+                              className="p-2 text-app-text3 hover:text-red-400 hover:bg-app-panel rounded"
                               title="Удалить"
                             >
                               <Trash2 size={16} />
@@ -310,7 +310,7 @@ const GroupedReportList = ({
     </div>
 
     {groupedItems.length === 0 && (
-      <div className="text-center text-slate-400 py-20">
+      <div className="text-center text-app-text3 py-20">
         {showArchived ? 'Архивные элементы не найдены' : 'Диагностики не найдены'}
       </div>
     )}

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Download, FileText, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { API_BASE } from '../../constants';
 import type { DocumentFile, Questionnaire } from './types';
@@ -25,12 +25,12 @@ const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
 }) => {
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+      <div className="bg-app-panel rounded-xl border border-app-line w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-app-line">
           <h2 className="text-xl font-bold text-white">
             Файлы документов: {questionnaire.equipment_name}
           </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+          <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
             <X size={24} />
           </button>
         </div>
@@ -43,7 +43,7 @@ const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
               const uploadKey = `${questionnaire.id}-${docNum}`;
 
               return (
-                <div key={docNum} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                <div key={docNum} className="bg-app-deep rounded-lg p-4 border border-app-line">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex-1">
                       <h4 className="text-white font-semibold">
@@ -89,7 +89,7 @@ const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
                     </div>
                   </div>
                   {docFile && (
-                    <div className="mt-2 text-sm text-slate-400">
+                    <div className="mt-2 text-sm text-app-text3">
                       <div className="flex items-center gap-2">
                         {docFile.file_type === 'image' ? (
                           <ImageIcon size={14} className="text-green-400" />
@@ -97,7 +97,7 @@ const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
                           <FileText size={14} className="text-red-400" />
                         )}
                         <span>{docFile.file_name}</span>
-                        <span className="text-slate-500">({formatFileSize(docFile.file_size)})</span>
+                        <span className="text-app-text3">({formatFileSize(docFile.file_size)})</span>
                       </div>
                     </div>
                   )}

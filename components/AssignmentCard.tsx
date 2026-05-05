@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ClipboardList, Download, Calendar, User, Building2, MapPin, Settings, FileText, Eye, Archive, Trash, Pencil } from 'lucide-react';
 
 export interface AssignmentServerSummary {
@@ -63,8 +63,8 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
   
   return (
     <div
-      className={`bg-slate-800 rounded-xl border-2 p-4 hover:border-accent/50 transition-colors ${
-        isSelected ? 'border-accent' : 'border-slate-700'
+      className={`bg-app-panel rounded-xl border-2 p-4 hover:border-accent/50 transition-colors ${
+        isSelected ? 'border-accent' : 'border-app-line'
       } ${isOverdue ? 'border-red-500/50' : ''} ${!isCompleted ? 'cursor-pointer' : ''}`}
       onClick={() => !isCompleted && onSelect(assignment.id)}
     >
@@ -78,15 +78,15 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
               onClick={(e) => e.stopPropagation()}
               className="rounded"
             />
-            <span className="px-2 py-1 bg-slate-700 rounded text-xs font-mono text-accent">
+            <span className="px-2 py-1 bg-app-soft rounded text-xs font-mono text-accent">
               {assignment.equipment_code}
             </span>
-            <h3 className="text-lg font-bold text-white flex-1">{assignment.equipment_name}</h3>
+            <h3 className="text-lg font-bold text-app-text flex-1">{assignment.equipment_name}</h3>
             <span className={`px-2 py-1 rounded text-xs font-semibold ${getPriorityColor(assignment.priority)} text-white`}>
               {assignment.priority}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 ml-7">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-app-text3 ml-7">
             {assignment.enterprise_name && (
               <span className="flex items-center gap-1">
                 <Building2 size={14} />
@@ -106,7 +106,7 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
               </span>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400 ml-7 mt-2">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-app-text3 ml-7 mt-2">
             <span className="flex items-center gap-1">
               <ClipboardList size={14} />
               {getTypeLabel(assignment.assignment_type)}
@@ -126,17 +126,17 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
         </div>
         <div className="flex items-center gap-2">
           {getStatusIcon(assignment.status)}
-          <span className="text-sm font-semibold text-slate-300">
+          <span className="text-sm font-semibold text-app-text2">
             {getStatusLabel(assignment.status)}
           </span>
         </div>
       </div>
       
       {assignment.description && (
-        <p className="text-slate-300 text-sm mb-3 ml-7">{assignment.description}</p>
+        <p className="text-app-text2 text-sm mb-3 ml-7">{assignment.description}</p>
       )}
       
-      <div className="flex items-center justify-between text-xs text-slate-500 ml-7">
+      <div className="flex items-center justify-between text-xs text-app-text3 ml-7">
         <span>Создано: {new Date(assignment.created_at).toLocaleDateString('ru-RU')}</span>
         {assignment.completed_at && (
           <span className="text-green-400">Завершено: {new Date(assignment.completed_at).toLocaleDateString('ru-RU')}</span>
@@ -163,7 +163,7 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
         </div>
       )}
       
-      <div className="flex flex-wrap items-center gap-2 mt-3 ml-7 pt-3 border-t border-slate-700">
+      <div className="flex flex-wrap items-center gap-2 mt-3 ml-7 pt-3 border-t border-app-line">
         {onEdit && (userRole === 'admin' || userRole === 'chief_operator' || userRole === 'operator') && (
           <button
             onClick={(e) => {
@@ -183,7 +183,7 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
               e.stopPropagation();
               onArchive(assignment.id);
             }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-app-softer hover:bg-app-soft text-app-text text-sm rounded transition-colors"
             title="Перенести в архив"
           >
             <Archive size={16} />
@@ -241,7 +241,7 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
                 e.stopPropagation();
                 onDownloadReport?.(assignment.id);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 bg-app-soft hover:bg-app-softer text-app-text text-sm rounded transition-colors"
               title="Скачать отчет"
             >
               <Download size={16} />

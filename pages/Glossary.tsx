@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { BookOpen, Search } from 'lucide-react';
 
 const TERMS: { term: string; full: string; desc: string }[] = [
@@ -31,24 +31,24 @@ const Glossary = () => {
         Глоссарий терминов
       </h1>
       <div className="relative max-w-md mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-app-text3" size={20} />
         <input
           type="text"
           placeholder="Поиск термина..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-primary border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-accent"
+          className="w-full pl-10 pr-4 py-2 bg-primary border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
         />
       </div>
       <div className="space-y-4">
         {filtered.map((t) => (
           <div
             key={t.term}
-            className="bg-secondary/50 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors"
+            className="bg-secondary/50 rounded-lg p-4 border border-app-line hover:border-app-line transition-colors"
           >
             <div className="font-bold text-accent text-lg">{t.term}</div>
-            <div className="text-slate-300 mt-1">{t.full}</div>
-            <div className="text-slate-400 text-sm mt-2">{t.desc}</div>
+            <div className="text-app-text2 mt-1">{t.full}</div>
+            <div className="text-app-text3 text-sm mt-2">{t.desc}</div>
           </div>
         ))}
       </div>

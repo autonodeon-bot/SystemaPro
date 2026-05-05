@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
   Wrench, Plus, Search, Filter, RefreshCw, Edit2, Trash2,
   CheckCircle, AlertTriangle, XCircle, Link2, User,
@@ -467,7 +467,7 @@ const InstrumentRegistry: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Всего в списке', value: stats.total, color: 'text-blue-400' },
-          { label: 'В реестре', value: stats.inRegistry, color: 'text-slate-300' },
+          { label: 'В реестре', value: stats.inRegistry, color: 'text-app-text2' },
           { label: 'Привязано к поверкам', value: stats.linked, color: 'text-cyan-400' },
           { label: 'Просрочена поверка', value: stats.expired, color: stats.expired > 0 ? 'text-red-400' : 'text-gray-400' },
           { label: 'Поверка скоро', value: stats.expiring, color: stats.expiring > 0 ? 'text-orange-400' : 'text-gray-400' },

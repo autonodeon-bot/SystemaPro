@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Sparkles, CheckCircle, AlertCircle, Plus, Bug, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Version {
@@ -508,7 +508,7 @@ const Changelog = () => {
       case 'improved':
         return <CheckCircle className="text-yellow-400" size={16} />;
       default:
-        return <CheckCircle className="text-slate-400" size={16} />;
+        return <CheckCircle className="text-app-text3" size={16} />;
     }
   };
 
@@ -536,7 +536,7 @@ const Changelog = () => {
       case 'patch':
         return 'bg-green-500/20 text-green-400 border-green-500/30';
       default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+        return 'bg-app-text3/20 text-app-text3 border-app-text3/30';
     }
   };
 
@@ -549,15 +549,15 @@ const Changelog = () => {
         <h1 className="text-3xl font-bold text-white">Что нового?</h1>
       </div>
 
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-        <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
+      <div className="bg-app-panel rounded-xl border border-app-line p-6">
+        <div className="mb-6 p-4 bg-app-deep rounded-lg border border-app-line">
           <h2 className="text-xl font-bold text-white mb-2">Версия системы</h2>
           <p className="text-2xl font-bold text-accent">
             {latest.version} ({latest.date})
           </p>
-          <p className="text-sm text-slate-400 mt-1">Текущая версия платформы</p>
+          <p className="text-sm text-app-text3 mt-1">Текущая версия платформы</p>
         </div>
-        <p className="text-slate-300 mb-6">
+        <p className="text-app-text2 mb-6">
           Здесь вы можете увидеть все изменения и обновления системы. Версии отсортированы от новых к старым.
         </p>
 
@@ -567,18 +567,18 @@ const Changelog = () => {
             return (
               <div
                 key={index}
-                className="bg-slate-900 rounded-lg border border-slate-700 hover:border-accent/50 transition-colors overflow-hidden"
+                className="bg-app-deep rounded-lg border border-app-line hover:border-accent/50 transition-colors overflow-hidden"
               >
                 <button
                   onClick={() => toggleVersion(version.version)}
-                  className="w-full flex items-center justify-between p-6 hover:bg-slate-800/50 transition-colors text-left"
+                  className="w-full flex items-center justify-between p-6 hover:bg-app-panel/50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-800 border border-slate-700">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-app-panel border border-app-line">
                       {isExpanded ? (
                         <ChevronUp className="text-accent" size={20} />
                       ) : (
-                        <ChevronDown className="text-slate-400" size={20} />
+                        <ChevronDown className="text-app-text3" size={20} />
                       )}
                     </div>
                     <div className="flex items-center gap-3">
@@ -596,7 +596,7 @@ const Changelog = () => {
                       </span>
                     </div>
                   </div>
-                  <span className="text-slate-400 text-sm">{version.date}</span>
+                  <span className="text-app-text3 text-sm">{version.date}</span>
                 </button>
 
                 {isExpanded && (
@@ -604,16 +604,16 @@ const Changelog = () => {
                     {version.changes.map((change, changeIndex) => (
                       <div
                         key={changeIndex}
-                        className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                        className="flex items-start gap-3 p-3 bg-app-panel/50 rounded-lg hover:bg-app-panel transition-colors"
                       >
                         <div className="mt-0.5">{getChangeIcon(change.type)}</div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-semibold text-slate-400">
+                            <span className="text-xs font-semibold text-app-text3">
                               {getChangeLabel(change.type)}
                             </span>
                           </div>
-                          <p className="text-slate-300 text-sm">{change.description}</p>
+                          <p className="text-app-text2 text-sm">{change.description}</p>
                         </div>
                       </div>
                     ))}
@@ -624,12 +624,12 @@ const Changelog = () => {
           })}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-700">
+        <div className="mt-8 pt-6 border-t border-app-line">
           <div className="flex items-start gap-3">
             <AlertCircle className="text-yellow-400 mt-0.5" size={20} />
             <div>
               <h3 className="text-yellow-400 font-bold mb-2">Обратная связь</h3>
-              <p className="text-sm text-slate-300">
+              <p className="text-sm text-app-text2">
                 Если вы заметили ошибку или у вас есть предложения по улучшению системы, пожалуйста, свяжитесь с администратором.
               </p>
             </div>

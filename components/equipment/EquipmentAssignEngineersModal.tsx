@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { X, UserCheck } from 'lucide-react';
 import type { AssignedEngineerRecord, AssignModalState, EngineerUserListItem } from './types';
 
@@ -27,14 +27,14 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
     role="presentation"
   >
     <div
-      className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
+      className="bg-app-panel rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
     >
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-white">Назначить инженеров: {modal.name}</h2>
-        <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+        <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
           <X size={24} />
         </button>
       </div>
@@ -48,7 +48,7 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
               <label
                 key={user.id}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer ${
-                  isSelected ? 'bg-accent/20 border-accent' : 'bg-slate-900 border-slate-700'
+                  isSelected ? 'bg-accent/20 border-accent' : 'bg-app-deep border-app-line'
                 } ${isAlreadyAssigned ? 'opacity-75' : ''}`}
               >
                 <input
@@ -92,7 +92,7 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+            className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
           >
             Отмена
           </button>

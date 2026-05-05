@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { ClipboardList, Plus, Filter, CheckCircle, Clock, XCircle, AlertCircle, Search, ChevronDown, ChevronRight, List, Layers, ArrowUpDown, User, Building2, MapPin, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE, getAssignmentTypeLabel, ASSIGNMENT_TYPE_SELECT_OPTIONS } from '../constants';
@@ -402,12 +402,12 @@ const AssignmentsManagement = () => {
 
   const getPriorityColor = (priority: string) => {
     const colors: { [key: string]: string } = {
-      'LOW': 'bg-slate-500',
+      'LOW': 'bg-app-text3',
       'NORMAL': 'bg-blue-500',
       'HIGH': 'bg-orange-500',
       'URGENT': 'bg-red-500'
     };
-    return colors[priority] || 'bg-slate-500';
+    return colors[priority] || 'bg-app-text3';
   };
 
   const filteredAssignments = useMemo(() => {
@@ -824,25 +824,25 @@ const AssignmentsManagement = () => {
         ) : viewMode === 'hierarchy' ? (
           // Иерархический вид
           Object.entries(groupedAssignments).map(([groupKey, groupAssignments]) => (
-            <div key={groupKey} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div key={groupKey} className="bg-app-panel rounded-xl border border-app-line overflow-hidden">
               <div
-                className="flex items-center justify-between p-4 bg-slate-900/50 cursor-pointer hover:bg-slate-900 transition"
+                className="flex items-center justify-between p-4 bg-app-deep/50 cursor-pointer hover:bg-app-deep transition"
                 onClick={() => setExpandedHierarchy(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
               >
                 <div className="flex items-center gap-3">
-                  {expandedHierarchy[groupKey] ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
+                  {expandedHierarchy[groupKey] ? <ChevronDown size={20} className="text-app-text3" /> : <ChevronRight size={20} className="text-app-text3" />}
                   <div className="flex items-center gap-2">
                     {groupBy === 'enterprise' && <Building2 size={18} className="text-blue-400" />}
                     {groupBy === 'branch' && <MapPin size={18} className="text-green-400" />}
                     {groupBy === 'workshop' && <Settings size={18} className="text-purple-400" />}
                     {groupBy === 'engineer' && <User size={18} className="text-yellow-400" />}
                     <span className="text-lg font-semibold text-white">{groupKey}</span>
-                    <span className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300">
+                    <span className="px-2 py-1 bg-app-soft rounded text-xs text-app-text2">
                       {groupAssignments.length}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-slate-400">
+                <div className="flex items-center gap-4 text-sm text-app-text3">
                   <span>Ожидает: {groupAssignments.filter(a => a.status === 'PENDING').length}</span>
                   <span>В работе: {groupAssignments.filter(a => a.status === 'IN_PROGRESS').length}</span>
                   <span className="text-green-400">Завершено: {groupAssignments.filter(a => a.status === 'COMPLETED').length}</span>

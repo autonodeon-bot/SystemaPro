@@ -48,7 +48,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const typeStyles: Record<ToastType, string> = {
     success: 'bg-green-500/90 text-white border-green-400',
     error: 'bg-red-500/90 text-white border-red-400',
-    warning: 'bg-yellow-500/90 text-slate-900 border-yellow-400',
+    warning: 'bg-yellow-500/90 text-gray-900 border-yellow-400',
     info: 'bg-blue-500/90 text-white border-blue-400',
   };
 

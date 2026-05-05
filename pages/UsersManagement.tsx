@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { API_BASE } from '../constants';
 
 interface UserData {
@@ -20,7 +19,6 @@ interface UserData {
 
 const UsersManagement = () => {
   const { user: currentUser } = useAuth();
-  const { theme } = useTheme();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,11 +41,11 @@ const UsersManagement = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';
-  const textSecondaryClass = theme === 'dark' ? 'text-slate-400' : 'text-slate-600';
-  const borderClass = theme === 'dark' ? 'border-slate-700' : 'border-slate-300';
-  const inputBgClass = theme === 'dark' ? 'bg-slate-900' : 'bg-slate-50';
-  const cardBgClass = theme === 'dark' ? 'bg-slate-800' : 'bg-white';
+  const textClass = 'text-app-text';
+  const textSecondaryClass = 'text-app-text3';
+  const borderClass = 'border-app-line';
+  const inputBgClass = 'bg-app-panel';
+  const cardBgClass = 'bg-app-panel';
 
   useEffect(() => {
     if (currentUser?.role === 'admin') {
@@ -261,7 +259,7 @@ const UsersManagement = () => {
       'engineer': 'bg-green-500/20 text-green-400 border-green-500/50',
       'client': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
     };
-    return colors[role] || 'bg-slate-500/20 text-slate-400 border-slate-500/50';
+    return colors[role] || 'bg-app-text3/20 text-app-text3 border-app-line/50';
   };
 
   const filteredUsers = users.filter(u => {
@@ -531,7 +529,7 @@ const UsersManagement = () => {
                   {photoPreview && (
                     <img src={photoPreview} alt="Preview" className="w-20 h-20 rounded-full object-cover" />
                   )}
-                  <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-app-soft hover:bg-app-softer text-app-text rounded-lg cursor-pointer">
                     <Camera size={20} />
                     <span>Выбрать фото</span>
                     <input
@@ -548,7 +546,7 @@ const UsersManagement = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-app-soft hover:bg-app-softer text-app-text rounded-lg"
                 >
                   Отмена
                 </button>
@@ -683,7 +681,7 @@ const UsersManagement = () => {
                   {photoPreview && (
                     <img src={photoPreview} alt="Preview" className="w-20 h-20 rounded-full object-cover" />
                   )}
-                  <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-app-soft hover:bg-app-softer text-app-text rounded-lg cursor-pointer">
                     <Camera size={20} />
                     <span>Изменить фото</span>
                     <input
@@ -700,7 +698,7 @@ const UsersManagement = () => {
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-app-soft hover:bg-app-softer text-app-text rounded-lg"
                 >
                   Отмена
                 </button>

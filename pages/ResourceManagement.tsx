@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Calculator, TrendingUp, AlertTriangle } from 'lucide-react';
 import { API_BASE } from '../constants';
 
@@ -107,7 +107,7 @@ const ResourceManagement = () => {
   };
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   return (
@@ -124,17 +124,17 @@ const ResourceManagement = () => {
 
       {/* Форма добавления */}
       {showAddForm && (
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600">
+        <div className="bg-app-panel p-6 rounded-xl border border-app-line">
           <h2 className="text-xl font-bold text-white mb-4">Добавить ресурс оборудования</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Оборудование *</label>
+                <label className="text-sm text-app-text3 block mb-1">Оборудование *</label>
                 <select
                   required
                   value={formData.equipment_id}
                   onChange={(e) => setFormData({ ...formData, equipment_id: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 >
                   <option value="">Выберите оборудование</option>
                   {equipment.map(eq => (
@@ -143,60 +143,60 @@ const ResourceManagement = () => {
                 </select>
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Остаточный ресурс (лет)</label>
+                <label className="text-sm text-app-text3 block mb-1">Остаточный ресурс (лет)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={formData.remaining_resource_years}
                   onChange={(e) => setFormData({ ...formData, remaining_resource_years: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Дата окончания ресурса</label>
+                <label className="text-sm text-app-text3 block mb-1">Дата окончания ресурса</label>
                 <input
                   type="date"
                   value={formData.resource_end_date}
                   onChange={(e) => setFormData({ ...formData, resource_end_date: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Продление (лет)</label>
+                <label className="text-sm text-app-text3 block mb-1">Продление (лет)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={formData.extension_years}
                   onChange={(e) => setFormData({ ...formData, extension_years: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Дата продления</label>
+                <label className="text-sm text-app-text3 block mb-1">Дата продления</label>
                 <input
                   type="date"
                   value={formData.extension_date}
                   onChange={(e) => setFormData({ ...formData, extension_date: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Методика расчета</label>
+                <label className="text-sm text-app-text3 block mb-1">Методика расчета</label>
                 <input
                   type="text"
                   value={formData.calculation_method}
                   onChange={(e) => setFormData({ ...formData, calculation_method: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="Например: РД 03-421-01"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Номер документа</label>
+                <label className="text-sm text-app-text3 block mb-1">Номер документа</label>
                 <input
                   type="text"
                   value={formData.document_number}
                   onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
             </div>
@@ -210,7 +210,7 @@ const ResourceManagement = () => {
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                className="bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
               >
                 Отмена
               </button>
@@ -230,32 +230,32 @@ const ResourceManagement = () => {
           return (
             <div
               key={eq.id}
-              className={`bg-slate-800 p-4 rounded-xl border transition-colors cursor-pointer ${
-                isExpired ? 'border-red-500/50' : isExpiringSoon ? 'border-yellow-500/50' : 'border-slate-700 hover:border-accent/50'
+              className={`bg-app-panel p-4 rounded-xl border transition-colors cursor-pointer ${
+                isExpired ? 'border-red-500/50' : isExpiringSoon ? 'border-yellow-500/50' : 'border-app-line hover:border-accent/50'
               }`}
               onClick={() => setSelectedEquipment(eq)}
             >
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-white">{eq.name}</h3>
+                <h3 className="text-lg font-bold text-app-text">{eq.name}</h3>
                 {isExpired && <AlertTriangle className="text-red-400" size={20} />}
                 {isExpiringSoon && <AlertTriangle className="text-yellow-400" size={20} />}
               </div>
               
               {eq.location && (
-                <p className="text-sm text-slate-400 mb-3">{eq.location}</p>
+                <p className="text-sm text-app-text3 mb-3">{eq.location}</p>
               )}
 
               {resource ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-400">Остаточный ресурс:</span>
+                    <span className="text-sm text-app-text3">Остаточный ресурс:</span>
                     <span className="text-sm font-bold text-white">
                       {resource.remaining_resource_years?.toFixed(1)} лет
                     </span>
                   </div>
                   {resource.resource_end_date && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">Окончание ресурса:</span>
+                      <span className="text-sm text-app-text3">Окончание ресурса:</span>
                       <span className={`text-sm font-bold ${
                         isExpired ? 'text-red-400' : isExpiringSoon ? 'text-yellow-400' : 'text-white'
                       }`}>
@@ -264,7 +264,7 @@ const ResourceManagement = () => {
                     </div>
                   )}
                   {daysUntilExpiry !== null && (
-                    <div className="text-xs text-slate-500 mt-2">
+                    <div className="text-xs text-app-text3 mt-2">
                       {isExpired 
                         ? 'Ресурс истек' 
                         : isExpiringSoon 
@@ -280,7 +280,7 @@ const ResourceManagement = () => {
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">Ресурс не указан</p>
+                <p className="text-sm text-app-text3">Ресурс не указан</p>
               )}
             </div>
           );
@@ -290,10 +290,10 @@ const ResourceManagement = () => {
       {/* Модальное окно с деталями */}
       {selectedEquipment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedEquipment(null)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white">{selectedEquipment.name}</h2>
-              <button onClick={() => setSelectedEquipment(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setSelectedEquipment(null)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
             
             {getEquipmentResource(selectedEquipment.id) ? (
@@ -302,14 +302,14 @@ const ResourceManagement = () => {
                   if (key === 'id' || !value) return null;
                   return (
                     <div key={key}>
-                      <p className="text-sm text-slate-400 mb-1">{key.replace(/_/g, ' ')}</p>
+                      <p className="text-sm text-app-text3 mb-1">{key.replace(/_/g, ' ')}</p>
                       <p className="text-white">{String(value)}</p>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-slate-400">Ресурс не указан</p>
+              <p className="text-app-text3">Ресурс не указан</p>
             )}
           </div>
         </div>

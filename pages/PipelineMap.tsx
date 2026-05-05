@@ -1,4 +1,4 @@
-
+﻿
 import { useState, useEffect, useRef } from 'react';
 import { PIPELINES_DATA, MOCK_INSPECTORS, MOCK_CADASTRAL, API_BASE } from '../constants';
 import { Layers, Zap, Wind, Navigation, Users, Hexagon, Triangle, Gauge, Map as MapIcon } from 'lucide-react';
@@ -266,7 +266,7 @@ const PipelineMap = () => {
     <div className="h-full flex flex-col md:flex-row gap-4 relative">
       
       {/* MAP AREA */}
-      <div className="flex-1 bg-slate-900 rounded-xl overflow-hidden relative border border-slate-700 shadow-2xl">
+      <div className="flex-1 bg-app-deep rounded-xl overflow-hidden relative border border-app-line shadow-2xl">
         
         {/* LEAFLET MAP CONTAINER */}
         <div ref={mapContainerRef} className="w-full h-full z-0 bg-[#0f172a]" id="map"></div>
@@ -281,45 +281,45 @@ const PipelineMap = () => {
         {/* OVERLAYS */}
         
         {/* TOP LEFT: WEATHER */}
-        <div className="absolute top-4 left-4 z-[500] bg-secondary/90 backdrop-blur p-3 rounded-lg border border-slate-600 shadow-lg w-48">
-           <h4 className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><Wind size={12}/> МЕТЕОСТАНЦИЯ</h4>
+        <div className="absolute top-4 left-4 z-[500] bg-secondary/90 backdrop-blur p-3 rounded-lg border border-app-line shadow-lg w-48">
+           <h4 className="text-xs font-bold text-app-text3 mb-2 flex items-center gap-1"><Wind size={12}/> МЕТЕОСТАНЦИЯ</h4>
            <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 border-2 border-slate-600 rounded-full flex items-center justify-center bg-slate-800">
+              <div className="relative w-12 h-12 border-2 border-app-line rounded-full flex items-center justify-center bg-app-panel">
                  <Navigation 
                     size={24} 
                     className="text-accent transition-transform duration-1000" 
                     style={{ transform: `rotate(${weather.windDeg}deg)` }} 
                     fill="currentColor"
                  />
-                 <span className="absolute text-[8px] top-1 text-slate-500">N</span>
+                 <span className="absolute text-[8px] top-1 text-app-text3">N</span>
               </div>
               <div>
-                 <p className="text-2xl font-bold text-white">{weather.windSpeed.toFixed(1)} <span className="text-xs text-slate-400">м/с</span></p>
-                 <p className="text-xs text-slate-300">{weather.temp}°C, {weather.condition}</p>
+                 <p className="text-2xl font-bold text-white">{weather.windSpeed.toFixed(1)} <span className="text-xs text-app-text3">м/с</span></p>
+                 <p className="text-xs text-app-text2">{weather.temp}°C, {weather.condition}</p>
               </div>
            </div>
         </div>
 
         {/* TOP RIGHT: LAYERS */}
-        <div className="absolute top-4 right-4 z-[500] bg-secondary/90 backdrop-blur p-2 rounded-lg border border-slate-600 shadow-lg">
+        <div className="absolute top-4 right-4 z-[500] bg-secondary/90 backdrop-blur p-2 rounded-lg border border-app-line shadow-lg">
            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2 px-2">
              <Layers size={16} className="text-accent" /> Управление картой
            </h3>
            
            {/* BASEMAP SWITCHER */}
-           <div className="flex gap-1 mb-3 bg-slate-800 p-1 rounded">
-              <button onClick={() => setBaseLayer('OSM')} className={`flex-1 text-xs py-1 px-2 rounded ${baseLayer === 'OSM' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}>Схема</button>
-              <button onClick={() => setBaseLayer('SATELLITE')} className={`flex-1 text-xs py-1 px-2 rounded ${baseLayer === 'SATELLITE' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}>Спутник</button>
+           <div className="flex gap-1 mb-3 bg-app-panel p-1 rounded">
+              <button onClick={() => setBaseLayer('OSM')} className={`flex-1 text-xs py-1 px-2 rounded ${baseLayer === 'OSM' ? 'bg-app-softer text-app-text' : 'text-app-text3 hover:text-app-text'}`}>Схема</button>
+              <button onClick={() => setBaseLayer('SATELLITE')} className={`flex-1 text-xs py-1 px-2 rounded ${baseLayer === 'SATELLITE' ? 'bg-app-softer text-app-text' : 'text-app-text3 hover:text-app-text'}`}>Спутник</button>
            </div>
 
            <div className="flex flex-col gap-1">
-             <button onClick={() => toggleLayer('PIPELINES')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.PIPELINES ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
+             <button onClick={() => toggleLayer('PIPELINES')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.PIPELINES ? 'bg-blue-600 text-white' : 'text-app-text2 hover:bg-app-soft'}`}>
                <span>Трубопроводы</span> {activeLayers.PIPELINES && <Zap size={10}/>}
              </button>
-             <button onClick={() => toggleLayer('CADASTRAL')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.CADASTRAL ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
+             <button onClick={() => toggleLayer('CADASTRAL')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.CADASTRAL ? 'bg-orange-600 text-white' : 'text-app-text2 hover:bg-app-soft'}`}>
                <span>Кадастр (Земля)</span> {activeLayers.CADASTRAL && <Hexagon size={10}/>}
              </button>
-             <button onClick={() => toggleLayer('INSPECTORS')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.INSPECTORS ? 'bg-green-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
+             <button onClick={() => toggleLayer('INSPECTORS')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.INSPECTORS ? 'bg-green-600 text-white' : 'text-app-text2 hover:bg-app-soft'}`}>
                <span>Персонал (GPS)</span> {activeLayers.INSPECTORS && <Users size={10}/>}
              </button>
              {selectedSegment && (
@@ -334,31 +334,31 @@ const PipelineMap = () => {
 
       {/* RIGHT SIDEBAR: INFO PANEL */}
       {selectedSegment ? (
-        <div className="w-full md:w-80 bg-secondary rounded-xl p-5 border border-slate-700 animate-in slide-in-from-right duration-300 flex flex-col gap-4">
+        <div className="w-full md:w-80 bg-secondary rounded-xl p-5 border border-app-line animate-in slide-in-from-right duration-300 flex flex-col gap-4">
            {(() => {
              const seg = pipelineSegments.find(s => s.id === selectedSegment);
              if(!seg) return null;
              return (
                <>
                  <div className="flex justify-between items-start">
-                    <h3 className="text-lg font-bold text-white">{seg.id}</h3>
-                    <button onClick={() => { setSelectedSegment(null); setActiveLayers(l => ({...l, TOXI_RISK: false})); }} className="text-slate-400 hover:text-white"><Zap size={18}/></button>
+                    <h3 className="text-lg font-bold text-app-text">{seg.id}</h3>
+                    <button onClick={() => { setSelectedSegment(null); setActiveLayers(l => ({...l, TOXI_RISK: false})); }} className="text-app-text3 hover:text-app-text"><Zap size={18}/></button>
                  </div>
-                 <p className="text-slate-300 text-sm">{seg.name}</p>
+                 <p className="text-app-text2 text-sm">{seg.name}</p>
                  
                  {/* LIVE SCADA BLOCK */}
-                 <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 relative overflow-hidden">
+                 <div className="bg-app-deep p-4 rounded-lg border border-app-line relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-2 opacity-10"><Gauge size={48} className="text-accent"/></div>
-                    <h4 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-app-text3 mb-3 flex items-center gap-2">
                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> SCADA ТЕЛЕМЕТРИЯ
                     </h4>
                     <div className="grid grid-cols-2 gap-4">
                        <div>
-                          <p className="text-[10px] text-slate-500">ДАВЛЕНИЕ (P1)</p>
+                          <p className="text-[10px] text-app-text3">ДАВЛЕНИЕ (P1)</p>
                           <p className="text-xl font-mono font-bold text-accent">{scadaData.pressure} <span className="text-xs">МПа</span></p>
                        </div>
                        <div>
-                          <p className="text-[10px] text-slate-500">ТЕМПЕРАТУРА (T1)</p>
+                          <p className="text-[10px] text-app-text3">ТЕМПЕРАТУРА (T1)</p>
                           <p className="text-xl font-mono font-bold text-orange-400">{scadaData.temp} <span className="text-xs">°C</span></p>
                        </div>
                     </div>
@@ -368,7 +368,7 @@ const PipelineMap = () => {
                  <div className="space-y-2">
                     <button 
                        onClick={() => toggleLayer('TOXI_RISK')}
-                       className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 border transition ${activeLayers.TOXI_RISK ? 'bg-red-500 text-white border-red-600' : 'bg-slate-800 text-red-400 border-red-900/50 hover:bg-slate-700'}`}
+                       className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 border transition ${activeLayers.TOXI_RISK ? 'bg-red-500 text-white border-red-600' : 'bg-app-panel text-red-400 border-red-900/50 hover:bg-app-soft'}`}
                     >
                        <Triangle size={16} className={activeLayers.TOXI_RISK ? "fill-white" : ""} />
                        {activeLayers.TOXI_RISK ? 'Остановить симуляцию' : 'Смоделировать разрыв (Toxi)'}
@@ -381,17 +381,17 @@ const PipelineMap = () => {
                  </div>
 
                  {/* STATIC INFO */}
-                 <div className="space-y-3 pt-4 border-t border-slate-700">
+                 <div className="space-y-3 pt-4 border-t border-app-line">
                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Толщина стенки:</span>
+                        <span className="text-app-text3">Толщина стенки:</span>
                         <span className="text-white">{seg.thickness} мм</span>
                      </div>
                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Коррозия:</span>
+                        <span className="text-app-text3">Коррозия:</span>
                         <span className="text-danger">{seg.corrosionRate} мм/год</span>
                      </div>
                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Прогноз ресурса:</span>
+                        <span className="text-app-text3">Прогноз ресурса:</span>
                         <span className="text-success">{seg.remainingLife} лет</span>
                      </div>
                  </div>
@@ -401,10 +401,10 @@ const PipelineMap = () => {
            })()}
         </div>
       ) : (
-         <div className="hidden md:flex w-80 bg-secondary rounded-xl p-5 border border-slate-700 items-center justify-center text-center">
+         <div className="hidden md:flex w-80 bg-secondary rounded-xl p-5 border border-app-line items-center justify-center text-center">
             <div>
-               <MapIcon className="mx-auto text-slate-600 mb-2" size={32} />
-               <p className="text-slate-500">Выберите объект на карте для доступа к телеметрии и функциям анализа</p>
+               <MapIcon className="mx-auto text-app-text3 mb-2" size={32} />
+               <p className="text-app-text3">Выберите объект на карте для доступа к телеметрии и функциям анализа</p>
             </div>
          </div>
       )}

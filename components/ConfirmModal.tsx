@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { AlertTriangle, Trash2, FileCheck } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -37,7 +37,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
-        className="bg-secondary rounded-xl border border-slate-700 shadow-xl max-w-md w-full p-6"
+        className="bg-secondary rounded-xl border border-app-line shadow-xl max-w-md w-full p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 mb-4">
@@ -50,13 +50,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-semibold text-white">{title}</h3>
-            <p className="text-slate-400 mt-1">{message}</p>
+            <p className="text-app-text3 mt-1">{message}</p>
           </div>
         </div>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium"
+            className="px-4 py-2 rounded-lg bg-app-softer hover:bg-app-soft text-app-text font-medium"
           >
             {cancelText}
           </button>

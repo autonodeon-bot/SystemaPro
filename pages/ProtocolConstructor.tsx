@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Конструктор актов/протоколов (П.2)
  * Позволяет создавать произвольные шаблоны документов с блоками:
  * заголовками, полями, таблицами, фото-секциями, подписями.
@@ -122,18 +122,18 @@ const BlockPreview: React.FC<{ block: TemplateBlock }> = ({ block }) => {
   switch (block.block_type) {
     case 'section_header':
       return (
-        <div className="bg-slate-700/60 rounded px-3 py-2 text-white font-semibold border-l-2 border-accent">
+        <div className="bg-app-soft/60 rounded px-3 py-2 text-app-text font-semibold border-l-2 border-accent">
           {block.label || 'Заголовок раздела'}
         </div>
       );
     case 'table':
       return (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border border-slate-600">
+          <table className="w-full text-xs border border-app-line">
             <thead>
-              <tr className="bg-slate-700">
+              <tr className="bg-app-soft">
                 {(block.columns ?? []).map(col => (
-                  <th key={col.key} className="border border-slate-600 px-2 py-1 text-left text-slate-300">
+                  <th key={col.key} className="border border-app-line px-2 py-1 text-left text-app-text2">
                     {col.label}
                   </th>
                 ))}
@@ -142,7 +142,7 @@ const BlockPreview: React.FC<{ block: TemplateBlock }> = ({ block }) => {
             <tbody>
               <tr>
                 {(block.columns ?? []).map(col => (
-                  <td key={col.key} className="border border-slate-600 px-2 py-1 text-slate-500 italic">
+                  <td key={col.key} className="border border-app-line px-2 py-1 text-app-text3 italic">
                     ...
                   </td>
                 ))}
@@ -153,7 +153,7 @@ const BlockPreview: React.FC<{ block: TemplateBlock }> = ({ block }) => {
       );
     case 'photo_section':
       return (
-        <div className="border-2 border-dashed border-slate-600 rounded p-4 text-center text-slate-500 text-sm">
+        <div className="border-2 border-dashed border-app-line rounded p-4 text-center text-app-text3 text-sm">
           <Image size={20} className="mx-auto mb-1" /> Фото/схема объекта
         </div>
       );
@@ -161,9 +161,9 @@ const BlockPreview: React.FC<{ block: TemplateBlock }> = ({ block }) => {
       return (
         <div className="flex items-end gap-4">
           <div className="flex-1">
-            <div className="text-xs text-slate-400 mb-1">{block.label}</div>
-            <div className="border-b border-slate-500 h-8 w-full" />
-            <div className="text-xs text-slate-500 mt-1">Подпись / дата</div>
+            <div className="text-xs text-app-text3 mb-1">{block.label}</div>
+            <div className="border-b border-app-line h-8 w-full" />
+            <div className="text-xs text-app-text3 mt-1">Подпись / дата</div>
           </div>
         </div>
       );
@@ -171,19 +171,19 @@ const BlockPreview: React.FC<{ block: TemplateBlock }> = ({ block }) => {
       return (
         <div className="space-y-1">
           {(block.items ?? []).map((item, i) => (
-            <label key={i} className="flex items-center gap-2 text-sm text-slate-300">
+            <label key={i} className="flex items-center gap-2 text-sm text-app-text2">
               <input type="checkbox" disabled className="rounded" /> {item}
             </label>
           ))}
         </div>
       );
     case 'textarea':
-      return <textarea disabled className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-slate-500 resize-none h-16" placeholder={block.placeholder ?? block.label} />;
+      return <textarea disabled className="w-full bg-app-panel border border-app-line rounded p-2 text-sm text-app-text3 resize-none h-16" placeholder={block.placeholder ?? block.label} />;
     case 'instruments_field':
       return (
-        <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded p-2">
-          <Wrench size={14} className="text-slate-400" />
-          <span className="text-sm text-slate-500">{block.placeholder ?? 'Приборы из реестра...'}</span>
+        <div className="flex items-center gap-2 bg-app-panel border border-app-line rounded p-2">
+          <Wrench size={14} className="text-app-text3" />
+          <span className="text-sm text-app-text3">{block.placeholder ?? 'Приборы из реестра...'}</span>
         </div>
       );
     default:
@@ -191,7 +191,7 @@ const BlockPreview: React.FC<{ block: TemplateBlock }> = ({ block }) => {
         <input
           disabled
           type={block.block_type === 'date_field' ? 'date' : block.block_type === 'number_field' ? 'number' : 'text'}
-          className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-slate-500"
+          className="w-full bg-app-panel border border-app-line rounded p-2 text-sm text-app-text3"
           placeholder={block.placeholder ?? block.label}
         />
       );
@@ -211,19 +211,19 @@ const BlockEditor: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-app-panel border border-app-line rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white font-bold flex items-center gap-2">
+          <h3 className="text-app-text font-bold flex items-center gap-2">
             <BlockIcon type={block.block_type} /> Редактировать блок
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={18} /></button>
+          <button onClick={onClose} className="text-app-text3 hover:text-app-text"><X size={18} /></button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Заголовок / подпись</label>
+            <label className="text-xs text-app-text3 mb-1 block">Заголовок / подпись</label>
             <input
-              className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm"
+              className="w-full bg-app-soft border border-app-line rounded p-2 text-app-text text-sm"
               value={local.label}
               onChange={e => setLocal({ ...local, label: e.target.value })}
             />
@@ -231,9 +231,9 @@ const BlockEditor: React.FC<{
 
           {block.block_type !== 'section_header' && block.block_type !== 'signature' && block.block_type !== 'photo_section' && (
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Ключ поля (латиница, уникальный)</label>
+              <label className="text-xs text-app-text3 mb-1 block">Ключ поля (латиница, уникальный)</label>
               <input
-                className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm font-mono"
+                className="w-full bg-app-soft border border-app-line rounded p-2 text-app-text text-sm font-mono"
                 value={local.field_key ?? ''}
                 onChange={e => setLocal({ ...local, field_key: e.target.value })}
                 placeholder="object_name"
@@ -243,9 +243,9 @@ const BlockEditor: React.FC<{
 
           {(block.block_type === 'text_field' || block.block_type === 'textarea' || block.block_type === 'number_field') && (
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Подсказка (placeholder)</label>
+              <label className="text-xs text-app-text3 mb-1 block">Подсказка (placeholder)</label>
               <input
-                className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-white text-sm"
+                className="w-full bg-app-soft border border-app-line rounded p-2 text-app-text text-sm"
                 value={local.placeholder ?? ''}
                 onChange={e => setLocal({ ...local, placeholder: e.target.value })}
               />
@@ -253,7 +253,7 @@ const BlockEditor: React.FC<{
           )}
 
           {block.block_type !== 'section_header' && (
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-app-text2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={local.required ?? false}
@@ -268,7 +268,7 @@ const BlockEditor: React.FC<{
           {block.block_type === 'table' && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-slate-400">Колонки таблицы</label>
+                <label className="text-xs text-app-text3">Колонки таблицы</label>
                 <button
                   onClick={() => setLocal({ ...local, columns: [...(local.columns ?? []), { key: 'col' + Date.now(), label: 'Новая колонка', col_type: 'text' }] })}
                   className="text-accent text-xs flex items-center gap-1 hover:underline"
@@ -278,9 +278,9 @@ const BlockEditor: React.FC<{
               </div>
               <div className="space-y-2">
                 {(local.columns ?? []).map((col, ci) => (
-                  <div key={ci} className="flex items-center gap-2 bg-slate-700/50 rounded p-2">
+                  <div key={ci} className="flex items-center gap-2 bg-app-soft/50 rounded p-2">
                     <input
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded p-1 text-white text-xs"
+                      className="flex-1 bg-app-soft border border-app-line rounded p-1 text-app-text text-xs"
                       value={col.label}
                       placeholder="Заголовок"
                       onChange={e => {
@@ -290,7 +290,7 @@ const BlockEditor: React.FC<{
                       }}
                     />
                     <select
-                      className="bg-slate-700 border border-slate-600 rounded p-1 text-xs text-white"
+                      className="bg-app-soft border border-app-line rounded p-1 text-xs text-app-text"
                       value={col.col_type}
                       onChange={e => {
                         const cols = [...(local.columns ?? [])];
@@ -321,7 +321,7 @@ const BlockEditor: React.FC<{
           {block.block_type === 'checkbox_list' && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-slate-400">Пункты списка</label>
+                <label className="text-xs text-app-text3">Пункты списка</label>
                 <button
                   onClick={() => setLocal({ ...local, items: [...(local.items ?? []), 'Новый пункт'] })}
                   className="text-accent text-xs flex items-center gap-1 hover:underline"
@@ -333,7 +333,7 @@ const BlockEditor: React.FC<{
                 {(local.items ?? []).map((item, ii) => (
                   <div key={ii} className="flex items-center gap-2">
                     <input
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded p-1 text-white text-sm"
+                      className="flex-1 bg-app-soft border border-app-line rounded p-1 text-app-text text-sm"
                       value={item}
                       onChange={e => {
                         const items = [...(local.items ?? [])];
@@ -355,7 +355,7 @@ const BlockEditor: React.FC<{
         </div>
 
         <div className="flex gap-2 mt-6">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-600 rounded-lg text-slate-300 hover:bg-slate-700 text-sm">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-app-line rounded-lg text-app-text2 hover:bg-app-soft text-sm">
             Отмена
           </button>
           <button onClick={save} className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm flex items-center justify-center gap-2">
@@ -381,10 +381,10 @@ const BlockCard: React.FC<{
 }> = ({ block, index, total, onMoveUp, onMoveDown, onEdit, onDelete, onDuplicate }) => {
   const def = BLOCK_DEFS.find(d => d.type === block.block_type);
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 group hover:border-accent/50 transition-colors">
+    <div className="bg-app-panel border border-app-line rounded-xl p-4 group hover:border-accent/50 transition-colors">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-slate-500 text-xs font-mono w-5 text-right">{index + 1}.</span>
+          <span className="text-app-text3 text-xs font-mono w-5 text-right">{index + 1}.</span>
           <span className="flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
             <BlockIcon type={block.block_type} />
             {def?.label ?? block.block_type}
@@ -394,24 +394,24 @@ const BlockCard: React.FC<{
           )}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onMoveUp} disabled={index === 0} className="p-1 text-slate-400 hover:text-white disabled:opacity-30">
+          <button onClick={onMoveUp} disabled={index === 0} className="p-1 text-app-text3 hover:text-app-text disabled:opacity-30">
             <ChevronUp size={14} />
           </button>
-          <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 text-slate-400 hover:text-white disabled:opacity-30">
+          <button onClick={onMoveDown} disabled={index === total - 1} className="p-1 text-app-text3 hover:text-app-text disabled:opacity-30">
             <ChevronDown size={14} />
           </button>
-          <button onClick={onDuplicate} className="p-1 text-slate-400 hover:text-blue-400" title="Дублировать">
+          <button onClick={onDuplicate} className="p-1 text-app-text3 hover:text-blue-400" title="Дублировать">
             <Copy size={14} />
           </button>
-          <button onClick={onEdit} className="p-1 text-slate-400 hover:text-accent" title="Редактировать">
+          <button onClick={onEdit} className="p-1 text-app-text3 hover:text-accent" title="Редактировать">
             <Edit3 size={14} />
           </button>
-          <button onClick={onDelete} className="p-1 text-slate-400 hover:text-red-400" title="Удалить">
+          <button onClick={onDelete} className="p-1 text-app-text3 hover:text-red-400" title="Удалить">
             <Trash2 size={14} />
           </button>
         </div>
       </div>
-      <div className="text-white font-medium text-sm mb-2">{block.label}</div>
+      <div className="text-app-text font-medium text-sm mb-2">{block.label}</div>
       <div className="opacity-60 pointer-events-none">
         <BlockPreview block={block} />
       </div>
@@ -664,8 +664,8 @@ const ProtocolConstructor: React.FC = () => {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">Конструктор актов / протоколов</h1>
-            <p className="text-slate-400 mt-1">
+            <h1 className="text-3xl font-bold text-app-text">Конструктор актов / протоколов</h1>
+            <p className="text-app-text3 mt-1">
               Создавайте шаблоны протоколов на ПК — они автоматически становятся доступны в мобильном приложении.
             </p>
           </div>
@@ -693,11 +693,11 @@ const ProtocolConstructor: React.FC = () => {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-slate-800 rounded-xl h-40 animate-pulse border border-slate-700" />
+              <div key={i} className="bg-app-panel rounded-xl h-40 animate-pulse border border-app-line" />
             ))}
           </div>
         ) : templates.length === 0 ? (
-          <div className="text-center py-20 text-slate-500">
+          <div className="text-center py-20 text-app-text3">
             <FileText size={48} className="mx-auto mb-4 opacity-40" />
             <p className="text-lg">Шаблонов пока нет</p>
             {canEdit && (
@@ -707,7 +707,7 @@ const ProtocolConstructor: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map(tmpl => (
-              <div key={tmpl.id} className={`bg-slate-800 border rounded-xl p-5 hover:border-accent/50 transition-colors group ${tmpl.is_active ? 'border-slate-700' : 'border-slate-700/30 opacity-60'}`}>
+              <div key={tmpl.id} className={`bg-app-panel border rounded-xl p-5 hover:border-accent/50 transition-colors group ${tmpl.is_active ? 'border-app-line' : 'border-app-line/30 opacity-60'}`}>
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     {tmpl.category && (
@@ -716,12 +716,12 @@ const ProtocolConstructor: React.FC = () => {
                       </span>
                     )}
                     {!tmpl.is_active && (
-                      <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-400 rounded-full">
+                      <span className="text-xs px-2 py-0.5 bg-app-soft text-app-text3 rounded-full">
                         Архив
                       </span>
                     )}
                     {tmpl.status && (
-                      <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded-full ml-1">
+                      <span className="text-xs px-2 py-0.5 bg-app-soft text-app-text2 rounded-full ml-1">
                         {tmpl.status === 'published' ? 'Опубликован' : tmpl.status === 'archived' ? 'Архив' : 'Черновик'}
                       </span>
                     )}
@@ -731,14 +731,14 @@ const ProtocolConstructor: React.FC = () => {
                       <>
                         <button
                           onClick={() => startEditTemplate(tmpl)}
-                          className="p-1.5 text-slate-400 hover:text-accent rounded hover:bg-slate-700"
+                          className="p-1.5 text-app-text3 hover:text-accent rounded hover:bg-app-soft"
                           title="Редактировать"
                         >
                           <Edit3 size={14} />
                         </button>
                         <button
                           onClick={() => deleteTemplate(tmpl.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-400 rounded hover:bg-slate-700"
+                          className="p-1.5 text-app-text3 hover:text-red-400 rounded hover:bg-app-soft"
                           title="Удалить"
                         >
                           <Trash2 size={14} />
@@ -747,11 +747,11 @@ const ProtocolConstructor: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <h3 className="text-white font-semibold mt-2 mb-1">{tmpl.name}</h3>
+                <h3 className="text-app-text font-semibold mt-2 mb-1">{tmpl.name}</h3>
                 {tmpl.description && (
-                  <p className="text-slate-400 text-sm line-clamp-2">{tmpl.description}</p>
+                  <p className="text-app-text3 text-sm line-clamp-2">{tmpl.description}</p>
                 )}
-                <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
+                <div className="flex items-center gap-3 mt-3 text-xs text-app-text3">
                   <span>{tmpl.structure.length} блоков</span>
                   <span>v{tmpl.version ?? 1}</span>
                   {tmpl.created_at && (
@@ -791,19 +791,19 @@ const ProtocolConstructor: React.FC = () => {
               setTemplateVersions([]);
               setDiffResult(null);
             }}
-            className="text-slate-400 hover:text-white text-sm flex items-center gap-1"
+            className="text-app-text3 hover:text-app-text text-sm flex items-center gap-1"
           >
             ← Назад к списку
           </button>
-          <span className="text-slate-600">|</span>
-          <h1 className="text-xl font-bold text-white">
+          <span className="text-app-text3">|</span>
+          <h1 className="text-xl font-bold text-app-text">
             {isCreating ? 'Новый шаблон' : `Редактировать: ${editingTemplate?.name}`}
           </h1>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPreviewMode(p => !p)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${previewMode ? 'bg-accent/20 text-accent' : 'text-slate-400 hover:bg-slate-700'}`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${previewMode ? 'bg-accent/20 text-accent' : 'text-app-text3 hover:bg-app-soft'}`}
           >
             {previewMode ? <EyeOff size={16} /> : <Eye size={16} />}
             {previewMode ? 'Скрыть превью' : 'Превью'}
@@ -829,30 +829,30 @@ const ProtocolConstructor: React.FC = () => {
         {/* Левая панель — настройки + типы блоков */}
         <div className="space-y-4">
           {/* Мета шаблона */}
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
-            <h2 className="text-white font-semibold text-sm">Настройки шаблона</h2>
+          <div className="bg-app-panel border border-app-line rounded-xl p-4 space-y-3">
+            <h2 className="text-app-text font-semibold text-sm">Настройки шаблона</h2>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Название шаблона *</label>
+              <label className="text-xs text-app-text3 block mb-1">Название шаблона *</label>
               <input
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm focus:border-accent focus:outline-none"
+                className="w-full bg-app-soft border border-app-line rounded-lg p-2 text-app-text text-sm focus:border-accent focus:outline-none"
                 placeholder="Протокол ВИК трубопровода"
                 value={editingTemplate?.name ?? ''}
                 onChange={e => setEditingTemplate(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Описание</label>
+              <label className="text-xs text-app-text3 block mb-1">Описание</label>
               <textarea
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm resize-none h-16 focus:border-accent focus:outline-none"
+                className="w-full bg-app-soft border border-app-line rounded-lg p-2 text-app-text text-sm resize-none h-16 focus:border-accent focus:outline-none"
                 placeholder="Для чего используется этот шаблон..."
                 value={editingTemplate?.description ?? ''}
                 onChange={e => setEditingTemplate(prev => ({ ...prev, description: e.target.value }))}
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Категория</label>
+              <label className="text-xs text-app-text3 block mb-1">Категория</label>
               <select
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm focus:border-accent focus:outline-none"
+                className="w-full bg-app-soft border border-app-line rounded-lg p-2 text-app-text text-sm focus:border-accent focus:outline-none"
                 value={editingTemplate?.category ?? 'Другое'}
                 onChange={e => setEditingTemplate(prev => ({ ...prev, category: e.target.value }))}
               >
@@ -860,7 +860,7 @@ const ProtocolConstructor: React.FC = () => {
               </select>
             </div>
             {!isCreating && (
-              <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-app-text2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={editingTemplate?.is_active ?? true}
@@ -871,9 +871,9 @@ const ProtocolConstructor: React.FC = () => {
               </label>
             )}
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Статус шаблона</label>
+              <label className="text-xs text-app-text3 block mb-1">Статус шаблона</label>
               <select
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-sm focus:border-accent focus:outline-none"
+                className="w-full bg-app-soft border border-app-line rounded-lg p-2 text-app-text text-sm focus:border-accent focus:outline-none"
                 value={editingTemplate?.status ?? 'draft'}
                 onChange={e => setEditingTemplate(prev => ({ ...prev, status: e.target.value as TemplateStatus }))}
               >
@@ -894,16 +894,16 @@ const ProtocolConstructor: React.FC = () => {
           </div>
 
           {!isCreating && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
-              <h2 className="text-white font-semibold text-sm">Версии шаблона</h2>
+            <div className="bg-app-panel border border-app-line rounded-xl p-4 space-y-3">
+              <h2 className="text-app-text font-semibold text-sm">Версии шаблона</h2>
               <div className="max-h-40 overflow-auto space-y-1">
                 {templateVersions.length === 0 ? (
-                  <p className="text-xs text-slate-500">История версий пока пуста</p>
+                  <p className="text-xs text-app-text3">История версий пока пуста</p>
                 ) : (
                   templateVersions.map(v => (
-                    <div key={v.version} className="text-xs text-slate-300 flex items-center justify-between bg-slate-700/40 rounded px-2 py-1">
+                    <div key={v.version} className="text-xs text-app-text2 flex items-center justify-between bg-app-soft/40 rounded px-2 py-1">
                       <span>v{v.version}</span>
-                      <span className="text-slate-500">{v.created_at ? new Date(v.created_at).toLocaleString('ru-RU') : ''}</span>
+                      <span className="text-app-text3">{v.created_at ? new Date(v.created_at).toLocaleString('ru-RU') : ''}</span>
                     </div>
                   ))
                 )}
@@ -911,7 +911,7 @@ const ProtocolConstructor: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <select
-                  className="bg-slate-700 border border-slate-600 rounded p-2 text-xs text-white"
+                  className="bg-app-soft border border-app-line rounded p-2 text-xs text-app-text"
                   value={restoreVersion}
                   onChange={e => setRestoreVersion(e.target.value ? Number(e.target.value) : '')}
                 >
@@ -929,7 +929,7 @@ const ProtocolConstructor: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <select
-                  className="bg-slate-700 border border-slate-600 rounded p-2 text-xs text-white"
+                  className="bg-app-soft border border-app-line rounded p-2 text-xs text-app-text"
                   value={diffFromVersion}
                   onChange={e => setDiffFromVersion(e.target.value ? Number(e.target.value) : '')}
                 >
@@ -937,7 +937,7 @@ const ProtocolConstructor: React.FC = () => {
                   {templateVersions.map(v => <option key={`from-${v.version}`} value={v.version}>v{v.version}</option>)}
                 </select>
                 <select
-                  className="bg-slate-700 border border-slate-600 rounded p-2 text-xs text-white"
+                  className="bg-app-soft border border-app-line rounded p-2 text-xs text-app-text"
                   value={diffToVersion}
                   onChange={e => setDiffToVersion(e.target.value ? Number(e.target.value) : '')}
                 >
@@ -948,12 +948,12 @@ const ProtocolConstructor: React.FC = () => {
               <button
                 onClick={compareTemplateVersions}
                 disabled={diffFromVersion === '' || diffToVersion === ''}
-                className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-xs rounded p-2"
+                className="w-full bg-app-soft hover:bg-app-softer disabled:opacity-50 text-white text-xs rounded p-2"
               >
                 Сравнить версии
               </button>
               {diffResult && (
-                <div className="text-xs text-slate-300 bg-slate-700/30 border border-slate-600 rounded p-2 space-y-1">
+                <div className="text-xs text-app-text2 bg-app-soft/30 border border-app-line rounded p-2 space-y-1">
                   <div>Добавлено полей: {diffResult.added.length}</div>
                   <div>Удалено полей: {diffResult.removed.length}</div>
                   <div>Без изменений: {diffResult.unchanged_count}</div>
@@ -963,8 +963,8 @@ const ProtocolConstructor: React.FC = () => {
           )}
 
           {/* Типы блоков для добавления */}
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <h2 className="text-white font-semibold text-sm mb-3">Добавить блок</h2>
+          <div className="bg-app-panel border border-app-line rounded-xl p-4">
+            <h2 className="text-app-text font-semibold text-sm mb-3">Добавить блок</h2>
             <div className="space-y-1.5">
               {BLOCK_DEFS.map(def => {
                 const Icon = def.icon;
@@ -972,7 +972,7 @@ const ProtocolConstructor: React.FC = () => {
                   <button
                     key={def.type}
                     onClick={() => addBlock(def.type)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors group"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm text-app-text2 hover:bg-app-soft hover:text-app-text transition-colors group"
                     title={def.hint}
                   >
                     <Icon size={15} className="text-accent flex-shrink-0" />
@@ -991,18 +991,18 @@ const ProtocolConstructor: React.FC = () => {
             /* Превью финального документа */
             <div className="bg-white rounded-xl p-8 space-y-5 min-h-96">
               <div className="text-center border-b pb-4 mb-4">
-                <h2 className="text-slate-900 text-xl font-bold">{editingTemplate?.name || 'Название протокола'}</h2>
+                <h2 className="text-app-text text-xl font-bold">{editingTemplate?.name || 'Название протокола'}</h2>
                 {editingTemplate?.description && (
-                  <p className="text-slate-500 text-sm mt-1">{editingTemplate.description}</p>
+                  <p className="text-app-text3 text-sm mt-1">{editingTemplate.description}</p>
                 )}
               </div>
               {blocks.length === 0 ? (
-                <p className="text-center text-slate-400">Блоков пока нет. Добавьте блоки из левой панели.</p>
+                <p className="text-center text-app-text3">Блоков пока нет. Добавьте блоки из левой панели.</p>
               ) : (
                 blocks.map(block => (
                   <div key={block.id} className="space-y-1">
                     {block.block_type !== 'section_header' && (
-                      <label className="text-xs font-medium text-slate-600">
+                      <label className="text-xs font-medium text-app-text3">
                         {block.label}{block.required ? ' *' : ''}
                       </label>
                     )}
@@ -1015,10 +1015,10 @@ const ProtocolConstructor: React.FC = () => {
             /* Конструктор — список блоков */
             <div>
               {blocks.length === 0 ? (
-                <div className="bg-slate-800/50 border-2 border-dashed border-slate-700 rounded-xl p-12 text-center">
-                  <GripVertical size={32} className="mx-auto mb-3 text-slate-600" />
-                  <p className="text-slate-500">Добавьте блоки из панели слева</p>
-                  <p className="text-slate-600 text-sm mt-1">Блоки будут отображаться в протоколе в том же порядке</p>
+                <div className="bg-app-panel/50 border-2 border-dashed border-app-line rounded-xl p-12 text-center">
+                  <GripVertical size={32} className="mx-auto mb-3 text-app-text3" />
+                  <p className="text-app-text3">Добавьте блоки из панели слева</p>
+                  <p className="text-app-text3 text-sm mt-1">Блоки будут отображаться в протоколе в том же порядке</p>
                 </div>
               ) : (
                 <div className="space-y-3">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Plus, Calendar, DollarSign, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText, LayoutGrid, List } from 'lucide-react';
 import { API_BASE } from '../constants';
 
@@ -248,7 +248,7 @@ const ProjectsManagement = () => {
   );
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   return (
@@ -256,12 +256,12 @@ const ProjectsManagement = () => {
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-2xl font-bold text-white">Управление проектами</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-600 overflow-hidden">
+          <div className="inline-flex rounded-lg border border-app-line overflow-hidden">
             <button
               type="button"
               onClick={() => setProjectsView('cards')}
               className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium ${
-                projectsView === 'cards' ? 'bg-accent text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                projectsView === 'cards' ? 'bg-accent text-white' : 'bg-app-panel text-app-text3 hover:text-app-text'
               }`}
             >
               <LayoutGrid size={16} /> Карточки
@@ -269,8 +269,8 @@ const ProjectsManagement = () => {
             <button
               type="button"
               onClick={() => setProjectsView('table')}
-              className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium border-l border-slate-600 ${
-                projectsView === 'table' ? 'bg-accent text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+              className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium border-l border-app-line ${
+                projectsView === 'table' ? 'bg-accent text-white' : 'bg-app-panel text-app-text3 hover:text-app-text'
               }`}
             >
               <List size={16} /> Список
@@ -298,7 +298,7 @@ const ProjectsManagement = () => {
           className={`px-4 py-2 rounded-lg text-sm font-bold ${
             statusFilter === 'ALL' 
               ? 'bg-accent text-white' 
-              : 'bg-slate-800 text-slate-400 border border-slate-700'
+              : 'bg-app-panel text-app-text3 border border-app-line'
           }`}
         >
           Все
@@ -310,7 +310,7 @@ const ProjectsManagement = () => {
             className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 ${
               statusFilter === status 
                 ? 'bg-accent text-white' 
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                : 'bg-app-panel text-app-text3 border border-app-line'
             }`}
           >
             {getStatusIcon(status)}
@@ -321,13 +321,13 @@ const ProjectsManagement = () => {
 
       {/* Форма добавления */}
       {showAddForm && (
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-600">
+        <div className="bg-app-panel p-6 rounded-xl border border-app-line">
           <h2 className="text-xl font-bold text-white mb-4">Создать проект</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm text-slate-400">Клиент *</label>
+                  <label className="text-sm text-app-text3">Клиент *</label>
                   <button
                     type="button"
                     onClick={() => setShowAddClientForm(true)}
@@ -340,7 +340,7 @@ const ProjectsManagement = () => {
                   required
                   value={formData.client_id}
                   onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 >
                   <option value="">Выберите клиента</option>
                   {clients.map(client => (
@@ -352,22 +352,22 @@ const ProjectsManagement = () => {
                 )}
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Название проекта *</label>
+                <label className="text-sm text-app-text3 block mb-1">Название проекта *</label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="Например: Диагностика оборудования НГДУ-1"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Статус</label>
+                <label className="text-sm text-app-text3 block mb-1">Статус</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 >
                   <option value="PLANNED">Запланирован</option>
                   <option value="IN_PROGRESS">В работе</option>
@@ -376,39 +376,39 @@ const ProjectsManagement = () => {
                 </select>
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Бюджет</label>
+                <label className="text-sm text-app-text3 block mb-1">Бюджет</label>
                 <input
                   type="number"
                   value={formData.budget}
                   onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="0.00"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Дата начала</label>
+                <label className="text-sm text-app-text3 block mb-1">Дата начала</label>
                 <input
                   type="date"
                   value={formData.start_date}
                   onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Дедлайн</label>
+                <label className="text-sm text-app-text3 block mb-1">Дедлайн</label>
                 <input
                   type="date"
                   value={formData.deadline}
                   onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
               <div className="col-span-2">
-                <label className="text-sm text-slate-400 block mb-1">Описание</label>
+                <label className="text-sm text-app-text3 block mb-1">Описание</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   rows={3}
                 />
               </div>
@@ -423,7 +423,7 @@ const ProjectsManagement = () => {
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                className="bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
               >
                 Отмена
               </button>
@@ -434,10 +434,10 @@ const ProjectsManagement = () => {
 
       {/* Список проектов */}
       {projectsView === 'table' ? (
-        <div className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-800/50">
+        <div className="overflow-x-auto rounded-xl border border-app-line bg-app-panel/50">
           <table className="w-full text-sm min-w-[640px]">
             <thead>
-              <tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-600">
+              <tr className="text-left text-xs uppercase text-app-text3 border-b border-app-line">
                 <th className="px-4 py-3">Проект</th>
                 <th className="px-4 py-3">Клиент</th>
                 <th className="px-4 py-3">Статус</th>
@@ -449,23 +449,23 @@ const ProjectsManagement = () => {
               {filteredProjects.map((project) => (
                 <tr
                   key={project.id}
-                  className="border-b border-slate-700/80 hover:bg-slate-700/30 cursor-pointer"
+                  className="border-b border-app-line/80 hover:bg-app-soft/30 cursor-pointer"
                   onClick={async () => {
                     setSelectedProject(project);
                     await loadProjectStatistics(project.id);
                   }}
                 >
                   <td className="px-4 py-3 font-medium text-white">{project.name}</td>
-                  <td className="px-4 py-3 text-slate-300">{getClientName(project.client_id)}</td>
+                  <td className="px-4 py-3 text-app-text2">{getClientName(project.client_id)}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(project.status)}`}>
                       {getStatusText(project.status)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-400">
+                  <td className="px-4 py-3 text-app-text3">
                     {project.start_date ? new Date(project.start_date).toLocaleDateString('ru-RU') : '—'}
                   </td>
-                  <td className="px-4 py-3 text-slate-400">
+                  <td className="px-4 py-3 text-app-text3">
                     {project.deadline ? new Date(project.deadline).toLocaleDateString('ru-RU') : '—'}
                   </td>
                 </tr>
@@ -478,34 +478,34 @@ const ProjectsManagement = () => {
         {filteredProjects.map((project) => (
           <div
             key={project.id}
-            className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-accent/50 transition-colors cursor-pointer"
+            className="bg-app-panel p-4 rounded-xl border border-app-line hover:border-accent/50 transition-colors cursor-pointer"
             onClick={async () => {
               setSelectedProject(project);
               await loadProjectStatistics(project.id);
             }}
           >
             <div className="flex justify-between items-start mb-2">
-              <h3 className="text-lg font-bold text-white">{project.name}</h3>
+              <h3 className="text-lg font-bold text-app-text">{project.name}</h3>
               <span className={`px-2 py-1 rounded text-xs border ${getStatusColor(project.status)}`}>
                 {getStatusText(project.status)}
               </span>
             </div>
             
-            <p className="text-sm text-slate-400 mb-3">{getClientName(project.client_id)}</p>
+            <p className="text-sm text-app-text3 mb-3">{getClientName(project.client_id)}</p>
             
             {project.description && (
-              <p className="text-sm text-slate-300 mb-3 line-clamp-2">{project.description}</p>
+              <p className="text-sm text-app-text2 mb-3 line-clamp-2">{project.description}</p>
             )}
 
             <div className="space-y-2 text-sm">
               {project.deadline && (
-                <div className="flex items-center gap-2 text-slate-400">
+                <div className="flex items-center gap-2 text-app-text3">
                   <Calendar size={14} />
                   <span>Дедлайн: {new Date(project.deadline).toLocaleDateString('ru-RU')}</span>
                 </div>
               )}
               {project.budget && (
-                <div className="flex items-center gap-2 text-slate-400">
+                <div className="flex items-center gap-2 text-app-text3">
                   <DollarSign size={14} />
                   <span>Бюджет: {project.budget.toLocaleString('ru-RU')} ₽</span>
                 </div>
@@ -517,7 +517,7 @@ const ProjectsManagement = () => {
       )}
 
       {filteredProjects.length === 0 && (
-        <div className="text-center text-slate-400 py-20">
+        <div className="text-center text-app-text3 py-20">
           Проекты не найдены
         </div>
       )}
@@ -525,70 +525,70 @@ const ProjectsManagement = () => {
       {/* Модальное окно добавления клиента */}
       {showAddClientForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddClientForm(false)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white">Добавить клиента</h2>
-              <button onClick={() => setShowAddClientForm(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setShowAddClientForm(false)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
             <form onSubmit={handleAddClient} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="text-sm text-slate-400 block mb-1">Название *</label>
+                  <label className="text-sm text-app-text3 block mb-1">Название *</label>
                   <input
                     type="text"
                     required
                     value={newClientData.name}
                     onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="Название организации"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">ИНН</label>
+                  <label className="text-sm text-app-text3 block mb-1">ИНН</label>
                   <input
                     type="text"
                     value={newClientData.inn}
                     onChange={(e) => setNewClientData({ ...newClientData, inn: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="ИНН"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Контактное лицо</label>
+                  <label className="text-sm text-app-text3 block mb-1">Контактное лицо</label>
                   <input
                     type="text"
                     value={newClientData.contact_person}
                     onChange={(e) => setNewClientData({ ...newClientData, contact_person: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="ФИО"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Телефон</label>
+                  <label className="text-sm text-app-text3 block mb-1">Телефон</label>
                   <input
                     type="text"
                     value={newClientData.contact_phone}
                     onChange={(e) => setNewClientData({ ...newClientData, contact_phone: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="+7 (XXX) XXX-XX-XX"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-400 block mb-1">Email</label>
+                  <label className="text-sm text-app-text3 block mb-1">Email</label>
                   <input
                     type="email"
                     value={newClientData.contact_email}
                     onChange={(e) => setNewClientData({ ...newClientData, contact_email: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     placeholder="email@example.com"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-sm text-slate-400 block mb-1">Адрес</label>
+                  <label className="text-sm text-app-text3 block mb-1">Адрес</label>
                   <textarea
                     value={newClientData.address}
                     onChange={(e) => setNewClientData({ ...newClientData, address: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                    className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                     rows={2}
                     placeholder="Адрес организации"
                   />
@@ -604,7 +604,7 @@ const ProjectsManagement = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddClientForm(false)}
-                  className="bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                  className="bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
                 >
                   Отмена
                 </button>
@@ -617,7 +617,7 @@ const ProjectsManagement = () => {
       {/* Модальное окно просмотра проекта */}
       {selectedProject && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-slate-700">
+          <div className="bg-app-panel rounded-xl p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-app-line">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">{selectedProject.name}</h2>
               <button 
@@ -625,7 +625,7 @@ const ProjectsManagement = () => {
                   setSelectedProject(null);
                   setProjectStatistics(null);
                 }} 
-                className="text-slate-400 hover:text-white text-2xl"
+                className="text-app-text3 hover:text-app-text text-2xl"
               >
                 ✕
               </button>
@@ -634,12 +634,12 @@ const ProjectsManagement = () => {
             {/* Основная информация */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <p className="text-sm text-slate-400 mb-1">Клиент</p>
+                <p className="text-sm text-app-text3 mb-1">Клиент</p>
                 <p className="text-white font-semibold">{getClientName(selectedProject.client_id)}</p>
               </div>
               
               <div>
-                <p className="text-sm text-slate-400 mb-1">Статус</p>
+                <p className="text-sm text-app-text3 mb-1">Статус</p>
                 <span className={`px-3 py-1 rounded text-sm border inline-block ${getStatusColor(selectedProject.status)}`}>
                   {getStatusText(selectedProject.status)}
                 </span>
@@ -647,28 +647,28 @@ const ProjectsManagement = () => {
               
               {selectedProject.start_date && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Дата начала</p>
+                  <p className="text-sm text-app-text3 mb-1">Дата начала</p>
                   <p className="text-white">{new Date(selectedProject.start_date).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
               
               {selectedProject.deadline && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Дедлайн</p>
+                  <p className="text-sm text-app-text3 mb-1">Дедлайн</p>
                   <p className="text-white font-semibold">{new Date(selectedProject.deadline).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
               
               {selectedProject.budget && (
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Бюджет</p>
+                  <p className="text-sm text-app-text3 mb-1">Бюджет</p>
                   <p className="text-white font-semibold text-lg">{selectedProject.budget.toLocaleString('ru-RU')} ₽</p>
                 </div>
               )}
               
               {selectedProject.description && (
                 <div className="md:col-span-2">
-                  <p className="text-sm text-slate-400 mb-1">Описание</p>
+                  <p className="text-sm text-app-text3 mb-1">Описание</p>
                   <p className="text-white">{selectedProject.description}</p>
                 </div>
               )}
@@ -676,22 +676,22 @@ const ProjectsManagement = () => {
 
             {/* Статистика проекта */}
             {loadingStats ? (
-              <div className="text-center py-8 text-slate-400">Загрузка статистики...</div>
+              <div className="text-center py-8 text-app-text3">Загрузка статистики...</div>
             ) : projectStatistics ? (
               <div className="space-y-6">
                 {/* Прогресс выполнения */}
-                <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <div className="bg-app-deep rounded-lg p-6 border border-app-line">
+                  <h3 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
                     <BarChart3 size={20} />
                     Прогресс выполнения
                   </h3>
                   
                   <div className="mb-4">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-slate-400">Выполнено</span>
-                      <span className="text-lg font-bold text-white">{projectStatistics.progress_percent.toFixed(1)}%</span>
+                      <span className="text-sm text-app-text3">Выполнено</span>
+                      <span className="text-lg font-bold text-app-text">{projectStatistics.progress_percent.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden">
+                    <div className="w-full bg-app-soft rounded-full h-4 overflow-hidden">
                       <div 
                         className="bg-gradient-to-r from-blue-500 to-green-500 h-full transition-all duration-500"
                         style={{ width: `${projectStatistics.progress_percent}%` }}
@@ -700,34 +700,34 @@ const ProjectsManagement = () => {
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                    <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                    <div className="bg-app-panel rounded-lg p-4 border border-app-line">
                       <div className="flex items-center gap-2 mb-2">
                         <Package size={18} className="text-blue-400" />
-                        <span className="text-sm text-slate-400">Всего оборудования</span>
+                        <span className="text-sm text-app-text3">Всего оборудования</span>
                       </div>
                       <p className="text-2xl font-bold text-white">{projectStatistics.total_equipment}</p>
                     </div>
                     
-                    <div className="bg-slate-800 rounded-lg p-4 border border-green-500/30">
+                    <div className="bg-app-panel rounded-lg p-4 border border-green-500/30">
                       <div className="flex items-center gap-2 mb-2">
                         <CheckCircle size={18} className="text-green-400" />
-                        <span className="text-sm text-slate-400">Выполнено</span>
+                        <span className="text-sm text-app-text3">Выполнено</span>
                       </div>
                       <p className="text-2xl font-bold text-green-400">{projectStatistics.completed_equipment}</p>
                     </div>
                     
-                    <div className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
+                    <div className="bg-app-panel rounded-lg p-4 border border-yellow-500/30">
                       <div className="flex items-center gap-2 mb-2">
                         <Clock size={18} className="text-yellow-400" />
-                        <span className="text-sm text-slate-400">В работе</span>
+                        <span className="text-sm text-app-text3">В работе</span>
                       </div>
                       <p className="text-2xl font-bold text-yellow-400">{projectStatistics.in_progress_equipment}</p>
                     </div>
                     
-                    <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                    <div className="bg-app-panel rounded-lg p-4 border border-app-line">
                       <div className="flex items-center gap-2 mb-2">
-                        <AlertCircle size={18} className="text-slate-400" />
-                        <span className="text-sm text-slate-400">Ожидает</span>
+                        <AlertCircle size={18} className="text-app-text3" />
+                        <span className="text-sm text-app-text3">Ожидает</span>
                       </div>
                       <p className="text-2xl font-bold text-white">{projectStatistics.pending_equipment}</p>
                     </div>
@@ -736,19 +736,19 @@ const ProjectsManagement = () => {
 
                 {/* Скорость работы и прогноз */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <div className="bg-app-deep rounded-lg p-6 border border-app-line">
+                    <h3 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
                       <TrendingUp size={20} />
                       Скорость работы
                     </h3>
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-slate-400 mb-1">Оборудования в день</p>
+                        <p className="text-sm text-app-text3 mb-1">Оборудования в день</p>
                         <p className="text-3xl font-bold text-blue-400">{projectStatistics.speed_per_day.toFixed(2)}</p>
                       </div>
                       {projectStatistics.estimated_completion_date && (
                         <div>
-                          <p className="text-sm text-slate-400 mb-1">Прогноз завершения</p>
+                          <p className="text-sm text-app-text3 mb-1">Прогноз завершения</p>
                           <p className="text-xl font-semibold text-white">
                             {new Date(projectStatistics.estimated_completion_date).toLocaleDateString('ru-RU')}
                           </p>
@@ -757,18 +757,18 @@ const ProjectsManagement = () => {
                     </div>
                   </div>
                   
-                  <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <div className="bg-app-deep rounded-lg p-6 border border-app-line">
+                    <h3 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
                       <FileText size={20} />
                       Отчеты и обследования
                     </h3>
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-slate-400 mb-1">Всего обследований</p>
+                        <p className="text-sm text-app-text3 mb-1">Всего обследований</p>
                         <p className="text-3xl font-bold text-purple-400">{projectStatistics.inspections_count}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-400 mb-1">Сгенерировано отчетов</p>
+                        <p className="text-sm text-app-text3 mb-1">Сгенерировано отчетов</p>
                         <p className="text-3xl font-bold text-green-400">{projectStatistics.reports_count}</p>
                       </div>
                     </div>
@@ -777,8 +777,8 @@ const ProjectsManagement = () => {
 
                 {/* Статистика по инженерам */}
                 {projectStatistics.engineers && projectStatistics.engineers.length > 0 && (
-                  <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <div className="bg-app-deep rounded-lg p-6 border border-app-line">
+                    <h3 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
                       <Users size={20} />
                       Работа инженеров
                     </h3>
@@ -786,20 +786,20 @@ const ProjectsManagement = () => {
                       {projectStatistics.engineers.map((eng: any) => {
                         const engProgress = eng.total > 0 ? (eng.completed / eng.total * 100) : 0;
                         return (
-                          <div key={eng.engineer_id} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                          <div key={eng.engineer_id} className="bg-app-panel rounded-lg p-4 border border-app-line">
                             <div className="flex justify-between items-center mb-2">
                               <span className="font-semibold text-white">{eng.engineer_name}</span>
-                              <span className="text-sm text-slate-400">
+                              <span className="text-sm text-app-text3">
                                 {eng.completed} / {eng.total}
                               </span>
                             </div>
-                            <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                            <div className="w-full bg-app-soft rounded-full h-2 overflow-hidden">
                               <div 
                                 className="bg-gradient-to-r from-blue-500 to-green-500 h-full transition-all duration-500"
                                 style={{ width: `${engProgress}%` }}
                               />
                             </div>
-                            <div className="flex gap-4 mt-2 text-xs text-slate-400">
+                            <div className="flex gap-4 mt-2 text-xs text-app-text3">
                               <span>Выполнено: {eng.completed}</span>
                               <span>В работе: {eng.in_progress}</span>
                               <span>Ожидает: {eng.total - eng.completed - eng.in_progress}</span>
@@ -813,27 +813,27 @@ const ProjectsManagement = () => {
 
                 {/* Временная шкала (Gantt-like) */}
                 {selectedProject.start_date && selectedProject.deadline && (
-                  <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <div className="bg-app-deep rounded-lg p-6 border border-app-line">
+                    <h3 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
                       <Calendar size={20} />
                       Временная шкала проекта
                     </h3>
                     <div className="relative">
                       <div className="flex items-center gap-4 mb-4">
                         <div className="flex-1">
-                          <div className="text-sm text-slate-400 mb-1">Начало</div>
+                          <div className="text-sm text-app-text3 mb-1">Начало</div>
                           <div className="text-white font-semibold">
                             {new Date(selectedProject.start_date).toLocaleDateString('ru-RU')}
                           </div>
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm text-slate-400 mb-1">Дедлайн</div>
+                          <div className="text-sm text-app-text3 mb-1">Дедлайн</div>
                           <div className="text-white font-semibold">
                             {new Date(selectedProject.deadline).toLocaleDateString('ru-RU')}
                           </div>
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm text-slate-400 mb-1">Текущая дата</div>
+                          <div className="text-sm text-app-text3 mb-1">Текущая дата</div>
                           <div className="text-white font-semibold">
                             {new Date().toLocaleDateString('ru-RU')}
                           </div>
@@ -841,7 +841,7 @@ const ProjectsManagement = () => {
                       </div>
                       
                       {/* Упрощенная временная шкала */}
-                      <div className="relative h-8 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="relative h-8 bg-app-soft rounded-full overflow-hidden">
                         <div 
                           className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-500"
                           style={{ 
@@ -861,7 +861,7 @@ const ProjectsManagement = () => {
                 )}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-400">Статистика недоступна</div>
+              <div className="text-center py-8 text-app-text3">Статистика недоступна</div>
             )}
           </div>
         </div>

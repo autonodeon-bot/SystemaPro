@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { X } from 'lucide-react';
 import type { CreateFormData, CreateModalState, EquipmentType } from './types';
 
@@ -37,31 +37,31 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
       role="presentation"
     >
       <div
-        className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4"
+        className="bg-app-panel rounded-xl p-6 max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-white">Создать {title}</h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+          <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
             <X size={24} />
           </button>
         </div>
 
         {modal.parentName && (
-          <p className="text-slate-400 text-sm mb-4">Родитель: {modal.parentName}</p>
+          <p className="text-app-text3 text-sm mb-4">Родитель: {modal.parentName}</p>
         )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="text-sm text-slate-400 block mb-1">Название *</label>
+            <label className="text-sm text-app-text3 block mb-1">Название *</label>
             <input
               type="text"
               required
               value={formData.name}
               onChange={(e) => onFormDataChange({ ...formData, name: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+              className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
               placeholder="Введите название"
             />
           </div>
@@ -72,23 +72,23 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
             modal.type === 'equipment_type') && (
             <>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Код</label>
+                <label className="text-sm text-app-text3 block mb-1">Код</label>
                 <input
                   type="text"
                   value={formData.code}
                   onChange={(e) => onFormDataChange({ ...formData, code: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="Введите код (необязательно)"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Описание</label>
+                <label className="text-sm text-app-text3 block mb-1">Описание</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) =>
                     onFormDataChange({ ...formData, description: e.target.value })
                   }
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="Введите описание (необязательно)"
                   rows={3}
                 />
@@ -99,11 +99,11 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
           {modal.type === 'equipment' && (
             <>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Тип оборудования</label>
+                <label className="text-sm text-app-text3 block mb-1">Тип оборудования</label>
                 <select
                   value={formData.type_id}
                   onChange={(e) => onFormDataChange({ ...formData, type_id: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 >
                   <option value="">Выберите тип</option>
                   {equipmentTypes.map((t) => (
@@ -114,29 +114,29 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
                 </select>
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Заводской номер</label>
+                <label className="text-sm text-app-text3 block mb-1">Заводской номер</label>
                 <input
                   type="text"
                   value={formData.serial_number}
                   onChange={(e) =>
                     onFormDataChange({ ...formData, serial_number: e.target.value })
                   }
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="Введите заводской номер"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">Место расположения</label>
+                <label className="text-sm text-app-text3 block mb-1">Место расположения</label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(e) => onFormDataChange({ ...formData, location: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                   placeholder="Введите место расположения"
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400 block mb-1">
+                <label className="text-sm text-app-text3 block mb-1">
                   Дата ввода в эксплуатацию
                 </label>
                 <input
@@ -145,7 +145,7 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
                   onChange={(e) =>
                     onFormDataChange({ ...formData, commissioning_date: e.target.value })
                   }
-                  className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
                 />
               </div>
             </>
@@ -161,7 +161,7 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+              className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
             >
               Отмена
             </button>

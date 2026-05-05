@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
 import { API_BASE } from '../constants';
@@ -135,7 +135,7 @@ const VerificationsCalendar: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center text-slate-400 mt-20">Загрузка...</div>;
+    return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
 
   const days = getDaysInMonth(currentMonth);
@@ -147,7 +147,7 @@ const VerificationsCalendar: React.FC = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/verifications')}
-            className="p-2 text-slate-400 hover:text-white transition rounded-lg hover:bg-slate-800"
+            className="p-2 text-app-text3 hover:text-app-text transition rounded-lg hover:bg-app-panel"
             title="Вернуться к поверкам"
           >
             <ArrowLeft size={20} />
@@ -157,7 +157,7 @@ const VerificationsCalendar: React.FC = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={prevMonth}
-            className="p-2 text-slate-400 hover:text-white transition"
+            className="p-2 text-app-text3 hover:text-app-text transition"
           >
             <ChevronLeft size={20} />
           </button>
@@ -166,7 +166,7 @@ const VerificationsCalendar: React.FC = () => {
           </span>
           <button
             onClick={nextMonth}
-            className="p-2 text-slate-400 hover:text-white transition"
+            className="p-2 text-app-text3 hover:text-app-text transition"
           >
             <ChevronRight size={20} />
           </button>
@@ -174,41 +174,41 @@ const VerificationsCalendar: React.FC = () => {
       </div>
 
       {/* Легенда */}
-      <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+      <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
         <div className="flex items-center gap-6 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-red-500/20 border border-red-500 rounded"></div>
-            <span className="text-sm text-slate-300">Просрочено</span>
+            <span className="text-sm text-app-text2">Просрочено</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-orange-500/20 border border-orange-500 rounded"></div>
-            <span className="text-sm text-slate-300">Истекает ≤7 дней</span>
+            <span className="text-sm text-app-text2">Истекает ≤7 дней</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-yellow-500/20 border border-yellow-500 rounded"></div>
-            <span className="text-sm text-slate-300">Истекает 8–30 дней</span>
+            <span className="text-sm text-app-text2">Истекает 8–30 дней</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-emerald-500/10 border border-emerald-600 rounded"></div>
-            <span className="text-sm text-slate-300">Срок &gt; 30 дней</span>
+            <span className="text-sm text-app-text2">Срок &gt; 30 дней</span>
           </div>
         </div>
       </div>
 
       {/* Календарь */}
-      <div className="bg-secondary/50 rounded-lg border border-slate-700 overflow-hidden">
-        <div className="grid grid-cols-7 gap-px bg-slate-700">
+      <div className="bg-secondary/50 rounded-lg border border-app-line overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-app-soft">
           {weekDays.map(day => (
-            <div key={day} className="bg-slate-800 p-2 text-center text-sm font-semibold text-slate-300">
+            <div key={day} className="bg-app-panel p-2 text-center text-sm font-semibold text-app-text2">
               {day}
             </div>
           ))}
           {days.map((date, idx) => (
             <div
               key={idx}
-              className={`bg-slate-900 min-h-[100px] p-2 border-2 ${getDateColor(date)} ${
+              className={`bg-app-deep min-h-[100px] p-2 border-2 ${getDateColor(date)} ${
                 selectedDate && date && selectedDate.getTime() === date.getTime() ? 'ring-2 ring-blue-500' : ''
-              } ${date ? 'cursor-pointer hover:bg-slate-800' : 'bg-slate-950'}`}
+              } ${date ? 'cursor-pointer hover:bg-app-panel' : 'bg-app-deep'}`}
               onClick={() => date && setSelectedDate(date)}
             >
               {date && (
@@ -219,14 +219,14 @@ const VerificationsCalendar: React.FC = () => {
                   {getEquipmentForDate(date).slice(0, 2).map(eq => (
                     <div
                       key={eq.id}
-                      className="text-xs text-slate-300 truncate mb-1"
+                      className="text-xs text-app-text2 truncate mb-1"
                       title={eq.name}
                     >
                       {eq.equipment_type}: {(eq.name || '').length > 15 ? `${(eq.name || '').slice(0, 15)}…` : (eq.name || '—')}
                     </div>
                   ))}
                   {getEquipmentForDate(date).length > 2 && (
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-app-text3">
                       +{getEquipmentForDate(date).length - 2} еще
                     </div>
                   )}
@@ -239,23 +239,23 @@ const VerificationsCalendar: React.FC = () => {
 
       {/* Детали выбранной даты */}
       {selectedDate && (
-        <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+        <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
           <h3 className="text-lg font-semibold text-white mb-4">
             Оборудование с поверкой {selectedDate.toLocaleDateString('ru-RU')}
           </h3>
           <div className="space-y-2">
             {getEquipmentForDate(selectedDate).length === 0 ? (
-              <p className="text-slate-400">Нет оборудования с поверкой на эту дату</p>
+              <p className="text-app-text3">Нет оборудования с поверкой на эту дату</p>
             ) : (
               getEquipmentForDate(selectedDate).map(eq => (
                 <div
                   key={eq.id}
-                  className="bg-slate-800 rounded-lg p-3 border border-slate-700"
+                  className="bg-app-panel rounded-lg p-3 border border-app-line"
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-semibold text-white">{eq.name}</div>
-                      <div className="text-sm text-slate-400">
+                      <div className="text-sm text-app-text3">
                         {eq.equipment_type} • {eq.serial_number}
                       </div>
                     </div>
@@ -285,21 +285,21 @@ const VerificationsCalendar: React.FC = () => {
       )}
 
       {/* Статистика месяца */}
-      <div className="bg-secondary/50 rounded-lg p-4 border border-slate-700">
+      <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
         <h3 className="text-lg font-semibold text-white mb-4">Статистика за месяц</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <div className="text-slate-400 text-sm">Всего поверок</div>
+            <div className="text-app-text3 text-sm">Всего поверок</div>
             <div className="text-2xl font-bold text-white mt-1">{monthEquipment.length}</div>
           </div>
           <div>
-            <div className="text-slate-400 text-sm">Просрочено</div>
+            <div className="text-app-text3 text-sm">Просрочено</div>
             <div className="text-2xl font-bold text-red-400 mt-1">
               {monthEquipment.filter(eq => eq.is_expired).length}
             </div>
           </div>
           <div>
-            <div className="text-slate-400 text-sm">Требуют внимания</div>
+            <div className="text-app-text3 text-sm">Требуют внимания</div>
             <div className="text-2xl font-bold text-yellow-400 mt-1">
               {monthEquipment.filter(eq => !eq.is_expired && eq.days_until_expiry !== null && eq.days_until_expiry <= 30).length}
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronDown, UserPlus, Building2, Network, Factory, Box } from 'lucide-react';
 import { API_BASE } from '../constants';
 
@@ -262,14 +262,14 @@ const EquipmentHierarchy = () => {
       </div>
 
       {/* Иерархия */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+      <div className="bg-app-panel rounded-xl border border-app-line p-6">
         {enterprises.map((enterprise) => (
           <div key={enterprise.id} className="mb-4">
-            <div className="flex items-center justify-between p-3 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors">
+            <div className="flex items-center justify-between p-3 bg-app-deep rounded-lg hover:bg-app-panel transition-colors">
               <div className="flex items-center gap-3 flex-1">
                 <button
                   onClick={() => toggleExpand(`enterprise_${enterprise.id}`)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-app-text3 hover:text-app-text"
                 >
                   {expanded[`enterprise_${enterprise.id}`] ? (
                     <ChevronDown size={20} />
@@ -280,12 +280,12 @@ const EquipmentHierarchy = () => {
                 <Building2 className="text-accent" size={20} />
                 <span className="text-white font-bold">{enterprise.name}</span>
                 {enterprise.code && (
-                  <span className="text-slate-400 text-sm">({enterprise.code})</span>
+                  <span className="text-app-text3 text-sm">({enterprise.code})</span>
                 )}
               </div>
               <button
                 onClick={() => handleAssignEngineers('enterprise', enterprise.id, enterprise.name)}
-                className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                className="text-accent hover:text-blue-400 p-2 rounded hover:bg-app-soft"
                 title="Назначить инженеров"
               >
                 <UserPlus size={18} />
@@ -296,11 +296,11 @@ const EquipmentHierarchy = () => {
               <div className="ml-8 mt-2 space-y-2">
                 {(branches[enterprise.id] || []).map((branch) => (
                   <div key={branch.id} className="mb-2">
-                    <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg hover:bg-slate-800 transition-colors">
+                    <div className="flex items-center justify-between p-2 bg-app-deep/50 rounded-lg hover:bg-app-panel transition-colors">
                       <div className="flex items-center gap-3 flex-1">
                         <button
                           onClick={() => toggleExpand(`branch_${branch.id}`)}
-                          className="text-slate-400 hover:text-white"
+                          className="text-app-text3 hover:text-app-text"
                         >
                           {expanded[`branch_${branch.id}`] ? (
                             <ChevronDown size={18} />
@@ -309,14 +309,14 @@ const EquipmentHierarchy = () => {
                           )}
                         </button>
                         <Network className="text-blue-400" size={18} />
-                        <span className="text-slate-200">{branch.name}</span>
+                        <span className="text-app-text">{branch.name}</span>
                         {branch.code && (
-                          <span className="text-slate-500 text-sm">({branch.code})</span>
+                          <span className="text-app-text3 text-sm">({branch.code})</span>
                         )}
                       </div>
                       <button
                         onClick={() => handleAssignEngineers('branch', branch.id, branch.name)}
-                        className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                        className="text-accent hover:text-blue-400 p-2 rounded hover:bg-app-soft"
                         title="Назначить инженеров"
                       >
                         <UserPlus size={16} />
@@ -327,11 +327,11 @@ const EquipmentHierarchy = () => {
                       <div className="ml-6 mt-2 space-y-2">
                         {(workshops[branch.id] || []).map((workshop) => (
                           <div key={workshop.id} className="mb-2">
-                            <div className="flex items-center justify-between p-2 bg-slate-900/30 rounded-lg hover:bg-slate-800 transition-colors">
+                            <div className="flex items-center justify-between p-2 bg-app-deep/30 rounded-lg hover:bg-app-panel transition-colors">
                               <div className="flex items-center gap-3 flex-1">
                                 <button
                                   onClick={() => toggleExpand(`workshop_${workshop.id}`)}
-                                  className="text-slate-400 hover:text-white"
+                                  className="text-app-text3 hover:text-app-text"
                                 >
                                   {expanded[`workshop_${workshop.id}`] ? (
                                     <ChevronDown size={16} />
@@ -340,14 +340,14 @@ const EquipmentHierarchy = () => {
                                   )}
                                 </button>
                                 <Factory className="text-green-400" size={16} />
-                                <span className="text-slate-300 text-sm">{workshop.name}</span>
+                                <span className="text-app-text2 text-sm">{workshop.name}</span>
                                 {workshop.code && (
-                                  <span className="text-slate-500 text-xs">({workshop.code})</span>
+                                  <span className="text-app-text3 text-xs">({workshop.code})</span>
                                 )}
                               </div>
                               <button
                                 onClick={() => handleAssignEngineers('workshop', workshop.id, workshop.name)}
-                                className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                                className="text-accent hover:text-blue-400 p-2 rounded hover:bg-app-soft"
                                 title="Назначить инженеров"
                               >
                                 <UserPlus size={14} />
@@ -359,11 +359,11 @@ const EquipmentHierarchy = () => {
                                 {/* Типы оборудования */}
                                 {equipmentTypes.map((type) => (
                                   <div key={type.id} className="mb-2">
-                                    <div className="flex items-center justify-between p-2 bg-slate-900/20 rounded-lg hover:bg-slate-800 transition-colors">
+                                    <div className="flex items-center justify-between p-2 bg-app-deep/20 rounded-lg hover:bg-app-panel transition-colors">
                                       <div className="flex items-center gap-3 flex-1">
                                         <button
                                           onClick={() => toggleExpand(`type_${workshop.id}_${type.id}`)}
-                                          className="text-slate-400 hover:text-white"
+                                          className="text-app-text3 hover:text-app-text"
                                         >
                                           {expanded[`type_${workshop.id}_${type.id}`] ? (
                                             <ChevronDown size={14} />
@@ -372,11 +372,11 @@ const EquipmentHierarchy = () => {
                                           )}
                                         </button>
                                         <Box className="text-yellow-400" size={14} />
-                                        <span className="text-slate-300 text-sm">{type.name}</span>
+                                        <span className="text-app-text2 text-sm">{type.name}</span>
                                       </div>
                                       <button
                                         onClick={() => handleAssignEngineers('equipment_type', type.id, type.name)}
-                                        className="text-accent hover:text-blue-400 p-2 rounded hover:bg-slate-700"
+                                        className="text-accent hover:text-blue-400 p-2 rounded hover:bg-app-soft"
                                         title="Назначить инженеров"
                                       >
                                         <UserPlus size={12} />
@@ -388,11 +388,11 @@ const EquipmentHierarchy = () => {
                                         {(equipment[workshop.id] || [])
                                           .filter(eq => eq.type_id === type.id)
                                           .map((eq) => (
-                                            <div key={eq.id} className="flex items-center justify-between p-2 bg-slate-950 rounded hover:bg-slate-900 transition-colors">
-                                              <span className="text-slate-400 text-xs">{eq.name}</span>
+                                            <div key={eq.id} className="flex items-center justify-between p-2 bg-app-deep rounded hover:bg-app-deep transition-colors">
+                                              <span className="text-app-text3 text-xs">{eq.name}</span>
                                               <button
                                                 onClick={() => handleAssignEngineers('equipment', eq.id, eq.name)}
-                                                className="text-accent hover:text-blue-400 p-1 rounded hover:bg-slate-800"
+                                                className="text-accent hover:text-blue-400 p-1 rounded hover:bg-app-panel"
                                                 title="Назначить инженеров"
                                               >
                                                 <UserPlus size={12} />
@@ -417,7 +417,7 @@ const EquipmentHierarchy = () => {
         ))}
 
         {enterprises.length === 0 && (
-          <div className="text-center text-slate-400 py-10">
+          <div className="text-center text-app-text3 py-10">
             Предприятия не добавлены. Обратитесь к администратору.
           </div>
         )}
@@ -426,18 +426,18 @@ const EquipmentHierarchy = () => {
       {/* Модальное окно назначения инженеров */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAssignModal(null)}>
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-white mb-4">
               Назначить инженеров: {showAssignModal.name}
             </h2>
             {users.length === 0 ? (
-              <div className="text-slate-400 text-sm mb-4">
+              <div className="text-app-text3 text-sm mb-4">
                 Загрузка списка инженеров... Если список не загружается, проверьте консоль браузера (F12).
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
                 {users.map((user) => (
-                  <label key={user.id} className="flex items-center gap-2 p-2 bg-slate-900 rounded hover:bg-slate-800 cursor-pointer">
+                  <label key={user.id} className="flex items-center gap-2 p-2 bg-app-deep rounded hover:bg-app-panel cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedEngineers.includes(user.id)}
@@ -475,7 +475,7 @@ const EquipmentHierarchy = () => {
                   e.stopPropagation();
                   setShowAssignModal(null);
                 }}
-                className="flex-1 bg-slate-700 px-4 py-2 rounded-lg text-white font-bold hover:bg-slate-600"
+                className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
               >
                 Отмена
               </button>

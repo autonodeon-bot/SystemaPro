@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+﻿import React, { useState, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Outlet, Navigate } from 'react-router-dom';
 import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon } from 'lucide-react';
 import {
@@ -457,7 +457,7 @@ const App = () => {
             <Route path="/drawing-templates" element={<DrawingTemplatesManager />} />
             <Route path="/defect-statement" element={<DefectStatement />} />
             <Route path="/inspections-trash" element={<ProtectedRoute requiredRole="chief_operator"><InspectionsTrash /></ProtectedRoute>} />
-            <Route path="*" element={<div className="text-center text-slate-500 mt-20">Раздел в разработке</div>} />
+            <Route path="*" element={<div className="text-center text-app-text3 mt-20">Раздел в разработке</div>} />
           </Route>
         </Routes>
       </HashRouter>

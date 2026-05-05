@@ -27,6 +27,17 @@ export default {
         warning: '#f59e0b',
         surface: '#334155',
         border: '#475569',
+        /** Семантика UI: светлая/тёмная тема через CSS-переменные (см. design-tokens.css --tw-app-*) */
+        app: {
+          deep: 'rgb(var(--tw-app-deep) / <alpha-value>)',
+          panel: 'rgb(var(--tw-app-panel) / <alpha-value>)',
+          soft: 'rgb(var(--tw-app-soft) / <alpha-value>)',
+          softer: 'rgb(var(--tw-app-softer) / <alpha-value>)',
+          text: 'rgb(var(--tw-app-text) / <alpha-value>)',
+          text2: 'rgb(var(--tw-app-text2) / <alpha-value>)',
+          text3: 'rgb(var(--tw-app-text3) / <alpha-value>)',
+          line: 'rgb(var(--tw-app-br) / <alpha-value>)',
+        },
       },
       borderRadius: {
         xl: '0.75rem',

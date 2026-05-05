@@ -1,4 +1,4 @@
-import {
+﻿import {
   FileText,
   X,
   CheckCircle,
@@ -53,41 +53,41 @@ const ReportPreviewModal = ({
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-2 md:p-4">
       <div className="sp-card-soft rounded-xl w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between p-6 border-b border-app-line">
           <h2 className="text-xl font-bold text-white">
             Предпросмотр {previewType === 'TECHNICAL_REPORT' ? 'технического отчета' : 'экспертизы ПБ'}
           </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+          <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
             <X size={24} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6">
-          <div className="bg-slate-900 p-3 md:p-4 rounded-lg">
+          <div className="bg-app-deep p-3 md:p-4 rounded-lg">
             <h3 className="sp-section-title text-base md:text-lg mb-3 flex items-center gap-2">
               <CheckCircle size={18} className="md:w-5 md:h-5 text-green-400" />
               Оборудование
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-slate-400">Название:</span>
+                <span className="text-app-text3">Название:</span>
                 <p className="text-white font-bold">{previewData.equipment.name}</p>
               </div>
               {previewData.equipment.serial_number && (
                 <div>
-                  <span className="text-slate-400">Серийный номер:</span>
+                  <span className="text-app-text3">Серийный номер:</span>
                   <p className="text-white">{previewData.equipment.serial_number}</p>
                 </div>
               )}
               {previewData.equipment.location && (
                 <div>
-                  <span className="text-slate-400">Местоположение:</span>
+                  <span className="text-app-text3">Местоположение:</span>
                   <p className="text-white">{previewData.equipment.location}</p>
                 </div>
               )}
               {previewData.equipment.commissioning_date && (
                 <div>
-                  <span className="text-slate-400">Дата ввода в эксплуатацию:</span>
+                  <span className="text-app-text3">Дата ввода в эксплуатацию:</span>
                   <p className="text-white">{formatDateRu(previewData.equipment.commissioning_date)}</p>
                 </div>
               )}
@@ -102,17 +102,17 @@ const ReportPreviewModal = ({
             <div className="space-y-2 text-sm">
               {previewData.inspection.date_performed && (
                 <div>
-                  <span className="text-slate-400">Дата проведения:</span>
+                  <span className="text-app-text3">Дата проведения:</span>
                   <p className="text-white">{formatDateRu(previewData.inspection.date_performed)}</p>
                 </div>
               )}
               <div>
-                <span className="text-slate-400">Статус:</span>
+                <span className="text-app-text3">Статус:</span>
                 <p className="text-white">{previewData.inspection.status}</p>
               </div>
               {previewData.inspection.conclusion && (
                 <div>
-                  <span className="text-slate-400">Заключение:</span>
+                  <span className="text-app-text3">Заключение:</span>
                   <p className="text-white">{previewData.inspection.conclusion}</p>
                 </div>
               )}
@@ -122,7 +122,7 @@ const ReportPreviewModal = ({
           {validationResult && (
             <div className="sp-card">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-white">Проверка полноты</h3>
+                <h3 className="text-lg font-bold text-app-text">Проверка полноты</h3>
                 <span
                   className={`px-2 py-1 rounded text-xs font-semibold ${
                     validationResult.is_complete
@@ -168,49 +168,49 @@ const ReportPreviewModal = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {previewData.opo.name && (
                   <div>
-                    <span className="text-slate-400">Наименование:</span>
+                    <span className="text-app-text3">Наименование:</span>
                     <p className="text-white">{previewData.opo.name}</p>
                   </div>
                 )}
                 {previewData.opo.code && (
                   <div>
-                    <span className="text-slate-400">Код:</span>
+                    <span className="text-app-text3">Код:</span>
                     <p className="text-white">{previewData.opo.code}</p>
                   </div>
                 )}
                 {previewData.opo.enterprise_name && (
                   <div>
-                    <span className="text-slate-400">Предприятие:</span>
+                    <span className="text-app-text3">Предприятие:</span>
                     <p className="text-white">{previewData.opo.enterprise_name}</p>
                   </div>
                 )}
                 {previewData.opo.branch_name && (
                   <div>
-                    <span className="text-slate-400">Филиал:</span>
+                    <span className="text-app-text3">Филиал:</span>
                     <p className="text-white">{previewData.opo.branch_name}</p>
                   </div>
                 )}
                 {previewData.opo.workshop_name && (
                   <div>
-                    <span className="text-slate-400">Цех:</span>
+                    <span className="text-app-text3">Цех:</span>
                     <p className="text-white">{previewData.opo.workshop_name}</p>
                   </div>
                 )}
                 {previewData.opo.description && (
                   <div className="sm:col-span-2">
-                    <span className="text-slate-400">Описание:</span>
+                    <span className="text-app-text3">Описание:</span>
                     <p className="text-white">{previewData.opo.description}</p>
                   </div>
                 )}
                 {previewData.opo.survey_data?.organization && (
                   <div>
-                    <span className="text-slate-400">Организация (опросный лист):</span>
+                    <span className="text-app-text3">Организация (опросный лист):</span>
                     <p className="text-white">{previewData.opo.survey_data.organization}</p>
                   </div>
                 )}
                 {previewData.opo.survey_data?.executors && (
                   <div>
-                    <span className="text-slate-400">Исполнители (опросный лист):</span>
+                    <span className="text-app-text3">Исполнители (опросный лист):</span>
                     <p className="text-white">{previewData.opo.survey_data.executors}</p>
                   </div>
                 )}
@@ -231,17 +231,17 @@ const ReportPreviewModal = ({
                   if (isImageDoc(doc.mime_type)) {
                     return (
                       <div key={`${doc.document_number}-${idx}`} className="sp-card-soft p-3">
-                        <p className="text-xs text-slate-400 mb-2">{label}</p>
+                        <p className="text-xs text-app-text3 mb-2">{label}</p>
                         {docUrl ? (
                           <a href={docUrl} target="_blank" rel="noreferrer">
                             <img
                               src={docUrl}
                               alt={label}
-                              className="w-full max-h-64 object-contain rounded bg-slate-950"
+                              className="w-full max-h-64 object-contain rounded bg-app-deep"
                             />
                           </a>
                         ) : (
-                          <div className="text-slate-500 text-sm">Ссылка недоступна</div>
+                          <div className="text-app-text3 text-sm">Ссылка недоступна</div>
                         )}
                       </div>
                     );
@@ -253,7 +253,7 @@ const ReportPreviewModal = ({
                     >
                       <div>
                         <p className="text-white text-sm">{label}</p>
-                        {doc.mime_type && <p className="text-xs text-slate-500">{doc.mime_type}</p>}
+                        {doc.mime_type && <p className="text-xs text-app-text3">{doc.mime_type}</p>}
                       </div>
                       {docUrl && (
                         <a
@@ -288,33 +288,33 @@ const ReportPreviewModal = ({
                     <div className="flex items-center gap-2 mb-2">
                       <span
                         className={`px-2 py-1 rounded text-xs ${
-                          method.is_performed ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'
+                          method.is_performed ? 'bg-green-500/20 text-green-400' : 'bg-app-soft text-app-text3'
                         }`}
                       >
                         {method.is_performed ? 'Выполнен' : 'Не выполнен'}
                       </span>
                       <span className="text-white font-bold">{method.method_name}</span>
                       {method.method_code && (
-                        <span className="text-slate-400 text-xs">({method.method_code})</span>
+                        <span className="text-app-text3 text-xs">({method.method_code})</span>
                       )}
                     </div>
                     {method.inspector_name && (
-                      <p className="text-sm text-slate-300">Инженер: {method.inspector_name}</p>
+                      <p className="text-sm text-app-text2">Инженер: {method.inspector_name}</p>
                     )}
                     {method.results && (
-                      <p className="text-sm text-slate-300 mt-1">Результаты: {method.results}</p>
+                      <p className="text-sm text-app-text2 mt-1">Результаты: {method.results}</p>
                     )}
                     {method.defects && (
                       <p className="text-sm text-red-300 mt-1">Дефекты: {method.defects}</p>
                     )}
                     {method.conclusion && (
-                      <p className="text-sm text-slate-300 mt-1">Заключение: {method.conclusion}</p>
+                      <p className="text-sm text-app-text2 mt-1">Заключение: {method.conclusion}</p>
                     )}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-slate-400 text-sm">Методы НК не указаны</p>
+              <p className="text-app-text3 text-sm">Методы НК не указаны</p>
             )}
           </div>
 
@@ -327,25 +327,25 @@ const ReportPreviewModal = ({
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {previewData.resource.remaining_resource_years != null && (
                   <div>
-                    <span className="text-slate-400">Остаточный ресурс (лет):</span>
+                    <span className="text-app-text3">Остаточный ресурс (лет):</span>
                     <p className="text-white">{previewData.resource.remaining_resource_years}</p>
                   </div>
                 )}
                 {previewData.resource.resource_end_date && (
                   <div>
-                    <span className="text-slate-400">Дата окончания ресурса:</span>
+                    <span className="text-app-text3">Дата окончания ресурса:</span>
                     <p className="text-white">{formatDateRu(previewData.resource.resource_end_date)}</p>
                   </div>
                 )}
                 {previewData.resource.extension_years != null && (
                   <div>
-                    <span className="text-slate-400">Продление (лет):</span>
+                    <span className="text-app-text3">Продление (лет):</span>
                     <p className="text-white">{previewData.resource.extension_years}</p>
                   </div>
                 )}
                 {previewData.resource.extension_date && (
                   <div>
-                    <span className="text-slate-400">Дата продления:</span>
+                    <span className="text-app-text3">Дата продления:</span>
                     <p className="text-white">{formatDateRu(previewData.resource.extension_date)}</p>
                   </div>
                 )}
@@ -354,11 +354,11 @@ const ReportPreviewModal = ({
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-2 md:gap-3 p-4 md:p-6 border-t border-slate-700">
+        <div className="flex flex-col sm:flex-row justify-end gap-2 md:gap-3 p-4 md:p-6 border-t border-app-line">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 md:px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm md:text-base"
+            className="px-3 md:px-4 py-2 bg-app-soft hover:bg-app-softer text-app-text rounded-lg text-sm md:text-base"
           >
             Отмена
           </button>
@@ -382,7 +382,7 @@ const ReportPreviewModal = ({
                 navigate(`/report-viewer/${id}`);
               }
             }}
-            className="px-3 md:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm md:text-base"
+            className="px-3 md:px-4 py-2 bg-app-panel hover:bg-app-soft text-app-text rounded-lg text-sm md:text-base"
           >
             Полный просмотр
           </button>
