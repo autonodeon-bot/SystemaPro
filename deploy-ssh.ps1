@@ -4,6 +4,8 @@
 $ErrorActionPreference = "Stop"
 $SERVER = "root@5.129.203.182"
 $REMOTE = "/opt/es-td-ngo"
+# Долгие docker build на VPS: без keepalive соединение часто рвётся по таймауту NAT/SSH.
+$SshAlive = @("-o", "ServerAliveInterval=20", "-o", "ServerAliveCountMax=120", "-o", "TCPKeepAlive=yes")
 
 $ProjectRoot = $PSScriptRoot
 if (-not $ProjectRoot) { $ProjectRoot = Get-Location.Path }
@@ -18,7 +20,7 @@ Write-Host ""
 
 Write-Host "[1/7] Checking SSH connection..." -ForegroundColor Yellow
 try {
-    $null = ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new $SERVER "echo OK"
+    $null = ssh @SshAlive -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new $SERVER "echo OK"
 } catch {
     Write-Host "ERROR: Cannot connect via SSH. Add key to server. See DEPLOY-SSH.md" -ForegroundColor Red
     exit 1
@@ -27,17 +29,17 @@ Write-Host "  OK" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[2/7] Creating remote directories..." -ForegroundColor Yellow
-ssh $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/components $REMOTE/contexts $REMOTE/utils $REMOTE/styles $REMOTE/lib $REMOTE/mobile-apk"
+ssh @SshAlive $SERVER "mkdir -p $REMOTE/backend $REMOTE/nginx $REMOTE/pages $REMOTE/components $REMOTE/contexts $REMOTE/utils $REMOTE/styles $REMOTE/lib $REMOTE/mobile-apk"
 Write-Host "  Done" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[2.5/7] Environment (.env) on server..." -ForegroundColor Yellow
 $localEnv = Join-Path $ProjectRoot ".env"
 if (Test-Path $localEnv) {
-    scp $localEnv "${SERVER}:${REMOTE}/.env"
+    scp @SshAlive $localEnv "${SERVER}:${REMOTE}/.env"
     Write-Host '  OK: .env copied to server' -ForegroundColor Green
 } else {
-    $null = ssh $SERVER "test -s $REMOTE/.env"
+    $null = ssh @SshAlive $SERVER "test -s $REMOTE/.env"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: No .env in project root and server $REMOTE/.env is missing or empty." -ForegroundColor Red
         Write-Host '       Create .env from .env.example then redeploy.' -ForegroundColor Red
@@ -49,14 +51,14 @@ Write-Host ""
 
 Write-Host "[3/7] Copying files..." -ForegroundColor Yellow
 $dest = "${SERVER}`:${REMOTE}"
-scp -r backend/* "${dest}/backend/"
-scp -r nginx/* "${dest}/nginx/"
-scp -r pages/* "${dest}/pages/"
-if (Test-Path "components") { scp -r components/* "${dest}/components/" }
-if (Test-Path "contexts") { scp -r contexts/* "${dest}/contexts/" }
-if (Test-Path "utils") { scp -r utils/* "${dest}/utils/" }
-if (Test-Path "styles") { scp -r styles/* "${dest}/styles/" }
-if (Test-Path "lib") { scp -r lib/* "${dest}/lib/" }
+scp @SshAlive -r backend/* "${dest}/backend/"
+scp @SshAlive -r nginx/* "${dest}/nginx/"
+scp @SshAlive -r pages/* "${dest}/pages/"
+if (Test-Path "components") { scp @SshAlive -r components/* "${dest}/components/" }
+if (Test-Path "contexts") { scp @SshAlive -r contexts/* "${dest}/contexts/" }
+if (Test-Path "utils") { scp @SshAlive -r utils/* "${dest}/utils/" }
+if (Test-Path "styles") { scp @SshAlive -r styles/* "${dest}/styles/" }
+if (Test-Path "lib") { scp @SshAlive -r lib/* "${dest}/lib/" }
 
 $rootFiles = @(
     "docker-compose.yml", "docker-compose.staging.yml", "frontend.Dockerfile", "App.tsx", "index.html", "index.tsx", "index.css",
@@ -65,13 +67,13 @@ $rootFiles = @(
 )
 foreach ($f in $rootFiles) {
     if (Test-Path $f) {
-        scp $f "${dest}/"
+        scp @SshAlive $f "${dest}/"
     }
 }
-if (Test-Path "package-lock.json") { scp package-lock.json "${dest}/" }
+if (Test-Path "package-lock.json") { scp @SshAlive package-lock.json "${dest}/" }
 # .dockerignore ОБЯЗАТЕЛЬНО: без него frontend build context раздувается до 1-2 GB
 # и `docker-compose build frontend` падает по OOM на VPS с 3-4 GB RAM.
-if (Test-Path ".dockerignore") { scp .dockerignore "${dest}/.dockerignore" }
+if (Test-Path ".dockerignore") { scp @SshAlive .dockerignore "${dest}/.dockerignore" }
 Write-Host "  Files copied" -ForegroundColor Green
 Write-Host ""
 
@@ -101,7 +103,7 @@ if ($flutterCmd) {
 }
 if (Test-Path $apkPath) {
     Write-Host "[3.5/7] Uploading mobile APK to server..." -ForegroundColor Yellow
-    scp $apkPath "${dest}/mobile-apk/app-release.apk"
+    scp @SshAlive $apkPath "${dest}/mobile-apk/app-release.apk"
     $versionLine = Get-Content "mobile\pubspec.yaml" | Where-Object { $_.TrimStart().StartsWith("version:") } | Select-Object -First 1
     if ($versionLine) {
         $parts = $versionLine.Split(":", 2)
@@ -109,10 +111,10 @@ if (Test-Path $apkPath) {
         if ($verRaw.Length -gt 0) {
             $ver = $verRaw.Replace("+", "-")
             $name = "es-td-ngo-$ver.apk"
-            ssh $SERVER "cp $REMOTE/mobile-apk/app-release.apk $REMOTE/mobile-apk/$name"
+            ssh @SshAlive $SERVER "cp $REMOTE/mobile-apk/app-release.apk $REMOTE/mobile-apk/$name"
         }
     }
-    ssh $SERVER "chmod -R a+rX $REMOTE/mobile-apk"
+    ssh @SshAlive $SERVER "chmod -R a+rX $REMOTE/mobile-apk"
     Write-Host '  APK uploaded: http://5.129.203.182/mobile/app-release.apk' -ForegroundColor Green
 }
 Write-Host ""
@@ -121,12 +123,12 @@ Write-Host "[4/7] Building containers (BUILD_REF for fresh frontend, cache reuse
 $buildRef = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 # Build sequentially to avoid OOM on small VPS (3-4 GB RAM).
 # BUILD_REF invalidates frontend COPY layer so bundle always refreshes; backend reuses cache unless requirements changed.
-ssh $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build backend"
+ssh @SshAlive $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build backend"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Backend build failed. Check output above." -ForegroundColor Red
     exit 1
 }
-ssh $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build frontend"
+ssh @SshAlive $SERVER "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build frontend"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Frontend build failed. Check output above." -ForegroundColor Red
     exit 1
@@ -135,7 +137,7 @@ Write-Host "  Build done" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[5/7] Legacy DB scripts (ignore errors) and start stack..." -ForegroundColor Yellow
-ssh $SERVER "cd $REMOTE; docker-compose run --rm backend python add_certification_area_column.py 2>/dev/null; docker-compose run --rm backend python add_certification_areas_column.py 2>/dev/null; docker-compose run --rm backend python add_inspection_grouping_columns.py 2>/dev/null; docker-compose up -d"
+ssh @SshAlive $SERVER "cd $REMOTE; docker-compose run --rm backend python add_certification_area_column.py 2>/dev/null; docker-compose run --rm backend python add_certification_areas_column.py 2>/dev/null; docker-compose run --rm backend python add_inspection_grouping_columns.py 2>/dev/null; docker-compose up -d"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Build or start failed. Check output above." -ForegroundColor Red
     exit 1
@@ -144,7 +146,7 @@ Write-Host "  Done" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[6/7] Verifying..." -ForegroundColor Yellow
-ssh $SERVER "cd $REMOTE; docker-compose ps"
+ssh @SshAlive $SERVER "cd $REMOTE; docker-compose ps"
 Write-Host ""
 
 Write-Host "========================================" -ForegroundColor Cyan
