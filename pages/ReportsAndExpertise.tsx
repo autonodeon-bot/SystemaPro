@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
 import ReportCard from '../components/reports/ReportCard';
+import ReportTableRow from '../components/reports/ReportTableRow';
 import ReportFilters from '../components/reports/ReportFilters';
 import ReportUploadModal from '../components/reports/ReportUploadModal';
 import ReportsList from '../components/reports/ReportsList';
@@ -44,6 +45,7 @@ const ReportsAndExpertise = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [groupBy, setGroupBy] = useState<string>('none');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [listLayout, setListLayout] = useState<'cards' | 'table'>('cards');
 
   const loadEnterprises = async () => {
     try {
@@ -701,6 +703,8 @@ const ReportsAndExpertise = () => {
         onWorkshopChange={setSelectedWorkshopId}
         groupBy={groupBy}
         onGroupByChange={handleGroupByChange}
+        listLayout={listLayout}
+        onListLayoutChange={setListLayout}
         cleanupReportsDays={cleanupReportsDays}
         onCleanupReportsDaysChange={setCleanupReportsDays}
         onCleanupOldReports={cleanupOldReports}
@@ -715,6 +719,22 @@ const ReportsAndExpertise = () => {
         searchTerm={searchTerm}
         filterType={filterType}
         filterStatus={filterStatus}
+        layout={listLayout}
+        renderTableRow={(item) => (
+          <ReportTableRow
+            item={item}
+            selected={selectedReports.has(item.id)}
+            onToggleSelect={handleToggleReportSelect}
+            documentFiles={documentFiles[item.id]}
+            canApprove={canApprove}
+            onNavigateReportViewer={(inspectionId) => navigate(`/report-viewer/${inspectionId}`)}
+            onApproveReport={approveReport}
+            onDeleteReport={deleteReport}
+            onGenerateQuestionnairePdf={generateQuestionnairePDF}
+            onGenerateQuestionnaireWord={generateQuestionnaireWord}
+            onOpenFileManager={setSelectedQuestionnaire}
+          />
+        )}
         renderItem={(item) => (
           <ReportCard
             item={item}

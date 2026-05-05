@@ -159,9 +159,9 @@ PERMISSION_MATRIX: dict[str, Set[str]] = {
     "reports.write": {"admin", "chief_operator", "engineer"},
     "reports.sign": {"admin", "chief_operator"},  # только подписанты
     "reports.delete": {"admin"},
-    # Dictionaries
-    "dictionaries.read": {"admin", "chief_operator", "engineer", "client"},
-    "dictionaries.write": {"admin", "chief_operator"},
+    # Dictionaries (оператору нужны клиенты/проекты в UI)
+    "dictionaries.read": {"admin", "chief_operator", "engineer", "client", "operator"},
+    "dictionaries.write": {"admin", "chief_operator", "operator"},
     # Admin
     "admin.panel": {"admin"},
     "admin.audit": {"admin"},

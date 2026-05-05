@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, LayoutGrid, List } from 'lucide-react';
 import type { Branch, Enterprise, Workshop } from './types';
 
 export interface ReportFiltersProps {
@@ -30,6 +30,8 @@ export interface ReportFiltersProps {
   onWorkshopChange: (workshopId: string) => void;
   groupBy: string;
   onGroupByChange: (v: string) => void;
+  listLayout: 'cards' | 'table';
+  onListLayoutChange: (v: 'cards' | 'table') => void;
   cleanupReportsDays: number;
   onCleanupReportsDaysChange: (days: number) => void;
   onCleanupOldReports: () => void;
@@ -63,6 +65,8 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
   onWorkshopChange,
   groupBy,
   onGroupByChange,
+  listLayout,
+  onListLayoutChange,
   cleanupReportsDays,
   onCleanupReportsDaysChange,
   onCleanupOldReports,
@@ -228,6 +232,30 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
           <option value="workshop">По цеху</option>
           <option value="opo">По ОПО</option>
         </select>
+
+        <div
+          className="inline-flex rounded-lg border border-slate-700 overflow-hidden"
+          title="Вид списка"
+        >
+          <button
+            type="button"
+            onClick={() => onListLayoutChange('cards')}
+            className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium ${
+              listLayout === 'cards' ? 'bg-accent text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
+            }`}
+          >
+            <LayoutGrid size={16} /> Карточки
+          </button>
+          <button
+            type="button"
+            onClick={() => onListLayoutChange('table')}
+            className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium border-l border-slate-700 ${
+              listLayout === 'table' ? 'bg-accent text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
+            }`}
+          >
+            <List size={16} /> Таблица
+          </button>
+        </div>
 
         <div className="flex items-center gap-2 sm:ml-auto">
           <span className="text-slate-400 text-sm hidden sm:inline">Очистка:</span>

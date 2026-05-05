@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Calendar, DollarSign, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText, LayoutGrid, List } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface Client {
@@ -28,6 +28,8 @@ const ProjectsManagement = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectStatistics, setProjectStatistics] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [projectsView, setProjectsView] = useState<'cards' | 'table'>('cards');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     client_id: '',
@@ -54,33 +56,56 @@ const ProjectsManagement = () => {
   }, []);
 
   const loadData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const [projectsRes, clientsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/projects`, { headers }),
-        fetch(`${API_BASE}/api/clients`, { headers })
-      ]);
-      
-      if (!projectsRes.ok || !clientsRes.ok) {
-        throw new Error('Ошибка загрузки данных');
-      }
-      
-      const projectsData = await projectsRes.json();
-      const clientsData = await clientsRes.json();
-      
-      setProjects(projectsData.items || []);
-      setClients(clientsData.items || []);
-    } catch (error) {
-      console.error('Ошибка загрузки данных:', error);
-      alert('Ошибка загрузки данных. Проверьте подключение к серверу.');
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    setLoadError(null);
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    let projectsList: Project[] = [];
+    let clientsList: Client[] = [];
+    const errs: string[] = [];
+
+    try {
+      const projectsRes = await fetch(`${API_BASE}/api/projects`, { headers });
+      if (projectsRes.ok) {
+        const projectsData = await projectsRes.json();
+        projectsList = projectsData.items || projectsData.projects || [];
+      } else {
+        const t = await projectsRes.text().catch(() => '');
+        errs.push(`Проекты: HTTP ${projectsRes.status} ${t.slice(0, 200)}`);
+      }
+    } catch (e) {
+      errs.push(`Проекты: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    try {
+      const clientsRes = await fetch(`${API_BASE}/api/clients`, { headers });
+      if (clientsRes.ok) {
+        const clientsData = await clientsRes.json();
+        clientsList = clientsData.items || clientsData.clients || [];
+      } else {
+        const t = await clientsRes.text().catch(() => '');
+        errs.push(`Клиенты: HTTP ${clientsRes.status} ${t.slice(0, 200)}`);
+      }
+    } catch (e) {
+      errs.push(`Клиенты: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    setProjects(projectsList);
+    setClients(clientsList);
+
+    if (errs.length > 0) {
+      setLoadError(errs.join(' · '));
+      if (projectsList.length === 0 && clientsList.length === 0) {
+        alert(`Ошибка загрузки данных.\n${errs.join('\n')}`);
+      } else {
+        console.warn('Частичная загрузка проектов/клиентов:', errs);
+      }
+    }
+    setLoading(false);
   };
 
   const loadProjectStatistics = async (projectId: string) => {
@@ -212,7 +237,8 @@ const ProjectsManagement = () => {
     return statusMap[status] || status;
   };
 
-  const getClientName = (clientId: string) => {
+  const getClientName = (clientId: string | null | undefined) => {
+    if (!clientId) return '—';
     const client = clients.find(c => c.id === clientId);
     return client?.name || 'Неизвестный клиент';
   };
@@ -227,15 +253,43 @@ const ProjectsManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-2xl font-bold text-white">Управление проектами</h1>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
-        >
-          <Plus size={16} /> Создать проект
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-slate-600 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setProjectsView('cards')}
+              className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium ${
+                projectsView === 'cards' ? 'bg-accent text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <LayoutGrid size={16} /> Карточки
+            </button>
+            <button
+              type="button"
+              onClick={() => setProjectsView('table')}
+              className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium border-l border-slate-600 ${
+                projectsView === 'table' ? 'bg-accent text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <List size={16} /> Список
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
+          >
+            <Plus size={16} /> Создать проект
+          </button>
+        </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+          {loadError}
+        </div>
+      )}
 
       {/* Фильтры */}
       <div className="flex gap-2">
@@ -379,6 +433,47 @@ const ProjectsManagement = () => {
       )}
 
       {/* Список проектов */}
+      {projectsView === 'table' ? (
+        <div className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-800/50">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-600">
+                <th className="px-4 py-3">Проект</th>
+                <th className="px-4 py-3">Клиент</th>
+                <th className="px-4 py-3">Статус</th>
+                <th className="px-4 py-3">Начало</th>
+                <th className="px-4 py-3">Дедлайн</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProjects.map((project) => (
+                <tr
+                  key={project.id}
+                  className="border-b border-slate-700/80 hover:bg-slate-700/30 cursor-pointer"
+                  onClick={async () => {
+                    setSelectedProject(project);
+                    await loadProjectStatistics(project.id);
+                  }}
+                >
+                  <td className="px-4 py-3 font-medium text-white">{project.name}</td>
+                  <td className="px-4 py-3 text-slate-300">{getClientName(project.client_id)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(project.status)}`}>
+                      {getStatusText(project.status)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-400">
+                    {project.start_date ? new Date(project.start_date).toLocaleDateString('ru-RU') : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-slate-400">
+                    {project.deadline ? new Date(project.deadline).toLocaleDateString('ru-RU') : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredProjects.map((project) => (
           <div
@@ -419,6 +514,7 @@ const ProjectsManagement = () => {
           </div>
         ))}
       </div>
+      )}
 
       {filteredProjects.length === 0 && (
         <div className="text-center text-slate-400 py-20">

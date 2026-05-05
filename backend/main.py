@@ -242,6 +242,11 @@ async def _run_migrations():
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id)",
         ]),
+        # projects — дедлайн и бюджет (иначе SELECT по ORM падает на старых БД без колонок)
+        ("projects deadline budget", [
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS deadline DATE",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS budget NUMERIC(15, 2)",
+        ]),
         # inspections soft-delete (П.5.1)
         ("inspections soft-delete", [
             "ALTER TABLE inspections ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false",

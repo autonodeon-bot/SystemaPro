@@ -11,6 +11,8 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface Instrument {
   id: string;
+  /** Строка только из журнала поверок (ещё не в реестре) */
+  is_shadow_row?: boolean;
   name: string;
   type: string;
   serial_number: string;
@@ -87,13 +89,22 @@ function getAuthHeaders() {
 
 interface FormModalProps {
   instrument: Instrument | null;
+  /** При создании из «тени» поверки — сразу выбрать поверочный прибор */
+  prefillVerificationEquipmentId?: string | null;
   veOptions: VEOption[];
   engineers: User[];
   onClose: () => void;
   onSave: () => void;
 }
 
-const FormModal: React.FC<FormModalProps> = ({ instrument, veOptions, engineers, onClose, onSave }) => {
+const FormModal: React.FC<FormModalProps> = ({
+  instrument,
+  prefillVerificationEquipmentId,
+  veOptions,
+  engineers,
+  onClose,
+  onSave,
+}) => {
   const { user } = useAuth();
   const isOperatorOrAdmin = ['admin', 'chief_operator', 'operator'].includes(user?.role ?? '');
 
@@ -109,6 +120,21 @@ const FormModal: React.FC<FormModalProps> = ({ instrument, veOptions, engineers,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  React.useEffect(() => {
+    if (!instrument && prefillVerificationEquipmentId) {
+      const ve = veOptions.find(v => v.id === prefillVerificationEquipmentId);
+      if (ve) {
+        setForm(f => ({
+          ...f,
+          verification_equipment_id: prefillVerificationEquipmentId,
+          name: f.name || ve.name,
+          type: f.type || ve.equipment_type,
+          serial_number: f.serial_number || ve.serial_number,
+        }));
+      }
+    }
+  }, [instrument, prefillVerificationEquipmentId, veOptions]);
 
   const linkedVE = veOptions.find(v => v.id === form.verification_equipment_id);
 
@@ -304,6 +330,7 @@ const InstrumentRegistry: React.FC = () => {
   const [filterExpiring, setFilterExpiring] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [modalInstrument, setModalInstrument] = useState<Instrument | null | 'new'>('new' as any);
+  const [prefillVeId, setPrefillVeId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [sortField, setSortField] = useState<string>('name');
   const [sortAsc, setSortAsc] = useState(true);
@@ -391,6 +418,7 @@ const InstrumentRegistry: React.FC = () => {
     expiring: instruments.filter(i => i.verification_status === 'expiring_soon').length,
     broken: instruments.filter(i => i.condition === 'damaged' || i.condition === 'broken').length,
     linked: instruments.filter(i => i.verification_equipment_id).length,
+    inRegistry: instruments.filter(i => !i.is_shadow_row).length,
   }), [instruments]);
 
   const toggleSort = (field: string) => {
@@ -425,7 +453,7 @@ const InstrumentRegistry: React.FC = () => {
           </button>
           {isOperatorOrAdmin && (
             <button
-              onClick={() => { setModalInstrument(null); setShowModal(true); }}
+              onClick={() => { setModalInstrument(null); setPrefillVeId(null); setShowModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
               style={{ background: 'var(--accent)' }}
             >
@@ -436,9 +464,10 @@ const InstrumentRegistry: React.FC = () => {
       </div>
 
       {/* Статистика */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: 'Всего приборов', value: stats.total, color: 'text-blue-400' },
+          { label: 'Всего в списке', value: stats.total, color: 'text-blue-400' },
+          { label: 'В реестре', value: stats.inRegistry, color: 'text-slate-300' },
           { label: 'Привязано к поверкам', value: stats.linked, color: 'text-cyan-400' },
           { label: 'Просрочена поверка', value: stats.expired, color: stats.expired > 0 ? 'text-red-400' : 'text-gray-400' },
           { label: 'Поверка скоро', value: stats.expiring, color: stats.expiring > 0 ? 'text-orange-400' : 'text-gray-400' },
@@ -542,7 +571,7 @@ const InstrumentRegistry: React.FC = () => {
             </p>
             {isOperatorOrAdmin && instruments.length === 0 && (
               <button
-                onClick={() => { setModalInstrument(null); setShowModal(true); }}
+                onClick={() => { setModalInstrument(null); setPrefillVeId(null); setShowModal(true); }}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
                 style={{ background: 'var(--accent)' }}
               >
@@ -594,7 +623,14 @@ const InstrumentRegistry: React.FC = () => {
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
 
                       <td className="px-4 py-3">
-                        <div className="font-medium" style={{ color: 'var(--text-primary)' }}>{inst.name}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="font-medium" style={{ color: 'var(--text-primary)' }}>{inst.name}</div>
+                          {(inst.is_shadow_row || inst.id.startsWith('ve-shadow:')) && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-500/15 text-amber-300 border border-amber-500/25">
+                              только поверка
+                            </span>
+                          )}
+                        </div>
                         {isLinked && inst.ve_manufacturer && (
                           <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                             {inst.ve_manufacturer}{inst.ve_model ? ` ${inst.ve_model}` : ''}
@@ -657,9 +693,25 @@ const InstrumentRegistry: React.FC = () => {
                       {(isOperatorOrAdmin || isEngineer) && (
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
-                            {(isOperatorOrAdmin || (isEngineer && inst.specialist_id === user?.id)) && (
+                            {isOperatorOrAdmin && (inst.is_shadow_row || inst.id.startsWith('ve-shadow:')) && (
                               <button
-                                onClick={() => { setModalInstrument(inst); setShowModal(true); }}
+                                type="button"
+                                onClick={() => {
+                                  setModalInstrument(null);
+                                  setPrefillVeId(inst.verification_equipment_id || '');
+                                  setShowModal(true);
+                                }}
+                                className="px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-500/30 hover:bg-amber-500/30"
+                                title="Создать запись реестра с привязкой к этой поверке"
+                              >
+                                В реестр
+                              </button>
+                            )}
+                            {(isOperatorOrAdmin || (isEngineer && inst.specialist_id === user?.id)) &&
+                              !inst.is_shadow_row &&
+                              !inst.id.startsWith('ve-shadow:') && (
+                              <button
+                                onClick={() => { setPrefillVeId(null); setModalInstrument(inst); setShowModal(true); }}
                                 className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                                 style={{ color: 'var(--text-muted)' }}
                                 title="Редактировать"
@@ -667,7 +719,7 @@ const InstrumentRegistry: React.FC = () => {
                                 <Edit2 size={14} />
                               </button>
                             )}
-                            {isOperatorOrAdmin && (
+                            {isOperatorOrAdmin && !inst.is_shadow_row && !inst.id.startsWith('ve-shadow:') && (
                               <button
                                 onClick={() => setDeleteConfirm(inst)}
                                 className="p-1.5 rounded-lg hover:bg-red-400/10 transition-colors text-red-400/60 hover:text-red-400"
@@ -700,10 +752,11 @@ const InstrumentRegistry: React.FC = () => {
       {showModal && (
         <FormModal
           instrument={modalInstrument as Instrument | null}
+          prefillVerificationEquipmentId={prefillVeId}
           veOptions={veOptions}
           engineers={engineers}
-          onClose={() => setShowModal(false)}
-          onSave={() => { setShowModal(false); loadAll(); }}
+          onClose={() => { setShowModal(false); setPrefillVeId(null); }}
+          onSave={() => { setShowModal(false); setPrefillVeId(null); loadAll(); }}
         />
       )}
 

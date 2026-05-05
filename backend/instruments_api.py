@@ -3,9 +3,10 @@
 import uuid as uuid_lib
 import logging
 from datetime import datetime, date
+from types import SimpleNamespace
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,6 +55,56 @@ async def _ensure_table(db: AsyncSession):
     await db.commit()
 
 
+def _ve_shadow_to_dict(ve_row) -> dict:
+    """Строка из verification_equipment без записи в instrument_registry — тот же контракт, id с префиксом ve-shadow:."""
+    next_d = ve_row.next_verification_date
+    verification_until = ""
+    verification_status = "unknown"
+    if next_d:
+        if isinstance(next_d, date):
+            verification_until = next_d.strftime("%Y-%m")
+        else:
+            verification_until = str(next_d)[:7]
+        try:
+            d = next_d if isinstance(next_d, date) else datetime.strptime(str(next_d)[:10], "%Y-%m-%d").date()
+            today = date.today()
+            days_left = (d - today).days
+            if days_left < 0:
+                verification_status = "expired"
+            elif days_left <= 30:
+                verification_status = "expiring_soon"
+            elif days_left <= 90:
+                verification_status = "warning"
+            else:
+                verification_status = "ok"
+        except Exception:
+            verification_status = "unknown"
+    vid = ve_row.id
+    return {
+        "id": f"ve-shadow:{vid}",
+        "name": ve_row.name or ve_row.equipment_type or "Прибор",
+        "type": ve_row.equipment_type or "",
+        "serial_number": ve_row.serial_number or "",
+        "verification_until": verification_until,
+        "verification_status": verification_status,
+        "condition": "ok",
+        "condition_notes": "",
+        "specialist_id": None,
+        "specialist_name": "",
+        "verification_equipment_id": str(vid),
+        "ve_name": ve_row.name,
+        "ve_manufacturer": ve_row.manufacturer,
+        "ve_model": ve_row.model,
+        "ve_certificate": ve_row.verification_certificate_number,
+        "ve_organization": ve_row.verification_organization,
+        "ve_next_verification_date": next_d.isoformat()
+        if next_d and isinstance(next_d, date)
+        else (str(next_d)[:10] if next_d else None),
+        "created_at": None,
+        "is_shadow_row": True,
+    }
+
+
 def _row_to_dict(row) -> dict:
     """Преобразует строку запроса в словарь."""
     # Определяем дату поверки: предпочитаем из verification_equipment
@@ -98,7 +149,7 @@ def _row_to_dict(row) -> dict:
             except Exception:
                 pass
 
-    return {
+    dct = {
         "id": str(row.id),
         "name": row.name,
         "type": row.type or "",
@@ -118,7 +169,9 @@ def _row_to_dict(row) -> dict:
         "ve_organization": getattr(row, 've_organization', None),
         "ve_next_verification_date": ve_next_date.isoformat() if ve_next_date and isinstance(ve_next_date, date) else (str(ve_next_date)[:10] if ve_next_date else None),
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "is_shadow_row": False,
     }
+    return dct
 
 
 # ============================================================
@@ -127,7 +180,7 @@ def _row_to_dict(row) -> dict:
 
 @router.get("")
 async def list_instruments(
-    type: Optional[str] = None,
+    type_filter: Optional[str] = Query(None, alias="type"),
     specialist_id: Optional[str] = None,
     condition: Optional[str] = None,
     expiring_days: Optional[int] = None,
@@ -155,9 +208,9 @@ async def list_instruments(
     """
     params: dict = {}
 
-    if type:
+    if type_filter:
         q += " AND ir.type ILIKE :type"
-        params["type"] = f"%{type}%"
+        params["type"] = f"%{type_filter}%"
     if specialist_id:
         q += " AND ir.specialist_id = :specialist_id"
         params["specialist_id"] = specialist_id
@@ -171,6 +224,39 @@ async def list_instruments(
     rows = result.fetchall()
 
     instruments = [_row_to_dict(r) for r in rows]
+
+    # Поверочные приборы без строки в реестре — показываем как «тень», чтобы списки совпадали с журналом поверок
+    orphan_sql = text(
+        """
+        SELECT ve.id, ve.name, ve.equipment_type, ve.serial_number, ve.next_verification_date,
+               ve.manufacturer, ve.model, ve.verification_certificate_number, ve.verification_organization
+        FROM verification_equipment ve
+        WHERE (ve.is_active IS NULL OR ve.is_active = TRUE)
+          AND NOT EXISTS (
+            SELECT 1 FROM instrument_registry ir
+            WHERE ir.is_deleted = FALSE AND ir.verification_equipment_id = ve.id
+          )
+        ORDER BY COALESCE(ve.name, ve.equipment_type, '')
+        """
+    )
+    try:
+        for vr in (await db.execute(orphan_sql)).mappings().all():
+            instruments.append(_ve_shadow_to_dict(SimpleNamespace(**dict(vr))))
+    except Exception as ex:
+        logger.warning("instrument_registry orphan merge skipped: %s", ex)
+
+    # Доп. фильтры по полному списку (в т.ч. тени)
+    if type_filter:
+        tl = type_filter.lower()
+        instruments = [
+            i
+            for i in instruments
+            if tl in (i.get("type") or "").lower() or tl in (i.get("name") or "").lower()
+        ]
+    if specialist_id:
+        instruments = [i for i in instruments if str(i.get("specialist_id") or "") == str(specialist_id)]
+    if condition:
+        instruments = [i for i in instruments if (i.get("condition") or "") == str(condition)]
 
     # Фильтр по истекающей поверке (на уровне Python)
     if expiring_days is not None:
@@ -368,6 +454,11 @@ async def update_instrument(
 ):
     """Обновить прибор. Оператор/администратор или инженер (только своё состояние)."""
     await _ensure_table(db)
+    if inst_id.startswith("ve-shadow:"):
+        raise HTTPException(
+            status_code=400,
+            detail="Это запись только из журнала поверок. Создайте строку реестра («Добавить прибор») с привязкой к этой поверке.",
+        )
 
     result = await db.execute(
         text("SELECT * FROM instrument_registry WHERE id = :id AND is_deleted = FALSE"),
@@ -459,6 +550,8 @@ async def delete_instrument(
     """Мягкое удаление прибора. Только оператор/администратор."""
     _check_operator_or_admin(current_user)
     await _ensure_table(db)
+    if inst_id.startswith("ve-shadow:"):
+        raise HTTPException(status_code=400, detail="Запись из журнала поверок удаляется только через справочник поверок.")
 
     result = await db.execute(
         text("SELECT id FROM instrument_registry WHERE id = :id AND is_deleted = FALSE"),

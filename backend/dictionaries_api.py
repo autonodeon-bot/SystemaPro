@@ -2,7 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from datetime import date as date_cls
+
+from sqlalchemy import case, distinct, func, select
 from typing import Optional
 from datetime import datetime
 import uuid as uuid_lib
@@ -10,8 +12,17 @@ import uuid as uuid_lib
 from database import get_db
 from auth import verify_token
 from models import (
-    EquipmentType, PipelineSegment, EquipmentResource,
-    RegulatoryDocument, Client, Project, User,
+    Assignment,
+    EquipmentType,
+    PipelineSegment,
+    EquipmentResource,
+    RegulatoryDocument,
+    Client,
+    Project,
+    User,
+    Inspection,
+    Report,
+    Questionnaire,
 )
 from shared import cache_get, cache_set, cache_invalidate
 
@@ -141,6 +152,16 @@ async def create_client(client_data: dict, db: AsyncSession = Depends(get_db)):
 
 # ──────────────────── Projects ────────────────────
 
+def _project_budget_safe(p: Project) -> Optional[float]:
+    b = getattr(p, "budget", None)
+    if b is None:
+        return None
+    try:
+        return float(b)
+    except (TypeError, ValueError):
+        return None
+
+
 @router.get("/api/projects")
 async def get_projects(
     client_id: Optional[str] = None,
@@ -159,8 +180,14 @@ async def get_projects(
 
         result = await db.execute(query.order_by(Project.created_at.desc()))
         projects = result.scalars().all()
-        return {
-            "items": [
+        items = []
+        for p in projects:
+            dl = getattr(p, "deadline", None)
+            try:
+                created = p.created_at.isoformat() if p.created_at else None
+            except Exception:
+                created = str(p.created_at) if p.created_at else None
+            items.append(
                 {
                     "id": str(p.id),
                     "client_id": str(p.client_id) if p.client_id else None,
@@ -169,18 +196,137 @@ async def get_projects(
                     "status": p.status,
                     "start_date": str(p.start_date) if p.start_date else None,
                     "end_date": str(p.end_date) if p.end_date else None,
-                    "deadline": str(p.deadline) if getattr(p, "deadline", None) else None,
-                    "budget": float(p.budget) if p.budget else None,
-                    "created_at": str(p.created_at) if p.created_at else None,
+                    "deadline": str(dl) if dl else None,
+                    "budget": _project_budget_safe(p),
+                    "created_at": created,
                 }
-                for p in projects
-            ],
-            "total": len(projects),
-        }
+            )
+        return {"items": items, "total": len(items)}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/projects/{project_id}/statistics")
+async def get_project_statistics(project_id: str, db: AsyncSession = Depends(get_db)):
+    """Сводка по проекту (совместима с модальным окном ProjectsManagement)."""
+    try:
+        pid = uuid_lib.UUID(project_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный формат идентификатора проекта")
+
+    proj = (await db.execute(select(Project).where(Project.id == pid))).scalar_one_or_none()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    tot_asg = (
+        await db.execute(select(func.count()).select_from(Assignment).where(Assignment.project_id == pid))
+    ).scalar() or 0
+    done_asg = (
+        await db.execute(
+            select(func.count())
+            .select_from(Assignment)
+            .where(Assignment.project_id == pid, Assignment.status == "COMPLETED")
+        )
+    ).scalar() or 0
+    prog_asg = (
+        await db.execute(
+            select(func.count())
+            .select_from(Assignment)
+            .where(Assignment.project_id == pid, Assignment.status == "IN_PROGRESS")
+        )
+    ).scalar() or 0
+    pend_asg = int(tot_asg) - int(done_asg) - int(prog_asg)
+    if pend_asg < 0:
+        pend_asg = 0
+
+    neq = (
+        await db.execute(
+            select(func.count(distinct(Assignment.equipment_id))).where(Assignment.project_id == pid)
+        )
+    ).scalar() or 0
+
+    ic = (
+        await db.execute(select(func.count()).select_from(Inspection).where(Inspection.project_id == pid))
+    ).scalar() or 0
+    rc = (
+        await db.execute(
+            select(func.count())
+            .select_from(Report)
+            .join(Inspection, Report.inspection_id == Inspection.id)
+            .where(Inspection.project_id == pid)
+        )
+    ).scalar() or 0
+    qc = (
+        await db.execute(
+            select(func.count())
+            .select_from(Questionnaire)
+            .join(Assignment, Questionnaire.assignment_id == Assignment.id)
+            .where(Assignment.project_id == pid)
+        )
+    ).scalar() or 0
+
+    progress_percent = (100.0 * float(done_asg) / float(tot_asg)) if tot_asg else 0.0
+
+    days_running = 1
+    if proj.start_date:
+        try:
+            sd = proj.start_date if isinstance(proj.start_date, date_cls) else date_cls.fromisoformat(str(proj.start_date)[:10])
+            days_running = max(1, (date_cls.today() - sd).days)
+        except Exception:
+            days_running = 1
+    speed_per_day = float(done_asg) / float(days_running)
+
+    eng_rows = (
+        await db.execute(
+            select(
+                User.id,
+                User.full_name,
+                func.count(Assignment.id).label("total"),
+                func.sum(case((Assignment.status == "COMPLETED", 1), else_=0)).label("completed"),
+                func.sum(case((Assignment.status == "IN_PROGRESS", 1), else_=0)).label("in_progress"),
+            )
+            .select_from(Assignment)
+            .join(User, Assignment.assigned_to == User.id)
+            .where(Assignment.project_id == pid)
+            .group_by(User.id, User.full_name)
+        )
+    ).all()
+
+    engineers = []
+    for row in eng_rows:
+        uid, fname, total, completed, in_progress = row
+        t = int(total or 0)
+        c = int(completed or 0)
+        ip = int(in_progress or 0)
+        engineers.append(
+            {
+                "engineer_id": str(uid),
+                "engineer_name": fname or "—",
+                "total": t,
+                "completed": c,
+                "in_progress": ip,
+            }
+        )
+
+    return {
+        "project_id": str(pid),
+        "assignments_total": int(tot_asg),
+        "inspections_total": int(ic),
+        "reports_total": int(rc),
+        "questionnaires_total": int(qc),
+        "progress_percent": progress_percent,
+        "total_equipment": int(neq) if neq else int(tot_asg),
+        "completed_equipment": int(done_asg),
+        "in_progress_equipment": int(prog_asg),
+        "pending_equipment": int(pend_asg),
+        "speed_per_day": speed_per_day,
+        "estimated_completion_date": None,
+        "inspections_count": int(ic),
+        "reports_count": int(rc),
+        "engineers": engineers,
+    }
 
 
 @router.post("/api/projects")
