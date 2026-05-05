@@ -67,10 +67,10 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
   onCleanupDaysChange,
   onCleanupOldInspections,
 }) => (
-  <div className="bg-secondary/50 rounded-lg p-4 space-y-4">
+  <div className="bg-app-panel rounded-lg p-4 space-y-4 border border-app-line">
     {selectedCount > 0 && (
       <div className="flex items-center justify-between p-3 bg-accent/20 border border-accent/30 rounded-lg">
-        <span className="text-white font-semibold">Выбрано: {selectedCount}</span>
+        <span className="text-app-text font-semibold">Выбрано: {selectedCount}</span>
         <div className="flex gap-2">
           <button
             type="button"
@@ -107,7 +107,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
             placeholder="Поиск по оборудованию, заключению..."
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-primary border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
+            className="w-full pl-10 pr-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text placeholder-app-text3 focus:outline-none focus:border-accent"
           />
         </div>
       </div>
@@ -116,7 +116,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={selectedEquipment}
           onChange={(e) => onSelectedEquipmentChange(e.target.value)}
-          className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+          className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все оборудование</option>
           {equipment.map((eq) => (
@@ -131,7 +131,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={selectedStatus}
           onChange={(e) => onSelectedStatusChange(e.target.value)}
-          className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+          className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все статусы</option>
           <option value="DRAFT">Черновик</option>
@@ -144,7 +144,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={selectedInspectionType}
           onChange={(e) => onSelectedInspectionTypeChange(e.target.value)}
-          className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+          className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все типы обследования</option>
           <option value="VISUAL">VISUAL</option>
@@ -160,7 +160,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           <select
             value={selectedEnterpriseId}
             onChange={(e) => onEnterpriseChange(e.target.value)}
-            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+            className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="">Все предприятия</option>
             {enterprises.map((ent) => (
@@ -176,7 +176,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
             value={selectedBranchId}
             onChange={(e) => onBranchChange(e.target.value)}
             disabled={!selectedEnterpriseId}
-            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
+            className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
           >
             <option value="">Все филиалы</option>
             {branches.map((b) => (
@@ -192,7 +192,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
             value={selectedWorkshopId}
             onChange={(e) => onWorkshopChange(e.target.value)}
             disabled={!selectedBranchId}
-            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
+            className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent disabled:opacity-50"
           >
             <option value="">Все цеха</option>
             {workshops.map((w) => (
@@ -207,7 +207,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           <select
             value={groupBy}
             onChange={(e) => onGroupByChange(e.target.value as InspectionsGroupBy)}
-            className="w-full px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+            className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="none">Без группировки</option>
             <option value="enterprise">По предприятию</option>
@@ -231,7 +231,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
         <select
           value={cleanupInspectionsDays}
           onChange={(e) => onCleanupDaysChange(parseInt(e.target.value, 10))}
-          className="px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+          className="px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
           title="Удалить чек-листы старше N дней"
         >
           <option value={30}>Старше 30 дней</option>

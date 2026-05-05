@@ -66,14 +66,14 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
       role="presentation"
     >
       <div
-        className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-app-panel rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-app-line"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="inspection-detail-title"
       >
-        <div className="sticky top-0 bg-secondary border-b border-app-line p-6 flex items-center justify-between">
-          <h2 id="inspection-detail-title" className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="sticky top-0 bg-app-soft border-b border-app-line p-6 flex items-center justify-between">
+          <h2 id="inspection-detail-title" className="text-xl font-bold text-app-text flex items-center gap-2">
             <FileText className="text-accent" size={24} />
             Детали чек-листа
           </h2>
@@ -117,14 +117,14 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
           {typeof data.executors === 'string' && data.executors && (
             <div>
               <label className="text-xs text-app-text3 mb-1 block">Исполнители</label>
-              <p className="text-white">{data.executors}</p>
+              <p className="text-app-text">{data.executors}</p>
             </div>
           )}
 
           {typeof data.organization === 'string' && data.organization && (
             <div>
               <label className="text-xs text-app-text3 mb-1 block">Организация</label>
-              <p className="text-white">{data.organization}</p>
+              <p className="text-app-text">{data.organization}</p>
             </div>
           )}
 
@@ -133,7 +133,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
               <label className="text-xs text-app-text3 mb-2 block">Перечень рассмотренных документов</label>
               <div className="space-y-2">
                 {Object.entries(documents as Record<string, unknown>).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
+                  <div key={key} className="flex items-center justify-between p-2 bg-app-soft border border-app-line rounded">
                     <div className="flex-1 pr-3">
                       <div className="text-sm text-app-text2">
                         {checklistDocumentNames[String(key)] ?? `Документ ${key}`}
@@ -184,21 +184,21 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
           {typeof data.vesselName === 'string' && data.vesselName && (
             <div>
               <label className="text-xs text-app-text3 mb-2 block">Карта обследования</label>
-              <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/50 rounded">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-app-soft border border-app-line rounded">
                 <div>
                   <span className="text-xs text-app-text3">Наименование сосуда</span>
-                  <p className="text-white font-medium">{data.vesselName}</p>
+                  <p className="text-app-text font-medium">{data.vesselName}</p>
                 </div>
                 {typeof data.serialNumber === 'string' && data.serialNumber && (
                   <div>
                     <span className="text-xs text-app-text3">Заводской номер</span>
-                    <p className="text-white font-medium">{data.serialNumber}</p>
+                    <p className="text-app-text font-medium">{data.serialNumber}</p>
                   </div>
                 )}
                 {typeof data.regNumber === 'string' && data.regNumber && (
                   <div>
                     <span className="text-xs text-app-text3">Регистрационный номер</span>
-                    <p className="text-white font-medium">{data.regNumber}</p>
+                    <p className="text-app-text font-medium">{data.regNumber}</p>
                   </div>
                 )}
               </div>
@@ -210,7 +210,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
               <label className="text-xs text-app-text3 mb-2 block">Приложенные файлы</label>
               <div className="space-y-2">
                 {attachmentKeys.map((k) => (
-                  <div key={k} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
+                  <div key={k} className="flex items-center justify-between p-2 bg-app-soft border border-app-line rounded">
                     <div className="flex-1 pr-3">
                       <div className="text-sm text-app-text2 font-medium">{ATTACHMENT_LABELS[k] || k}</div>
                       <div className="mt-1 flex flex-wrap gap-2">
@@ -241,7 +241,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
               <label className="text-xs text-app-text3 mb-2 block">Прочие вложения</label>
               <div className="space-y-2">
                 {otherAttachmentKeys.map((k) => (
-                  <div key={k} className="flex items-center justify-between p-2 bg-secondary/50 rounded">
+                  <div key={k} className="flex items-center justify-between p-2 bg-app-soft border border-app-line rounded">
                     <div className="flex-1 pr-3">
                       <div className="text-sm text-app-text2 font-medium">{k}</div>
                       <div className="mt-1 flex flex-wrap gap-2">
@@ -279,8 +279,8 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
           {insp.conclusion && (
             <div>
               <label className="text-xs text-app-text3 mb-1 block">Заключение</label>
-              <div className="p-4 bg-secondary/50 rounded">
-                <p className="text-white whitespace-pre-wrap">{insp.conclusion}</p>
+              <div className="p-4 bg-app-soft border border-app-line rounded">
+                <p className="text-app-text whitespace-pre-wrap">{insp.conclusion}</p>
               </div>
             </div>
           )}
@@ -290,7 +290,7 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
               <summary className="cursor-pointer text-sm text-app-text3 hover:text-app-text">
                 Показать все данные
               </summary>
-              <pre className="mt-2 p-4 bg-secondary/50 rounded text-xs overflow-auto text-app-text2">
+              <pre className="mt-2 p-4 bg-app-soft rounded text-xs overflow-auto text-app-text2 border border-app-line">
                 {JSON.stringify(data, null, 2)}
               </pre>
             </details>

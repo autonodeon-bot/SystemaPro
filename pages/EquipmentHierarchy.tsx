@@ -258,7 +258,7 @@ const EquipmentHierarchy = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Оборудование для диагностики</h1>
+        <h1 className="text-2xl font-bold text-app-text">Оборудование для диагностики</h1>
       </div>
 
       {/* Иерархия */}
@@ -278,7 +278,7 @@ const EquipmentHierarchy = () => {
                   )}
                 </button>
                 <Building2 className="text-accent" size={20} />
-                <span className="text-white font-bold">{enterprise.name}</span>
+                <span className="text-app-text font-bold">{enterprise.name}</span>
                 {enterprise.code && (
                   <span className="text-app-text3 text-sm">({enterprise.code})</span>
                 )}
@@ -388,8 +388,8 @@ const EquipmentHierarchy = () => {
                                         {(equipment[workshop.id] || [])
                                           .filter(eq => eq.type_id === type.id)
                                           .map((eq) => (
-                                            <div key={eq.id} className="flex items-center justify-between p-2 bg-app-deep rounded hover:bg-app-deep transition-colors">
-                                              <span className="text-app-text3 text-xs">{eq.name}</span>
+                                            <div key={eq.id} className="flex items-center justify-between p-2 bg-app-soft rounded hover:bg-app-softer transition-colors border border-app-line">
+                                              <span className="text-app-text text-xs">{eq.name}</span>
                                               <button
                                                 onClick={() => handleAssignEngineers('equipment', eq.id, eq.name)}
                                                 className="text-accent hover:text-blue-400 p-1 rounded hover:bg-app-panel"
@@ -427,7 +427,7 @@ const EquipmentHierarchy = () => {
       {showAssignModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAssignModal(null)}>
           <div className="bg-app-panel rounded-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-white mb-4">
+            <h2 className="text-xl font-bold text-app-text mb-4">
               Назначить инженеров: {showAssignModal.name}
             </h2>
             {users.length === 0 ? (
@@ -450,7 +450,7 @@ const EquipmentHierarchy = () => {
                       }}
                       className="rounded"
                     />
-                    <span className="text-white text-sm">
+                    <span className="text-app-text text-sm">
                       {user.full_name || user.username}
                     </span>
                   </label>

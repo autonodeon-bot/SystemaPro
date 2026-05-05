@@ -274,7 +274,7 @@ const DefectStatement: React.FC = () => {
       {/* ── Заголовок страницы ── */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-app-text flex items-center gap-2">
             <FileText size={26} className="text-accent" />
             Ведомость дефектов
           </h1>
@@ -291,8 +291,8 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Импорт из обследования ── */}
-      <div className="bg-secondary rounded-xl p-4 border border-app-line">
-        <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+      <div className="bg-app-panel rounded-xl p-4 border border-app-line">
+        <h3 className="text-app-text font-semibold mb-3 flex items-center gap-2">
           <Download size={16} className="text-accent" />
           Импортировать дефекты из обследования
         </h3>
@@ -302,7 +302,7 @@ const DefectStatement: React.FC = () => {
             <select
               value={selectedId}
               onChange={e => importFromInspection(e.target.value)}
-              className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
+              className="w-full bg-app-soft border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
             >
               <option value="">— выбрать или заполнить вручную —</option>
               {loadingInsp && <option disabled>Загрузка...</option>}
@@ -324,10 +324,10 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Шапка документа (редактируемая) ── */}
-      <div className="bg-secondary rounded-xl border border-app-line overflow-hidden">
+      <div className="bg-app-panel rounded-xl border border-app-line overflow-hidden">
         <button
           onClick={() => setEditHeader(!editHeader)}
-          className="w-full flex items-center justify-between px-4 py-3 text-white hover:bg-white/5 transition"
+          className="w-full flex items-center justify-between px-4 py-3 text-app-text hover:bg-app-soft transition"
         >
           <span className="font-semibold flex items-center gap-2">
             <Edit3 size={16} className="text-accent" /> Реквизиты документа
@@ -353,7 +353,7 @@ const DefectStatement: React.FC = () => {
                   type="text"
                   value={header[field]}
                   onChange={e => setHeader(h => ({ ...h, [field]: e.target.value }))}
-                  className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
+                  className="w-full bg-app-soft border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
                 />
               </div>
             ))}
@@ -365,9 +365,9 @@ const DefectStatement: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Всего дефектов', value: stats.total, color: 'text-app-text', bg: 'bg-app-soft' },
-          { label: 'Критических', value: stats.critical, color: 'text-red-400', bg: 'bg-red-900/30' },
-          { label: 'Значительных', value: stats.significant, color: 'text-orange-400', bg: 'bg-orange-900/30' },
-          { label: 'Малозначимых', value: stats.minor, color: 'text-green-400', bg: 'bg-green-900/30' },
+          { label: 'Критических', value: stats.critical, color: 'text-red-600', bg: 'bg-red-500/10' },
+          { label: 'Значительных', value: stats.significant, color: 'text-orange-600', bg: 'bg-orange-500/10' },
+          { label: 'Малозначимых', value: stats.minor, color: 'text-emerald-700', bg: 'bg-emerald-500/10' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -398,9 +398,9 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Таблица дефектов ── */}
-      <div className="bg-secondary rounded-xl border border-app-line overflow-hidden">
+      <div className="bg-app-panel rounded-xl border border-app-line overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-app-line">
-          <h3 className="text-white font-semibold">Таблица дефектов</h3>
+          <h3 className="text-app-text font-semibold">Таблица дефектов</h3>
           <button
             onClick={addRow}
             className="flex items-center gap-1 px-3 py-1.5 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm"
@@ -436,9 +436,9 @@ const DefectStatement: React.FC = () => {
                 return (
                   <tr
                     key={row.id}
-                    className={`border-t border-app-line hover:bg-white/5 transition ${
-                      row.severity === 'critical' ? 'bg-red-900/10' :
-                      row.severity === 'significant' ? 'bg-orange-900/10' : ''
+                    className={`border-t border-app-line hover:bg-app-soft/80 transition ${
+                      row.severity === 'critical' ? 'bg-red-500/5' :
+                      row.severity === 'significant' ? 'bg-orange-500/5' : ''
                     }`}
                   >
                     <td className="px-3 py-2 text-app-text3 font-mono text-xs">{row.number}</td>
@@ -448,10 +448,10 @@ const DefectStatement: React.FC = () => {
                           autoFocus
                           value={row.name}
                           onChange={e => updateRow(row.id, 'name', e.target.value)}
-                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-app-soft border border-app-line rounded px-2 py-1 text-app-text text-xs"
                         />
                       ) : (
-                        <span className="text-white">{row.name || <span className="text-app-text3 italic">—</span>}</span>
+                        <span className="text-app-text">{row.name || <span className="text-app-text3 italic">—</span>}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -459,7 +459,7 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.location}
                           onChange={e => updateRow(row.id, 'location', e.target.value)}
-                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-app-soft border border-app-line rounded px-2 py-1 text-app-text text-xs"
                         />
                       ) : (
                         <span className="text-app-text2">{row.location || '—'}</span>
@@ -470,7 +470,7 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.size}
                           onChange={e => updateRow(row.id, 'size', e.target.value)}
-                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-app-soft border border-app-line rounded px-2 py-1 text-app-text text-xs"
                         />
                       ) : (
                         <span className="text-app-text2 font-mono text-xs">{row.size || '—'}</span>
@@ -481,7 +481,7 @@ const DefectStatement: React.FC = () => {
                         <select
                           value={row.severity}
                           onChange={e => updateRow(row.id, 'severity', e.target.value)}
-                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-app-soft border border-app-line rounded px-2 py-1 text-app-text text-xs"
                         >
                           <option value="critical">Критический</option>
                           <option value="significant">Значительный</option>
@@ -498,7 +498,7 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.recommendation}
                           onChange={e => updateRow(row.id, 'recommendation', e.target.value)}
-                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-app-soft border border-app-line rounded px-2 py-1 text-app-text text-xs"
                         />
                       ) : (
                         <span className="text-app-text2 text-xs">{row.recommendation || '—'}</span>
@@ -509,7 +509,7 @@ const DefectStatement: React.FC = () => {
                         <input
                           value={row.notes}
                           onChange={e => updateRow(row.id, 'notes', e.target.value)}
-                          className="w-full bg-primary border border-app-line rounded px-2 py-1 text-white text-xs"
+                          className="w-full bg-app-soft border border-app-line rounded px-2 py-1 text-app-text text-xs"
                         />
                       ) : (
                         <span className="text-app-text3 text-xs">{row.notes || ''}</span>
@@ -542,9 +542,9 @@ const DefectStatement: React.FC = () => {
       </div>
 
       {/* ── Заключение ── */}
-      <div className="bg-secondary rounded-xl border border-app-line p-4">
+      <div className="bg-app-panel rounded-xl border border-app-line p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-semibold">Заключение</h3>
+          <h3 className="text-app-text font-semibold">Заключение</h3>
           <button
             onClick={() => updateConclusion(defects)}
             className="text-xs text-accent hover:underline"
@@ -556,14 +556,14 @@ const DefectStatement: React.FC = () => {
           value={conclusion}
           onChange={e => setConclusion(e.target.value)}
           rows={4}
-          className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm resize-none"
+          className="w-full bg-app-soft border border-app-line rounded-lg px-3 py-2 text-app-text text-sm resize-none"
           placeholder="Заключение по результатам контроля..."
         />
       </div>
 
       {/* ── Подписи ── */}
-      <div className="bg-secondary rounded-xl border border-app-line p-4">
-        <h3 className="text-white font-semibold mb-3">Подписи</h3>
+      <div className="bg-app-panel rounded-xl border border-app-line p-4">
+        <h3 className="text-app-text font-semibold mb-3">Подписи</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-app-text3 block mb-1">ФИО и должность исполнителя</label>
@@ -571,7 +571,7 @@ const DefectStatement: React.FC = () => {
               type="text"
               value={sigExecutor || header.executor}
               onChange={e => setSigExecutor(e.target.value)}
-              className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
+              className="w-full bg-app-soft border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
               placeholder="Иванов И.И., инженер-дефектоскопист"
             />
           </div>
@@ -581,7 +581,7 @@ const DefectStatement: React.FC = () => {
               type="text"
               value={sigDate}
               onChange={e => setSigDate(e.target.value)}
-              className="w-full bg-primary border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
+              className="w-full bg-app-soft border border-app-line rounded-lg px-3 py-2 text-app-text text-sm"
             />
           </div>
         </div>

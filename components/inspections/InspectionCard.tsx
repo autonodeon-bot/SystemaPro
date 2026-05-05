@@ -26,7 +26,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
   const hierarchy = inspectionHierarchySubtitle(insp);
 
   return (
-    <div className="bg-secondary/50 rounded-lg p-4 hover:bg-secondary/70 transition-colors border border-app-line">
+    <div className="bg-app-panel rounded-lg p-4 hover:bg-app-soft transition-colors border border-app-line">
       <div className="flex items-start justify-between gap-3">
         <input
           type="checkbox"
@@ -44,9 +44,9 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
         >
           <div className="flex items-center gap-3 mb-2">
             <Package className="text-accent" size={20} />
-            <h3 className="font-semibold text-white">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
+            <h3 className="font-semibold text-app-text">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
             <InspectionStatusBadge status={insp.status} />
-            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-blue-500/40 text-blue-300 bg-blue-500/10">
+            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-accent/30 text-accent bg-accent/10">
               {insp.inspection_type || 'UNSPECIFIED'}
             </span>
           </div>
@@ -109,7 +109,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
               e.stopPropagation();
               onOpenDetails(insp);
             }}
-            className="p-2 text-app-text3 hover:text-accent hover:bg-secondary rounded transition-colors"
+            className="p-2 text-app-text3 hover:text-accent hover:bg-app-soft rounded transition-colors"
             title="Просмотр деталей"
           >
             <Eye size={20} />

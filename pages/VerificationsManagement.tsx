@@ -101,15 +101,15 @@ const VerificationsManagement: React.FC = () => {
 
   const getStatusBadge = (item: VerificationEquipment) => {
     if (item.is_expired) {
-      return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs flex items-center gap-1"><XCircle size={12} />Просрочено</span>;
+      return <span className="px-2 py-1 rounded text-xs flex items-center gap-1 border" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'rgba(220,38,38,0.25)' }}><XCircle size={12} />Просрочено</span>;
     }
     if (item.days_until_expiry !== null && item.days_until_expiry <= 7) {
-      return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs flex items-center gap-1"><AlertTriangle size={12} />Скоро истекает</span>;
+      return <span className="px-2 py-1 rounded text-xs flex items-center gap-1 border" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'rgba(220,38,38,0.25)' }}><AlertTriangle size={12} />Скоро истекает</span>;
     }
     if (item.days_until_expiry !== null && item.days_until_expiry <= 30) {
-      return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs flex items-center gap-1"><Clock size={12} />Предупреждение</span>;
+      return <span className="px-2 py-1 rounded text-xs flex items-center gap-1 border" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', borderColor: 'rgba(217,119,6,0.25)' }}><Clock size={12} />Предупреждение</span>;
     }
-    return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs flex items-center gap-1"><CheckCircle size={12} />Активно</span>;
+    return <span className="px-2 py-1 rounded text-xs flex items-center gap-1 border" style={{ background: 'var(--success-bg)', color: 'var(--success)', borderColor: 'rgba(5,150,105,0.25)' }}><CheckCircle size={12} />Активно</span>;
   };
 
   const getEquipmentTypes = () => {
@@ -324,7 +324,7 @@ const VerificationsManagement: React.FC = () => {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+            className="px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="all">Все типы</option>
             {getEquipmentTypes().map(type => (
@@ -334,7 +334,7 @@ const VerificationsManagement: React.FC = () => {
           <select
             value={filterExpiry}
             onChange={(e) => setFilterExpiry(e.target.value)}
-            className="px-4 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+            className="px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
           >
             <option value="all">Все сроки</option>
             <option value="expired">Просрочено</option>
@@ -347,9 +347,9 @@ const VerificationsManagement: React.FC = () => {
 
       {/* Статистика использования */}
       {showStatistics && usageStatistics && (
-        <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
+        <div className="bg-app-panel border border-app-line shadow-sm rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Статистика использования оборудования</h3>
+            <h3 className="text-lg font-semibold text-app-text">Статистика использования оборудования</h3>
             <button
               onClick={() => setShowStatistics(false)}
               className="text-app-text3 hover:text-app-text"
@@ -367,12 +367,12 @@ const VerificationsManagement: React.FC = () => {
               <div key={eq.id} className="bg-app-panel rounded-lg p-3 border border-app-line">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold text-white">{eq.name}</div>
+                    <div className="font-semibold text-app-text">{eq.name}</div>
                     <div className="text-sm text-app-text3">
                       {eq.equipment_type} • {eq.serial_number}
                     </div>
                   </div>
-                  <div className="text-lg font-bold text-blue-400">
+                  <div className="text-lg font-bold text-accent">
                     {eq.usage_count} раз
                   </div>
                 </div>
@@ -383,7 +383,7 @@ const VerificationsManagement: React.FC = () => {
       )}
 
       {/* Таблица */}
-      <div className="bg-secondary/50 rounded-lg border border-app-line overflow-hidden">
+      <div className="bg-app-panel border border-app-line shadow-sm rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-app-panel/50">
@@ -407,7 +407,7 @@ const VerificationsManagement: React.FC = () => {
               ) : (
                 filteredEquipment.map((item) => (
                   <tr key={item.id} className="hover:bg-app-panel/30 transition">
-                    <td className="px-4 py-3 text-white">{item.name}</td>
+                    <td className="px-4 py-3 text-app-text">{item.name}</td>
                     <td className="px-4 py-3 text-app-text2">{item.equipment_type}</td>
                     <td className="px-4 py-3 text-app-text2">{item.serial_number}</td>
                     <td className="px-4 py-3 text-app-text2">
@@ -473,7 +473,7 @@ const VerificationsManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="p-4 border-b border-app-line flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Скан свидетельства о поверке</h3>
+              <h3 className="text-lg font-semibold text-app-text">Скан свидетельства о поверке</h3>
               <button
                 onClick={() => setShowScanModal(null)}
                 className="text-app-text3 hover:text-app-text"
@@ -497,7 +497,7 @@ const VerificationsManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="p-4 border-b border-app-line flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">История поверок</h3>
+              <h3 className="text-lg font-semibold text-app-text">История поверок</h3>
               <button
                 onClick={() => {
                   setShowHistoryModal(null);
@@ -518,32 +518,32 @@ const VerificationsManagement: React.FC = () => {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-app-text3">Предыдущая поверка:</span>
-                          <p className="text-white">{new Date(history.previous_verification_date).toLocaleDateString('ru-RU')}</p>
+                          <p className="text-app-text">{new Date(history.previous_verification_date).toLocaleDateString('ru-RU')}</p>
                         </div>
                         <div>
                           <span className="text-app-text3">Новая поверка:</span>
-                          <p className="text-white">{new Date(history.new_verification_date).toLocaleDateString('ru-RU')}</p>
+                          <p className="text-app-text">{new Date(history.new_verification_date).toLocaleDateString('ru-RU')}</p>
                         </div>
                         <div>
                           <span className="text-app-text3">Следующая поверка:</span>
-                          <p className="text-white">{new Date(history.new_next_verification_date).toLocaleDateString('ru-RU')}</p>
+                          <p className="text-app-text">{new Date(history.new_next_verification_date).toLocaleDateString('ru-RU')}</p>
                         </div>
                         {history.certificate_number && (
                           <div>
                             <span className="text-app-text3">Номер свидетельства:</span>
-                            <p className="text-white">{history.certificate_number}</p>
+                            <p className="text-app-text">{history.certificate_number}</p>
                           </div>
                         )}
                         {history.organization && (
                           <div>
                             <span className="text-app-text3">Организация:</span>
-                            <p className="text-white">{history.organization}</p>
+                            <p className="text-app-text">{history.organization}</p>
                           </div>
                         )}
                         {history.recorded_at && (
                           <div>
                             <span className="text-app-text3">Записано:</span>
-                            <p className="text-white">{new Date(history.recorded_at).toLocaleDateString('ru-RU')}</p>
+                            <p className="text-app-text">{new Date(history.recorded_at).toLocaleDateString('ru-RU')}</p>
                           </div>
                         )}
                       </div>
@@ -643,7 +643,7 @@ const VerificationEquipmentModal: React.FC<{
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-secondary rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
         <div className="p-6 border-b border-app-line">
-          <h2 className="text-xl font-semibold text-white">
+          <h2 className="text-xl font-semibold text-app-text">
             {item ? 'Редактировать оборудование' : 'Добавить оборудование'}
           </h2>
         </div>
@@ -656,7 +656,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -665,7 +665,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.equipment_type}
                 onChange={(e) => setFormData({ ...formData, equipment_type: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               >
                 <option value="">Выберите тип</option>
                 <option value="ВИК">ВИК (Визуальный и измерительный контроль)</option>
@@ -685,7 +685,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.serial_number}
                 onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -694,7 +694,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.manufacturer}
                 onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -703,7 +703,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -712,7 +712,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.inventory_number}
                 onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -722,7 +722,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.verification_date}
                 onChange={(e) => setFormData({ ...formData, verification_date: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -732,7 +732,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.next_verification_date}
                 onChange={(e) => setFormData({ ...formData, next_verification_date: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -741,7 +741,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.verification_certificate_number}
                 onChange={(e) => setFormData({ ...formData, verification_certificate_number: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -750,7 +750,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.verification_organization}
                 onChange={(e) => setFormData({ ...formData, verification_organization: e.target.value })}
-                className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -760,7 +760,7 @@ const VerificationEquipmentModal: React.FC<{
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
               onChange={(e) => setScanFile(e.target.files?.[0] || null)}
-              className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
             {item?.scan_file_name && (
               <p className="text-xs text-app-text3 mt-1">Текущий файл: {item.scan_file_name}</p>
@@ -772,7 +772,7 @@ const VerificationEquipmentModal: React.FC<{
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 bg-primary border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-app-line">

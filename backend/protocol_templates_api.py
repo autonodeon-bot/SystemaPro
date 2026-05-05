@@ -156,7 +156,7 @@ async def _append_version_snapshot(
     await db.execute(
         text("""
             INSERT INTO protocol_template_versions (template_id, version, snapshot, created_by)
-            VALUES (:template_id, :version, :snapshot::JSONB, :created_by)
+            VALUES (:template_id, :version, CAST(:snapshot AS JSONB), :created_by)
             ON CONFLICT (template_id, version) DO UPDATE SET
                 snapshot = EXCLUDED.snapshot,
                 created_by = EXCLUDED.created_by,
@@ -265,7 +265,7 @@ async def create_template(
             text("""
                 INSERT INTO protocol_templates
                     (id, name, description, category, structure, created_by, status, version)
-                VALUES (:id, :name, :description, :category, :structure::JSONB, :created_by, :status, 1)
+                VALUES (:id, :name, :description, :category, CAST(:structure AS JSONB), :created_by, :status, 1)
             """),
             {
                 "id": template_id,
@@ -335,7 +335,7 @@ async def update_template(
                 [b.model_dump() for b in body.structure],
                 ensure_ascii=False,
             )
-            sets.append("structure = :structure::JSONB")
+            sets.append("structure = CAST(:structure AS JSONB)")
 
         sets.append("version = version + 1")
 
@@ -473,7 +473,7 @@ async def restore_template_version(
                 SET name = :name,
                     description = :description,
                     category = :category,
-                    structure = :structure::JSONB,
+                    structure = CAST(:structure AS JSONB),
                     is_active = :is_active,
                     status = :status,
                     version = version + 1,

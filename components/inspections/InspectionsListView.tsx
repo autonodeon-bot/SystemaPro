@@ -43,7 +43,7 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
 
   if (filteredInspections.length === 0) {
     return (
-      <div className="text-center py-12 bg-secondary/50 rounded-lg">
+      <div className="text-center py-12 bg-app-panel rounded-lg border border-app-line">
         <FileText className="mx-auto text-app-text3 mb-4" size={48} />
         <p className="text-app-text3">Чек-листы не найдены</p>
       </div>
@@ -61,7 +61,7 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
               <button
                 type="button"
                 onClick={() => onToggleGroup(groupKey)}
-                className="w-full flex items-center gap-2 px-4 py-3 bg-secondary/70 hover:bg-secondary text-left text-white font-medium"
+                className="w-full flex items-center gap-2 px-4 py-3 bg-app-soft hover:bg-app-softer text-left text-app-text font-medium border-b border-app-line"
               >
                 {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 <Building2 size={18} className="text-accent" />
@@ -69,7 +69,7 @@ const InspectionsListView: React.FC<InspectionsListViewProps> = ({
                 <span className="text-app-text3 text-sm font-normal">({items.length})</span>
               </button>
               {isExpanded && (
-                <div className="p-2 space-y-2 bg-secondary/30">
+                <div className="p-2 space-y-2 bg-app-soft border-t border-app-line">
                   {items.map((insp) => (
                     <InspectionCard
                       key={insp.id}
