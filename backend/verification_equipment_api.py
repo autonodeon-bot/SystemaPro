@@ -1,17 +1,24 @@
 """Verification equipment endpoints — поверочное оборудование."""
 
+import asyncio
 import csv
 import io
+import json
+import logging
 import os
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid as uuid_lib
 import traceback
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, StreamingResponse
-from sqlalchemy import select, nulls_last
+from sqlalchemy import select, nulls_last, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -26,6 +33,93 @@ from auth import verify_token_optional
 from auth_api import get_current_user
 
 router = APIRouter(tags=["verification-equipment"])
+
+logger = logging.getLogger(__name__)
+
+FGIS_VRI_URL = "https://fgis.gost.ru/fundmetrology/eapi/vri"
+FGIS_RESULTS_URL = "https://fgis.gost.ru/fundmetrology/cm/results?tab=VRI&type=1"
+
+
+def _norm_alnum(value: Optional[str]) -> str:
+    return "".join(ch for ch in (value or "") if ch.isalnum()).lower()
+
+
+def _fgis_vri_search(query: str, rows: int = 40) -> List[Dict[str, Any]]:
+    """Синхронный запрос к публичному API ФГИС (Аршин) — только чтение."""
+    q = (query or "").strip()
+    if len(q) < 2:
+        return []
+    params = urllib.parse.urlencode({"search": q, "rows": str(min(rows, 100)), "start": "0"})
+    url = f"{FGIS_VRI_URL}?{params}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "SystemaPro-Monitor/3.32.0 (verification lookup)",
+        },
+    )
+    ctx = ssl.create_default_context()
+    with urllib.request.urlopen(req, timeout=28, context=ctx) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    return (payload.get("result") or {}).get("items") or []
+
+
+def _lookup_fgis_arshin_impl(serial_number: Optional[str], certificate_number: Optional[str]) -> Dict[str, Any]:
+    """Поиск сведений о поверке в ФГИС по номеру свидетельства и/или заводскому номеру СИ."""
+    cert = (certificate_number or "").strip()
+    ser = (serial_number or "").strip()
+    if not cert and not ser:
+        return {"items": [], "hint": "Укажите серийный номер прибора или номер свидетельства о поверке."}
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for q in ([cert] if cert else []) + ([ser] if ser and ser != cert else []):
+        try:
+            items = _fgis_vri_search(q, rows=50)
+        except urllib.error.HTTPError as e:
+            logger.warning("ФГИС HTTP %s: %s", e.code, e.reason)
+            raise HTTPException(status_code=502, detail="ФГИС вернул ошибку при запросе") from e
+        except urllib.error.URLError as e:
+            logger.warning("ФГИС сеть: %s", e)
+            raise HTTPException(status_code=502, detail="Не удалось связаться с ФГИС. Проверьте сеть или повторите позже.") from e
+        except Exception as e:
+            logger.exception("ФГИС: неожиданная ошибка")
+            raise HTTPException(status_code=502, detail=f"Ошибка при обращении к ФГИС: {e}") from e
+
+        for it in items:
+            vid = str(it.get("vri_id") or "")
+            if not vid:
+                continue
+            merged[vid] = it
+
+    slim: List[Dict[str, Any]] = []
+    ser_norm = _norm_alnum(ser)
+    for it in merged.values():
+        mi_num = it.get("mi_number") or ""
+        doc = it.get("result_docnum") or ""
+        if ser_norm and not cert:
+            if ser_norm not in _norm_alnum(mi_num):
+                continue
+        slim.append(
+            {
+                "vri_id": it.get("vri_id"),
+                "org_title": it.get("org_title"),
+                "mit_title": it.get("mit_title"),
+                "mit_number": it.get("mit_number"),
+                "mi_modification": it.get("mi_modification"),
+                "mi_number": mi_num,
+                "verification_date": it.get("verification_date"),
+                "valid_date": it.get("valid_date"),
+                "result_docnum": doc,
+                "applicability": it.get("applicability"),
+            }
+        )
+
+    slim.sort(key=lambda x: (x.get("verification_date") or ""), reverse=True)
+    return {
+        "items": slim[:30],
+        "arshin_portal_url": FGIS_RESULTS_URL,
+        "hint": "Точнее всего поиск по номеру свидетельства (как в документе). По одному только серийному номеру реестр может не вернуть строку — тогда введите номер свидетельства.",
+    }
 
 
 @router.get("/api/verification-equipment")
@@ -86,6 +180,85 @@ async def get_verification_equipment(
         print(f"❌ Error in get_verification_equipment: {error_detail}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка при получении оборудования для поверок: {error_detail}")
+
+
+@router.get("/api/verification-equipment/statistics/usage")
+async def verification_equipment_usage_statistics(
+    days: int = 90,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(verify_token_optional),
+):
+    """Сколько раз поверочное оборудование фигурировало в обследованиях за период."""
+    if days < 1:
+        days = 1
+    if days > 366:
+        days = 366
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    try:
+        q = (
+            select(
+                VerificationEquipment.id,
+                VerificationEquipment.name,
+                VerificationEquipment.equipment_type,
+                VerificationEquipment.serial_number,
+                func.count(InspectionEquipment.id).label("cnt"),
+            )
+            .select_from(InspectionEquipment)
+            .join(VerificationEquipment, InspectionEquipment.verification_equipment_id == VerificationEquipment.id)
+            .join(Inspection, InspectionEquipment.inspection_id == Inspection.id)
+            .where(
+                Inspection.created_at >= since,
+                VerificationEquipment.is_active == True,
+            )
+            .group_by(
+                VerificationEquipment.id,
+                VerificationEquipment.name,
+                VerificationEquipment.equipment_type,
+                VerificationEquipment.serial_number,
+            )
+        )
+        result = await db.execute(q)
+        rows = result.all()
+        equipment_list: List[Dict[str, Any]] = []
+        total_uses = 0
+        for row in rows:
+            cnt = int(row.cnt or 0)
+            total_uses += cnt
+            equipment_list.append(
+                {
+                    "id": str(row.id),
+                    "name": row.name or "",
+                    "equipment_type": row.equipment_type or "",
+                    "serial_number": row.serial_number or "",
+                    "usage_count": cnt,
+                }
+            )
+        equipment_list.sort(key=lambda x: x["usage_count"], reverse=True)
+        return {
+            "period_days": days,
+            "total_uses": total_uses,
+            "equipment_count": len(equipment_list),
+            "equipment": equipment_list,
+        }
+    except Exception as e:
+        logger.exception("verification_equipment_usage_statistics")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/api/verification-equipment/fgis-arshin/lookup")
+async def lookup_verification_in_fgis_arshin(
+    serial_number: Optional[str] = None,
+    certificate_number: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Проверка сведений о поверке в публичном фонде ФГИС (Аршин) по номеру СИ / свидетельства."""
+    role = current_user.get("role")
+    if role not in ("admin", "chief_operator", "operator", "engineer"):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    try:
+        return await asyncio.to_thread(_lookup_fgis_arshin_impl, serial_number, certificate_number)
+    except HTTPException:
+        raise
 
 
 @router.post("/api/verification-equipment")
@@ -621,3 +794,20 @@ async def export_verification_equipment(
             raise HTTPException(status_code=400, detail="Неподдерживаемый формат экспорта")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/verification-equipment/export/csv")
+async def export_verification_equipment_csv(
+    days_before_expiry: Optional[int] = None,
+    equipment_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(verify_token_optional),
+):
+    """Алиас пути `/export/csv` для фронтенда (то же, что `export?format=csv`)."""
+    return await export_verification_equipment(
+        format="csv",
+        days_before_expiry=days_before_expiry,
+        equipment_type=equipment_type,
+        db=db,
+        current_user=current_user,
+    )

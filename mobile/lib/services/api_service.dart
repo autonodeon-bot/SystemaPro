@@ -8,6 +8,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import '../config/app_config.dart';
 import '../models/equipment.dart';
 import '../models/user.dart';
 import '../models/vessel_checklist.dart';
@@ -36,7 +37,7 @@ MediaType? _contentTypeFromExtension(String ext) {
 abstract class ApiServiceBase {
   const ApiServiceBase();
 
-  static const String baseUrl = 'https://neftcontrol.ru';
+  static String get baseUrl => AppConfig.effectiveApiBaseUrl;
   static const Duration requestTimeout = Duration(seconds: 120);
 
   Future<bool> ensureValidToken();
@@ -50,30 +51,55 @@ class ApiService extends ApiServiceBase
         ApiReportsMixin {
   const ApiService();
 
-  static const String baseUrl = ApiServiceBase.baseUrl;
+  static String get baseUrl => ApiServiceBase.baseUrl;
   static const Duration requestTimeout = ApiServiceBase.requestTimeout;
+
+  static const Duration _loginTimeout = Duration(seconds: 45);
+
+  static bool _isNetworkFailure(Object e) {
+    final s = e.toString();
+    return s.contains('SocketException') ||
+        s.contains('ClientException') ||
+        s.contains('No route to host') ||
+        s.contains('Failed host lookup') ||
+        s.contains('Network is unreachable') ||
+        s.contains('Connection refused') ||
+        s.contains('Connection timed out');
+  }
+
+  static Exception _loginNetworkError() {
+    return Exception(
+      'Нет связи с сервером ($baseUrl). Проверьте интернет, отключите VPN и '
+      'прокси/фильтры трафика (AdGuard и т.п.). Убедитесь, что в браузере '
+      'телефона открывается сайт.',
+    );
+  }
 
   Future<Map<String, dynamic>?> login(String username, String password) async {
     try {
-      final response = await http.post(
+      final response = await http
+          .post(
         Uri.parse('$baseUrl/api/auth/login'),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body:
             'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}',
-      );
+      )
+          .timeout(_loginTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final token = data['access_token'];
         if (token != null) {
           try {
-            final userResponse = await http.get(
+            final userResponse = await http
+                .get(
               Uri.parse('$baseUrl/api/auth/me'),
               headers: {
                 'Authorization': 'Bearer $token',
                 'Content-Type': 'application/json',
               },
-            );
+            )
+                .timeout(_loginTimeout);
             if (userResponse.statusCode == 200) {
               final userData = json.decode(userResponse.body);
               return {
@@ -100,7 +126,14 @@ class ApiService extends ApiServiceBase
         final errorData = json.decode(response.body);
         throw Exception(errorData['detail'] ?? 'Ошибка входа');
       }
+    } on SocketException {
+      throw _loginNetworkError();
+    } on TimeoutException {
+      throw _loginNetworkError();
     } catch (e) {
+      if (_isNetworkFailure(e)) {
+        throw _loginNetworkError();
+      }
       throw Exception('Ошибка входа: $e');
     }
   }
@@ -133,17 +166,44 @@ class ApiService extends ApiServiceBase
     }
   }
 
+  /// Проверка доступности сервера для синхронизации и UI.
+  ///
+  /// Используется [GET /api/mobile/version] — без обращения к БД (в отличие от [/health],
+  /// который при недоступности базы отдаёт 503 и ложно блокировал бы синхронизацию).
+  /// Запасной вариант — [/health]. Таймаут увеличен для слабых каналов связи.
   Future<bool> checkConnection() async {
+    const timeout = Duration(seconds: 15);
+    final base = baseUrl;
+
+    try {
+      final r = await http
+          .get(
+            Uri.parse('$base/api/mobile/version'),
+            headers: {'Accept': 'application/json'},
+          )
+          .timeout(timeout);
+      if (r.statusCode == 200) {
+        try {
+          final decoded = json.decode(r.body);
+          if (decoded is Map && decoded.containsKey('version')) {
+            return true;
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('checkConnection /api/mobile/version: $e');
+    }
+
     try {
       final response = await http
           .get(
-            Uri.parse('$baseUrl/health'),
+            Uri.parse('$base/health'),
             headers: {'Content-Type': 'application/json'},
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(timeout);
       return response.statusCode == 200;
     } catch (e) {
-      print('Connection check failed: $e');
+      debugPrint('checkConnection /health: $e');
       return false;
     }
   }
@@ -281,6 +341,69 @@ class ApiService extends ApiServiceBase
       return json.decode(response.body) as List<dynamic>;
     }
     return [];
+  }
+
+  Future<List<Map<String, dynamic>>> listStandaloneProtocols() async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/standalone-protocols'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      final d = json.decode(response.body);
+      if (d is Map && d['items'] is List) {
+        return (d['items'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  /// Сохранение протокола с мобильного (без полного обследования на сервере).
+  Future<Map<String, dynamic>?> submitStandaloneProtocol({
+    required String title,
+    required String kind,
+    String? templateId,
+    String? templateName,
+    String? equipmentId,
+    String? equipmentName,
+    required Map<String, dynamic> payload,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final bodyMap = <String, dynamic>{
+      'title': title,
+      'kind': kind,
+      if (templateId != null && templateId.isNotEmpty) 'template_id': templateId,
+      if (templateName != null && templateName.isNotEmpty) 'template_name': templateName,
+      if (equipmentId != null && equipmentId.isNotEmpty) 'equipment_id': equipmentId,
+      if (equipmentName != null && equipmentName.isNotEmpty) 'equipment_name': equipmentName,
+      'payload': payload,
+    };
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/standalone-protocols'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: json.encode(bodyMap),
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode == 201) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    final err = response.body;
+    throw Exception('Протокол на сервере не сохранён (${response.statusCode}): $err');
   }
 
   // ── Шаблоны протоколов (конструктор П.2) ──────────────────────────────────

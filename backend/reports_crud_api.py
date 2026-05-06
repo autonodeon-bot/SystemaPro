@@ -442,11 +442,10 @@ async def generate_report(
                     )
                     ndt_methods = ndt_result.scalars().all()
 
-            # Вложения чек-листа (фото таблички/схема контроля/сканы документов) — привязаны к Questionnaire
-            document_files = []
+            # Опросник для вложений отчёта: только связанный с этим обследованием (без «угадайки» по оборудованию —
+            # иначе в отчёт попадали файлы из чужих опросников с тем же оборудованием).
+            q_for_files = None
             try:
-                q_for_files = None
-                # Сначала берём questionnaire, привязанный к этой инспекции (если есть)
                 if getattr(inspection, "questionnaire_id", None):
                     q_by_id = await db.execute(
                         select(Questionnaire)
@@ -454,21 +453,33 @@ async def generate_report(
                         .where(Questionnaire.id == inspection.questionnaire_id)
                     )
                     q_for_files = q_by_id.scalar_one_or_none()
-                if not q_for_files:
-                    q_query = (
+                if not q_for_files and getattr(inspection, "assignment_id", None):
+                    q_by_assign = await db.execute(
                         select(Questionnaire)
                         .options(load_only(Questionnaire.id, Questionnaire.equipment_id, Questionnaire.created_at))
-                        .where(Questionnaire.equipment_id == equipment.id)
+                        .where(Questionnaire.assignment_id == inspection.assignment_id)
+                        .order_by(Questionnaire.created_at.desc())
+                        .limit(1)
                     )
-                    if getattr(inspection, "created_at", None):
-                        q_query = q_query.order_by(
-                            func.abs(func.extract("epoch", Questionnaire.created_at - inspection.created_at))
-                        ).limit(1)
-                    else:
-                        q_query = q_query.order_by(Questionnaire.created_at.desc()).limit(1)
-                    q_result = await db.execute(q_query)
-                    q_for_files = q_result.scalar_one_or_none()
-                if q_for_files:
+                    q_for_files = q_by_assign.scalar_one_or_none()
+            except Exception:
+                q_for_files = None
+
+            questionnaire_scope = str(q_for_files.id) if q_for_files else None
+            inspection_scope = str(inspection.id)
+
+            def _inspect_attachment_path(local_path: Optional[str]) -> Optional[str]:
+                if not local_path or not isinstance(local_path, str):
+                    return local_path
+                return resolve_report_file_path(
+                    local_path,
+                    inspection_id=inspection_scope,
+                    questionnaire_id=questionnaire_scope,
+                ) or local_path
+
+            document_files = []
+            if q_for_files:
+                try:
                     files_result = await db.execute(
                         select(QuestionnaireDocumentFile).where(
                             QuestionnaireDocumentFile.questionnaire_id == q_for_files.id
@@ -479,15 +490,15 @@ async def generate_report(
                         {
                             "document_number": f.document_number,
                             "file_name": f.file_name,
-                            "file_path": _resolve_report_file_path(f.file_path) or f.file_path,
+                            "file_path": _inspect_attachment_path(f.file_path) or f.file_path,
                             "file_size": int(f.file_size or 0),
                             "file_type": f.file_type,
                             "mime_type": f.mime_type,
                         }
                         for f in files
                     ]
-            except Exception:
-                document_files = []
+                except Exception:
+                    document_files = []
             # Дополняем из inspection.data (пути после синхронизации с мобильного)
             _existing_dn = {str(f.get("document_number")) for f in document_files if f.get("document_number")}
             _data = inspection.data if isinstance(getattr(inspection, "data", None), dict) else {}
@@ -495,7 +506,7 @@ async def generate_report(
                 if _key not in _existing_dn and _data.get(_key):
                     _p = (_data.get(_key) or "").strip()
                     if _p:
-                        document_files.append({"document_number": _key, "file_name": os.path.basename(_p), "file_path": _resolve_report_file_path(_p) or _p})
+                        document_files.append({"document_number": _key, "file_name": os.path.basename(_p), "file_path": _inspect_attachment_path(_p) or _p})
                         _existing_dn.add(_key)
             _vd = _data.get("visual_defects")
             if isinstance(_vd, list):
@@ -504,7 +515,7 @@ async def generate_report(
                         continue
                     for _j, _ph in enumerate(_d.get("photos") or []):
                         if isinstance(_ph, str) and _ph.strip() and f"vd_{_i}_{_j}" not in _existing_dn:
-                            document_files.append({"document_number": f"vd_{_i}_{_j}", "file_name": os.path.basename(_ph), "file_path": _resolve_report_file_path(_ph) or _ph})
+                            document_files.append({"document_number": f"vd_{_i}_{_j}", "file_name": os.path.basename(_ph), "file_path": _inspect_attachment_path(_ph) or _ph})
                             _existing_dn.add(f"vd_{_i}_{_j}")
             _thickness = _data.get("thickness_measurements") or _data.get("thicknessMeasurements")
             if isinstance(_thickness, list):
@@ -513,7 +524,7 @@ async def generate_report(
                         continue
                     for _j, _ph in enumerate(_t.get("photos") or []):
                         if isinstance(_ph, str) and _ph.strip() and f"uzt_point_{_i}_{_j}" not in _existing_dn:
-                            document_files.append({"document_number": f"uzt_point_{_i}_{_j}", "file_name": os.path.basename(_ph), "file_path": _resolve_report_file_path(_ph) or _ph})
+                            document_files.append({"document_number": f"uzt_point_{_i}_{_j}", "file_name": os.path.basename(_ph), "file_path": _inspect_attachment_path(_ph) or _ph})
                             _existing_dn.add(f"uzt_point_{_i}_{_j}")
 
             # Проверка целостности вложений: логируем отсутствующие файлы
@@ -645,7 +656,7 @@ async def generate_report(
             def _resolve_photo_list(lst):
                 if not isinstance(lst, list):
                     return lst
-                return [_resolve_report_file_path(x) or x for x in lst if isinstance(x, str)]
+                return [_inspect_attachment_path(x) or x for x in lst if isinstance(x, str)]
 
             ndt_methods_data = []
             for m in ndt_methods:
@@ -719,6 +730,12 @@ async def generate_report(
 
             # Подготавливаем данные для отчета и добавляем информацию об ОПО (если есть)
             inspection_payload = {
+                "id": inspection_scope,
+                "questionnaire_id": (
+                    str(inspection.questionnaire_id)
+                    if getattr(inspection, "questionnaire_id", None)
+                    else questionnaire_scope
+                ),
                 "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
                 "data": inspection.data,
                 "conclusion": inspection.conclusion,
@@ -786,7 +803,7 @@ async def generate_report(
                     dp = dict(dp)
                     for key in ("factory_plate_photo", "control_scheme_image", "factory_plate", "control_scheme"):
                         if dp.get(key) and isinstance(dp[key], str):
-                            dp[key] = _resolve_report_file_path(dp[key]) or dp[key]
+                            dp[key] = _inspect_attachment_path(dp[key]) or dp[key]
                     # Фото дефектов ВИК (синхронизация с мобильного)
                     vd = dp.get("visual_defects")
                     if isinstance(vd, list):
@@ -796,7 +813,7 @@ async def generate_report(
                                 d = dict(d)
                                 ph = d.get("photos") or []
                                 if isinstance(ph, list):
-                                    d["photos"] = [_resolve_report_file_path(p) or p for p in ph if isinstance(p, str)]
+                                    d["photos"] = [_inspect_attachment_path(p) or p for p in ph if isinstance(p, str)]
                                 vd[i] = d
                         dp["visual_defects"] = vd
                     # Фото замеров УЗТ
@@ -808,7 +825,7 @@ async def generate_report(
                                 t = dict(t)
                                 ph = t.get("photos") or []
                                 if isinstance(ph, list):
-                                    t["photos"] = [_resolve_report_file_path(p) or p for p in ph if isinstance(p, str)]
+                                    t["photos"] = [_inspect_attachment_path(p) or p for p in ph if isinstance(p, str)]
                                 tm[i] = t
                         dp["thickness_measurements"] = tm
                     inspection_payload["data"] = dp
@@ -1017,11 +1034,18 @@ async def bulk_export_reports(
             equipment = eq_result.scalar_one_or_none()
             if not equipment:
                 continue
-            inspection_data = dict(inspection.data or {})
-            inspection_data["id"] = str(inspection.id)
-            inspection_data["status"] = getattr(inspection, "status", "DRAFT")
-            inspection_data["conclusion"] = getattr(inspection, "conclusion", None)
-            inspection_data["date_performed"] = inspection.date_performed.isoformat() if getattr(inspection, "date_performed", None) else None
+            inspection_payload_bulk = {
+                "id": str(inspection.id),
+                "questionnaire_id": (
+                    str(inspection.questionnaire_id)
+                    if getattr(inspection, "questionnaire_id", None)
+                    else None
+                ),
+                "status": getattr(inspection, "status", "DRAFT"),
+                "conclusion": getattr(inspection, "conclusion", None),
+                "date_performed": inspection.date_performed.isoformat() if getattr(inspection, "date_performed", None) else None,
+                "data": inspection.data if isinstance(getattr(inspection, "data", None), dict) else {},
+            }
             equipment_data = {
                 "id": str(equipment.id),
                 "name": equipment.name,
@@ -1040,8 +1064,49 @@ async def bulk_export_reports(
                     equipment_data["type_name"] = t.name
             ndt_res = await db.execute(select(NDTMethod).where(NDTMethod.inspection_id == inspection.id))
             ndt_list = ndt_res.scalars().all()
+
+            q_for_files_b = None
+            if getattr(inspection, "questionnaire_id", None):
+                q_res = await db.execute(select(Questionnaire).where(Questionnaire.id == inspection.questionnaire_id))
+                q_for_files_b = q_res.scalar_one_or_none()
+            if not q_for_files_b and getattr(inspection, "assignment_id", None):
+                q_res2 = await db.execute(
+                    select(Questionnaire)
+                    .where(Questionnaire.assignment_id == inspection.assignment_id)
+                    .order_by(Questionnaire.created_at.desc())
+                    .limit(1)
+                )
+                q_for_files_b = q_res2.scalar_one_or_none()
+            q_bulk_scope = str(q_for_files_b.id) if q_for_files_b else None
+            inspection_scope_b = str(inspection.id)
+            if q_bulk_scope and not inspection_payload_bulk.get("questionnaire_id"):
+                inspection_payload_bulk["questionnaire_id"] = q_bulk_scope
+
+            def _bulk_attachment_path(local_path: Optional[str]) -> Optional[str]:
+                if not local_path or not isinstance(local_path, str):
+                    return local_path
+                return resolve_report_file_path(
+                    local_path,
+                    inspection_id=inspection_scope_b,
+                    questionnaire_id=q_bulk_scope,
+                ) or local_path
+
             ndt_methods_data = []
             for m in ndt_list:
+                _ph = getattr(m, "photos", None) or []
+                if isinstance(_ph, list):
+                    _ph_res = [
+                        resolve_report_file_path(
+                            ph,
+                            inspection_id=inspection_scope_b,
+                            questionnaire_id=q_bulk_scope,
+                        )
+                        or ph
+                        for ph in _ph
+                        if isinstance(ph, str)
+                    ]
+                else:
+                    _ph_res = _ph
                 ndt_methods_data.append({
                     "method_code": getattr(m, "method_code", None),
                     "method_name": getattr(m, "method_name", None),
@@ -1053,28 +1118,28 @@ async def bulk_export_reports(
                     "results": getattr(m, "results", None),
                     "defects": getattr(m, "defects", None),
                     "conclusion": getattr(m, "conclusion", None),
-                    "photos": getattr(m, "photos", None) or [],
+                    "photos": _ph_res,
                     "additional_data": getattr(m, "additional_data", None) or {},
                     "performed_date": m.performed_date.isoformat() if getattr(m, "performed_date", None) else None,
                 })
             document_files = []
-            q_for_files = None
-            if getattr(inspection, "questionnaire_id", None):
-                q_res = await db.execute(select(Questionnaire).where(Questionnaire.id == inspection.questionnaire_id))
-                q_for_files = q_res.scalar_one_or_none()
-            if q_for_files:
-                f_res = await db.execute(select(QuestionnaireDocumentFile).where(QuestionnaireDocumentFile.questionnaire_id == q_for_files.id))
+            if q_for_files_b:
+                f_res = await db.execute(
+                    select(QuestionnaireDocumentFile).where(
+                        QuestionnaireDocumentFile.questionnaire_id == q_for_files_b.id
+                    )
+                )
                 for f in f_res.scalars().all():
                     document_files.append({
                         "document_number": f.document_number,
                         "file_name": f.file_name,
-                        "file_path": _resolve_report_file_path(f.file_path) or f.file_path,
+                        "file_path": _bulk_attachment_path(f.file_path) or f.file_path,
                         "file_size": int(f.file_size or 0),
                     })
             out_path = os.path.join(temp_dir, f"report_{insp_id}.docx")
             try:
                 word_generator.generate_report_word(
-                    inspection_data,
+                    inspection_payload_bulk,
                     equipment_data,
                     ndt_methods_data,
                     out_path,

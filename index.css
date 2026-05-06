@@ -773,6 +773,25 @@ html.light body {
 .light .ind-table tbody tr:hover td { background: rgba(37,99,235,0.04); }
 .light .ind-btn { background: #fff; }
 .light .ind-btn:hover { background: #f3f7ff; }
+/* Перекрываем фон вторичной кнопки: иначе primary остаётся белой с color:#fff — текст не виден */
+.light .ind-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.light .ind-btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+.light .ind-btn--danger {
+  background: transparent;
+  color: var(--danger);
+}
+.light .ind-btn--danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
 .light .ind-input { background: #fff; }
 .light .ind-drawing-canvas { background: #eef2fb; }
 

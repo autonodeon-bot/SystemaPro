@@ -163,6 +163,30 @@ const ReportTemplates = () => {
         </button>
       </div>
 
+      <div className="bg-app-panel rounded-xl p-4 border border-app-line text-sm text-app-text2 space-y-2">
+        <p className="font-semibold text-app-text">Как пользоваться шаблонами отчётов</p>
+        <ul className="list-disc list-inside space-y-1 text-app-text3">
+          <li>
+            Раздел доступен роли <strong className="text-app-text">admin</strong>: здесь вносятся записи в базу
+            (название, тип отчёта, какие разделы включать, флаг «по умолчанию» для данного типа).
+          </li>
+          <li>
+            Нажмите «Создать шаблон», заполните поля, отметьте нужные блоки отчёта и сохраните. Один шаблон на тип
+            отчёта можно пометить «по умолчанию» — при создании новой записи система снимает флаг с остальных того же типа.
+          </li>
+          <li>
+            Кнопка перехода к настройке шаблонов есть в панели генерации отчёта (иконка / ссылка на этот раздел).
+          </li>
+          <li className="text-app-text3">
+            Текущая генерация Word/PDF на сервере подбирает <strong className="text-app-text">макет документа</strong> из
+            файла <code className="text-xs bg-app-deep px-1 rounded">reports/report_templates.json</code> по типу
+            оборудования и виду отчёта. Настройки из этой страницы (галки разделов) хранятся в БД и предназначены для
+            учёта и дальнейшей связки с генератором; при необходимости изменить внешний вид готового файла согласуйте с
+            администратором правки JSON-макетов на сервере.
+          </li>
+        </ul>
+      </div>
+
       {showForm && (
         <div className="bg-app-panel rounded-xl p-6 border border-app-line">
           <div className="flex justify-between items-center mb-4">

@@ -45,7 +45,7 @@ class InspectionConclusionSection extends StatelessWidget {
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ),
-        _buildSubmitButton(),
+        _buildSubmitButton(context),
         const SizedBox(height: 32),
       ],
     );
@@ -129,7 +129,7 @@ class InspectionConclusionSection extends StatelessWidget {
     return {'completed': completed, 'total': total};
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildSubmitButton(BuildContext context) {
     return Column(
       children: [
         Semantics(
@@ -209,6 +209,7 @@ class InspectionConclusionSection extends StatelessWidget {
             ),
           ),
         ],
+        SizedBox(height: MediaQuery.viewPaddingOf(context).bottom + 12),
       ],
     );
   }

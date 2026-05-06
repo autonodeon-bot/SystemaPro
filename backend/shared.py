@@ -84,37 +84,60 @@ MAX_NDT_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
 # ---------------------------------------------------------------------------
 # File helpers
 # ---------------------------------------------------------------------------
-def resolve_report_file_path(path: Optional[str]) -> Optional[str]:
+def resolve_report_file_path(
+    path: Optional[str],
+    *,
+    inspection_id: Optional[str] = None,
+    questionnaire_id: Optional[str] = None,
+) -> Optional[str]:
+    """Привести путь к вложению отчёта к существующему файлу на сервере.
+
+    Не ищем файл только по имени по всей базе uploads — это подставляло чужие
+    фото из старых опросников/обследований при совпадающих именах.
+    При неоднозначном пути возвращаем исходную строку (генератор пропускает файл).
+    """
     if not path or not isinstance(path, str) or not path.strip():
         return path
     path = path.strip().replace("\\", "/")
     p = Path(path)
     if p.is_absolute() and p.exists():
         return str(p)
+
+    bases = [
+        "/app/uploads/questionnaire_documents",
+        "/app/uploads/ndt_photos",
+        "/app/uploads/certification_scans",
+        "/app/uploads",
+        "/app/reports",
+        os.getcwd(),
+    ]
+    rel = path.lstrip("/")
     if not p.is_absolute():
-        for base in [
-            "/app/uploads/questionnaire_documents",
-            "/app/uploads/ndt_photos",
-            "/app/uploads/certification_scans",
-            "/app/uploads",
-            "/app/reports",
-            os.getcwd(),
-        ]:
-            candidate = Path(base) / path
-            if candidate.exists():
+        for base in bases:
+            candidate = Path(base) / rel
+            if candidate.is_file():
                 return str(candidate.resolve())
+
     filename = os.path.basename(path)
-    if filename:
-        qd_base = Path("/app/uploads/questionnaire_documents")
-        if qd_base.is_dir():
+    if not filename:
+        return path
+
+    if questionnaire_id:
+        scoped = Path("/app/uploads/questionnaire_documents") / questionnaire_id / filename
+        if scoped.is_file():
+            return str(scoped.resolve())
+
+    if inspection_id:
+        root = Path("/app/uploads/ndt_photos") / "inspections" / inspection_id
+        if root.is_dir():
             try:
-                for sub in qd_base.iterdir():
-                    if sub.is_dir():
-                        candidate = sub / filename
-                        if candidate.is_file():
-                            return str(candidate.resolve())
+                hits = list(root.rglob(filename))
             except OSError:
-                pass
+                hits = []
+            existing = [h for h in hits if h.is_file()]
+            if len(existing) == 1:
+                return str(existing[0].resolve())
+
     return path
 
 

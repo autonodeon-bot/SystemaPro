@@ -47,6 +47,7 @@ from notifications_api import router as notifications_router
 from pipeline_map_api import router as pipeline_map_router
 from protocol_templates_api import router as protocol_templates_router
 from drawing_templates_api import router as drawing_templates_router
+from standalone_protocols_api import router as standalone_protocols_router
 from diagnostic_engine.api import router as diagnostic_router
 from report_verify_api import router as report_verify_router
 
@@ -54,7 +55,7 @@ from report_verify_api import router as report_verify_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.30.1",
+    version="3.32.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -72,7 +73,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.30.1")
+os.environ.setdefault("APP_VERSION", "3.32.0")
 init_observability(app)
 log = get_logger("main")
 
@@ -149,6 +150,7 @@ app.include_router(notifications_router)
 app.include_router(pipeline_map_router)
 app.include_router(protocol_templates_router)
 app.include_router(drawing_templates_router)
+app.include_router(standalone_protocols_router)
 app.include_router(diagnostic_router)
 app.include_router(report_verify_router)
 
@@ -211,6 +213,14 @@ async def _run_migrations():
         ("enterprises.client_id", [
             "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id)",
             "CREATE INDEX IF NOT EXISTS idx_enterprises_client_id ON enterprises(client_id)",
+        ]),
+        # clients — поля контактов (старые БД без них ломали SELECT через ORM)
+        ("clients contact columns", [
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS inn VARCHAR(20)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS address TEXT",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS phone VARCHAR(50)",
+            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS email VARCHAR(255)",
         ]),
         # verification_equipment columns
         ("verification_equipment columns", [
@@ -507,7 +517,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.30.1", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.32.0", "status": "running"}
 
 
 @app.get("/health")
@@ -542,7 +552,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.30.1")
+    checks["version"] = os.getenv("APP_VERSION", "3.32.0")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}

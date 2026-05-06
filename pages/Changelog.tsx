@@ -15,6 +15,63 @@ const Changelog = () => {
   /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
+      version: '3.32.0',
+      date: '06.05.2026',
+      type: 'patch',
+      changes: [
+        {
+          type: 'fixed',
+          description:
+            'Backend: автомиграция колонок clients (phone, email и др.) — раздел управления проектами без ошибки UndefinedColumn.',
+        },
+        {
+          type: 'fixed',
+          description:
+            'Отчёты PDF/DOCX: вложения и фото только из данных текущего обследования/опросника; убран глобальный поиск файла по имени.',
+        },
+        { type: 'changed', description: 'Системный релиз 3.32.0: web 3.32.0, backend 3.32.0, mobile 3.32.0+34.' },
+      ],
+    },
+    {
+      version: '3.31.0',
+      date: '06.05.2026',
+      type: 'minor',
+      changes: [
+        {
+          type: 'added',
+          description:
+            'API и DOCX для «автономных» протоколов из мобильного приложения: POST/GET `/api/standalone-protocols`, скачивание `/api/standalone-protocols/{id}/download`.',
+        },
+        {
+          type: 'improved',
+          description:
+            'Мобильное: нижние кнопки обследований и протоколов учитывают системную навигационную панель Android (Safe Area / отступы).',
+        },
+        {
+          type: 'improved',
+          description:
+            'Мобильное: завершение быстрого контроля ВИК/УЗТ, протокола НК и шаблонного протокола отправляет запись на сервер; реестр протоколов подтягивает список с сервера.',
+        },
+        {
+          type: 'added',
+          description:
+            'Веб «Генерация отчётов»: блок «Протоколы только с телефона» со списком и кнопкой «Скачать DOCX» без привязки к чек-листу.',
+        },
+        { type: 'changed', description: 'Системный релиз 3.31.0: web 3.31.0, backend 3.31.0, mobile 3.31.0+33.' },
+      ],
+    },
+    {
+      version: '3.30.2',
+      date: '05.05.2026',
+      type: 'patch',
+      changes: [
+        { type: 'fixed', description: 'Светлая тема: раздел «Проекты» и модалки поверочного оборудования — читаемые цвета вместо фиксированного bg-secondary.' },
+        { type: 'fixed', description: 'Поверки: кнопка «Статистика» — API usage по связи обследований с поверочным оборудованием; алиас экспорта /export/csv.' },
+        { type: 'added', description: 'Поверки: проверка сведений в публичном фонде ФГИС «Аршин» (прокси-запрос с бэкенда, кнопка в форме прибора).' },
+        { type: 'changed', description: 'Системный релиз 3.30.2: web 3.30.2, backend 3.30.2, mobile 3.30.2+32.' },
+      ],
+    },
+    {
       version: '3.30.1',
       date: '05.05.2026',
       type: 'patch',

@@ -16,7 +16,7 @@ const MobileApp = () => {
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <a
             href={downloadUrl}
-            download={`es-td-ngo-mobile-${MOBILE_APP_VERSION}-${MOBILE_APP_BUILD}.apk`}
+            download={`es-td-ngo-${MOBILE_APP_VERSION}-${MOBILE_APP_BUILD}.apk`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-3 bg-accent hover:bg-blue-600 text-white font-bold px-6 py-4 rounded-lg transition-colors shadow-lg"

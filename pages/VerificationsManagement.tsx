@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Plus, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, Clock, FileDown, History, BarChart3 } from 'lucide-react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
+import { AlertTriangle, Plus, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, Clock, FileDown, History, BarChart3, ExternalLink } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface VerificationEquipment {
@@ -37,6 +37,8 @@ const VerificationsManagement: React.FC = () => {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [showStatistics, setShowStatistics] = useState(false);
   const [usageStatistics, setUsageStatistics] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     loadEquipment();
@@ -143,20 +145,37 @@ const VerificationsManagement: React.FC = () => {
     setShowScanModal(id);
   };
 
+  const emptyUsageStats = () => ({
+    period_days: 90,
+    total_uses: 0,
+    equipment_count: 0,
+    equipment: [] as unknown[],
+  });
+
   const loadUsageStatistics = async () => {
+    setStatsLoading(true);
+    setStatsError(null);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE}/api/verification-equipment/statistics/usage?days=90`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token || ''}`,
         },
       });
-      if (response.ok) {
-        const data = await response.json();
-        setUsageStatistics(data);
+      if (!response.ok) {
+        const t = await response.text().catch(() => '');
+        setStatsError(`Не удалось загрузить статистику (HTTP ${response.status}). ${t.slice(0, 180)}`);
+        setUsageStatistics(emptyUsageStats());
+        return;
       }
+      const data = await response.json();
+      setUsageStatistics(data);
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error);
+      setStatsError(error instanceof Error ? error.message : 'Ошибка сети');
+      setUsageStatistics(emptyUsageStats());
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -254,14 +273,17 @@ const VerificationsManagement: React.FC = () => {
             <Calendar size={14} /> Календарь
           </a>
           <button
-            onClick={() => {
-              setShowStatistics(!showStatistics);
-              if (!showStatistics && !usageStatistics) {
-                loadUsageStatistics();
+            type="button"
+            onClick={async () => {
+              if (showStatistics) {
+                setShowStatistics(false);
+                return;
               }
+              setShowStatistics(true);
+              await loadUsageStatistics();
             }}
-            className="ind-btn"
-            title="Статистика использования"
+            className={`ind-btn ${showStatistics ? 'ring-1 ring-[var(--accent)]' : ''}`}
+            title="Статистика использования поверочного оборудования в обследованиях"
           >
             <BarChart3 size={14} /> Статистика
           </button>
@@ -346,39 +368,57 @@ const VerificationsManagement: React.FC = () => {
       </div>
 
       {/* Статистика использования */}
-      {showStatistics && usageStatistics && (
+      {showStatistics && (
         <div className="bg-app-panel border border-app-line shadow-sm rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-app-text">Статистика использования оборудования</h3>
             <button
+              type="button"
               onClick={() => setShowStatistics(false)}
               className="text-app-text3 hover:text-app-text"
+              aria-label="Закрыть"
             >
               <XCircle size={20} />
             </button>
           </div>
-          <div className="mb-4">
-            <div className="text-app-text3 text-sm">
-              За последние {usageStatistics.period_days} дней: {usageStatistics.total_uses} использований, {usageStatistics.equipment_count} единиц оборудования
-            </div>
-          </div>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {usageStatistics.equipment.slice(0, 10).map((eq: any) => (
-              <div key={eq.id} className="bg-app-panel rounded-lg p-3 border border-app-line">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-app-text">{eq.name}</div>
-                    <div className="text-sm text-app-text3">
-                      {eq.equipment_type} • {eq.serial_number}
+          {statsLoading && (
+            <p className="text-app-text3 text-sm py-4">Загрузка…</p>
+          )}
+          {statsError && (
+            <p className="text-sm py-2 rounded-lg px-3 border border-app-line bg-app-deep text-[var(--danger)]">
+              {statsError}
+            </p>
+          )}
+          {!statsLoading && usageStatistics && (
+            <>
+              <p className="text-app-text3 text-sm mb-4">
+                За последние {usageStatistics.period_days} дн.: приборы были привязаны к обследованиям{' '}
+                <strong className="text-app-text">{usageStatistics.total_uses}</strong> раз, задействовано{' '}
+                <strong className="text-app-text">{usageStatistics.equipment_count}</strong> ед. поверочного оборудования.
+              </p>
+              {(usageStatistics.equipment || []).length === 0 ? (
+                <p className="text-app-text3 text-sm">Нет записей об использовании за выбранный период.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {(usageStatistics.equipment || []).slice(0, 15).map((eq: { id: string; name: string; equipment_type: string; serial_number: string; usage_count: number }) => (
+                    <div key={eq.id} className="bg-app-deep rounded-lg p-3 border border-app-line">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-app-text">{eq.name}</div>
+                          <div className="text-sm text-app-text3">
+                            {eq.equipment_type} • {eq.serial_number}
+                          </div>
+                        </div>
+                        <div className="text-lg font-bold text-accent shrink-0">
+                          {eq.usage_count} раз
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-lg font-bold text-accent">
-                    {eq.usage_count} раз
-                  </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -471,8 +511,8 @@ const VerificationsManagement: React.FC = () => {
       {/* Модальное окно для просмотра скана */}
       {showScanModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b border-app-line flex items-center justify-between">
+          <div className="bg-app-panel rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto border border-app-line shadow-lg">
+            <div className="p-4 border-b border-app-line flex items-center justify-between bg-app-panel sticky top-0 z-10">
               <h3 className="text-lg font-semibold text-app-text">Скан свидетельства о поверке</h3>
               <button
                 onClick={() => setShowScanModal(null)}
@@ -495,8 +535,8 @@ const VerificationsManagement: React.FC = () => {
       {/* Модальное окно для истории поверок */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-secondary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b border-app-line flex items-center justify-between">
+          <div className="bg-app-panel rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto border border-app-line shadow-lg">
+            <div className="p-4 border-b border-app-line flex items-center justify-between bg-app-panel sticky top-0 z-10">
               <h3 className="text-lg font-semibold text-app-text">История поверок</h3>
               <button
                 onClick={() => {
@@ -572,6 +612,18 @@ const VerificationsManagement: React.FC = () => {
 };
 
 // Компонент модального окна для добавления/редактирования
+interface FgisArshinRow {
+  vri_id?: string;
+  org_title?: string;
+  mit_title?: string;
+  mi_modification?: string;
+  mi_number?: string;
+  verification_date?: string;
+  valid_date?: string;
+  result_docnum?: string;
+  applicability?: boolean;
+}
+
 const VerificationEquipmentModal: React.FC<{
   item: VerificationEquipment | null;
   onClose: () => void;
@@ -593,6 +645,74 @@ const VerificationEquipmentModal: React.FC<{
   });
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [arshinLoading, setArshinLoading] = useState(false);
+  const [arshinItems, setArshinItems] = useState<FgisArshinRow[]>([]);
+  const [arshinHint, setArshinHint] = useState<string | null>(null);
+  const [arshinPortalUrl, setArshinPortalUrl] = useState<string | null>(null);
+  const [arshinError, setArshinError] = useState<string | null>(null);
+
+  const resetArshin = useCallback(() => {
+    setArshinItems([]);
+    setArshinHint(null);
+    setArshinPortalUrl(null);
+    setArshinError(null);
+    setArshinLoading(false);
+  }, []);
+
+  useEffect(() => {
+    setFormData({
+      name: item?.name || '',
+      equipment_type: item?.equipment_type || '',
+      category: item?.category || '',
+      serial_number: item?.serial_number || '',
+      manufacturer: item?.manufacturer || '',
+      model: item?.model || '',
+      inventory_number: item?.inventory_number || '',
+      verification_date: item?.verification_date ? item.verification_date.split('T')[0] : '',
+      next_verification_date: item?.next_verification_date ? item.next_verification_date.split('T')[0] : '',
+      verification_certificate_number: item?.verification_certificate_number || '',
+      verification_organization: item?.verification_organization || '',
+      notes: item?.notes || '',
+    });
+    setScanFile(null);
+    resetArshin();
+  }, [item, resetArshin]);
+
+  const checkFgisArshin = async () => {
+    const ser = formData.serial_number.trim();
+    const cert = formData.verification_certificate_number.trim();
+    if (!ser && !cert) {
+      setArshinError('Укажите серийный номер или номер свидетельства о поверке.');
+      return;
+    }
+    setArshinLoading(true);
+    setArshinError(null);
+    setArshinHint(null);
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (ser) params.set('serial_number', ser);
+      if (cert) params.set('certificate_number', cert);
+      const res = await fetch(
+        `${API_BASE}/api/verification-equipment/fgis-arshin/lookup?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token || ''}` } },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setArshinError(typeof body.detail === 'string' ? body.detail : `Ошибка HTTP ${res.status}`);
+        setArshinItems([]);
+        return;
+      }
+      setArshinItems(Array.isArray(body.items) ? body.items : []);
+      setArshinHint(typeof body.hint === 'string' ? body.hint : null);
+      setArshinPortalUrl(typeof body.arshin_portal_url === 'string' ? body.arshin_portal_url : null);
+    } catch (e) {
+      setArshinError(e instanceof Error ? e.message : 'Ошибка запроса');
+      setArshinItems([]);
+    } finally {
+      setArshinLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -641,8 +761,8 @@ const VerificationEquipmentModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-secondary rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-app-line">
+      <div className="bg-app-panel rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto border border-app-line shadow-xl">
+        <div className="p-6 border-b border-app-line bg-app-panel sticky top-0 z-10">
           <h2 className="text-xl font-semibold text-app-text">
             {item ? 'Редактировать оборудование' : 'Добавить оборудование'}
           </h2>
@@ -656,7 +776,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -665,7 +785,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.equipment_type}
                 onChange={(e) => setFormData({ ...formData, equipment_type: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               >
                 <option value="">Выберите тип</option>
                 <option value="ВИК">ВИК (Визуальный и измерительный контроль)</option>
@@ -685,7 +805,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.serial_number}
                 onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -694,7 +814,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.manufacturer}
                 onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -703,7 +823,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -712,7 +832,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.inventory_number}
                 onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -722,7 +842,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.verification_date}
                 onChange={(e) => setFormData({ ...formData, verification_date: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -732,7 +852,7 @@ const VerificationEquipmentModal: React.FC<{
                 required
                 value={formData.next_verification_date}
                 onChange={(e) => setFormData({ ...formData, next_verification_date: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -741,7 +861,7 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.verification_certificate_number}
                 onChange={(e) => setFormData({ ...formData, verification_certificate_number: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -750,17 +870,66 @@ const VerificationEquipmentModal: React.FC<{
                 type="text"
                 value={formData.verification_organization}
                 onChange={(e) => setFormData({ ...formData, verification_organization: e.target.value })}
-                className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
               />
             </div>
           </div>
+
+          <div className="rounded-lg border border-app-line bg-app-deep p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-app-text">ФГИС «Аршин» (фонд метрологии)</p>
+                <p className="text-xs text-app-text3 mt-0.5">
+                  Проверка записи о поверке в публичном реестре Росстандарта. Надёжнее всего — по номеру свидетельства.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={checkFgisArshin}
+                disabled={arshinLoading}
+                className="ind-btn ind-btn--primary text-sm disabled:opacity-50"
+              >
+                {arshinLoading ? 'Запрос…' : 'Проверить в Аршин'}
+              </button>
+            </div>
+            {arshinError && (
+              <p className="text-sm text-[var(--danger)]">{arshinError}</p>
+            )}
+            {arshinHint && (
+              <p className="text-xs text-app-text3">{arshinHint}</p>
+            )}
+            {arshinPortalUrl && (
+              <a
+                href={arshinPortalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
+              >
+                Открыть портал результатов поверки <ExternalLink size={14} />
+              </a>
+            )}
+            {arshinItems.length > 0 && (
+              <ul className="max-h-48 overflow-y-auto space-y-2 text-sm border-t border-app-line pt-3">
+                {arshinItems.map((row) => (
+                  <li key={row.vri_id || row.result_docnum} className="rounded-md border border-app-line bg-app-panel p-2 text-app-text2">
+                    <div className="font-medium text-app-text">{row.mit_title || '—'}</div>
+                    <div className="text-xs mt-1">Зав. №: <span className="text-app-text">{row.mi_number || '—'}</span></div>
+                    <div className="text-xs">Поверка: {row.verification_date || '—'} → действует до {row.valid_date || '—'}</div>
+                    <div className="text-xs">Организация: {row.org_title || '—'}</div>
+                    <div className="text-xs">Документ: {row.result_docnum || '—'}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-app-text2 mb-1">Скан свидетельства о поверке</label>
             <input
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
               onChange={(e) => setScanFile(e.target.files?.[0] || null)}
-              className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
             {item?.scan_file_name && (
               <p className="text-xs text-app-text3 mt-1">Текущий файл: {item.scan_file_name}</p>
@@ -772,7 +941,7 @@ const VerificationEquipmentModal: React.FC<{
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
             />
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-app-line">

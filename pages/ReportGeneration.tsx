@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Smartphone } from 'lucide-react';
 import { API_BASE } from '../constants';
 import ReportGenerationToolbar from '../components/report-generation/ReportGenerationToolbar';
 import GroupedReportList from '../components/report-generation/GroupedReportList';
@@ -14,6 +15,28 @@ import type {
 } from '../components/report-generation/types';
 
 const REPORT_FILTERS_STORAGE_KEY = 'report_generation_filters_v1';
+
+interface StandaloneProtocolRow {
+  id: string;
+  title?: string | null;
+  kind?: string | null;
+  template_name?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+}
+
+const standaloneKindRu = (kind?: string | null) => {
+  switch (kind) {
+    case 'ndk_protocol':
+      return 'Протокол НК';
+    case 'quick_control':
+      return 'Быстрый контроль ВИК/УЗТ';
+    case 'custom_template':
+      return 'Шаблон (конструктор)';
+    default:
+      return kind && kind.length > 0 ? kind : 'Протокол';
+  }
+};
 
 const ReportGeneration = () => {
   const navigate = useNavigate();
@@ -34,6 +57,7 @@ const ReportGeneration = () => {
   const [filterReportType, setFilterReportType] = useState<string>('all');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
+  const [standaloneProtocols, setStandaloneProtocols] = useState<StandaloneProtocolRow[]>([]);
 
   const formatDateRu = (value?: string | null) => {
     if (!value) return '—';
@@ -54,10 +78,11 @@ const ReportGeneration = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const [inspRes, eqRes, repRes] = await Promise.all([
+      const [inspRes, eqRes, repRes, standaloneRes] = await Promise.all([
         fetch(`${API_BASE}/api/inspections`, { headers }),
         fetch(`${API_BASE}/api/equipment`, { headers }),
         fetch(`${API_BASE}/api/reports`, { headers }),
+        fetch(`${API_BASE}/api/standalone-protocols`, { headers }),
       ]);
 
       const toItems = (res: Response, data: unknown): unknown[] => {
@@ -70,6 +95,7 @@ const ReportGeneration = () => {
       const inspData = await inspRes.json().catch(() => ({}));
       const eqData = await eqRes.json().catch(() => ({}));
       const repData = await repRes.json().catch(() => ({}));
+      const standaloneData = await standaloneRes.json().catch(() => ({}));
 
       let filteredInspections = toItems(inspRes, inspData) as Inspection[];
       let filteredReports = toItems(repRes, repData) as Report[];
@@ -83,6 +109,20 @@ const ReportGeneration = () => {
       setInspections(filteredInspections);
       setEquipment(equipmentList as Equipment[]);
       setReports(filteredReports);
+
+      let standaloneList: StandaloneProtocolRow[] = [];
+      if (standaloneRes.ok && standaloneData && typeof standaloneData === 'object') {
+        const raw = (standaloneData as { items?: unknown }).items;
+        if (Array.isArray(raw)) {
+          standaloneList = raw.filter(
+            (x): x is StandaloneProtocolRow =>
+              !!x &&
+              typeof x === 'object' &&
+              typeof (x as StandaloneProtocolRow).id === 'string',
+          ) as StandaloneProtocolRow[];
+        }
+      }
+      setStandaloneProtocols(standaloneList);
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     } finally {
@@ -446,6 +486,36 @@ const ReportGeneration = () => {
     await generateReport(inspectionId, reportType, format);
   };
 
+  const handleDownloadStandaloneProtocol = async (protocolId: string, titleFallback: string) => {
+    try {
+      const headers: HeadersInit = {};
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE}/api/standalone-protocols/${protocolId}/download`, { headers });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ detail: response.statusText }));
+        alert(`Ошибка: ${typeof err.detail === 'string' ? err.detail : 'Не удалось скачать протокол'}`);
+        return;
+      }
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      const safe = (titleFallback || 'protocol').replace(/[^\w\s\-]+/g, '').trim().slice(0, 80);
+      a.download = `${safe || 'protocol'}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(objectUrl);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('standalone protocol download', error);
+      alert(`Ошибка скачивания: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const handleDownloadReport = async (reportId: string, format: 'pdf' | 'docx' = 'pdf') => {
     try {
       const headers: HeadersInit = {};
@@ -600,6 +670,53 @@ const ReportGeneration = () => {
         onSearchTermChange={setSearchTerm}
         onResetFilters={resetFilters}
       />
+
+      <div className="rounded-xl border border-app-border bg-app-surface-alt/40 p-4 md:p-5">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <Smartphone className="h-5 w-5 text-teal-500 shrink-0" aria-hidden />
+          <h2 className="text-base md:text-lg font-semibold text-app-text tracking-tight">
+            Протоколы только с телефона
+          </h2>
+        </div>
+        <p className="text-sm text-app-text3 mb-4 max-w-3xl">
+          Записи без привязки к чек-листу в вебе: быстрый контроль, протокол НК и протоколы по вашему шаблону из мобильного приложения. Доступен один файл DOCX — полный отчёт по обследованию не требуется.
+        </p>
+        {standaloneProtocols.length === 0 ? (
+          <p className="text-sm text-app-text3">Пока нет сохранённых протоколов с мобильного приложения.</p>
+        ) : (
+          <ul className="divide-y divide-app-border rounded-lg border border-app-border overflow-hidden bg-app-surface">
+            {standaloneProtocols.map((row) => {
+              const t = row.title?.trim() || 'Без названия';
+              return (
+                <li
+                  key={row.id}
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 hover:bg-white/5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-app-text font-medium truncate" title={t}>
+                      {t}
+                    </p>
+                    <p className="text-xs text-app-text3 mt-0.5">
+                      {standaloneKindRu(row.kind)}
+                      {row.template_name ? ` — ${row.template_name}` : ''}
+                      {' · '}
+                      {formatDateRu(row.created_at)}
+                      {row.created_by ? ` · ${row.created_by}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium px-4 py-2 transition-colors"
+                    onClick={() => void handleDownloadStandaloneProtocol(row.id, t)}
+                  >
+                    Скачать DOCX
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       <GroupedReportList
         groupedItems={groupedItems}

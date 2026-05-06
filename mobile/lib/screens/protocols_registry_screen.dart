@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import '../services/auto_save_service.dart';
-import '../services/sync_service.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'quick_control_screen.dart';
 import 'new_ndk_protocol_screen.dart';
@@ -23,7 +23,7 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _autoSaveService = AutoSaveService();
-  final _syncService = SyncService();
+  final _apiService = ApiService();
 
   bool _loading = true;
   List<Map<String, dynamic>> _drafts = [];
@@ -55,18 +55,17 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
           return bDate.compareTo(aDate);
         });
 
-      // Загружаем синхронизированные обследования
       List<Map<String, dynamic>> serverProtos = [];
       try {
-        final pending = await _syncService.getPendingInspections();
-        for (final p in pending) {
+        final sp = await _apiService.listStandaloneProtocols();
+        for (final row in sp) {
           serverProtos.add({
-            'id': p['local_id'] ?? p['id'] ?? '',
-            'object': _extractObjectName(p),
-            'type': 'НК - протокол',
-            'date': p['created_at'] ?? p['inspection_date'] ?? '',
-            'status': p['status'] == 'COMPLETED' ? 'завершён' : 'не завершён',
-            'source': 'local',
+            'id': row['id']?.toString() ?? '',
+            'object': row['title']?.toString() ?? 'Протокол',
+            'type': _standaloneKindRu(row['kind']?.toString()),
+            'date': row['created_at']?.toString() ?? '',
+            'status': 'завершён',
+            'source': 'server_standalone',
           });
         }
       } catch (_) {}
@@ -83,14 +82,17 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
     }
   }
 
-  String _extractObjectName(Map<String, dynamic> data) {
-    final checklist = data['checklist_data'];
-    if (checklist is Map) {
-      return (checklist['vessel_name'] as String?) ??
-          (checklist['object_name'] as String?) ??
-          'Объект';
+  String _standaloneKindRu(String? kind) {
+    switch (kind) {
+      case 'ndk_protocol':
+        return 'Протокол НК (мобильный)';
+      case 'quick_control':
+        return 'Быстрый контроль ВИК/УЗТ';
+      case 'custom_template':
+        return 'Протокол по шаблону';
+      default:
+        return kind?.isNotEmpty == true ? kind! : 'Протокол (мобильный)';
     }
-    return (data['equipment_id'] as String?) ?? 'Объект';
   }
 
   String _formatDate(String? raw) {
@@ -377,6 +379,15 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
           if (item['source'] == 'draft') {
             final draft = item['_draft'] as Map<String, dynamic>?;
             if (draft != null) _openDraft(draft);
+          } else if (item['source'] == 'server_standalone') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Скачать DOCX: веб → Генерация отчётов → блок «Протоколы только с телефона».',
+                ),
+                duration: Duration(seconds: 5),
+              ),
+            );
           }
         },
         onDelete: (item) {

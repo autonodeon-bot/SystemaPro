@@ -171,10 +171,17 @@ const ProjectsManagement = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`${API_BASE}/api/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        headers,
+        body: JSON.stringify({
+          ...formData,
+          budget: formData.budget === '' ? null : Number(formData.budget),
+        }),
       });
 
       if (response.ok) {
@@ -204,26 +211,26 @@ const ProjectsManagement = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'COMPLETED':
-        return <CheckCircle className="text-green-400" size={20} />;
+        return <CheckCircle className="text-[var(--success)]" size={20} />;
       case 'IN_PROGRESS':
-        return <Clock className="text-blue-400" size={20} />;
+        return <Clock className="text-[var(--accent)]" size={20} />;
       case 'CANCELLED':
-        return <XCircle className="text-red-400" size={20} />;
+        return <XCircle className="text-[var(--danger)]" size={20} />;
       default:
-        return <AlertCircle className="text-yellow-400" size={20} />;
+        return <AlertCircle className="text-[var(--warning)]" size={20} />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'COMPLETED':
-        return 'bg-green-500/10 text-green-400 border-green-500/20';
+        return 'border border-app-line bg-[var(--success-bg)] text-[var(--success)]';
       case 'IN_PROGRESS':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        return 'border border-app-line bg-[var(--accent-glow)] text-[var(--accent)]';
       case 'CANCELLED':
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
+        return 'border border-app-line bg-[var(--danger-bg)] text-[var(--danger)]';
       default:
-        return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+        return 'border border-app-line bg-[var(--warning-bg)] text-[var(--warning)]';
     }
   };
 
@@ -254,7 +261,7 @@ const ProjectsManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-3">
-        <h1 className="text-2xl font-bold text-white">Управление проектами</h1>
+        <h1 className="text-2xl font-bold text-app-text">Управление проектами</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border border-app-line overflow-hidden">
             <button
@@ -286,7 +293,14 @@ const ProjectsManagement = () => {
       </div>
 
       {loadError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+        <div
+          className="rounded-lg border px-4 py-2 text-sm"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--warning) 40%, transparent)',
+            background: 'var(--warning-bg)',
+            color: 'var(--warning)',
+          }}
+        >
           {loadError}
         </div>
       )}
@@ -322,7 +336,7 @@ const ProjectsManagement = () => {
       {/* Форма добавления */}
       {showAddForm && (
         <div className="bg-app-panel p-6 rounded-xl border border-app-line">
-          <h2 className="text-xl font-bold text-white mb-4">Создать проект</h2>
+          <h2 className="text-xl font-bold text-app-text mb-4">Создать проект</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -348,7 +362,7 @@ const ProjectsManagement = () => {
                   ))}
                 </select>
                 {clients.length === 0 && (
-                  <p className="text-xs text-yellow-400 mt-1">Клиенты не найдены. Добавьте нового клиента.</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--warning)' }}>Клиенты не найдены. Добавьте нового клиента.</p>
                 )}
               </div>
               <div>
@@ -455,7 +469,7 @@ const ProjectsManagement = () => {
                     await loadProjectStatistics(project.id);
                   }}
                 >
-                  <td className="px-4 py-3 font-medium text-white">{project.name}</td>
+                  <td className="px-4 py-3 font-medium text-app-text">{project.name}</td>
                   <td className="px-4 py-3 text-app-text2">{getClientName(project.client_id)}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(project.status)}`}>
@@ -527,7 +541,7 @@ const ProjectsManagement = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddClientForm(false)}>
           <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">Добавить клиента</h2>
+              <h2 className="text-xl font-bold text-app-text">Добавить клиента</h2>
               <button onClick={() => setShowAddClientForm(false)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
             <form onSubmit={handleAddClient} className="space-y-4">
@@ -619,7 +633,7 @@ const ProjectsManagement = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-app-panel rounded-xl p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-app-line">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">{selectedProject.name}</h2>
+              <h2 className="text-2xl font-bold text-app-text">{selectedProject.name}</h2>
               <button 
                 onClick={() => {
                   setSelectedProject(null);
@@ -635,7 +649,7 @@ const ProjectsManagement = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <p className="text-sm text-app-text3 mb-1">Клиент</p>
-                <p className="text-white font-semibold">{getClientName(selectedProject.client_id)}</p>
+                <p className="text-app-text font-semibold">{getClientName(selectedProject.client_id)}</p>
               </div>
               
               <div>
@@ -648,28 +662,28 @@ const ProjectsManagement = () => {
               {selectedProject.start_date && (
                 <div>
                   <p className="text-sm text-app-text3 mb-1">Дата начала</p>
-                  <p className="text-white">{new Date(selectedProject.start_date).toLocaleDateString('ru-RU')}</p>
+                  <p className="text-app-text">{new Date(selectedProject.start_date).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
               
               {selectedProject.deadline && (
                 <div>
                   <p className="text-sm text-app-text3 mb-1">Дедлайн</p>
-                  <p className="text-white font-semibold">{new Date(selectedProject.deadline).toLocaleDateString('ru-RU')}</p>
+                  <p className="text-app-text font-semibold">{new Date(selectedProject.deadline).toLocaleDateString('ru-RU')}</p>
                 </div>
               )}
               
               {selectedProject.budget && (
                 <div>
                   <p className="text-sm text-app-text3 mb-1">Бюджет</p>
-                  <p className="text-white font-semibold text-lg">{selectedProject.budget.toLocaleString('ru-RU')} ₽</p>
+                  <p className="text-app-text font-semibold text-lg">{selectedProject.budget.toLocaleString('ru-RU')} ₽</p>
                 </div>
               )}
               
               {selectedProject.description && (
                 <div className="md:col-span-2">
                   <p className="text-sm text-app-text3 mb-1">Описание</p>
-                  <p className="text-white">{selectedProject.description}</p>
+                  <p className="text-app-text">{selectedProject.description}</p>
                 </div>
               )}
             </div>
@@ -705,7 +719,7 @@ const ProjectsManagement = () => {
                         <Package size={18} className="text-blue-400" />
                         <span className="text-sm text-app-text3">Всего оборудования</span>
                       </div>
-                      <p className="text-2xl font-bold text-white">{projectStatistics.total_equipment}</p>
+                      <p className="text-2xl font-bold text-app-text">{projectStatistics.total_equipment}</p>
                     </div>
                     
                     <div className="bg-app-panel rounded-lg p-4 border border-green-500/30">
@@ -729,7 +743,7 @@ const ProjectsManagement = () => {
                         <AlertCircle size={18} className="text-app-text3" />
                         <span className="text-sm text-app-text3">Ожидает</span>
                       </div>
-                      <p className="text-2xl font-bold text-white">{projectStatistics.pending_equipment}</p>
+                      <p className="text-2xl font-bold text-app-text">{projectStatistics.pending_equipment}</p>
                     </div>
                   </div>
                 </div>
@@ -749,7 +763,7 @@ const ProjectsManagement = () => {
                       {projectStatistics.estimated_completion_date && (
                         <div>
                           <p className="text-sm text-app-text3 mb-1">Прогноз завершения</p>
-                          <p className="text-xl font-semibold text-white">
+                          <p className="text-xl font-semibold text-app-text">
                             {new Date(projectStatistics.estimated_completion_date).toLocaleDateString('ru-RU')}
                           </p>
                         </div>
@@ -788,7 +802,7 @@ const ProjectsManagement = () => {
                         return (
                           <div key={eng.engineer_id} className="bg-app-panel rounded-lg p-4 border border-app-line">
                             <div className="flex justify-between items-center mb-2">
-                              <span className="font-semibold text-white">{eng.engineer_name}</span>
+                              <span className="font-semibold text-app-text">{eng.engineer_name}</span>
                               <span className="text-sm text-app-text3">
                                 {eng.completed} / {eng.total}
                               </span>
@@ -822,19 +836,19 @@ const ProjectsManagement = () => {
                       <div className="flex items-center gap-4 mb-4">
                         <div className="flex-1">
                           <div className="text-sm text-app-text3 mb-1">Начало</div>
-                          <div className="text-white font-semibold">
+                          <div className="text-app-text font-semibold">
                             {new Date(selectedProject.start_date).toLocaleDateString('ru-RU')}
                           </div>
                         </div>
                         <div className="flex-1">
                           <div className="text-sm text-app-text3 mb-1">Дедлайн</div>
-                          <div className="text-white font-semibold">
+                          <div className="text-app-text font-semibold">
                             {new Date(selectedProject.deadline).toLocaleDateString('ru-RU')}
                           </div>
                         </div>
                         <div className="flex-1">
                           <div className="text-sm text-app-text3 mb-1">Текущая дата</div>
-                          <div className="text-white font-semibold">
+                          <div className="text-app-text font-semibold">
                             {new Date().toLocaleDateString('ru-RU')}
                           </div>
                         </div>

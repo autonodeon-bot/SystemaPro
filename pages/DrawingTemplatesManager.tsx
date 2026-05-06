@@ -79,8 +79,12 @@ const POINT_TYPES: { value: PointType; label: string; color: string }[] = [
 
 // ─── API helpers ──────────────────────────────────────────────────────────
 
+/** Тот же ключ токена, что в AuthContext (`token`), плюс совместимость со старым `auth_token`. */
 const authHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  const token =
+    localStorage.getItem('token') ||
+    localStorage.getItem('auth_token') ||
+    sessionStorage.getItem('auth_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
@@ -233,7 +237,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
               />
             </div>
             <div>
-              <label className="ind-label">Категория</label>
+              <label className="ind-label">Категория чертежа</label>
               <select
                 className="ind-input"
                 value={category}
@@ -243,9 +247,12 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
                   <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
                 ))}
               </select>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Для группировки и фильтра в списке (сосуд / трубопровод / схема НК и т.д.).
+              </p>
             </div>
             <div className="md:col-span-2">
-              <label className="ind-label">Привязка к типу оборудования (опционально)</label>
+              <label className="ind-label">Тип оборудования из справочника (опционально)</label>
               <select
                 className="ind-input"
                 value={equipmentTypeId}
@@ -256,6 +263,9 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Если выбран тип, шаблон удобнее подбирать к конкретным единицам этого типа; пусто — для любого оборудования.
+              </p>
             </div>
             <div className="md:col-span-2">
               <label className="ind-label">Описание</label>
@@ -794,6 +804,20 @@ const DrawingTemplatesManager: React.FC = () => {
           <div className="ind-chip ind-mono">
             {filtered.length} / {items.length}
           </div>
+        </div>
+      </div>
+
+      <div className="ind-panel">
+        <div className="ind-panel-body text-sm text-[var(--text-secondary)] space-y-2 leading-relaxed">
+          <p className="font-semibold text-[var(--text-primary)]">Как загрузить чертёж и задать категорию</p>
+          <ol className="list-decimal list-inside space-y-1 text-[var(--text-muted)]">
+            <li>Нажмите «Загрузить шаблон».</li>
+            <li>Выберите PNG или JPEG (до 10 МБ) или перетащите файл в область загрузки.</li>
+            <li>Укажите название, при необходимости описание.</li>
+            <li>В поле «Категория чертежа» выберите вид схемы (сосуды, трубопроводы, схема НК и т.д.).</li>
+            <li>При необходимости укажите тип оборудования из справочника или оставьте универсальный шаблон.</li>
+            <li>После создания откройте редактор точек и расставьте точки замера на изображении.</li>
+          </ol>
         </div>
       </div>
 

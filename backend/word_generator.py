@@ -14,6 +14,8 @@ import os
 import tempfile
 import uuid as _uuid
 
+from shared import resolve_report_file_path as _scoped_resolve_upload_path
+
 try:
     from PIL import Image, ImageDraw, ImageFont
     _HAS_PIL = True
@@ -22,9 +24,23 @@ except ImportError:
 
 class WordGenerator:
     """Генератор Word документов"""
-    
+
     def __init__(self):
-        pass
+        self._report_inspection_id: Optional[str] = None
+        self._report_questionnaire_id: Optional[str] = None
+
+    def _set_report_path_scope(self, inspection_data: Optional[Dict[str, Any]]) -> None:
+        """Контекст для поиска вложений только в каталогах текущего обследования/опросника."""
+        self._report_inspection_id = None
+        self._report_questionnaire_id = None
+        if not isinstance(inspection_data, dict):
+            return
+        _iid = inspection_data.get("id")
+        if _iid:
+            self._report_inspection_id = str(_iid)
+        _qid = inspection_data.get("questionnaire_id")
+        if _qid:
+            self._report_questionnaire_id = str(_qid)
 
     def _draw_points_on_scheme(
         self,
@@ -208,49 +224,21 @@ class WordGenerator:
             return None
 
     def _find_image_path(self, path: Optional[str]) -> Optional[str]:
-        """Найти существующий файл изображения по пути (для фото таблички, карты замеров, дефектов)."""
+        """Разрешить путь к изображению без подстановки файлов других осмотров (см. shared.resolve_report_file_path)."""
         if not path or not isinstance(path, str):
             return None
         path = path.strip().replace("\\", "/")
-        possible = [path]
         if os.path.isabs(path) and os.path.isfile(path):
             return path
-        bases = [
-            "/app/uploads/questionnaire_documents",
-            "/app/uploads/ndt_photos",
-            "/app/uploads/certification_scans",
-            "/app/uploads",
-            "/app/reports",
-            os.getcwd(),
-        ]
-        for base in bases:
-            possible.append(os.path.join(base, path))
-        filename = os.path.basename(path)
-        for base in bases:
-            possible.append(os.path.join(base, filename))
-        qd_base = "/app/uploads/questionnaire_documents"
-        if os.path.isdir(qd_base) and filename:
-            try:
-                for sub in os.listdir(qd_base):
-                    possible.append(os.path.join(qd_base, sub, filename))
-            except OSError:
-                pass
-        nd_base = "/app/uploads/ndt_photos"
-        if os.path.isdir(nd_base) and filename:
-            try:
-                for sub1 in os.listdir(nd_base):
-                    p1 = os.path.join(nd_base, sub1)
-                    if os.path.isdir(p1):
-                        for sub2 in os.listdir(p1):
-                            possible.append(os.path.join(p1, sub2, filename))
-                    possible.append(os.path.join(nd_base, sub1, filename))
-            except OSError:
-                pass
-        for p in possible:
-            if p and os.path.exists(p) and os.path.isfile(p):
-                return p
+        resolved = _scoped_resolve_upload_path(
+            path,
+            inspection_id=self._report_inspection_id,
+            questionnaire_id=self._report_questionnaire_id,
+        )
+        if resolved and isinstance(resolved, str) and os.path.isfile(resolved):
+            return resolved
         return None
-    
+
     def generate_questionnaire_word(
         self,
         questionnaire_data: Dict[str, Any],
@@ -260,6 +248,12 @@ class WordGenerator:
         output_path: str
     ):
         """Генерировать Word документ опросного листа"""
+        self._report_inspection_id = None
+        qn = questionnaire_info.get("questionnaire_id") if isinstance(questionnaire_info, dict) else None
+        if not qn and isinstance(questionnaire_info, dict):
+            qn = questionnaire_info.get("id")
+        self._report_questionnaire_id = str(qn) if qn else None
+
         doc = Document()
         
         # Настройка стилей
@@ -449,6 +443,7 @@ class WordGenerator:
         template_definition: Optional[Dict[str, Any]] = None,
     ):
         """Генерировать Word документ отчета"""
+        self._set_report_path_scope(inspection_data)
         rt = (report_type or "").strip().upper()
         if rt in ["DIAGNOSTICS", "DIAGNOSTIC", "TECHNICAL_DIAGNOSTICS"]:
             return self._generate_diagnostics_report_word(

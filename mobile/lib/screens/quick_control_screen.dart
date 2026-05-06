@@ -408,7 +408,11 @@ class _QuickControlScreenState extends State<QuickControlScreen>
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomButtons(),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        maintainBottomViewPadding: true,
+        child: _buildBottomButtons(),
+      ),
     );
   }
 
@@ -960,6 +964,17 @@ class _QuickControlScreenState extends State<QuickControlScreen>
         'uzt_scheme': _uztSchemeFile?.path,
       };
 
+  Future<void> _submitStandaloneToServer() async {
+    final title = _objectCtrl.text.trim().isNotEmpty
+        ? _objectCtrl.text.trim()
+        : 'Быстрый контроль ВИК/УЗТ';
+    await _apiService.submitStandaloneProtocol(
+      title: title,
+      kind: 'quick_control',
+      payload: _toDraftData(),
+    );
+  }
+
   Future<void> _saveDraft({bool showMessage = true}) async {
     try {
       await _autoSaveService.saveGenericDraft(
@@ -1056,12 +1071,31 @@ class _QuickControlScreenState extends State<QuickControlScreen>
                 child: ElevatedButton.icon(
                   onPressed: () async {
                     await _saveDraft(showMessage: false);
+                    var ok = false;
+                    try {
+                      await _submitStandaloneToServer();
+                      ok = true;
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Сервер: $e'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    }
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Протокол завершён'),
-                          backgroundColor: Colors.green),
-                    );
+                    if (ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Протокол на сервере. Веб → Генерация отчётов → мобильные протоколы.',
+                          ),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
                     Navigator.of(context).pop();
                   },
                   icon: const Icon(Icons.check_circle_outline, size: 16),

@@ -1681,8 +1681,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     List<Widget>? children,
     Widget? progressWidget,
   }) {
+    final bottomPad = 88.0 + MediaQuery.viewPaddingOf(context).bottom;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPad),
       children: [
         if (progressWidget != null) ...[
           progressWidget,

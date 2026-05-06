@@ -220,6 +220,17 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
         'vik_photos': _vikPhotos.map((f) => f.path).toList(),
       };
 
+  Future<void> _submitStandaloneToServer() async {
+    final title = _objectCtrl.text.trim().isNotEmpty
+        ? _objectCtrl.text.trim()
+        : 'Протокол НК';
+    await _apiService.submitStandaloneProtocol(
+      title: title,
+      kind: 'ndk_protocol',
+      payload: _toDraftData(),
+    );
+  }
+
   // ── Автозаполнение приборов ────────────────────────────────────────────────
 
   Future<void> _loadMyInstruments() async {
@@ -419,7 +430,13 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
           ],
         ),
         body: _step == 0 ? _buildMethodSelection() : _buildProtocolForm(),
-        bottomNavigationBar: _step == 1 ? _buildBottomBar() : null,
+        bottomNavigationBar: _step == 1
+            ? SafeArea(
+                top: false,
+                maintainBottomViewPadding: true,
+                child: _buildBottomBar(),
+              )
+            : null,
       ),
     );
   }
@@ -624,7 +641,18 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
                 controller: _devicesCtrl,
                 maxLines: 2,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: _inputDecor('Приборы'),
+                decoration: _inputDecor('Приборы').copyWith(
+                  suffixIcon: _loadingInstruments
+                      ? const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : null,
+                ),
               ),
             ),
             const SizedBox(width: 4),
@@ -1147,12 +1175,24 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
               child: ElevatedButton.icon(
                 onPressed: () async {
                   await _saveDraft(showMessage: false);
+                  var ok = false;
+                  try {
+                    await _submitStandaloneToServer();
+                    ok = true;
+                  } catch (e) {
+                    if (mounted) _showError('Сервер: $e');
+                  }
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Протокол завершён'),
-                        backgroundColor: Colors.green),
-                  );
+                  if (ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Протокол на сервере. Веб → Генерация отчётов → блок мобильных протоколов.',
+                        ),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
                   Navigator.of(context).pop();
                 },
                 icon: const Icon(Icons.check_circle_outline, size: 15),

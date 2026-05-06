@@ -249,13 +249,22 @@ class _CustomProtocolScreenState extends State<CustomProtocolScreen> {
         foregroundColor: Colors.white,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          24 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
         children: [
           ..._structure.map((block) => _buildBlock(block)),
           const SizedBox(height: 24),
         ],
       ),
-      bottomNavigationBar: _buildBottomButtons(),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        maintainBottomViewPadding: true,
+        child: _buildBottomButtons(),
+      ),
     );
   }
 
@@ -839,18 +848,68 @@ class _CustomProtocolScreenState extends State<CustomProtocolScreen> {
     }
   }
 
+  dynamic _toJsonValue(dynamic v) {
+    if (v == null) return null;
+    if (v is Map) {
+      return v.map((k, dynamic val) => MapEntry(k.toString(), _toJsonValue(val)));
+    }
+    if (v is List) {
+      return v.map(_toJsonValue).toList();
+    }
+    return v;
+  }
+
   Future<void> _finish() async {
     setState(() => _isSaving = true);
     await _saveDraft(showMessage: false);
-    if (mounted) {
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Протокол завершён и сохранён'),
-          backgroundColor: Colors.green,
-        ),
+    var serverOk = false;
+    try {
+      final title = (_values['object'] as String? ??
+              _values['object_name'] as String? ??
+              widget.template['name'] as String? ??
+              'Протокол')
+          .trim();
+      final valuesJson = <String, dynamic>{};
+      for (final e in _values.entries) {
+        valuesJson[e.key] = _toJsonValue(e.value);
+      }
+      await _apiService.submitStandaloneProtocol(
+        title: title.isEmpty ? 'Протокол' : title,
+        kind: 'custom_template',
+        templateId: widget.template['id']?.toString(),
+        templateName: widget.template['name']?.toString(),
+        payload: {
+          'structure': _structure,
+          'values': valuesJson,
+        },
       );
-      Navigator.of(context).pop();
+      serverOk = true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Сервер: $e. Черновик остаётся на устройстве.'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        if (serverOk) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Протокол на сервере. Веб → Генерация отчётов → «Протоколы из мобильного» → DOCX.',
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        Navigator.of(context).pop();
+      }
     }
   }
 }

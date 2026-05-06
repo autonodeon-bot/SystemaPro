@@ -18,6 +18,8 @@ import os
 import io
 import logging
 
+from shared import resolve_report_file_path as _scoped_resolve_upload_path
+
 logger = logging.getLogger(__name__)
 
 USABLE_WIDTH = A4[0] - 2.5 * cm - 1.5 * cm
@@ -42,8 +44,35 @@ class ReportGenerator:
 
     def __init__(self):
         self.styles = getSampleStyleSheet()
+        self._report_inspection_id: Optional[str] = None
+        self._report_questionnaire_id: Optional[str] = None
         self._register_fonts()
         self._setup_custom_styles()
+
+    def _set_report_path_scope(self, inspection_data: Optional[Dict[str, Any]]) -> None:
+        self._report_inspection_id = None
+        self._report_questionnaire_id = None
+        if not isinstance(inspection_data, dict):
+            return
+        _iid = inspection_data.get("id")
+        if _iid:
+            self._report_inspection_id = str(_iid)
+        _qid = inspection_data.get("questionnaire_id")
+        if _qid:
+            self._report_questionnaire_id = str(_qid)
+
+    def _inspection_title_date_ru(self, inspection_data: Dict[str, Any]) -> str:
+        """Дата на титульном листе: по данным обследования, если есть."""
+        _db = inspection_data.get("data") if isinstance(inspection_data.get("data"), dict) else {}
+        dd = inspection_data.get("date_performed")
+        if not dd and isinstance(_db, dict):
+            dd = _db.get("inspection_date") or _db.get("inspectionDate")
+        if isinstance(dd, str) and dd.strip():
+            try:
+                return datetime.fromisoformat(dd.replace("Z", "+00:00")).strftime("%d.%m.%Y")
+            except ValueError:
+                pass
+        return datetime.now().strftime("%d.%m.%Y")
 
     # ── Шрифты ──────────────────────────────────────────────────────
 
@@ -232,47 +261,19 @@ class ReportGenerator:
         story.append(t)
 
     def _find_image_path(self, path: Optional[str]) -> Optional[str]:
-        """Найти существующий файл изображения по пути."""
+        """Путь к изображению для отчёта — без подстановки чужих файлов по совпадению имени."""
         if not path or not isinstance(path, str):
             return None
         path = path.strip().replace("\\", "/")
         if os.path.isabs(path) and os.path.isfile(path):
             return path
-        possible = [path]
-        bases = [
-            "/app/uploads/questionnaire_documents",
-            "/app/uploads/ndt_photos",
-            "/app/uploads/certification_scans",
-            "/app/uploads",
-            "/app/reports",
-            os.getcwd(),
-        ]
-        for base in bases:
-            possible.append(os.path.join(base, path))
-        filename = os.path.basename(path)
-        for base in bases:
-            possible.append(os.path.join(base, filename))
-        qd_base = "/app/uploads/questionnaire_documents"
-        if os.path.isdir(qd_base) and filename:
-            try:
-                for sub in os.listdir(qd_base):
-                    possible.append(os.path.join(qd_base, sub, filename))
-            except OSError:
-                pass
-        nd_base = "/app/uploads/ndt_photos"
-        if os.path.isdir(nd_base) and filename:
-            try:
-                for sub1 in os.listdir(nd_base):
-                    p1 = os.path.join(nd_base, sub1)
-                    if os.path.isdir(p1):
-                        for sub2 in os.listdir(p1):
-                            possible.append(os.path.join(p1, sub2, filename))
-                    possible.append(os.path.join(nd_base, sub1, filename))
-            except OSError:
-                pass
-        for p in possible:
-            if p and os.path.exists(p) and os.path.isfile(p):
-                return p
+        resolved = _scoped_resolve_upload_path(
+            path,
+            inspection_id=self._report_inspection_id,
+            questionnaire_id=self._report_questionnaire_id,
+        )
+        if resolved and isinstance(resolved, str) and os.path.isfile(resolved):
+            return resolved
         return None
 
     def _page_number_handler(self):
@@ -350,6 +351,10 @@ class ReportGenerator:
         verification_equipment: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """Генерация технического отчета (ГОСТ Р 21.1101 / ГОСТ Р 55046)."""
+        self._set_report_path_scope(inspection_data)
+
+        title_date_str = self._inspection_title_date_ru(inspection_data)
+
         doc = SimpleDocTemplate(
             output_path,
             pagesize=A4,
@@ -392,7 +397,7 @@ class ReportGenerator:
         story.append(Paragraph(f"Объект: {eq_name}", self.styles["ReportSubtitle"]))
         story.append(Spacer(1, 2 * cm))
         story.append(Paragraph(
-            f"Дата: {datetime.now().strftime('%d.%m.%Y')}", self.styles["BodyTextNoIndent"],
+            f"Дата: {title_date_str}", self.styles["BodyTextNoIndent"],
         ))
         if reg_num:
             story.append(Paragraph(
@@ -631,7 +636,7 @@ class ReportGenerator:
             self.styles["BodyTextNoIndent"],
         ))
         story.append(Paragraph(
-            f"Дата: {datetime.now().strftime('%d.%m.%Y')}",
+            f"Дата: {title_date_str}",
             self.styles["BodyTextNoIndent"],
         ))
 
@@ -1332,6 +1337,8 @@ class ReportGenerator:
         verification_equipment: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """Генерация экспертизы промышленной безопасности."""
+        self._set_report_path_scope(inspection_data)
+        exp_title_date = self._inspection_title_date_ru(inspection_data)
         doc = SimpleDocTemplate(
             output_path, pagesize=A4,
             rightMargin=1.5 * cm, leftMargin=2.5 * cm,
@@ -1353,7 +1360,7 @@ class ReportGenerator:
         story.append(Paragraph(f"оборудования: {eq_name}", self.styles["ReportSubtitle"]))
         story.append(Spacer(1, 2 * cm))
         story.append(Paragraph(
-            f"Дата: {datetime.now().strftime('%d.%m.%Y')}", self.styles["BodyTextNoIndent"],
+            f"Дата: {exp_title_date}", self.styles["BodyTextNoIndent"],
         ))
         story.append(PageBreak())
 
@@ -1497,6 +1504,12 @@ class ReportGenerator:
         ndt_methods: Optional[List[Dict[str, Any]]] = None,
     ):
         """Генерировать PDF опросного листа."""
+        self._report_inspection_id = None
+        _qn = questionnaire_info.get("questionnaire_id") if isinstance(questionnaire_info, dict) else None
+        if not _qn and isinstance(questionnaire_info, dict):
+            _qn = questionnaire_info.get("id")
+        self._report_questionnaire_id = str(_qn) if _qn else None
+
         doc = SimpleDocTemplate(
             output_path, pagesize=A4,
             rightMargin=1.5 * cm, leftMargin=2.5 * cm,

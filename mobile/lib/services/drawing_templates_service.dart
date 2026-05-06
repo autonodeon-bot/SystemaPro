@@ -24,7 +24,7 @@ import 'database_service.dart';
 class DrawingTemplatesService {
   static const _syncSinceKey = 'drawing_templates_last_sync';
 
-  static const String _baseUrl = ApiServiceBase.baseUrl;
+  static String get _baseUrl => ApiServiceBase.baseUrl;
   static const Duration _timeout = Duration(seconds: 60);
 
   /// Относительный каталог для файлов шаблонов в documents dir.
@@ -73,7 +73,7 @@ class DrawingTemplatesService {
       await for (final f in dir.list()) {
         if (f is File) {
           final name = p.basename(f.path);
-          if (name.startsWith(prefix) && !name.contains('v${keepVersion}.')) {
+          if (name.startsWith(prefix) && !name.contains('v$keepVersion.')) {
             try { await f.delete(); } catch (_) {}
           }
         }
@@ -229,7 +229,8 @@ class DrawingTemplatesService {
         query['equipment_ids'] = equipmentIds.join(',');
       }
       if (query.isNotEmpty) {
-        url += '?' + query.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+        url =
+            '$url?${query.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
       }
 
       final headers = await _authHeaders();

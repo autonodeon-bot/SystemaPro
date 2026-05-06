@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.30.1';
+export const APP_VERSION = '3.32.0';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -296,13 +296,15 @@ export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
 export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
 
 /** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
-export const RELEASE_NOTES_DATE = '05.05.2026';
+export const RELEASE_NOTES_DATE = '06.05.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Релиз 3.32.0: миграция полей клиентов (phone и др.), корректные фото и дата в отчётах (без чужих вложений).',
+  'Релиз 3.31.0: протоколы с телефона на сервер и скачивание DOCX без чек-листа (веб → Генерация отчётов); отступы Safe Area для нижних кнопок на Android.',
+  'Патч 3.30.2: светлая тема для проектов и модалок поверок; статистика использования поверочного оборудования; проверка в ФГИС «Аршин»; синхронизация версий.',
   'Патч 3.30.1: скрипт seed_demo_data.py для полного демо-стенда (иерархия, задания, обследования, шаблоны, реестр приборов)',
   'Ведомость дефектов: корректная загрузка списка обследований из API (items, data, date_performed, visual_defects)',
-  'Демо-пользователь demo.client с доступом к оборудованию; опросный лист, отчёт и НД в сидере',
 ];
 
 /** Коды типов заданий (совпадают с backend VALID_ASSIGNMENT_TYPES) и подписи для UI */
@@ -331,8 +333,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.30.1';
-export const MOBILE_APP_BUILD = '31';
+export const MOBILE_APP_VERSION = '3.32.0';
+export const MOBILE_APP_BUILD = '34';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

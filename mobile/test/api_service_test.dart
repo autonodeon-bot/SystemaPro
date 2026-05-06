@@ -99,5 +99,10 @@ void main() {
       final url = '${ApiService.baseUrl}/health';
       expect(url, equals('https://neftcontrol.ru/health'));
     });
+
+    test('URL проверки связи (mobile/version) корректен', () {
+      final url = '${ApiService.baseUrl}/api/mobile/version';
+      expect(url, equals('https://neftcontrol.ru/api/mobile/version'));
+    });
   });
 }
