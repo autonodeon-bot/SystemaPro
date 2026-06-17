@@ -2,12 +2,43 @@ import 'package:flutter/material.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
+import '../models/experience_base_entry.dart';
 import '../theme/app_colors.dart';
+import '../models/inspection_object_template.dart';
+import '../widgets/experience_base_context_sheet.dart';
+import '../widgets/inspection_template_picker_sheet.dart';
+import 'acoustic_emission_protocol_screen.dart';
+import 'pressure_test_quick_screen.dart';
 import 'vessel_inspection_screen.dart';
+import '../models/inspection_matrix.dart';
 
 /// Экран выбора оборудования для создания Акта ТД(ЭПБ) — П.1.1.3
 class SelectEquipmentForActScreen extends StatefulWidget {
-  const SelectEquipmentForActScreen({super.key});
+  /// Фильтр из мастера: vessel, boiler, valve_ps, drilling, pipeline, other
+  final String? presetCategory;
+  /// Подзаголовок потока (напр. «Внутренний осмотр · Сосуд»)
+  final String? flowTitleSuffix;
+  /// Код категории опытной базы (srpd, bu, …).
+  final String? categoryCode;
+  final String? archetypeKind;
+  final String? archetypeMark;
+  final String? assignmentId;
+  /// Направление из мастера: external, technical, hydraulic, ae, …
+  final String? inspectionDirection;
+  /// VISUAL / NDT / EXPERTISE — приоритет над шаблоном и direction.
+  final String? preferredInspectionType;
+
+  const SelectEquipmentForActScreen({
+    super.key,
+    this.presetCategory,
+    this.flowTitleSuffix,
+    this.categoryCode,
+    this.archetypeKind,
+    this.archetypeMark,
+    this.assignmentId,
+    this.inspectionDirection,
+    this.preferredInspectionType,
+  });
 
   @override
   State<SelectEquipmentForActScreen> createState() =>
@@ -85,18 +116,163 @@ class _SelectEquipmentForActScreenState
         final matchSearch = q.isEmpty ||
             eq.name.toLowerCase().contains(q) ||
             (eq.serialNumber ?? '').toLowerCase().contains(q);
-        return matchType && matchSearch;
+        final matchWizard =
+            _matchesPresetCategory(widget.presetCategory, eq);
+        return matchType && matchSearch && matchWizard;
       }).toList();
     });
   }
 
-  void _openAct(Equipment eq) {
+  bool _matchesPresetCategory(String? preset, Equipment eq) {
+    if (preset == null || preset.isEmpty) return true;
+    final code = (eq.typeCode ?? '').toLowerCase();
+    final name = (eq.typeName ?? '').toLowerCase();
+    final ename = eq.name.toLowerCase();
+    switch (preset) {
+      case 'vessel':
+        return code.contains('vessel') ||
+            name.contains('сосуд') ||
+            name.contains('аппарат') ||
+            name.contains('ёмкост') ||
+            ename.contains('сосуд');
+      case 'pipeline':
+        return code.contains('pipeline') || name.contains('трубопровод');
+      case 'compressor':
+        return code.contains('compressor') || name.contains('компрессор');
+      case 'boiler':
+        return name.contains('котл') ||
+            code.contains('boiler') ||
+            ename.contains('котл');
+      case 'drilling':
+        return name.contains('бур') ||
+            ename.contains('буров') ||
+            code.contains('drill');
+      case 'valve_ps':
+        return name.contains('клапан') ||
+            name.contains('предохран') ||
+            name.contains('пс ') ||
+            code.contains('valve') ||
+            code.contains('zra');
+      case 'other':
+      default:
+        return true;
+    }
+  }
+
+  Future<void> _openAct(Equipment eq) async {
+    if (widget.categoryCode != null && widget.categoryCode!.isNotEmpty) {
+      try {
+        final ctx = await _api.getExperienceBaseContext(
+          equipmentId: eq.id,
+          assignmentId: widget.assignmentId,
+          categoryCode: widget.categoryCode,
+          equipmentKind: widget.archetypeKind ?? eq.name,
+          equipmentMark: widget.archetypeMark,
+        );
+        final raw = ctx['items'];
+        if (raw is List && raw.isNotEmpty && mounted) {
+          final items = raw
+              .map((e) => ExperienceBaseEntry.fromJson(
+                    Map<String, dynamic>.from(e as Map),
+                  ))
+              .toList();
+          await showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (sheetCtx) => ExperienceBaseContextSheet(
+              items: items,
+              equipmentName: eq.name ?? 'Объект',
+              onContinue: () => Navigator.pop(sheetCtx),
+            ),
+          );
+        }
+      } catch (_) {
+        // не блокируем создание акта
+      }
+    }
+    InspectionObjectTemplate? selectedTemplate;
+
+    if (widget.categoryCode != null &&
+        widget.inspectionDirection != null &&
+        widget.inspectionDirection!.isNotEmpty) {
+      try {
+        final resolved = await _api.resolveInspectionObjectTemplates(
+          categoryCode: widget.categoryCode!,
+          inspectionDirection: widget.inspectionDirection!,
+          equipmentId: eq.id,
+          equipmentKind: widget.archetypeKind ?? eq.name,
+          equipmentMark: widget.archetypeMark,
+          equipmentPreset: widget.presetCategory,
+        );
+        final rawList = resolved['templates'];
+        if (rawList is List && rawList.isNotEmpty && mounted) {
+          final templates = rawList
+              .map((e) => InspectionObjectTemplate.fromJson(
+                    Map<String, dynamic>.from(e as Map),
+                  ))
+              .toList();
+          selectedTemplate = await showModalBottomSheet<InspectionObjectTemplate?>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (sheetCtx) => InspectionTemplatePickerSheet(
+              templates: templates,
+              equipmentName: eq.name ?? 'Объект',
+              onConfirm: (t) => Navigator.pop(sheetCtx, t),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
+    final tpl = selectedTemplate;
+
+    if (widget.inspectionDirection == 'ae') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AcousticEmissionProtocolScreen(
+            equipment: eq,
+            assignmentId: widget.assignmentId,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final dir = widget.inspectionDirection;
+    final isPressureDir = dir == 'hydraulic' || dir == 'pneumatic';
+    if ((tpl != null && tpl.targetFlow == 'pressure_test') || isPressureDir) {
+      final testType = tpl?.defaultData['test_type']?.toString() ??
+          (dir == 'pneumatic' ? 'ПИ' : 'ГИ');
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PressureTestQuickScreen(
+            initialTestType: testType,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final inspectionType = widget.preferredInspectionType ??
+        tpl?.defaultData['inspection_type']?.toString() ??
+        (widget.inspectionDirection != null
+            ? inspectionTypeForDirection(widget.inspectionDirection!)
+            : 'NDT');
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => VesselInspectionScreen(
           equipment: eq,
-          inspectionType: 'NDT',
+          assignmentId: widget.assignmentId,
+          inspectionType: inspectionType,
+          initialChecklistJson: tpl?.defaultData,
         ),
       ),
     );
@@ -107,7 +283,11 @@ class _SelectEquipmentForActScreenState
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
-        title: const Text('Акт ТД (ЭПБ) — выбор объекта'),
+        title: Text(
+          widget.flowTitleSuffix != null && widget.flowTitleSuffix!.isNotEmpty
+              ? 'Акт ТД — ${widget.flowTitleSuffix}'
+              : 'Акт ТД (ЭПБ) — выбор объекта',
+        ),
         backgroundColor: AppColors.darkSurface,
         foregroundColor: Colors.white,
         actions: [

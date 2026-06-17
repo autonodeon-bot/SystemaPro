@@ -47,8 +47,12 @@ export type CreateEntityType =
 
 export type HierarchyInfoType = 'enterprise' | 'branch' | 'workshop' | 'equipment';
 
+export type ModalMode = 'create' | 'edit';
+
 export interface CreateModalState {
   type: CreateEntityType;
+  mode?: ModalMode;
+  entityId?: string;
   parentId?: string;
   parentName?: string;
 }

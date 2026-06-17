@@ -19,7 +19,8 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
   onSubmit,
   onFormDataChange,
 }) => {
-  const title =
+  const isEdit = modal.mode === 'edit';
+  const entityLabel =
     modal.type === 'enterprise'
       ? 'предприятие'
       : modal.type === 'branch'
@@ -43,13 +44,15 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
         aria-modal="true"
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">Создать {title}</h2>
+          <h2 className="text-xl font-bold text-white">
+            {isEdit ? 'Редактировать' : 'Создать'} {entityLabel}
+          </h2>
           <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
             <X size={24} />
           </button>
         </div>
 
-        {modal.parentName && (
+        {modal.parentName && !isEdit && (
           <p className="text-app-text3 text-sm mb-4">Родитель: {modal.parentName}</p>
         )}
 
@@ -156,7 +159,7 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
               type="submit"
               className="flex-1 bg-accent px-4 py-2 rounded-lg text-white font-bold hover:bg-blue-600"
             >
-              Создать
+              {isEdit ? 'Сохранить' : 'Создать'}
             </button>
             <button
               type="button"

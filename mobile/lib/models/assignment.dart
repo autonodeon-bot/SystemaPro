@@ -23,6 +23,9 @@ class Assignment {
   final String? opoId;
   final String? opoName;
   final String? opoCode;
+  /// Обязательный шаблон протокола (id в конструкторе веба).
+  final String? protocolTemplateId;
+  final String? protocolTemplateName;
 
   Assignment({
     required this.id,
@@ -49,6 +52,8 @@ class Assignment {
     this.opoId,
     this.opoName,
     this.opoCode,
+    this.protocolTemplateId,
+    this.protocolTemplateName,
   });
 
   static DateTime? _parseDateTimeSafe(dynamic value, {DateTime? fallback}) {
@@ -96,6 +101,8 @@ class Assignment {
       opoId: json['opo_id'] as String?,
       opoName: json['opo_name'] as String?,
       opoCode: json['opo_code'] as String?,
+      protocolTemplateId: json['protocol_template_id'] as String?,
+      protocolTemplateName: json['protocol_template_name'] as String?,
     );
   }
 
@@ -125,6 +132,8 @@ class Assignment {
       'opo_id': opoId,
       'opo_name': opoName,
       'opo_code': opoCode,
+      'protocol_template_id': protocolTemplateId,
+      'protocol_template_name': protocolTemplateName,
     };
   }
 

@@ -17,14 +17,32 @@ class AuthService {
   static const String _prefsKeyLastLoginTime = 'last_login_time';
   static const String _prefsKeyPinHash = 'pin_hash';
   static const String _prefsKeyPinSalt = 'pin_salt';
+  static const String _prefsKeyOfflineSession = 'offline_session_active';
   static const String _secureKeyPassword = 'stored_password';
 
   final _secureStorage = const FlutterSecureStorage();
   final _biometricService = BiometricService();
   final _rng = Random.secure();
 
+  /// Сессия без JWT (офлайн, PIN, биометрия) — доступ к экранам без API.
+  Future<void> activateOfflineSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsKeyOfflineSession, true);
+  }
+
+  Future<void> deactivateOfflineSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKeyOfflineSession);
+  }
+
+  Future<bool> hasOfflineSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefsKeyOfflineSession) ?? false;
+  }
+
   // Сохранить пользователя
   Future<void> saveUser(User user, {String? passwordHash}) async {
+    await deactivateOfflineSession();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKeyUser, json.encode(user.toJson()));
     if (user.token != null) {
@@ -254,6 +272,7 @@ class AuthService {
 
     await prefs.remove(_prefsKeyToken);
     await prefs.remove(_prefsKeyPasswordHash);
+    await prefs.remove(_prefsKeyOfflineSession);
   }
   
   // Аутентификация по биометрии (для офлайн-режима). Возвращает true при успехе.
@@ -286,11 +305,13 @@ class AuthService {
     }
   }
 
-  // Проверить авторизован ли пользователь
+  // Проверить авторизован ли пользователь (онлайн JWT или офлайн-сессия)
   Future<bool> isAuthenticated() async {
     final user = await getCurrentUser();
+    if (user == null) return false;
     final token = await getToken();
-    return user != null && token != null;
+    if (token != null && token.isNotEmpty) return true;
+    return hasOfflineSession();
   }
 }
 

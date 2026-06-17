@@ -85,6 +85,13 @@ def _render_flat_protocol(doc: Document, title: str, payload: Dict[str, Any]) ->
         ("executor", "Исполнитель"),
         ("devices", "Средства контроля"),
         ("norm_doc", "Нормативный документ"),
+        ("situation", "Описание ситуации"),
+        ("actions_taken", "Принятые меры"),
+        ("test_type", "Тип испытания"),
+        ("medium", "Среда"),
+        ("pressure_mpa", "Давление"),
+        ("duration", "Длительность"),
+        ("result", "Результат"),
     ]
     for k, lab in order:
         if k in payload:

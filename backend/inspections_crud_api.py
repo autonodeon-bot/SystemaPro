@@ -23,6 +23,7 @@ from inspection_utils import (
     create_ndt_methods_from_mobile as _create_ndt_methods_from_mobile,
     update_equipment_attributes_from_inspection as _update_equipment_attrs,
 )
+from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
 from client_access import get_client_accessible_equipment_ids
 
 router = APIRouter(tags=["inspections"])
@@ -505,6 +506,14 @@ async def create_inspection(
                 assignment_id_parsed = uuid_lib.UUID(str(inspection_data.get("assignment_id")))
             except (ValueError, TypeError):
                 pass
+
+        if assignment_id_parsed and (inspection_data.get("status") or "DRAFT").upper() == "SIGNED":
+            asg_result = await db.execute(
+                select(Assignment).where(Assignment.id == assignment_id_parsed)
+            )
+            _asg = asg_result.scalar_one_or_none()
+            if _asg:
+                await assert_mandatory_standalone_protocol_uploaded(db, _asg)
 
         # Если в data указано include_opo_data=false, а у оборудования есть opo_id —
         # подтягиваем сохранённые данные ОПО и сливаем документы 1..9.

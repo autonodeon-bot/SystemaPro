@@ -12,6 +12,7 @@ import type {
   Branch,
   CreateEntityType,
   CreateFormData,
+  CreateModalState,
   EngineerUserListItem,
   Enterprise,
   Equipment,
@@ -20,6 +21,14 @@ import type {
   InfoModalState,
   Workshop,
 } from '../components/equipment/types';
+
+const parseApiDetail = (detail: unknown): string => {
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object' && 'message' in detail) {
+    return String((detail as { message: string }).message);
+  }
+  return 'Неизвестная ошибка';
+};
 
 const emptyFormData = (): CreateFormData => ({
   name: '',
@@ -46,11 +55,7 @@ const EquipmentManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [usersList, setUsersList] = useState<EngineerUserListItem[]>([]);
 
-  const [showCreateModal, setShowCreateModal] = useState<{
-    type: CreateEntityType;
-    parentId?: string;
-    parentName?: string;
-  } | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState<CreateModalState | null>(null);
 
   const [showAssignModal, setShowAssignModal] = useState<{
     type: CreateEntityType;
@@ -273,13 +278,234 @@ const EquipmentManagement = () => {
     parentId?: string,
     parentName?: string
   ) => {
-    setShowCreateModal({ type, parentId, parentName });
+    setShowCreateModal({ type, mode: 'create', parentId, parentName });
     setFormData({
       ...emptyFormData(),
       enterprise_id: parentId || '',
       branch_id: parentId || '',
       workshop_id: parentId || '',
     });
+  };
+
+  const handleEditEnterprise = (enterprise: Enterprise) => {
+    setShowCreateModal({
+      type: 'enterprise',
+      mode: 'edit',
+      entityId: enterprise.id,
+    });
+    setFormData({
+      ...emptyFormData(),
+      name: enterprise.name,
+      code: enterprise.code || '',
+      description: enterprise.description || '',
+    });
+  };
+
+  const handleEditBranch = (branch: Branch) => {
+    setShowCreateModal({
+      type: 'branch',
+      mode: 'edit',
+      entityId: branch.id,
+      parentId: branch.enterprise_id,
+    });
+    setFormData({
+      ...emptyFormData(),
+      name: branch.name,
+      code: branch.code || '',
+      description: branch.description || '',
+      enterprise_id: branch.enterprise_id,
+    });
+  };
+
+  const handleEditWorkshop = (workshop: Workshop) => {
+    setShowCreateModal({
+      type: 'workshop',
+      mode: 'edit',
+      entityId: workshop.id,
+      parentId: workshop.branch_id,
+    });
+    setFormData({
+      ...emptyFormData(),
+      name: workshop.name,
+      code: workshop.code || '',
+      description: workshop.description || '',
+      branch_id: workshop.branch_id,
+    });
+  };
+
+  const handleEditEquipmentType = (type: EquipmentType) => {
+    setShowCreateModal({
+      type: 'equipment_type',
+      mode: 'edit',
+      entityId: type.id,
+    });
+    setFormData({
+      ...emptyFormData(),
+      name: type.name,
+      code: type.code || '',
+      description: type.description || '',
+    });
+  };
+
+  const handleEditEquipment = (eq: Equipment, workshopId: string) => {
+    setShowCreateModal({
+      type: 'equipment',
+      mode: 'edit',
+      entityId: eq.id,
+      parentId: workshopId,
+    });
+    setFormData({
+      ...emptyFormData(),
+      name: eq.name,
+      type_id: eq.type_id || '',
+      serial_number: eq.serial_number || '',
+      location: eq.location || '',
+      workshop_id: workshopId,
+      commissioning_date: eq.commissioning_date || '',
+    });
+  };
+
+  const handleDeleteEnterprise = async (enterprise: Enterprise) => {
+    if (
+      !confirm(
+        `Удалить предприятие «${enterprise.name}»?\n\nДействие необратимо для отображения в списке. Удаление возможно только если нет активных филиалов.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const token = getToken();
+      const response = await fetch(
+        `${API_BASE}/api/hierarchy/enterprises/${enterprise.id}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        alert('Предприятие удалено');
+        setEnterprises((prev) => prev.filter((e) => e.id !== enterprise.id));
+        setBranches((prev) => {
+          const next = { ...prev };
+          delete next[enterprise.id];
+          return next;
+        });
+        setExpanded((prev) => {
+          const next = { ...prev };
+          delete next[`enterprise_${enterprise.id}`];
+          return next;
+        });
+      } else {
+        const error = await response.json();
+        const detail = error.detail;
+        alert(
+          typeof detail === 'string'
+            ? detail
+            : detail?.message || 'Не удалось удалить предприятие'
+        );
+      }
+    } catch (error) {
+      console.error('Ошибка удаления предприятия:', error);
+      alert('Ошибка удаления предприятия');
+    }
+  };
+
+  const handleDeleteBranch = async (branch: Branch) => {
+    if (
+      !confirm(
+        `Удалить филиал «${branch.name}»?\n\nУдаление возможно только если нет активных цехов.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_BASE}/api/hierarchy/branches/${branch.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        alert('Филиал удалён');
+        setBranches((prev) => ({
+          ...prev,
+          [branch.enterprise_id]: (prev[branch.enterprise_id] || []).filter(
+            (b) => b.id !== branch.id
+          ),
+        }));
+      } else {
+        const error = await response.json();
+        alert(parseApiDetail(error.detail));
+      }
+    } catch (error) {
+      console.error('Ошибка удаления филиала:', error);
+      alert('Ошибка удаления филиала');
+    }
+  };
+
+  const handleDeleteWorkshop = async (workshop: Workshop) => {
+    if (
+      !confirm(
+        `Удалить цех «${workshop.name}»?\n\nУдаление возможно только если в цехе нет оборудования.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_BASE}/api/hierarchy/workshops/${workshop.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        alert('Цех удалён');
+        setWorkshops((prev) => ({
+          ...prev,
+          [workshop.branch_id]: (prev[workshop.branch_id] || []).filter(
+            (w) => w.id !== workshop.id
+          ),
+        }));
+        setEquipment((prev) => {
+          const next = { ...prev };
+          delete next[workshop.id];
+          return next;
+        });
+      } else {
+        const error = await response.json();
+        alert(parseApiDetail(error.detail));
+      }
+    } catch (error) {
+      console.error('Ошибка удаления цеха:', error);
+      alert('Ошибка удаления цеха');
+    }
+  };
+
+  const handleDeleteEquipmentType = async (type: EquipmentType) => {
+    if (
+      !confirm(
+        `Удалить тип «${type.name}»?\n\nНельзя удалить, если к типу привязано активное оборудование.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_BASE}/api/equipment-types/${type.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        alert('Тип оборудования удалён');
+        await loadEquipmentTypes();
+      } else {
+        const error = await response.json();
+        alert(parseApiDetail(error.detail));
+      }
+    } catch (error) {
+      console.error('Ошибка удаления типа:', error);
+      alert('Ошибка удаления типа оборудования');
+    }
   };
 
   const handlePrepareEquipmentCreateFromType = (
@@ -289,6 +515,7 @@ const EquipmentManagement = () => {
   ) => {
     setShowCreateModal({
       type: 'equipment',
+      mode: 'create',
       parentId: workshopId,
       parentName: workshopName,
     });
@@ -305,12 +532,19 @@ const EquipmentManagement = () => {
 
     try {
       const token = getToken();
+      const isEdit = showCreateModal.mode === 'edit' && showCreateModal.entityId;
       let endpoint = '';
+      let method: 'POST' | 'PUT' = 'POST';
       let body: Record<string, unknown> = {};
 
       switch (showCreateModal.type) {
         case 'enterprise':
-          endpoint = `${API_BASE}/api/hierarchy/enterprises`;
+          if (isEdit) {
+            method = 'PUT';
+            endpoint = `${API_BASE}/api/hierarchy/enterprises/${showCreateModal.entityId}`;
+          } else {
+            endpoint = `${API_BASE}/api/hierarchy/enterprises`;
+          }
           body = {
             name: formData.name,
             code: formData.code || undefined,
@@ -318,46 +552,79 @@ const EquipmentManagement = () => {
           };
           break;
         case 'branch':
-          endpoint = `${API_BASE}/api/hierarchy/branches`;
-          body = {
-            enterprise_id: showCreateModal.parentId,
-            name: formData.name,
-            code: formData.code || undefined,
-            description: formData.description || undefined,
-          };
+          if (isEdit) {
+            method = 'PUT';
+            endpoint = `${API_BASE}/api/hierarchy/branches/${showCreateModal.entityId}`;
+          } else {
+            endpoint = `${API_BASE}/api/hierarchy/branches`;
+          }
+          body = isEdit
+            ? {
+                name: formData.name,
+                code: formData.code || undefined,
+                description: formData.description || undefined,
+              }
+            : {
+                enterprise_id: showCreateModal.parentId,
+                name: formData.name,
+                code: formData.code || undefined,
+                description: formData.description || undefined,
+              };
           break;
         case 'workshop':
-          endpoint = `${API_BASE}/api/hierarchy/workshops`;
+          if (isEdit) {
+            method = 'PUT';
+            endpoint = `${API_BASE}/api/hierarchy/workshops/${showCreateModal.entityId}`;
+          } else {
+            endpoint = `${API_BASE}/api/hierarchy/workshops`;
+          }
+          body = isEdit
+            ? {
+                name: formData.name,
+                code: formData.code || undefined,
+                description: formData.description || undefined,
+              }
+            : {
+                branch_id: showCreateModal.parentId,
+                name: formData.name,
+                code: formData.code || undefined,
+                description: formData.description || undefined,
+              };
+          break;
+        case 'equipment_type':
+          if (isEdit) {
+            method = 'PUT';
+            endpoint = `${API_BASE}/api/equipment-types/${showCreateModal.entityId}`;
+          } else {
+            endpoint = `${API_BASE}/api/equipment-types`;
+          }
           body = {
-            branch_id: showCreateModal.parentId,
             name: formData.name,
             code: formData.code || undefined,
             description: formData.description || undefined,
-          };
-          break;
-        case 'equipment_type':
-          endpoint = `${API_BASE}/api/equipment-types`;
-          body = {
-            name: formData.name,
-            code: formData.code || undefined,
           };
           break;
         case 'equipment':
-          endpoint = `${API_BASE}/api/equipment`;
+          if (isEdit) {
+            method = 'PUT';
+            endpoint = `${API_BASE}/api/equipment/${showCreateModal.entityId}`;
+          } else {
+            endpoint = `${API_BASE}/api/equipment`;
+          }
           body = {
             name: formData.name,
             type_id: formData.type_id || undefined,
             serial_number: formData.serial_number || undefined,
             location: formData.location || undefined,
-            workshop_id: showCreateModal.parentId,
             commissioning_date: formData.commissioning_date || undefined,
             attributes: {},
+            ...(isEdit ? {} : { workshop_id: showCreateModal.parentId }),
           };
           break;
       }
 
       const response = await fetch(endpoint, {
-        method: 'POST',
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -366,34 +633,37 @@ const EquipmentManagement = () => {
       });
 
       if (response.ok) {
-        alert(
-          `${
-            showCreateModal.type === 'enterprise'
-              ? 'Предприятие'
-              : showCreateModal.type === 'branch'
-                ? 'Филиал'
-                : showCreateModal.type === 'workshop'
-                  ? 'Цех'
-                  : showCreateModal.type === 'equipment_type'
-                    ? 'Тип оборудования'
-                    : 'Оборудование'
-          } успешно создано`
-        );
+        const entityLabel =
+          showCreateModal.type === 'enterprise'
+            ? 'Предприятие'
+            : showCreateModal.type === 'branch'
+              ? 'Филиал'
+              : showCreateModal.type === 'workshop'
+                ? 'Цех'
+                : showCreateModal.type === 'equipment_type'
+                  ? 'Тип оборудования'
+                  : 'Оборудование';
+        alert(isEdit ? `${entityLabel} успешно обновлено` : `${entityLabel} успешно создано`);
         setShowCreateModal(null);
         setFormData(emptyFormData());
 
-        if (showCreateModal.type === 'enterprise' || showCreateModal.type === 'equipment_type') {
-          loadData();
+        if (showCreateModal.type === 'enterprise') {
+          loadEnterprises();
+        } else if (showCreateModal.type === 'equipment_type') {
+          loadEquipmentTypes();
         } else if (showCreateModal.type === 'branch') {
-          loadBranches(showCreateModal.parentId!);
+          const enterpriseId =
+            formData.enterprise_id || showCreateModal.parentId || '';
+          if (enterpriseId) loadBranches(enterpriseId);
         } else if (showCreateModal.type === 'workshop') {
-          loadWorkshops(showCreateModal.parentId!);
-        } else if (showCreateModal.type === 'equipment') {
-          loadEquipment(showCreateModal.parentId!);
+          const branchId = formData.branch_id || showCreateModal.parentId || '';
+          if (branchId) loadWorkshops(branchId);
+        } else if (showCreateModal.type === 'equipment' && showCreateModal.parentId) {
+          loadEquipment(showCreateModal.parentId);
         }
       } else {
         const error = await response.json();
-        alert(`Ошибка: ${error.detail || 'Не удалось создать'}`);
+        alert(`Ошибка: ${parseApiDetail(error.detail) || 'Не удалось сохранить'}`);
       }
     } catch (error) {
       console.error('Ошибка создания:', error);
@@ -472,7 +742,7 @@ const EquipmentManagement = () => {
     }
   };
 
-  const handleDeleteEquipment = async (id: string) => {
+  const handleDeleteEquipment = async (id: string, workshopId?: string) => {
     if (!confirm('Вы уверены, что хотите удалить это оборудование?')) return;
 
     try {
@@ -486,9 +756,14 @@ const EquipmentManagement = () => {
 
       if (response.ok) {
         alert('Оборудование удалено');
-        loadData();
+        if (workshopId) {
+          loadEquipment(workshopId);
+        } else {
+          loadData();
+        }
       } else {
-        alert('Ошибка удаления оборудования');
+        const error = await response.json().catch(() => ({}));
+        alert(parseApiDetail((error as { detail?: unknown }).detail) || 'Ошибка удаления оборудования');
       }
     } catch (error) {
       console.error('Ошибка удаления:', error);
@@ -529,6 +804,15 @@ const EquipmentManagement = () => {
         onShowInfo={handleShowInfo}
         onAssignEngineers={handleAssignEngineers}
         onDeleteEquipment={handleDeleteEquipment}
+        onEditEnterprise={handleEditEnterprise}
+        onDeleteEnterprise={handleDeleteEnterprise}
+        onEditBranch={handleEditBranch}
+        onDeleteBranch={handleDeleteBranch}
+        onEditWorkshop={handleEditWorkshop}
+        onDeleteWorkshop={handleDeleteWorkshop}
+        onEditEquipmentType={handleEditEquipmentType}
+        onDeleteEquipmentType={handleDeleteEquipmentType}
+        onEditEquipment={handleEditEquipment}
       />
 
       {showCreateModal && (

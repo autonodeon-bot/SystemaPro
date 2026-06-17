@@ -39,4 +39,5 @@ services:
     volumes:
       - ./mobile-apk:/usr/share/nginx/html/mobile
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     restart: always

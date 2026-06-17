@@ -1,7 +1,8 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
 import { API_BASE } from '../constants';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { Assignment } from './AssignmentCard';
 
 export interface EditAssignmentModalProps {
@@ -27,11 +28,52 @@ const PRIORITY_OPTIONS = [
 
 const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, isOpen, onClose, onSaved }) => {
   const toast = useToast();
+  const { hasRole } = useAuth();
+  const canEditTemplate =
+    hasRole('admin') || hasRole('chief_operator') || hasRole('operator');
+
   const [status, setStatus] = useState(assignment.status);
   const [priority, setPriority] = useState(assignment.priority);
   const [dueDate, setDueDate] = useState(assignment.due_date ? assignment.due_date.slice(0, 10) : '');
   const [description, setDescription] = useState(assignment.description || '');
+  const [protocolTemplateId, setProtocolTemplateId] = useState(assignment.protocol_template_id || '');
+  const [protocolTemplates, setProtocolTemplates] = useState<Array<{ id: string; name: string; category?: string }>>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStatus(assignment.status);
+    setPriority(assignment.priority);
+    setDueDate(assignment.due_date ? assignment.due_date.slice(0, 10) : '');
+    setDescription(assignment.description || '');
+    setProtocolTemplateId(assignment.protocol_template_id || '');
+  }, [isOpen, assignment.id, assignment.status, assignment.priority, assignment.due_date, assignment.description, assignment.protocol_template_id]);
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/protocol-templates?active_only=true`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        setProtocolTemplates(
+          data
+            .map((row: { id?: string; name?: string; category?: string }) => ({
+              id: String(row.id ?? ''),
+              name: String(row.name ?? row.id ?? ''),
+              category: row.category,
+            }))
+            .filter((t: { id: string }) => t.id.length > 0),
+        );
+      } catch {
+        /* справочник шаблонов опционален */
+      }
+    };
+    loadTemplates();
+  }, []);
 
   if (!isOpen) return null;
 
@@ -48,6 +90,11 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
       }
       if (description !== (assignment.description || '')) {
         body.description = description;
+      }
+
+      const origTemplate = assignment.protocol_template_id || '';
+      if (canEditTemplate && protocolTemplateId.trim() !== origTemplate) {
+        body.protocol_template_id = protocolTemplateId.trim() ? protocolTemplateId.trim() : null;
       }
 
       if (Object.keys(body).length === 0) {
@@ -146,6 +193,41 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
               className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none placeholder-app-text3"
             />
           </div>
+
+          {canEditTemplate ? (
+            <div>
+              <label className="block text-sm font-medium text-app-text2 mb-1.5">
+                Шаблон протокола (мобильное приложение)
+              </label>
+              <select
+                value={protocolTemplateId}
+                onChange={(e) => setProtocolTemplateId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              >
+                <option value="">Не назначать</option>
+                {protocolTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.category ? ` — ${t.category}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-app-text3 mt-1.5">
+                Изменение доступно администратору, старшему оператору и оператору.
+              </p>
+            </div>
+          ) : (
+            (assignment.protocol_template_id || assignment.protocol_template_name) && (
+              <div className="rounded-lg border border-app-line bg-app-deep/50 px-3 py-2.5 text-sm text-app-text2">
+                <span className="text-app-text3 block text-xs mb-1">Шаблон протокола</span>
+                {assignment.protocol_template_name?.trim()
+                  ? assignment.protocol_template_name
+                  : assignment.protocol_template_id
+                    ? `ID: ${assignment.protocol_template_id}`
+                    : '—'}
+              </div>
+            )
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3 p-5 border-t border-app-line">

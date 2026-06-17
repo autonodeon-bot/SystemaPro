@@ -123,7 +123,14 @@ const UsersManagement = () => {
         loadUsers();
       } else {
         const error = await response.json();
-        alert(`Ошибка: ${error.detail || 'Не удалось создать сотрудника'}`);
+        const detail = error.detail;
+        const msg =
+          typeof detail === 'string'
+            ? detail
+            : detail?.message ||
+              (Array.isArray(detail?.errors) ? detail.errors.join('; ') : null) ||
+              'Не удалось создать сотрудника';
+        alert(`Ошибка: ${msg}`);
       }
     } catch (error) {
       console.error('Ошибка создания сотрудника:', error);
@@ -171,7 +178,14 @@ const UsersManagement = () => {
         loadUsers();
       } else {
         const error = await response.json();
-        alert(`Ошибка: ${error.detail || 'Не удалось обновить сотрудника'}`);
+        const detail = error.detail;
+        const msg =
+          typeof detail === 'string'
+            ? detail
+            : detail?.message ||
+              (Array.isArray(detail?.errors) ? detail.errors.join('; ') : null) ||
+              'Не удалось обновить сотрудника';
+        alert(`Ошибка: ${msg}`);
       }
     } catch (error) {
       console.error('Ошибка обновления сотрудника:', error);

@@ -5,15 +5,19 @@ import 'package:intl/intl.dart';
 import '../models/equipment.dart';
 import '../models/questionnaire.dart';
 import '../services/api_service.dart';
+import '../services/sync_service.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   final Equipment equipment;
   final Questionnaire? existingQuestionnaire;
+  /// Задание (если опросник открыт из контекста обследования по наряду).
+  final String? assignmentId;
 
   const QuestionnaireScreen({
     super.key,
     required this.equipment,
     this.existingQuestionnaire,
+    this.assignmentId,
   });
 
   @override
@@ -24,6 +28,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   final _formKey = GlobalKey<FormBuilderState>();
   final _scrollController = ScrollController();
   final _apiService = ApiService();
+  final _syncService = SyncService();
   bool _isSubmitting = false;
   
   late Questionnaire _questionnaire;
@@ -36,24 +41,71 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     _questionnaire = widget.existingQuestionnaire ?? Questionnaire();
     _questionnaire.equipmentId = widget.equipment.id;
     _questionnaire.equipmentName = widget.equipment.name;
-    _questionnaireId = widget.existingQuestionnaire != null ? 'temp' : null;
+    _questionnaireId = _questionnaire.id;
+    if (_questionnaireId != null && _questionnaireId!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadNDTMethods();
+      });
+    }
   }
 
   Future<void> _loadNDTMethods() async {
-    if (_questionnaireId != null && _questionnaireId != 'temp') {
-      try {
-        final methods = await _apiService.getNDTMethods(_questionnaireId!);
+    final qid = _questionnaireId;
+    if (qid == null || qid.isEmpty) return;
+
+    if (_syncService.isPendingQuestionnaireLocalId(qid)) {
+      final pending = await _syncService.getPendingQuestionnaires();
+      Map<String, dynamic>? item;
+      for (final e in pending) {
+        if (e['id']?.toString() == qid) {
+          item = e;
+          break;
+        }
+      }
+      final raw = item?['pending_ndt_methods'];
+      if (raw is! List) return;
+      final local = <NDTMethod>[];
+      for (final m in raw) {
+        if (m is! Map) continue;
+        final map = Map<String, dynamic>.from(m);
+        local.add(NDTMethod.fromJson({
+          'method_code': map['method_code'],
+          'method_name': map['method_name'],
+          'is_performed': map['is_performed'] == true,
+          'standard': map['standard'],
+          'equipment': map['equipment'],
+          'inspector_name': map['inspector_name'],
+          'inspector_level': map['inspector_level'],
+          'results': map['results'],
+          'defects': map['defects'],
+          'conclusion': map['conclusion'],
+          'performed_date': map['performed_date'],
+          'photos': (map['offline_photo_paths'] as List?)
+                  ?.map((e) =>
+                      e is Map ? (e['path']?.toString() ?? '') : '')
+                  .where((p) => p.isNotEmpty)
+                  .toList() ??
+              <String>[],
+        }));
+      }
+      if (mounted) setState(() => _ndtMethods = local);
+      return;
+    }
+
+    try {
+      final methods = await _apiService.getNDTMethods(qid);
+      if (mounted) {
         setState(() {
           _ndtMethods = methods.map((m) => NDTMethod.fromJson(m)).toList();
         });
-      } catch (e) {
-        print('Ошибка загрузки методов НК: $e');
       }
+    } catch (e) {
+      print('Ошибка загрузки методов НК: $e');
     }
   }
 
   Future<void> _addNDTMethod() async {
-    if (_questionnaireId == null || _questionnaireId == 'temp') {
+    if (_questionnaireId == null || _questionnaireId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Сначала сохраните опросный лист'),
@@ -79,20 +131,112 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       });
 
       try {
-        // TODO: Реализовать отправку опросного листа на сервер
-        // После сохранения получим ID и сможем добавлять методы НК
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Опросный лист успешно сохранен'),
-              backgroundColor: Colors.green,
-            ),
+        _formKey.currentState?.save();
+        final invRaw = _formKey.currentState?.fields['inspection_date']?.value;
+        if (invRaw is DateTime) {
+          _questionnaire.inspectionDate = invRaw.toIso8601String();
+        }
+
+        final datePerf = _questionnaire.inspectionDate;
+        final payload = _questionnaire.toJson();
+        final online = await _apiService.checkConnection();
+
+        if (online) {
+          final hasToken = await _apiService.ensureValidToken();
+          if (!hasToken) {
+            throw Exception(
+              'Сессия истекла. Войдите снова или синхронизируйте на экране «Синхронизация».',
+            );
+          }
+          final result = await _apiService.saveQuestionnaire(
+            equipmentId: widget.equipment.id,
+            data: payload,
+            assignmentId: widget.assignmentId,
+            questionnaireId: _questionnaireId,
+            status: 'DRAFT',
+            datePerformed: datePerf,
           );
-          context.pop(true);
+          final newId = result['id']?.toString();
+          if (newId != null && newId.isNotEmpty) {
+            setState(() {
+              _questionnaire.id = newId;
+              _questionnaireId = newId;
+            });
+            await _loadNDTMethods();
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Опросный лист сохранён на сервере'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          final localId = await _syncService.saveQuestionnaireOffline(
+            equipmentId: widget.equipment.id,
+            data: payload,
+            assignmentId: widget.assignmentId,
+            questionnaireId: _questionnaireId,
+            status: 'DRAFT',
+            datePerformed: datePerf,
+          );
+          setState(() {
+            _questionnaireId = localId;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Нет сети: опросный лист в очереди. Отправьте на экране «Синхронизация».',
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
         }
       } catch (e) {
-        if (mounted) {
+        final msg = e.toString();
+        final isNetwork = msg.contains('SocketException') ||
+            msg.contains('Failed host lookup') ||
+            msg.contains('Нет связи') ||
+            msg.contains('Connection');
+        if (isNetwork) {
+          try {
+            final localId = await _syncService.saveQuestionnaireOffline(
+              equipmentId: widget.equipment.id,
+              data: _questionnaire.toJson(),
+              assignmentId: widget.assignmentId,
+              questionnaireId: _questionnaireId,
+              status: 'DRAFT',
+              datePerformed: _questionnaire.inspectionDate,
+            );
+            setState(() {
+              _questionnaireId = localId;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Ошибка сети: опросный лист сохранён локально и будет отправлен при синхронизации.',
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            }
+          } catch (offlineErr) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Ошибка сохранения: $offlineErr'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Ошибка сохранения: $e'),

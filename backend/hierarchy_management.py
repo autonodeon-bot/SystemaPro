@@ -3,7 +3,7 @@ API endpoints для управления иерархией оборудова�
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, text
+from sqlalchemy import select, and_, or_, text, func
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, date, timedelta
@@ -24,17 +24,74 @@ class EnterpriseCreate(BaseModel):
     code: Optional[str] = None
     description: Optional[str] = None
 
+
+class EnterpriseUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+
+
+async def _require_hierarchy_admin(db: AsyncSession, username: str) -> User:
+    user_result = await db.execute(select(User).where(User.username == username))
+    user = user_result.scalar_one_or_none()
+    if not user or user.role not in ["admin", "chief_operator"]:
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
+    return user
+
+
+def _serialize_enterprise(enterprise: Enterprise) -> dict:
+    return {
+        "id": str(enterprise.id),
+        "name": enterprise.name or "",
+        "code": enterprise.code or "",
+        "description": enterprise.description or "",
+    }
+
+
 class BranchCreate(BaseModel):
     enterprise_id: str
     name: str
     code: Optional[str] = None
     description: Optional[str] = None
 
+
+class BranchUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+
+
 class WorkshopCreate(BaseModel):
     branch_id: str
     name: str
     code: Optional[str] = None
     description: Optional[str] = None
+
+
+class WorkshopUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+
+
+def _serialize_branch(branch: Branch) -> dict:
+    return {
+        "id": str(branch.id),
+        "enterprise_id": str(branch.enterprise_id),
+        "name": branch.name or "",
+        "code": branch.code or "",
+        "description": branch.description or "",
+    }
+
+
+def _serialize_workshop(workshop: Workshop) -> dict:
+    return {
+        "id": str(workshop.id),
+        "branch_id": str(workshop.branch_id),
+        "name": workshop.name or "",
+        "code": workshop.code or "",
+        "description": workshop.description or "",
+    }
 
 class EngineerAssignmentRequest(BaseModel):
     user_ids: List[str]  # Список ID инженеров
@@ -73,16 +130,8 @@ async def get_enterprises(
             # Временно используем все предприятия
             enterprises = all_enterprises
         
-        items = [
-            {
-                "id": str(e.id),
-                "name": e.name or "",
-                "code": e.code or "",
-                "description": e.description or "",
-            }
-            for e in enterprises
-        ]
-        
+        items = [_serialize_enterprise(e) for e in enterprises]
+
         logger.info(f"Возвращаем {len(items)} предприятий")
         return {"items": items}
     except Exception as e:
@@ -99,34 +148,126 @@ async def create_enterprise(
 ):
     """Создать предприятие"""
     try:
-        # Проверяем права (только admin и chief_operator)
-        user_result = await db.execute(
-            select(User).where(User.username == username)
-        )
-        user = user_result.scalar_one_or_none()
-        if not user or user.role not in ["admin", "chief_operator"]:
-            raise HTTPException(status_code=403, detail="Доступ запрещен")
-        
+        await _require_hierarchy_admin(db, username)
+
+        code = (enterprise_data.code or "").strip() or None
+        if code:
+            dup = await db.execute(
+                select(Enterprise).where(Enterprise.code == code, Enterprise.is_active == True)
+            )
+            if dup.scalar_one_or_none():
+                raise HTTPException(status_code=409, detail="Предприятие с таким кодом уже существует")
+
         new_enterprise = Enterprise(
-            name=enterprise_data.name,
-            code=enterprise_data.code,
-            description=enterprise_data.description
+            name=enterprise_data.name.strip(),
+            code=code,
+            description=(enterprise_data.description or "").strip() or None,
         )
         db.add(new_enterprise)
         await db.commit()
         await db.refresh(new_enterprise)
-        
-        return {
-            "id": str(new_enterprise.id),
-            "name": new_enterprise.name,
-            "code": new_enterprise.code,
-            "description": new_enterprise.description,
-        }
+
+        return _serialize_enterprise(new_enterprise)
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create enterprise: {str(e)}")
+
+
+@router.put("/enterprises/{enterprise_id}")
+async def update_enterprise(
+    enterprise_id: str,
+    enterprise_data: EnterpriseUpdate,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить предприятие"""
+    await _require_hierarchy_admin(db, username)
+
+    try:
+        enterprise_uuid = uuid_lib.UUID(enterprise_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID предприятия") from exc
+
+    result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_uuid))
+    enterprise = result.scalar_one_or_none()
+    if not enterprise or not enterprise.is_active:
+        raise HTTPException(status_code=404, detail="Предприятие не найдено")
+
+    try:
+        if enterprise_data.name is not None:
+            name = enterprise_data.name.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Название не может быть пустым")
+            enterprise.name = name
+
+        if enterprise_data.code is not None:
+            code = enterprise_data.code.strip() or None
+            if code:
+                dup = await db.execute(
+                    select(Enterprise).where(
+                        Enterprise.code == code,
+                        Enterprise.id != enterprise_uuid,
+                        Enterprise.is_active == True,
+                    )
+                )
+                if dup.scalar_one_or_none():
+                    raise HTTPException(status_code=409, detail="Предприятие с таким кодом уже существует")
+            enterprise.code = code
+
+        if enterprise_data.description is not None:
+            enterprise.description = enterprise_data.description.strip() or None
+
+        await db.commit()
+        await db.refresh(enterprise)
+        return _serialize_enterprise(enterprise)
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось обновить предприятие: {e}") from e
+
+
+@router.delete("/enterprises/{enterprise_id}")
+async def delete_enterprise(
+    enterprise_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Деактивировать предприятие (мягкое удаление)"""
+    await _require_hierarchy_admin(db, username)
+
+    try:
+        enterprise_uuid = uuid_lib.UUID(enterprise_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID предприятия") from exc
+
+    result = await db.execute(select(Enterprise).where(Enterprise.id == enterprise_uuid))
+    enterprise = result.scalar_one_or_none()
+    if not enterprise or not enterprise.is_active:
+        raise HTTPException(status_code=404, detail="Предприятие не найдено")
+
+    branches_count = await db.execute(
+        select(func.count())
+        .select_from(Branch)
+        .where(Branch.enterprise_id == enterprise_uuid, Branch.is_active == True)
+    )
+    if (branches_count.scalar() or 0) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Нельзя удалить предприятие: сначала удалите или деактивируйте все филиалы",
+        )
+
+    try:
+        enterprise.is_active = False
+        await db.commit()
+        return {"message": "Предприятие удалено", "id": str(enterprise.id)}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось удалить предприятие: {e}") from e
+
 
 # Branch endpoints
 @router.get("/branches")
@@ -143,18 +284,7 @@ async def get_branches(
         
         result = await db.execute(query.order_by(Branch.name))
         branches = result.scalars().all()
-        return {
-            "items": [
-                {
-                    "id": str(b.id),
-                    "enterprise_id": str(b.enterprise_id),
-                    "name": b.name,
-                    "code": b.code,
-                    "description": b.description,
-                }
-                for b in branches
-            ]
-        }
+        return {"items": [_serialize_branch(b) for b in branches]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get branches: {str(e)}")
 
@@ -165,36 +295,109 @@ async def create_branch(
     db: AsyncSession = Depends(get_db)
 ):
     """Создать филиал"""
+    await _require_hierarchy_admin(db, username)
+
     try:
-        user_result = await db.execute(
-            select(User).where(User.username == username)
-        )
-        user = user_result.scalar_one_or_none()
-        if not user or user.role not in ["admin", "chief_operator"]:
-            raise HTTPException(status_code=403, detail="Доступ запрещен")
-        
         new_branch = Branch(
             enterprise_id=uuid_lib.UUID(branch_data.enterprise_id),
-            name=branch_data.name,
-            code=branch_data.code,
-            description=branch_data.description
+            name=branch_data.name.strip(),
+            code=(branch_data.code or "").strip() or None,
+            description=(branch_data.description or "").strip() or None,
         )
         db.add(new_branch)
         await db.commit()
         await db.refresh(new_branch)
-        
-        return {
-            "id": str(new_branch.id),
-            "enterprise_id": str(new_branch.enterprise_id),
-            "name": new_branch.name,
-            "code": new_branch.code,
-            "description": new_branch.description,
-        }
+
+        return _serialize_branch(new_branch)
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create branch: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create branch: {str(e)}") from e
+
+
+@router.put("/branches/{branch_id}")
+async def update_branch(
+    branch_id: str,
+    branch_data: BranchUpdate,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить филиал"""
+    await _require_hierarchy_admin(db, username)
+
+    try:
+        branch_uuid = uuid_lib.UUID(branch_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID филиала") from exc
+
+    result = await db.execute(select(Branch).where(Branch.id == branch_uuid))
+    branch = result.scalar_one_or_none()
+    if not branch or not branch.is_active:
+        raise HTTPException(status_code=404, detail="Филиал не найден")
+
+    try:
+        if branch_data.name is not None:
+            name = branch_data.name.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Название не может быть пустым")
+            branch.name = name
+
+        if branch_data.code is not None:
+            branch.code = branch_data.code.strip() or None
+
+        if branch_data.description is not None:
+            branch.description = branch_data.description.strip() or None
+
+        await db.commit()
+        await db.refresh(branch)
+        return _serialize_branch(branch)
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось обновить филиал: {e}") from e
+
+
+@router.delete("/branches/{branch_id}")
+async def delete_branch(
+    branch_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Деактивировать филиал (мягкое удаление)"""
+    await _require_hierarchy_admin(db, username)
+
+    try:
+        branch_uuid = uuid_lib.UUID(branch_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID филиала") from exc
+
+    result = await db.execute(select(Branch).where(Branch.id == branch_uuid))
+    branch = result.scalar_one_or_none()
+    if not branch or not branch.is_active:
+        raise HTTPException(status_code=404, detail="Филиал не найден")
+
+    workshops_count = await db.execute(
+        select(func.count())
+        .select_from(Workshop)
+        .where(Workshop.branch_id == branch_uuid, Workshop.is_active == True)
+    )
+    if (workshops_count.scalar() or 0) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Нельзя удалить филиал: сначала удалите или деактивируйте все цеха",
+        )
+
+    try:
+        branch.is_active = False
+        await db.commit()
+        return {"message": "Филиал удалён", "id": str(branch.id)}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось удалить филиал: {e}") from e
+
 
 # Workshop endpoints
 @router.get("/workshops")
@@ -211,18 +414,7 @@ async def get_workshops(
         
         result = await db.execute(query.order_by(Workshop.name))
         workshops = result.scalars().all()
-        return {
-            "items": [
-                {
-                    "id": str(w.id),
-                    "branch_id": str(w.branch_id),
-                    "name": w.name,
-                    "code": w.code,
-                    "description": w.description,
-                }
-                for w in workshops
-            ]
-        }
+        return {"items": [_serialize_workshop(w) for w in workshops]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get workshops: {str(e)}")
 
@@ -230,39 +422,112 @@ async def get_workshops(
 async def create_workshop(
     workshop_data: WorkshopCreate,
     username: str = Depends(verify_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Создать цех"""
+    await _require_hierarchy_admin(db, username)
+
     try:
-        user_result = await db.execute(
-            select(User).where(User.username == username)
-        )
-        user = user_result.scalar_one_or_none()
-        if not user or user.role not in ["admin", "chief_operator"]:
-            raise HTTPException(status_code=403, detail="Доступ запрещен")
-        
         new_workshop = Workshop(
             branch_id=uuid_lib.UUID(workshop_data.branch_id),
-            name=workshop_data.name,
-            code=workshop_data.code,
-            description=workshop_data.description
+            name=workshop_data.name.strip(),
+            code=(workshop_data.code or "").strip() or None,
+            description=(workshop_data.description or "").strip() or None,
         )
         db.add(new_workshop)
         await db.commit()
         await db.refresh(new_workshop)
-        
-        return {
-            "id": str(new_workshop.id),
-            "branch_id": str(new_workshop.branch_id),
-            "name": new_workshop.name,
-            "code": new_workshop.code,
-            "description": new_workshop.description,
-        }
+
+        return _serialize_workshop(new_workshop)
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create workshop: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create workshop: {str(e)}") from e
+
+
+@router.put("/workshops/{workshop_id}")
+async def update_workshop(
+    workshop_id: str,
+    workshop_data: WorkshopUpdate,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить цех"""
+    await _require_hierarchy_admin(db, username)
+
+    try:
+        workshop_uuid = uuid_lib.UUID(workshop_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID цеха") from exc
+
+    result = await db.execute(select(Workshop).where(Workshop.id == workshop_uuid))
+    workshop = result.scalar_one_or_none()
+    if not workshop or not workshop.is_active:
+        raise HTTPException(status_code=404, detail="Цех не найден")
+
+    try:
+        if workshop_data.name is not None:
+            name = workshop_data.name.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Название не может быть пустым")
+            workshop.name = name
+
+        if workshop_data.code is not None:
+            workshop.code = workshop_data.code.strip() or None
+
+        if workshop_data.description is not None:
+            workshop.description = workshop_data.description.strip() or None
+
+        await db.commit()
+        await db.refresh(workshop)
+        return _serialize_workshop(workshop)
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось обновить цех: {e}") from e
+
+
+@router.delete("/workshops/{workshop_id}")
+async def delete_workshop(
+    workshop_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Деактивировать цех (мягкое удаление)"""
+    await _require_hierarchy_admin(db, username)
+
+    try:
+        workshop_uuid = uuid_lib.UUID(workshop_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID цеха") from exc
+
+    result = await db.execute(select(Workshop).where(Workshop.id == workshop_uuid))
+    workshop = result.scalar_one_or_none()
+    if not workshop or not workshop.is_active:
+        raise HTTPException(status_code=404, detail="Цех не найден")
+
+    equipment_count = await db.execute(
+        select(func.count())
+        .select_from(Equipment)
+        .where(Equipment.workshop_id == workshop_uuid, Equipment.is_active == True)
+    )
+    if (equipment_count.scalar() or 0) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Нельзя удалить цех: сначала удалите всё оборудование в этом цехе",
+        )
+
+    try:
+        workshop.is_active = False
+        await db.commit()
+        return {"message": "Цех удалён", "id": str(workshop.id)}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось удалить цех: {e}") from e
+
 
 # Engineer assignment endpoints
 @router.post("/enterprises/{enterprise_id}/assign-engineers")

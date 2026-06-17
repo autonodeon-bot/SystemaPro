@@ -58,7 +58,8 @@ class AssignmentsNotifier extends StateNotifier<AsyncValue<List<Assignment>>> {
 final pendingInspectionsCountProvider = FutureProvider<int>((ref) async {
   final syncService = ref.read(syncServiceProvider);
   final pending = await syncService.getPendingInspections();
-  return pending.length;
+  final standalone = await syncService.getPendingStandaloneProtocols();
+  return pending.length + standalone.length;
 });
 
 /// Провайдер статуса подключения к серверу

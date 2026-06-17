@@ -137,6 +137,7 @@ async def list_drawing_templates(
     equipment_id: Optional[str] = Query(None),
     equipment_type_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Поиск по названию и описанию (ILIKE)"),
     active_only: bool = Query(True),
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(verify_token),
@@ -182,6 +183,12 @@ async def list_drawing_templates(
         if category:
             where.append("t.category = :category")
             params["category"] = category
+
+        if q and q.strip():
+            where.append(
+                "(t.name ILIKE :q_search OR COALESCE(t.description, '') ILIKE :q_search)"
+            )
+            params["q_search"] = f"%{q.strip()}%"
 
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
         result = await db.execute(

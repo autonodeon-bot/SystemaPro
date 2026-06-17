@@ -12,6 +12,7 @@ import {
   MapPin,
   Users,
   Info,
+  Pencil,
 } from 'lucide-react';
 import type {
   Branch,
@@ -49,7 +50,16 @@ export interface EquipmentHierarchyTreeProps {
     id: string,
     name: string
   ) => void;
-  onDeleteEquipment: (id: string) => void;
+  onDeleteEquipment: (id: string, workshopId?: string) => void;
+  onEditEnterprise?: (enterprise: Enterprise) => void;
+  onDeleteEnterprise?: (enterprise: Enterprise) => void;
+  onEditBranch?: (branch: Branch) => void;
+  onDeleteBranch?: (branch: Branch) => void;
+  onEditWorkshop?: (workshop: Workshop) => void;
+  onDeleteWorkshop?: (workshop: Workshop) => void;
+  onEditEquipmentType?: (type: EquipmentType) => void;
+  onDeleteEquipmentType?: (type: EquipmentType) => void;
+  onEditEquipment?: (eq: Equipment, workshopId: string) => void;
 }
 
 const rowBase: React.CSSProperties = {
@@ -77,6 +87,15 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
   onShowInfo,
   onAssignEngineers,
   onDeleteEquipment,
+  onEditEnterprise,
+  onDeleteEnterprise,
+  onEditBranch,
+  onDeleteBranch,
+  onEditWorkshop,
+  onDeleteWorkshop,
+  onEditEquipmentType,
+  onDeleteEquipmentType,
+  onEditEquipment,
 }) => (
   <div className="sp-surface" style={{ padding: '16px' }}>
     <div className="mb-3">
@@ -141,6 +160,28 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
             >
               <Users size={14} />
             </button>
+            {onEditEnterprise && (
+              <button
+                type="button"
+                onClick={() => onEditEnterprise(enterprise)}
+                className="ind-btn"
+                style={{ padding: '0 6px', color: 'var(--warning, #f59e0b)' }}
+                title="Редактировать предприятие"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+            {onDeleteEnterprise && (
+              <button
+                type="button"
+                onClick={() => onDeleteEnterprise(enterprise)}
+                className="ind-btn"
+                style={{ padding: '0 6px', color: 'var(--danger, #ef4444)' }}
+                title="Удалить предприятие"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onCreateClick('branch', enterprise.id, enterprise.name)}
@@ -205,6 +246,28 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
                     >
                       <Users size={13} />
                     </button>
+                    {onEditBranch && (
+                      <button
+                        type="button"
+                        onClick={() => onEditBranch(branch)}
+                        className="ind-btn"
+                        style={{ padding: '0 6px', color: 'var(--warning, #f59e0b)' }}
+                        title="Редактировать филиал"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                    {onDeleteBranch && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteBranch(branch)}
+                        className="ind-btn"
+                        style={{ padding: '0 6px', color: 'var(--danger, #ef4444)' }}
+                        title="Удалить филиал"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onCreateClick('workshop', branch.id, branch.name)}
@@ -269,6 +332,28 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
                             >
                               <Users size={12} />
                             </button>
+                            {onEditWorkshop && (
+                              <button
+                                type="button"
+                                onClick={() => onEditWorkshop(workshop)}
+                                className="ind-btn"
+                                style={{ padding: '0 5px', color: 'var(--warning, #f59e0b)' }}
+                                title="Редактировать цех"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
+                            {onDeleteWorkshop && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteWorkshop(workshop)}
+                                className="ind-btn"
+                                style={{ padding: '0 5px', color: 'var(--danger, #ef4444)' }}
+                                title="Удалить цех"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => onCreateClick('equipment', workshop.id, workshop.name)}
@@ -312,21 +397,45 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
                                       {type.name}
                                     </span>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      onPrepareEquipmentCreateFromType(
-                                        workshop.id,
-                                        workshop.name,
-                                        type.id
-                                      )
-                                    }
-                                    className="ind-btn"
-                                    style={{ padding: '0 5px', color: 'var(--accent)' }}
-                                    title="Создать оборудование в этом типе"
-                                  >
-                                    <Plus size={12} />
-                                  </button>
+                                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                                    {onEditEquipmentType && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditEquipmentType(type)}
+                                        className="ind-btn"
+                                        style={{ padding: '0 5px', color: 'var(--warning, #f59e0b)' }}
+                                        title="Редактировать тип"
+                                      >
+                                        <Pencil size={11} />
+                                      </button>
+                                    )}
+                                    {onDeleteEquipmentType && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onDeleteEquipmentType(type)}
+                                        className="ind-btn"
+                                        style={{ padding: '0 5px', color: 'var(--danger, #ef4444)' }}
+                                        title="Удалить тип"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onPrepareEquipmentCreateFromType(
+                                          workshop.id,
+                                          workshop.name,
+                                          type.id
+                                        )
+                                      }
+                                      className="ind-btn"
+                                      style={{ padding: '0 5px', color: 'var(--accent)' }}
+                                      title="Создать оборудование в этом типе"
+                                    >
+                                      <Plus size={12} />
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {expanded[`type_${workshop.id}_${type.id}`] && (
@@ -383,9 +492,20 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
                                             >
                                               <Users size={11} />
                                             </button>
+                                            {onEditEquipment && (
+                                              <button
+                                                type="button"
+                                                onClick={() => onEditEquipment(eq, workshop.id)}
+                                                className="ind-btn"
+                                                style={{ padding: '0 4px', color: 'var(--warning, #f59e0b)' }}
+                                                title="Редактировать оборудование"
+                                              >
+                                                <Pencil size={11} />
+                                              </button>
+                                            )}
                                             <button
                                               type="button"
-                                              onClick={() => onDeleteEquipment(eq.id)}
+                                              onClick={() => onDeleteEquipment(eq.id, workshop.id)}
                                               className="ind-btn"
                                               style={{ padding: '0 4px', color: 'var(--danger)' }}
                                               title="Удалить"

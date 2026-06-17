@@ -75,7 +75,78 @@ class ApiService extends ApiServiceBase
     );
   }
 
-  Future<Map<String, dynamic>?> login(String username, String password) async {
+  static String _parseApiErrorDetail(dynamic detail, {String fallback = 'Ошибка входа'}) {
+    if (detail == null) return fallback;
+    if (detail is String) return detail;
+    if (detail is List && detail.isNotEmpty) {
+      final first = detail.first;
+      if (first is Map && first['msg'] != null) {
+        return first['msg'].toString();
+      }
+      return first.toString();
+    }
+    return detail.toString();
+  }
+
+  static Never _throwLoginHttpError(int statusCode, String body) {
+    String message;
+    try {
+      final errorData = json.decode(body) as Map<String, dynamic>;
+      message = _parseApiErrorDetail(errorData['detail']);
+    } catch (_) {
+      if (statusCode == 423) {
+        message = 'Учётная запись временно заблокирована. Попробуйте позже.';
+      } else if (statusCode >= 500) {
+        message = 'Сервер недоступен. Попробуйте позже.';
+      } else {
+        message = 'Ошибка входа (код $statusCode)';
+      }
+    }
+    throw Exception(message);
+  }
+
+  Future<Map<String, dynamic>> _enrichLoginWithProfile(
+    Map<String, dynamic> data, {
+    required String fallbackUsername,
+  }) async {
+    final token = data['access_token'];
+    if (token == null) return data;
+
+    try {
+      final userResponse = await http
+          .get(
+        Uri.parse('$baseUrl/api/auth/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      )
+          .timeout(_loginTimeout);
+      if (userResponse.statusCode == 200) {
+        final userData = json.decode(userResponse.body) as Map<String, dynamic>;
+        return {
+          ...data,
+          'access_token': token,
+          'user_id': userData['username'],
+          'username': userData['username'],
+          'email': userData['email'],
+          'full_name': userData['full_name'],
+          'role': userData['role'],
+        };
+      }
+    } catch (_) {
+      // профиль необязателен — используем данные из login/2fa
+    }
+
+    return {
+      ...data,
+      'access_token': token,
+      'username': data['username'] ?? fallbackUsername,
+      'role': data['role'],
+    };
+  }
+
+  Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       final response = await http
           .post(
@@ -87,45 +158,28 @@ class ApiService extends ApiServiceBase
           .timeout(_loginTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        if (data['two_factor_required'] == true) {
+          return {
+            'two_factor_required': true,
+            'username': data['username'] ?? username,
+            'role': data['role'],
+          };
+        }
         final token = data['access_token'];
         if (token != null) {
-          try {
-            final userResponse = await http
-                .get(
-              Uri.parse('$baseUrl/api/auth/me'),
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Content-Type': 'application/json',
-              },
-            )
-                .timeout(_loginTimeout);
-            if (userResponse.statusCode == 200) {
-              final userData = json.decode(userResponse.body);
-              return {
-                'access_token': token,
-                'user_id': userData['username'],
-                'username': userData['username'],
-                'email': userData['email'],
-                'full_name': userData['full_name'],
-                'role': userData['role'],
-                'password_hash': data['password_hash'],
-              };
-            }
-          } catch (_) {
-            return {
+          return _enrichLoginWithProfile(
+            {
               'access_token': token,
-              'username': username,
               'role': data['role'],
               'password_hash': data['password_hash'],
-            };
-          }
+            },
+            fallbackUsername: username,
+          );
         }
-        return data;
-      } else {
-        final errorData = json.decode(response.body);
-        throw Exception(errorData['detail'] ?? 'Ошибка входа');
+        throw Exception('Токен не получен от сервера');
       }
+      _throwLoginHttpError(response.statusCode, response.body);
     } on SocketException {
       throw _loginNetworkError();
     } on TimeoutException {
@@ -134,7 +188,53 @@ class ApiService extends ApiServiceBase
       if (_isNetworkFailure(e)) {
         throw _loginNetworkError();
       }
-      throw Exception('Ошибка входа: $e');
+      rethrow;
+    }
+  }
+
+  /// Второй шаг входа при включённой 2FA (TOTP или recovery-код).
+  Future<Map<String, dynamic>> verifyTwoFactorLogin({
+    required String username,
+    required String password,
+    required String code,
+  }) async {
+    try {
+      final response = await http
+          .post(
+        Uri.parse('$baseUrl/api/auth/2fa/verify'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'username': username,
+          'password': password,
+          'code': code.trim(),
+        }),
+      )
+          .timeout(_loginTimeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final token = data['access_token'];
+        if (token == null) {
+          throw Exception('Токен не получен от сервера');
+        }
+        return _enrichLoginWithProfile(
+          {
+            'access_token': token,
+            'role': data['role'],
+          },
+          fallbackUsername: username,
+        );
+      }
+      _throwLoginHttpError(response.statusCode, response.body);
+    } on SocketException {
+      throw _loginNetworkError();
+    } on TimeoutException {
+      throw _loginNetworkError();
+    } catch (e) {
+      if (_isNetworkFailure(e)) {
+        throw _loginNetworkError();
+      }
+      rethrow;
     }
   }
 
@@ -149,7 +249,8 @@ class ApiService extends ApiServiceBase
 
     try {
       final response = await login(creds.username, creds.password);
-      if (response == null || response['access_token'] == null) return false;
+      if (response['two_factor_required'] == true) return false;
+      if (response['access_token'] == null) return false;
       final user = User(
         id: response['user_id']?.toString() ?? creds.username,
         username: response['username'] ?? creds.username,
@@ -375,6 +476,7 @@ class ApiService extends ApiServiceBase
     String? templateName,
     String? equipmentId,
     String? equipmentName,
+    String? assignmentId,
     required Map<String, dynamic> payload,
   }) async {
     await ensureValidToken();
@@ -387,6 +489,7 @@ class ApiService extends ApiServiceBase
       if (templateName != null && templateName.isNotEmpty) 'template_name': templateName,
       if (equipmentId != null && equipmentId.isNotEmpty) 'equipment_id': equipmentId,
       if (equipmentName != null && equipmentName.isNotEmpty) 'equipment_name': equipmentName,
+      if (assignmentId != null && assignmentId.isNotEmpty) 'assignment_id': assignmentId,
       'payload': payload,
     };
     final response = await http
@@ -427,5 +530,249 @@ class ApiService extends ApiServiceBase
       return json.decode(response.body) as List<dynamic>;
     }
     throw Exception('Ошибка загрузки шаблонов: ${response.statusCode}');
+  }
+
+  /// Один шаблон по id (для задания с обязательным шаблоном).
+  Future<Map<String, dynamic>> getProtocolTemplateById(String templateId) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/protocol-templates/$templateId'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    throw Exception('Шаблон не загружен (${response.statusCode}): ${response.body}');
+  }
+
+  /// Шаблон «Быстрый контроль» по коду (qc_vik, qc_emergency, …).
+  Future<Map<String, dynamic>> getQuickControlProtocolTemplate(
+    String quickControlCode,
+  ) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http
+        .get(
+          Uri.parse(
+            '$baseUrl/api/protocol-templates/by-quick-control/${Uri.encodeComponent(quickControlCode)}',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    if (response.statusCode == 404) {
+      throw Exception(
+        'Шаблон «$quickControlCode» не найден на сервере. Обновите backend или выполните seed.',
+      );
+    }
+    throw Exception(
+      'Ошибка загрузки шаблона (${response.statusCode}): ${response.body}',
+    );
+  }
+
+  // ── Опытная база ───────────────────────────────────────────────────────────
+
+  Future<List<dynamic>> getExperienceBaseEntries({
+    String? categoryCode,
+    String? equipmentId,
+    String? assignmentId,
+    String? equipmentKind,
+    String? equipmentMark,
+    String? entryType,
+    bool includeArchetypes = true,
+    String? q,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final qParams = <String, String>{
+      'limit': '100',
+      'include_archetypes': includeArchetypes.toString(),
+    };
+    if (categoryCode != null && categoryCode.isNotEmpty) {
+      qParams['category_code'] = categoryCode;
+    }
+    if (equipmentId != null && equipmentId.isNotEmpty) {
+      qParams['equipment_id'] = equipmentId;
+    }
+    if (assignmentId != null && assignmentId.isNotEmpty) {
+      qParams['assignment_id'] = assignmentId;
+    }
+    if (equipmentKind != null && equipmentKind.isNotEmpty) {
+      qParams['equipment_kind'] = equipmentKind;
+    }
+    if (equipmentMark != null && equipmentMark.isNotEmpty) {
+      qParams['equipment_mark'] = equipmentMark;
+    }
+    if (entryType != null && entryType.isNotEmpty) {
+      qParams['entry_type'] = entryType;
+    }
+    if (q != null && q.isNotEmpty) qParams['q'] = q;
+    final uri = Uri.parse('$baseUrl/api/experience-base/entries')
+        .replace(queryParameters: qParams);
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as List<dynamic>;
+    }
+    throw Exception('Ошибка загрузки опытной базы: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> getExperienceBaseContext({
+    String? assignmentId,
+    String? equipmentId,
+    String? categoryCode,
+    String? equipmentKind,
+    String? equipmentMark,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final qParams = <String, String>{};
+    if (assignmentId != null && assignmentId.isNotEmpty) {
+      qParams['assignment_id'] = assignmentId;
+    }
+    if (equipmentId != null && equipmentId.isNotEmpty) {
+      qParams['equipment_id'] = equipmentId;
+    }
+    if (categoryCode != null && categoryCode.isNotEmpty) {
+      qParams['category_code'] = categoryCode;
+    }
+    if (equipmentKind != null && equipmentKind.isNotEmpty) {
+      qParams['equipment_kind'] = equipmentKind;
+    }
+    if (equipmentMark != null && equipmentMark.isNotEmpty) {
+      qParams['equipment_mark'] = equipmentMark;
+    }
+    final uri = Uri.parse('$baseUrl/api/experience-base/context')
+        .replace(queryParameters: qParams);
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    throw Exception('Контекст опытной базы: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> resolveInspectionObjectTemplates({
+    required String categoryCode,
+    required String inspectionDirection,
+    String? equipmentId,
+    String? equipmentKind,
+    String? equipmentMark,
+    String? equipmentPreset,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final q = <String, String>{
+      'category_code': categoryCode,
+      'inspection_direction': inspectionDirection,
+    };
+    if (equipmentId != null && equipmentId.isNotEmpty) {
+      q['equipment_id'] = equipmentId;
+    }
+    if (equipmentKind != null && equipmentKind.isNotEmpty) {
+      q['equipment_kind'] = equipmentKind;
+    }
+    if (equipmentMark != null && equipmentMark.isNotEmpty) {
+      q['equipment_mark'] = equipmentMark;
+    }
+    if (equipmentPreset != null && equipmentPreset.isNotEmpty) {
+      q['equipment_preset'] = equipmentPreset;
+    }
+    final uri = Uri.parse('$baseUrl/api/inspection-object-templates/resolve')
+        .replace(queryParameters: q);
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    throw Exception('Шаблоны обследования: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> getDiagnosticMenuPublished() async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/diagnostic-menu'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    throw Exception('Ошибка загрузки меню: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> createExperienceBaseEntry({
+    required String categoryCode,
+    required String equipmentKind,
+    String? equipmentMark,
+    required String body,
+    String entryType = 'note',
+    String? title,
+    String? equipmentId,
+    String? assignmentId,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/experience-base/entries'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: json.encode({
+            'category_code': categoryCode,
+            'equipment_kind': equipmentKind,
+            'equipment_mark': equipmentMark,
+            'entry_type': entryType,
+            'title': title,
+            'body': body,
+            if (equipmentId != null && equipmentId.isNotEmpty)
+              'equipment_id': equipmentId,
+            if (assignmentId != null && assignmentId.isNotEmpty)
+              'assignment_id': assignmentId,
+          }),
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode == 201) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    throw Exception('Не удалось сохранить запись: ${response.body}');
   }
 }

@@ -5,7 +5,7 @@ import 'dart:convert';
 
 class DatabaseService {
   static Database? _database;
-  static const int _version = 3;
+  static const int _version = 6;
 
   static Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -113,6 +113,30 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_drawing_templates_equipment_type_id ON drawing_templates(equipment_type_id)',
     );
+
+    await db.execute('''
+      CREATE TABLE pending_standalone_protocols (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE pending_questionnaires (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE pending_questionnaire_ndt (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
   }
 
   static Future<void> _onUpgrade(
@@ -174,6 +198,175 @@ class DatabaseService {
         'CREATE INDEX IF NOT EXISTS idx_drawing_templates_equipment_type_id ON drawing_templates(equipment_type_id)',
       );
     }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS pending_standalone_protocols (
+          id TEXT PRIMARY KEY,
+          data TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+    }
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS pending_questionnaires (
+          id TEXT PRIMARY KEY,
+          data TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+    }
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS pending_questionnaire_ndt (
+          id TEXT PRIMARY KEY,
+          data TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+    }
+  }
+
+  // ── Очередь опросных листов ──
+
+  static String _pendingQuestionnaireId(Map<String, dynamic> data) {
+    final existingId = data['id']?.toString().trim();
+    if (existingId != null && existingId.isNotEmpty) return existingId;
+    final equipmentId = data['equipment_id']?.toString().trim() ?? '';
+    final assignmentId = data['assignment_id']?.toString().trim() ?? '';
+    final serverQid = data['questionnaire_id']?.toString().trim() ?? '';
+    if (serverQid.isNotEmpty) return 'pq_$serverQid';
+    return 'pq_${equipmentId}_${assignmentId}_${DateTime.now().toUtc().millisecondsSinceEpoch}';
+  }
+
+  static Future<List<Map<String, dynamic>>> getPendingQuestionnaires() async {
+    final db = await database;
+    final rows = await db.query('pending_questionnaires');
+    return rows.map((r) {
+      final decoded = jsonDecode(r['data'] as String) as Map<String, dynamic>;
+      return <String, dynamic>{'id': r['id'] as String, ...decoded};
+    }).toList();
+  }
+
+  static Future<void> replacePendingQuestionnaires(
+    List<Map<String, dynamic>> items,
+  ) async {
+    final db = await database;
+    final batch = db.batch();
+    final now = DateTime.now().toUtc().toIso8601String();
+    batch.delete('pending_questionnaires');
+    for (final item in items) {
+      final id = _pendingQuestionnaireId(item);
+      final payload = <String, dynamic>{...item, 'id': id};
+      batch.insert(
+        'pending_questionnaires',
+        {
+          'id': id,
+          'data': jsonEncode(payload),
+          'created_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> clearPendingQuestionnaires() async {
+    final db = await database;
+    await db.delete('pending_questionnaires');
+  }
+
+  // ── Очередь методов НК (для уже синхронизированных опросников) ──
+
+  static String _pendingQuestionnaireNdtId(Map<String, dynamic> data) {
+    final existingId = data['id']?.toString().trim();
+    if (existingId != null && existingId.isNotEmpty) return existingId;
+    return 'qndt_${DateTime.now().toUtc().millisecondsSinceEpoch}';
+  }
+
+  static Future<List<Map<String, dynamic>>> getPendingQuestionnaireNdt() async {
+    final db = await database;
+    final rows = await db.query('pending_questionnaire_ndt');
+    return rows.map((r) {
+      final decoded = jsonDecode(r['data'] as String) as Map<String, dynamic>;
+      return <String, dynamic>{'id': r['id'] as String, ...decoded};
+    }).toList();
+  }
+
+  static Future<void> replacePendingQuestionnaireNdt(
+    List<Map<String, dynamic>> items,
+  ) async {
+    final db = await database;
+    final batch = db.batch();
+    final now = DateTime.now().toUtc().toIso8601String();
+    batch.delete('pending_questionnaire_ndt');
+    for (final item in items) {
+      final id = _pendingQuestionnaireNdtId(item);
+      final payload = <String, dynamic>{...item, 'id': id};
+      batch.insert(
+        'pending_questionnaire_ndt',
+        {
+          'id': id,
+          'data': jsonEncode(payload),
+          'created_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> addPendingQuestionnaireNdt(
+    Map<String, dynamic> item,
+  ) async {
+    final list = await getPendingQuestionnaireNdt();
+    list.add(item);
+    await replacePendingQuestionnaireNdt(list);
+  }
+
+  // ── Очередь автономных протоколов (быстрый контроль, НК, шаблоны) ──
+
+  static String _pendingStandaloneId(Map<String, dynamic> data) {
+    final existingId = data['id']?.toString().trim();
+    if (existingId != null && existingId.isNotEmpty) return existingId;
+    return 'sp_${DateTime.now().toUtc().millisecondsSinceEpoch}';
+  }
+
+  static Future<List<Map<String, dynamic>>> getPendingStandaloneProtocols() async {
+    final db = await database;
+    final rows = await db.query('pending_standalone_protocols');
+    return rows.map((r) {
+      final decoded = jsonDecode(r['data'] as String) as Map<String, dynamic>;
+      return <String, dynamic>{'id': r['id'] as String, ...decoded};
+    }).toList();
+  }
+
+  static Future<void> replacePendingStandaloneProtocols(
+    List<Map<String, dynamic>> items,
+  ) async {
+    final db = await database;
+    final batch = db.batch();
+    final now = DateTime.now().toUtc().toIso8601String();
+    batch.delete('pending_standalone_protocols');
+    for (final item in items) {
+      final id = _pendingStandaloneId(item);
+      final payload = <String, dynamic>{...item, 'id': id};
+      batch.insert(
+        'pending_standalone_protocols',
+        {
+          'id': id,
+          'data': jsonEncode(payload),
+          'created_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> clearPendingStandaloneProtocols() async {
+    final db = await database;
+    await db.delete('pending_standalone_protocols');
   }
 
   // Assignments

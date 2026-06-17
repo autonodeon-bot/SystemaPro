@@ -61,6 +61,10 @@ const CompetenciesManagement = () => {
   
   const [ndtMethods, setNdtMethods] = useState<Array<{code: string, name: string}>>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<Array<{id: string, name: string}>>([]);
+  /** Фильтр списка инженеров по состоянию сертификатов */
+  const [engineerListFilter, setEngineerListFilter] = useState<
+    'all' | 'attention' | 'expiring' | 'expired'
+  >('all');
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -490,6 +494,19 @@ const CompetenciesManagement = () => {
   // Деструктурируем после useMemo с дефолтными значениями
   const { validCount = 0, expiringSoonCount = 0, expiredCount = 0 } = statistics;
 
+  const engineersFiltered = useMemo(() => {
+    return engineers.filter((engineer) => {
+      const engCerts = certifications.filter((c) => c.engineer_id === engineer.id);
+      const hasExpiring = engCerts.some((c) => isCertificationExpiring(c.expiry_date));
+      const hasExpired = engCerts.some((c) => isCertificationExpired(c.expiry_date));
+      if (engineerListFilter === 'all') return true;
+      if (engineerListFilter === 'expired') return hasExpired;
+      if (engineerListFilter === 'expiring') return hasExpiring;
+      if (engineerListFilter === 'attention') return hasExpired || hasExpiring;
+      return true;
+    });
+  }, [engineers, certifications, engineerListFilter]);
+
   if (loading) {
     return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
@@ -623,6 +640,31 @@ const CompetenciesManagement = () => {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-sm text-app-text3 mr-1">Список:</span>
+        {(
+          [
+            { id: 'all' as const, label: 'Все' },
+            { id: 'attention' as const, label: 'Нужно внимание (просрочка или ≤90 дн.)' },
+            { id: 'expiring' as const, label: 'Есть истекающие' },
+            { id: 'expired' as const, label: 'Есть просроченные' },
+          ]
+        ).map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => setEngineerListFilter(opt.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+              engineerListFilter === opt.id
+                ? 'bg-accent text-white border-accent'
+                : 'bg-app-panel text-app-text3 border-app-line hover:border-accent/40'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Форма добавления */}
       {showAddForm && (
         <div className="bg-app-panel p-6 rounded-xl border border-app-line">
@@ -687,8 +729,21 @@ const CompetenciesManagement = () => {
       )}
 
       {/* Список инженеров */}
+      {engineers.length === 0 && (
+        <div className="text-center text-app-text3 py-20">
+          Инженеры не найдены
+        </div>
+      )}
+
+      {engineers.length > 0 && engineersFiltered.length === 0 && (
+        <div className="text-center text-app-text3 py-12 rounded-xl border border-app-line bg-app-panel">
+          Нет инженеров в выбранной категории фильтра. Смените фильтр списка.
+        </div>
+      )}
+
+      {engineersFiltered.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {engineers.map((engineer) => {
+        {engineersFiltered.map((engineer) => {
           const engCerts = getEngineerCertifications(engineer.id);
           const hasExpiringCerts = engCerts.some(c => isCertificationExpiring(c.expiry_date));
           const hasExpiredCerts = engCerts.some(c => isCertificationExpired(c.expiry_date));
@@ -749,11 +804,6 @@ const CompetenciesManagement = () => {
           );
         })}
       </div>
-
-      {engineers.length === 0 && (
-        <div className="text-center text-app-text3 py-20">
-          Инженеры не найдены
-        </div>
       )}
 
       {/* Модальное окно с деталями */}

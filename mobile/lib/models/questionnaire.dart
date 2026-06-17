@@ -3,6 +3,9 @@
 
 
 class Questionnaire {
+  /// Идентификатор записи на сервере (после сохранения).
+  String? id;
+
   String? equipmentId;
   String? equipmentInventoryNumber; // Инвентарный номер
   String? equipmentName; // Наименование оборудования

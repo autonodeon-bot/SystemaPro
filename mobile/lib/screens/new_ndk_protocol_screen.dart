@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_pkg;
 import '../services/auto_save_service.dart';
 import '../services/api_service.dart';
+import '../services/sync_service.dart';
 import '../services/image_resize_service.dart';
 import '../models/vessel_checklist.dart';
 import '../theme/app_colors.dart';
@@ -83,8 +84,17 @@ class _VikDefect {
 class NewNdkProtocolScreen extends StatefulWidget {
   /// При возобновлении черновика — передаём сохранённые данные
   final Map<String, dynamic>? savedDraft;
+  /// Подпись из мастера «Новый протокол» (тип объекта · направление).
+  final String? wizardSubtitle;
+  /// Предвыбор методов НК (VIK, UZT, UZK, PVK) — из меню экспресс-диагностики.
+  final List<String>? preselectedMethodCodes;
 
-  const NewNdkProtocolScreen({super.key, this.savedDraft});
+  const NewNdkProtocolScreen({
+    super.key,
+    this.savedDraft,
+    this.wizardSubtitle,
+    this.preselectedMethodCodes,
+  });
 
   @override
   State<NewNdkProtocolScreen> createState() => _NewNdkProtocolScreenState();
@@ -92,6 +102,7 @@ class NewNdkProtocolScreen extends StatefulWidget {
 
 class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
   final _apiService = ApiService();
+  final _syncService = SyncService();
   final _autoSaveService = AutoSaveService();
   final _imagePicker = ImagePicker();
 
@@ -139,6 +150,11 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
     if (widget.savedDraft != null) {
       _restoreFromDraft(widget.savedDraft!);
     } else {
+      final pre = widget.preselectedMethodCodes;
+      if (pre != null && pre.isNotEmpty) {
+        _selectedMethods.addAll(pre.map((c) => c.toUpperCase()));
+        _step = 1;
+      }
       _loadMyInstruments();
     }
   }
@@ -403,9 +419,25 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF0f172a),
         appBar: AppBar(
-          title: Text(_step == 0
-              ? 'Новый протокол НК'
-              : 'Протокол НК — ${_selectedMethods.join(', ')}'),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_step == 0
+                  ? 'Новый протокол НК'
+                  : 'Протокол НК — ${_selectedMethods.join(', ')}'),
+              if (widget.wizardSubtitle != null &&
+                  widget.wizardSubtitle!.trim().isNotEmpty)
+                Text(
+                  widget.wizardSubtitle!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.normal,
+                    color: Colors.white70,
+                  ),
+                ),
+            ],
+          ),
           backgroundColor: const Color(0xFF1e293b),
           foregroundColor: Colors.white,
           actions: [
@@ -1176,14 +1208,39 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
                 onPressed: () async {
                   await _saveDraft(showMessage: false);
                   var ok = false;
+                  var queuedOffline = false;
+                  final title = _objectCtrl.text.trim().isNotEmpty
+                      ? _objectCtrl.text.trim()
+                      : 'Протокол НК';
                   try {
-                    await _submitStandaloneToServer();
-                    ok = true;
+                    final online = await _apiService.checkConnection();
+                    if (!online) {
+                      await _syncService.saveStandaloneProtocolOffline(
+                        title: title,
+                        kind: 'ndk_protocol',
+                        payload: _toDraftData(),
+                      );
+                      ok = true;
+                      queuedOffline = true;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Нет сети: протокол в очереди. Отправьте на экране «Синхронизация».',
+                            ),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    } else {
+                      await _submitStandaloneToServer();
+                      ok = true;
+                    }
                   } catch (e) {
                     if (mounted) _showError('Сервер: $e');
                   }
                   if (!mounted) return;
-                  if (ok) {
+                  if (ok && !queuedOffline) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(

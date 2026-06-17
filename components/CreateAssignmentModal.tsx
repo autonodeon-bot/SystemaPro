@@ -15,7 +15,8 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
     assigned_to: '',
     priority: 'NORMAL',
     due_date: '',
-    description: ''
+    description: '',
+    protocol_template_id: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,9 +26,34 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [equipmentByWorkshop, setEquipmentByWorkshop] = useState<Record<string, any[]>>({});
   const [loadingHierarchy, setLoadingHierarchy] = useState(true);
+  const [protocolTemplates, setProtocolTemplates] = useState<Array<{ id: string; name: string; category?: string }>>([]);
 
   useEffect(() => {
     loadHierarchy();
+  }, []);
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/protocol-templates?active_only=true`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        setProtocolTemplates(
+          data.map((row: { id?: string; name?: string; category?: string }) => ({
+            id: String(row.id ?? ''),
+            name: String(row.name ?? row.id ?? ''),
+            category: row.category,
+          })).filter((t: { id: string }) => t.id.length > 0),
+        );
+      } catch {
+        /* справочник шаблонов необязателен для создания задания */
+      }
+    };
+    loadTemplates();
   }, []);
 
   const loadHierarchy = async () => {
@@ -269,14 +295,17 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
       const token = localStorage.getItem('token');
       
       const promises = formData.selectedEquipmentIds.map(equipmentId => {
-        const payload = {
+        const payload: Record<string, string | null> = {
           equipment_id: equipmentId,
           assignment_type: formData.assignment_type,
           assigned_to: formData.assigned_to,
           priority: formData.priority,
           due_date: formData.due_date ? `${formData.due_date}T23:59:59` : null,
-          description: formData.description || null
+          description: formData.description || null,
         };
+        if (formData.protocol_template_id.trim()) {
+          payload.protocol_template_id = formData.protocol_template_id.trim();
+        }
 
         return fetch(`${API_BASE}/api/assignments`, {
           method: 'POST',
@@ -502,6 +531,29 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
               <option value="HIGH">Высокий</option>
               <option value="URGENT">Срочный</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app-text2 mb-1">
+              Шаблон протокола (мобильное приложение)
+            </label>
+            <select
+              value={formData.protocol_template_id}
+              onChange={(e) =>
+                setFormData({ ...formData, protocol_template_id: e.target.value })}
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+            >
+              <option value="">Не назначать</option>
+              {protocolTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.category ? ` — ${t.category}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-app-text3 mt-1.5">
+              Если выбран, инженер в «Мониторе» увидит обязательный шаблон при открытии задания.
+            </p>
           </div>
 
           <div>

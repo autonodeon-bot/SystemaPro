@@ -5,6 +5,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../services/sync_service.dart';
 import '../models/questionnaire.dart';
 
 const List<Map<String, String>> NDT_METHODS = [
@@ -46,6 +47,7 @@ class AddNDTMethodScreen extends StatefulWidget {
 class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
   final _formKey = GlobalKey<FormBuilderState>();
   final _apiService = ApiService();
+  final _syncService = SyncService();
   bool _isSubmitting = false;
   String? _selectedMethodCode;
   final List<String> _annotatedImagePaths = [];
@@ -293,6 +295,33 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           'additional_data': _collectMethodSpecificData(),
         };
 
+        final useOfflineQueue = _syncService.isPendingQuestionnaireLocalId(
+              widget.questionnaireId,
+            ) ||
+            !await _apiService.checkConnection();
+
+        if (useOfflineQueue) {
+          await _syncService.queueNdtMethodOffline(
+            questionnaireId: widget.questionnaireId,
+            methodData: methodData,
+            localPhotoPaths: List<String>.from(_annotatedImagePaths),
+            photosAnnotated: true,
+          );
+          if (mounted) {
+            context.pop(true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Метод НК сохранён локально. Фото отправятся при синхронизации.',
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+
         final created = await _apiService.addNDTMethod(
           questionnaireId: widget.questionnaireId,
           methodData: methodData,
@@ -326,6 +355,58 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           );
         }
       } catch (e) {
+        final msg = e.toString();
+        final isNetwork = msg.contains('SocketException') ||
+            msg.contains('Failed host lookup') ||
+            msg.contains('Нет связи') ||
+            msg.contains('Connection');
+        if (isNetwork) {
+          try {
+            final formData = _formKey.currentState!.value;
+            final methodData = {
+              'method_code': _selectedMethodCode ?? formData['method_code'],
+              'method_name': NDT_METHODS.firstWhere(
+                (m) =>
+                    m['code'] ==
+                    (_selectedMethodCode ?? formData['method_code']),
+                orElse: () => {'name': formData['method_name'] ?? ''},
+              )['name'],
+              'is_performed': formData['is_performed'] ?? false,
+              'standard': formData['standard'],
+              'equipment': formData['equipment'],
+              'inspector_name': formData['inspector_name'],
+              'inspector_level': formData['inspector_level'],
+              'results': formData['results'],
+              'defects': formData['defects'],
+              'conclusion': formData['conclusion'],
+              'performed_date': formData['performed_date'] != null
+                  ? (formData['performed_date'] as DateTime)
+                      .toIso8601String()
+                  : null,
+              'photos': <dynamic>[],
+              'additional_data': _collectMethodSpecificData(),
+            };
+            await _syncService.queueNdtMethodOffline(
+              questionnaireId: widget.questionnaireId,
+              methodData: methodData,
+              localPhotoPaths: List<String>.from(_annotatedImagePaths),
+              photosAnnotated: true,
+            );
+            if (mounted) {
+              context.pop(true);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Ошибка сети: метод НК и фото в очереди синхронизации.',
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            }
+            return;
+          } catch (_) {}
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),

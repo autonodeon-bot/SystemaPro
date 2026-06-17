@@ -179,6 +179,15 @@ class AssignmentCard extends StatelessWidget {
                                 color: priCol,
                                 filled: true,
                               ),
+                              if (assignment.protocolTemplateId != null &&
+                                  assignment.protocolTemplateId!.isNotEmpty)
+                                _pill(
+                                  icon: Icons.article_outlined,
+                                  text: assignment.protocolTemplateName ??
+                                      'Шаблон задания',
+                                  color: AppColors.accent,
+                                  filled: true,
+                                ),
                               if (due != null)
                                 _pill(
                                   icon: Icons.calendar_today_outlined,

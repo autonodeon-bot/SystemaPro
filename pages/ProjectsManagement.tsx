@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Plus, Calendar, DollarSign, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText, LayoutGrid, List } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CheckCircle, Clock, XCircle, AlertCircle, BarChart3, TrendingUp, Users, Package, FileText, LayoutGrid, List, Search } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface Client {
@@ -25,6 +25,7 @@ const ProjectsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [projectSearch, setProjectSearch] = useState('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectStatistics, setProjectStatistics] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -250,9 +251,21 @@ const ProjectsManagement = () => {
     return client?.name || 'Неизвестный клиент';
   };
 
-  const filteredProjects = projects.filter(p => 
-    statusFilter === 'ALL' || p.status === statusFilter
-  );
+  const filteredProjects = projects.filter((p) => {
+    if (statusFilter !== 'ALL' && p.status !== statusFilter) return false;
+    const q = projectSearch.trim().toLowerCase();
+    if (q) {
+      const clientName = getClientName(p.client_id).toLowerCase();
+      if (
+        !p.name.toLowerCase().includes(q) &&
+        !(p.description || '').toLowerCase().includes(q) &&
+        !clientName.includes(q)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   if (loading) {
     return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
@@ -306,7 +319,18 @@ const ProjectsManagement = () => {
       )}
 
       {/* Фильтры */}
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-app-text3" size={18} />
+          <input
+            type="search"
+            placeholder="Поиск по названию проекта, описанию, клиенту…"
+            value={projectSearch}
+            onChange={(e) => setProjectSearch(e.target.value)}
+            className="w-full bg-app-panel border border-app-line rounded-lg pl-10 pr-4 py-2 text-app-text text-sm placeholder-app-text3"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setStatusFilter('ALL')}
           className={`px-4 py-2 rounded-lg text-sm font-bold ${
@@ -331,6 +355,7 @@ const ProjectsManagement = () => {
             {getStatusText(status)}
           </button>
         ))}
+        </div>
       </div>
 
       {/* Форма добавления */}

@@ -46,6 +46,9 @@ from mobile_stats_api import router as mobile_stats_router
 from notifications_api import router as notifications_router
 from pipeline_map_api import router as pipeline_map_router
 from protocol_templates_api import router as protocol_templates_router
+from experience_base_api import router as experience_base_router
+from diagnostic_menu_api import router as diagnostic_menu_router
+from inspection_object_templates_api import router as inspection_object_templates_router
 from drawing_templates_api import router as drawing_templates_router
 from standalone_protocols_api import router as standalone_protocols_router
 from diagnostic_engine.api import router as diagnostic_router
@@ -55,7 +58,7 @@ from report_verify_api import router as report_verify_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.32.0",
+    version="3.6.0",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -73,7 +76,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.32.0")
+os.environ.setdefault("APP_VERSION", "3.6.0")
 init_observability(app)
 log = get_logger("main")
 
@@ -149,6 +152,9 @@ app.include_router(mobile_stats_router)
 app.include_router(notifications_router)
 app.include_router(pipeline_map_router)
 app.include_router(protocol_templates_router)
+app.include_router(experience_base_router)
+app.include_router(diagnostic_menu_router)
+app.include_router(inspection_object_templates_router)
 app.include_router(drawing_templates_router)
 app.include_router(standalone_protocols_router)
 app.include_router(diagnostic_router)
@@ -172,10 +178,64 @@ async def startup():
             print(f"⚠️  Warning: Could not create tables: {e}")
 
         await _run_migrations()
+        await _ensure_quick_control_protocol_templates()
+        await _ensure_experience_base_seed()
+        await _ensure_diagnostic_menu_config()
+        await _ensure_inspection_object_templates_seed()
 
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
         traceback.print_exc()
+
+
+async def _ensure_inspection_object_templates_seed() -> None:
+    try:
+        from database import AsyncSessionLocal
+        from inspection_object_templates_api import ensure_inspection_object_templates_seed
+
+        async with AsyncSessionLocal() as session:
+            n = await ensure_inspection_object_templates_seed(session)
+        print(f"✅ Inspection object templates: {n}")
+    except Exception as e:
+        print(f"⚠️  Inspection object templates seed skipped: {e}")
+
+
+async def _ensure_diagnostic_menu_config() -> None:
+    try:
+        from database import AsyncSessionLocal
+        from diagnostic_menu_api import ensure_default_diagnostic_menu
+
+        async with AsyncSessionLocal() as session:
+            await ensure_default_diagnostic_menu(session)
+        print("✅ Diagnostic menu config ensured")
+    except Exception as e:
+        print(f"⚠️  Diagnostic menu config skipped: {e}")
+
+
+async def _ensure_experience_base_seed() -> None:
+    """Справочные архетипы опытной базы (xlsx)."""
+    try:
+        from database import AsyncSessionLocal
+        from experience_base_api import ensure_experience_archetype_seed
+
+        async with AsyncSessionLocal() as session:
+            n = await ensure_experience_archetype_seed(session)
+        print(f"✅ Experience base archetypes: {n}")
+    except Exception as e:
+        print(f"⚠️  Experience base seed skipped: {e}")
+
+
+async def _ensure_quick_control_protocol_templates() -> None:
+    """Опубликованные шаблоны «Быстрый контроль» (идемпотентно при старте API)."""
+    try:
+        from database import AsyncSessionLocal
+        from quick_control_protocol_templates import ensure_quick_control_templates
+
+        async with AsyncSessionLocal() as session:
+            n = await ensure_quick_control_templates(session, created_by="system")
+        print(f"✅ Quick control protocol templates: {n}")
+    except Exception as e:
+        print(f"⚠️  Quick control templates seed skipped: {e}")
 
 
 async def _run_migrations():
@@ -251,6 +311,7 @@ async def _run_migrations():
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS assignment_type VARCHAR(50) DEFAULT 'DIAGNOSTICS'",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS protocol_template_id VARCHAR(64)",
         ]),
         # projects — дедлайн и бюджет (иначе SELECT по ORM падает на старых БД без колонок)
         ("projects deadline budget", [
@@ -403,6 +464,55 @@ async def _run_migrations():
             "CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id)",
             "CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)",
         ]),
+        # project_invoices — счета по проектам (биллинг)
+        ("project_invoices", [
+            """CREATE TABLE IF NOT EXISTS project_invoices (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                invoice_number VARCHAR(100),
+                amount NUMERIC(15, 2) NOT NULL,
+                currency VARCHAR(10) NOT NULL DEFAULT 'RUB',
+                status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                issued_date DATE,
+                due_date DATE,
+                paid_date DATE,
+                description TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_project_invoices_project_id ON project_invoices(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_project_invoices_status ON project_invoices(status)",
+        ]),
+        # project_contracts — договоры по проектам
+        ("project_contracts", [
+            """CREATE TABLE IF NOT EXISTS project_contracts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                contract_number VARCHAR(100),
+                title VARCHAR(500),
+                signed_date DATE,
+                end_date DATE,
+                amount NUMERIC(15, 2),
+                status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_project_contracts_project_id ON project_contracts(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_project_contracts_status ON project_contracts(status)",
+        ]),
+        # project_invoice_payments — частичные/полные оплаты по счетам
+        ("project_invoice_payments", [
+            """CREATE TABLE IF NOT EXISTS project_invoice_payments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                invoice_id UUID NOT NULL REFERENCES project_invoices(id) ON DELETE CASCADE,
+                amount NUMERIC(15, 2) NOT NULL,
+                payment_date DATE NOT NULL,
+                note TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_project_invoice_payments_invoice_id ON project_invoice_payments(invoice_id)",
+        ]),
     ]
 
     for label, sqls in migration_steps:
@@ -517,7 +627,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.32.0", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.6.0", "status": "running"}
 
 
 @app.get("/health")
@@ -552,7 +662,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.32.0")
+    checks["version"] = os.getenv("APP_VERSION", "3.6.0")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}

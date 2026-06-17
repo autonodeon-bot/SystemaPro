@@ -1,6 +1,6 @@
 ﻿import React, { useState, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Outlet, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon, Wallet, Network } from 'lucide-react';
 import {
   APP_VERSION,
   APP_HEADER_TITLE,
@@ -19,9 +19,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const DynamicInspection = lazy(() => import('./pages/DynamicInspection'));
 const TechSpecs = lazy(() => import('./pages/TechSpecs'));
 const EquipmentManagement = lazy(() => import('./pages/EquipmentManagement'));
-const EquipmentHierarchy = lazy(() => import('./pages/EquipmentHierarchy'));
 const EquipmentDetails = lazy(() => import('./pages/EquipmentDetails'));
 const ProjectsManagement = lazy(() => import('./pages/ProjectsManagement'));
+const BillingOverview = lazy(() => import('./pages/BillingOverview'));
 const ResourceManagement = lazy(() => import('./pages/ResourceManagement'));
 const RegulatoryDocuments = lazy(() => import('./pages/RegulatoryDocuments'));
 const CompetenciesManagement = lazy(() => import('./pages/CompetenciesManagement'));
@@ -43,6 +43,8 @@ const PipelineMap = lazy(() => import('./pages/PipelineMap'));
 const ReportsAndExpertise = lazy(() => import('./pages/ReportsAndExpertise'));
 const ProtocolConstructor = lazy(() => import('./pages/ProtocolConstructor'));
 const DrawingTemplatesManager = lazy(() => import('./pages/DrawingTemplatesManager'));
+const DiagnosticMenuManager = lazy(() => import('./pages/DiagnosticMenuManager'));
+const InspectionObjectTemplatesManager = lazy(() => import('./pages/InspectionObjectTemplatesManager'));
 const DefectStatement = lazy(() => import('./pages/DefectStatement'));
 const InspectionsTrash = lazy(() => import('./pages/InspectionsTrash'));
 const InstrumentRegistry = lazy(() => import('./pages/InstrumentRegistry'));
@@ -163,6 +165,10 @@ const Layout: React.FC = () => {
             <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
           )}
 
+          {(user?.role === 'admin' || user?.role === 'chief_operator') && (
+            <SidebarItem to="/billing" icon={Wallet} label={isSidebarOpen ? "Финансы" : ""} />
+          )}
+
           <SidebarItem to="/reports" icon={Sparkles} label={isSidebarOpen ? "Отчёты" : ""} />
 
           {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (
@@ -183,6 +189,8 @@ const Layout: React.FC = () => {
             {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Инструменты</p>}
             <SidebarItem to="/protocol-constructor" icon={Layers} label={isSidebarOpen ? "Конструктор" : ""} />
             <SidebarItem to="/drawing-templates" icon={ImageIcon} label={isSidebarOpen ? "Шаблоны чертежей" : ""} />
+            <SidebarItem to="/diagnostic-menu" icon={Network} label={isSidebarOpen ? "Меню диагностики" : ""} />
+            <SidebarItem to="/inspection-object-templates" icon={ListChecks} label={isSidebarOpen ? "Шаблоны обследования" : ""} />
           </>)}
 
           {user?.role !== 'client' && (
@@ -422,9 +430,10 @@ const App = () => {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/equipment" element={<EquipmentManagement />} />
             <Route path="/equipment/:id" element={<EquipmentDetails />} />
-            <Route path="/equipment-hierarchy" element={<EquipmentHierarchy />} />
+            <Route path="/equipment-hierarchy" element={<EquipmentManagement />} />
             <Route path="/inspections-list" element={<InspectionsList />} />
             <Route path="/projects" element={<ProjectsManagement />} />
+            <Route path="/billing" element={<BillingOverview />} />
             <Route path="/resources" element={<ResourceManagement />} />
             <Route path="/reports" element={<ReportGeneration />} />
             <Route path="/report-viewer/:inspectionId" element={<ReportViewer />} />
@@ -455,6 +464,8 @@ const App = () => {
             <Route path="/reports-expertise" element={<ReportsAndExpertise />} />
             <Route path="/protocol-constructor" element={<ProtocolConstructor />} />
             <Route path="/drawing-templates" element={<DrawingTemplatesManager />} />
+            <Route path="/diagnostic-menu" element={<DiagnosticMenuManager />} />
+            <Route path="/inspection-object-templates" element={<InspectionObjectTemplatesManager />} />
             <Route path="/defect-statement" element={<DefectStatement />} />
             <Route path="/inspections-trash" element={<ProtectedRoute requiredRole="chief_operator"><InspectionsTrash /></ProtectedRoute>} />
             <Route path="*" element={<div className="text-center text-app-text3 mt-20">Раздел в разработке</div>} />

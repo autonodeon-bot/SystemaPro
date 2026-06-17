@@ -8,6 +8,7 @@ import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
 import 'services/api_service.dart';
+import 'services/diagnostic_menu_service.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 import 'router.dart';
@@ -97,6 +98,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService().initialize();
+      DiagnosticMenuService.instance.prefetch();
     });
   }
 

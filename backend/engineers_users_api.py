@@ -1,6 +1,6 @@
 """Engineers, users, and certifications API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,11 +10,138 @@ import uuid as uuid_lib
 from pathlib import Path
 
 from database import get_db
-from auth import verify_token
+from auth import verify_token, hash_password
 from models import Engineer, Certification, User
+from security import enforce_password_policy
 from shared import cache_get, cache_set, cache_invalidate, cert_areas_list
 
 router = APIRouter(tags=["engineers"])
+
+_ALLOWED_USER_ROLES = frozenset(
+    {"admin", "chief_operator", "engineer", "operator", "client"}
+)
+_USER_PHOTO_DIR = Path("/app/uploads/user_photos")
+
+
+def _profile_from_user(user: User) -> Dict[str, Any]:
+    perms = user.permissions if isinstance(user.permissions, dict) else {}
+    profile = perms.get("profile")
+    return profile if isinstance(profile, dict) else {}
+
+
+def _serialize_user(user: User) -> Dict[str, Any]:
+    profile = _profile_from_user(user)
+    photo_url = None
+    if profile.get("photo_path"):
+        photo_url = f"/api/users/{user.id}/photo"
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "engineer_id": str(user.engineer_id) if user.engineer_id else None,
+        "phone": profile.get("phone"),
+        "position": profile.get("position"),
+        "department": profile.get("department"),
+        "photo_url": photo_url,
+        "is_active": bool(user.is_active),
+    }
+
+
+def _parse_bool_form(value: Optional[str], default: bool = True) -> bool:
+    if value is None or str(value).strip() == "":
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _merge_profile_permissions(
+    permissions: Optional[Dict[str, Any]],
+    *,
+    phone: Optional[str] = None,
+    position: Optional[str] = None,
+    department: Optional[str] = None,
+    photo_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    perms: Dict[str, Any] = dict(permissions) if isinstance(permissions, dict) else {}
+    profile: Dict[str, Any] = dict(perms.get("profile") or {})
+    if phone is not None:
+        profile["phone"] = phone.strip() or None
+    if position is not None:
+        profile["position"] = position.strip() or None
+    if department is not None:
+        profile["department"] = department.strip() or None
+    if photo_path is not None:
+        profile["photo_path"] = photo_path
+    perms["profile"] = profile
+    return perms
+
+
+async def _require_admin_or_chief(db: AsyncSession, username: str) -> User:
+    result = await db.execute(select(User).where(User.username == username))
+    current_user = result.scalar_one_or_none()
+    if not current_user or current_user.role not in ("admin", "chief_operator"):
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
+    return current_user
+
+
+async def _resolve_engineer_id(
+    db: AsyncSession,
+    *,
+    engineer_id_raw: Optional[str],
+    role: str,
+    full_name: Optional[str],
+    email: Optional[str],
+    phone: Optional[str],
+    position: Optional[str],
+) -> Optional[uuid_lib.UUID]:
+    if engineer_id_raw and str(engineer_id_raw).strip():
+        try:
+            eng_uuid = uuid_lib.UUID(str(engineer_id_raw).strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Некорректный ID инженера") from exc
+        eng_result = await db.execute(select(Engineer).where(Engineer.id == eng_uuid))
+        if not eng_result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Инженер с указанным ID не найден")
+        return eng_uuid
+
+    if role == "engineer" and (full_name or "").strip():
+        engineer = Engineer(
+            full_name=(full_name or "").strip(),
+            email=(email or "").strip() or None,
+            phone=(phone or "").strip() or None,
+            position=(position or "").strip() or None,
+        )
+        db.add(engineer)
+        await db.flush()
+        cache_invalidate("engineers")
+        return engineer.id
+    return None
+
+
+async def _save_user_photo(user_id: uuid_lib.UUID, photo: UploadFile) -> str:
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if photo.content_type and photo.content_type not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail="Разрешены только изображения JPEG, PNG, WEBP или GIF",
+        )
+    uploads_dir = _USER_PHOTO_DIR / str(user_id)
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = (photo.filename or "photo").replace("\\", "_").replace("/", "_")
+    stored_name = f"{uuid_lib.uuid4()}_{safe_name}"
+    stored_path = uploads_dir / stored_name
+    size = 0
+    with stored_path.open("wb") as handle:
+        while True:
+            chunk = await photo.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            handle.write(chunk)
+    if size == 0:
+        raise HTTPException(status_code=400, detail="Файл фото пустой")
+    return str(stored_path)
 
 
 @router.get("/api/engineers")
@@ -135,23 +262,249 @@ async def get_users(
         result = await db.execute(query.order_by(User.username))
         users = result.scalars().all()
         
-        return {
-            "items": [
-                {
-                    "id": str(u.id),
-                    "username": u.username,
-                    "email": u.email,
-                    "full_name": u.full_name,
-                    "role": u.role,
-                    "engineer_id": str(u.engineer_id) if u.engineer_id else None,
-                }
-                for u in users
-            ]
-        }
+        return {"items": [_serialize_user(u) for u in users]}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get users: {str(e)}")
+
+
+@router.post("/api/users", status_code=201)
+async def create_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    email: Optional[str] = Form(None),
+    full_name: Optional[str] = Form(None),
+    role: str = Form("engineer"),
+    phone: Optional[str] = Form(None),
+    position: Optional[str] = Form(None),
+    department: Optional[str] = Form(None),
+    engineer_id: Optional[str] = Form(None),
+    is_active: Optional[str] = Form("1"),
+    photo: Optional[UploadFile] = File(None),
+    actor: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Создать учётную запись сотрудника (multipart/form-data)."""
+    await _require_admin_or_chief(db, actor)
+
+    username_clean = (username or "").strip()
+    if not username_clean:
+        raise HTTPException(status_code=400, detail="Логин обязателен")
+
+    role_clean = (role or "engineer").strip().lower()
+    if role_clean not in _ALLOWED_USER_ROLES:
+        raise HTTPException(status_code=400, detail=f"Недопустимая роль: {role}")
+
+    enforce_password_policy(password, username=username_clean)
+
+    existing = await db.execute(select(User).where(User.username == username_clean))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Пользователь с таким логином уже существует")
+
+    try:
+        eng_uuid = await _resolve_engineer_id(
+            db,
+            engineer_id_raw=engineer_id,
+            role=role_clean,
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            position=position,
+        )
+
+        permissions = _merge_profile_permissions(
+            None,
+            phone=phone,
+            position=position,
+            department=department,
+        )
+
+        new_user = User(
+            username=username_clean,
+            password_hash=hash_password(password),
+            email=(email or "").strip() or None,
+            full_name=(full_name or "").strip() or None,
+            role=role_clean,
+            engineer_id=eng_uuid,
+            permissions=permissions,
+            is_active=_parse_bool_form(is_active, default=True),
+        )
+        db.add(new_user)
+        await db.flush()
+
+        if photo is not None and photo.filename:
+            photo_path = await _save_user_photo(new_user.id, photo)
+            new_user.permissions = _merge_profile_permissions(
+                new_user.permissions,
+                phone=phone,
+                position=position,
+                department=department,
+                photo_path=photo_path,
+            )
+
+        await db.commit()
+        await db.refresh(new_user)
+        return _serialize_user(new_user)
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось создать сотрудника: {e}") from e
+
+
+@router.put("/api/users/{user_id}")
+async def update_user(
+    user_id: str,
+    email: Optional[str] = Form(None),
+    full_name: Optional[str] = Form(None),
+    role: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    position: Optional[str] = Form(None),
+    department: Optional[str] = Form(None),
+    engineer_id: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    photo: Optional[UploadFile] = File(None),
+    actor: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить учётную запись сотрудника."""
+    await _require_admin_or_chief(db, actor)
+
+    try:
+        user_uuid = uuid_lib.UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID пользователя") from exc
+
+    result = await db.execute(select(User).where(User.id == user_uuid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    try:
+        if email is not None:
+            user.email = email.strip() or None
+        if full_name is not None:
+            user.full_name = full_name.strip() or None
+        if role is not None:
+            role_clean = role.strip().lower()
+            if role_clean not in _ALLOWED_USER_ROLES:
+                raise HTTPException(status_code=400, detail=f"Недопустимая роль: {role}")
+            user.role = role_clean
+        if is_active is not None:
+            user.is_active = _parse_bool_form(is_active, default=True)
+        if password:
+            enforce_password_policy(password, username=user.username)
+            user.password_hash = hash_password(password)
+
+        if engineer_id is not None:
+            eng_raw = str(engineer_id).strip()
+            if eng_raw:
+                user.engineer_id = await _resolve_engineer_id(
+                    db,
+                    engineer_id_raw=eng_raw,
+                    role=user.role,
+                    full_name=user.full_name,
+                    email=user.email,
+                    phone=phone,
+                    position=position,
+                )
+            else:
+                user.engineer_id = None
+
+        photo_path: Optional[str] = None
+        if photo is not None and photo.filename:
+            old_profile = _profile_from_user(user)
+            old_path = old_profile.get("photo_path")
+            if old_path:
+                try:
+                    old_p = Path(old_path)
+                    if old_p.exists():
+                        old_p.unlink()
+                except Exception:
+                    pass
+            photo_path = await _save_user_photo(user.id, photo)
+
+        user.permissions = _merge_profile_permissions(
+            user.permissions,
+            phone=phone,
+            position=position,
+            department=department,
+            photo_path=photo_path,
+        )
+
+        await db.commit()
+        await db.refresh(user)
+        return _serialize_user(user)
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось обновить сотрудника: {e}") from e
+
+
+@router.delete("/api/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    actor: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Деактивировать учётную запись (мягкое удаление)."""
+    await _require_admin_or_chief(db, actor)
+
+    try:
+        user_uuid = uuid_lib.UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID пользователя") from exc
+
+    result = await db.execute(select(User).where(User.id == user_uuid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    if user.username == actor:
+        raise HTTPException(status_code=400, detail="Нельзя удалить свою учётную запись")
+
+    try:
+        user.is_active = False
+        await db.commit()
+        return {"message": "Сотрудник деактивирован", "id": str(user.id)}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Не удалось удалить сотрудника: {e}") from e
+
+
+@router.get("/api/users/{user_id}/photo")
+async def get_user_photo(
+    user_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Фото профиля сотрудника."""
+    await _require_admin_or_chief(db, username)
+
+    try:
+        user_uuid = uuid_lib.UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный ID пользователя") from exc
+
+    result = await db.execute(select(User).where(User.id == user_uuid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    photo_path = _profile_from_user(user).get("photo_path")
+    if not photo_path or not Path(photo_path).exists():
+        raise HTTPException(status_code=404, detail="Фото не найдено")
+
+    return FileResponse(
+        path=photo_path,
+        filename=Path(photo_path).name,
+        media_type="image/jpeg",
+    )
 
 
 @router.post("/api/engineers")

@@ -19,6 +19,7 @@ from models import (
     InspectionEquipment, VerificationEquipment,
 )
 from inspection_utils import create_ndt_methods_from_mobile, update_equipment_attributes_from_inspection
+from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
 from auth import verify_token_optional
 from typing import Optional
 
@@ -135,6 +136,11 @@ async def upload_inspection_archive(
                         assignment_id_parsed = _aid
                 except Exception:
                     pass
+            if assignment_id_parsed and (inspection_data.get("status") or "DRAFT").upper() == "SIGNED":
+                ar_gate = await db.execute(select(Assignment).where(Assignment.id == assignment_id_parsed))
+                _asg_gate = ar_gate.scalar_one_or_none()
+                if _asg_gate:
+                    await assert_mandatory_standalone_protocol_uploaded(db, _asg_gate)
             new_inspection = Inspection(
                 equipment_id=equipment_id,
                 project_id=project_id,

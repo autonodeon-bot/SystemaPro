@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' as intl;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_pkg;
 import '../services/api_service.dart';
+import '../services/sync_service.dart';
 import '../services/auto_save_service.dart';
 import '../services/image_resize_service.dart';
 import '../theme/app_colors.dart';
@@ -14,8 +15,20 @@ import '../theme/app_colors.dart';
 /// П.1.1.4 — «Свой протокол/акт»
 class CustomProtocolScreen extends StatefulWidget {
   final Map<String, dynamic> template;
+  /// Задание, в рамках которого заполняется шаблон (в payload для учёта).
+  final String? assignmentId;
+  /// `custom_template` | `quick_control` — тип standalone на сервере.
+  final String protocolKind;
+  /// Код быстрого контроля (qc_vik, …) для аналитики в payload.
+  final String? quickControlCode;
 
-  const CustomProtocolScreen({super.key, required this.template});
+  const CustomProtocolScreen({
+    super.key,
+    required this.template,
+    this.assignmentId,
+    this.protocolKind = 'custom_template',
+    this.quickControlCode,
+  });
 
   @override
   State<CustomProtocolScreen> createState() => _CustomProtocolScreenState();
@@ -23,6 +36,7 @@ class CustomProtocolScreen extends StatefulWidget {
 
 class _CustomProtocolScreenState extends State<CustomProtocolScreen> {
   final _apiService = ApiService();
+  final _syncService = SyncService();
   final _autoSaveService = AutoSaveService();
   final _imagePicker = ImagePicker();
   late final String _draftId;
@@ -873,17 +887,51 @@ class _CustomProtocolScreenState extends State<CustomProtocolScreen> {
       for (final e in _values.entries) {
         valuesJson[e.key] = _toJsonValue(e.value);
       }
-      await _apiService.submitStandaloneProtocol(
-        title: title.isEmpty ? 'Протокол' : title,
-        kind: 'custom_template',
-        templateId: widget.template['id']?.toString(),
-        templateName: widget.template['name']?.toString(),
-        payload: {
-          'structure': _structure,
-          'values': valuesJson,
-        },
-      );
-      serverOk = true;
+      final payload = <String, dynamic>{
+        'structure': _structure,
+        'values': valuesJson,
+        if (widget.assignmentId != null && widget.assignmentId!.trim().isNotEmpty)
+          'assignment_id': widget.assignmentId!.trim(),
+        if (widget.quickControlCode != null &&
+            widget.quickControlCode!.trim().isNotEmpty)
+          'quick_control_code': widget.quickControlCode!.trim(),
+      };
+      final kind = widget.protocolKind.trim().isEmpty
+          ? 'custom_template'
+          : widget.protocolKind.trim();
+      final online = await _apiService.checkConnection();
+      if (!online) {
+        await _syncService.saveStandaloneProtocolOffline(
+          title: title.isEmpty ? 'Протокол' : title,
+          kind: kind,
+          templateId: widget.template['id']?.toString(),
+          templateName: widget.template['name']?.toString(),
+          assignmentId: widget.assignmentId,
+          payload: payload,
+        );
+        serverOk = true;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Нет сети: протокол в очереди. Отправьте на экране «Синхронизация».',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 6),
+            ),
+          );
+        }
+      } else {
+        await _apiService.submitStandaloneProtocol(
+          title: title.isEmpty ? 'Протокол' : title,
+          kind: kind,
+          templateId: widget.template['id']?.toString(),
+          templateName: widget.template['name']?.toString(),
+          assignmentId: widget.assignmentId,
+          payload: payload,
+        );
+        serverOk = true;
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

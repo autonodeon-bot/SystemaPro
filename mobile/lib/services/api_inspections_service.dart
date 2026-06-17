@@ -136,6 +136,83 @@ mixin ApiInspectionsMixin on ApiServiceBase {
     }
   }
 
+  /// Создание или обновление опросного листа (JSON поле data на сервере).
+  Future<Map<String, dynamic>> saveQuestionnaire({
+    required String equipmentId,
+    required Map<String, dynamic> data,
+    String? assignmentId,
+    String? questionnaireId,
+    String status = 'DRAFT',
+    String? datePerformed,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    if (token == null) {
+      throw Exception('Токен авторизации не найден');
+    }
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+
+    Future<Map<String, dynamic>> parseResponse(http.Response response) async {
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      var msg = 'Код ${response.statusCode}';
+      try {
+        final err = json.decode(response.body);
+        final d = err['detail'];
+        if (d != null) {
+          msg = d is List ? d.map((e) => e.toString()).join('; ') : d.toString();
+        }
+      } catch (_) {}
+      if (response.statusCode == 401) {
+        msg = 'Сессия истекла. Войдите снова.';
+      }
+      throw Exception(msg);
+    }
+
+    if (questionnaireId != null && questionnaireId.isNotEmpty) {
+      final body = <String, dynamic>{
+        'data': data,
+        'status': status,
+        if (datePerformed != null) 'date_performed': datePerformed,
+      };
+      final response = await http
+          .patch(
+            Uri.parse('${ApiServiceBase.baseUrl}/api/questionnaires/$questionnaireId'),
+            headers: headers,
+            body: json.encode(body),
+          )
+          .timeout(ApiServiceBase.requestTimeout, onTimeout: () {
+            throw TimeoutException(
+                'Сервер не ответил за ${ApiServiceBase.requestTimeout.inSeconds} сек.');
+          });
+      return parseResponse(response);
+    }
+
+    final body = <String, dynamic>{
+      'equipment_id': equipmentId,
+      'data': data,
+      'status': status,
+      if (assignmentId != null && assignmentId.isNotEmpty) 'assignment_id': assignmentId,
+      if (datePerformed != null) 'date_performed': datePerformed,
+    };
+    final response = await http
+        .post(
+          Uri.parse('${ApiServiceBase.baseUrl}/api/questionnaires'),
+          headers: headers,
+          body: json.encode(body),
+        )
+        .timeout(ApiServiceBase.requestTimeout, onTimeout: () {
+          throw TimeoutException(
+              'Сервер не ответил за ${ApiServiceBase.requestTimeout.inSeconds} сек.');
+        });
+    return parseResponse(response);
+  }
+
   Future<List<Map<String, dynamic>>> getInspections(String? equipmentId) async {
     try {
       final authService = AuthService();

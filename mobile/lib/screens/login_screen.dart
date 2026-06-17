@@ -119,6 +119,113 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _finishLogin(Map<String, dynamic> response) async {
+    final user = User(
+      id: response['user_id']?.toString() ??
+          response['username']?.toString() ??
+          _usernameController.text.trim(),
+      username: response['username']?.toString() ?? _usernameController.text.trim(),
+      email: response['email'] as String?,
+      fullName: response['full_name'] as String?,
+      role: response['role'] as String?,
+      token: response['access_token'] as String?,
+    );
+
+    await _authService.saveUser(user, passwordHash: response['password_hash'] as String?);
+    await _authService.saveCredentials(
+      _usernameController.text.trim(),
+      _passwordController.text,
+    );
+
+    if (!mounted) return;
+    if (!_biometricEnabled) {
+      final biometricAvailable = await _biometricService.isBiometricAvailable();
+      if (biometricAvailable) {
+        _showBiometricSetupDialog();
+        return;
+      }
+    }
+    context.go('/dashboard');
+  }
+
+  Future<void> _promptTwoFactor({
+    required String username,
+    required String password,
+  }) async {
+    final codeController = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Двухфакторная аутентификация'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Введите 6-значный код из приложения-аутентификатора '
+              'или одноразовый recovery-код.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: codeController,
+              keyboardType: TextInputType.text,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Код 2FA',
+                hintText: '123456',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Подтвердить'),
+          ),
+        ],
+      ),
+    );
+
+    if (submitted != true || !mounted) return;
+
+    final code = codeController.text.trim();
+    if (code.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите код из приложения-аутентификатора'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final response = await _apiService.verifyTwoFactorLogin(
+        username: username,
+        password: password,
+        code: code,
+      );
+      await _finishLogin(response);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -127,52 +234,37 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
       try {
         final response = await _apiService.login(
-          _usernameController.text,
+          _usernameController.text.trim(),
           _passwordController.text,
         );
 
-        if (response != null && response['access_token'] != null) {
-          final user = User(
-            id: response['user_id']?.toString() ?? _usernameController.text,
-            username: _usernameController.text,
-            email: response['email'],
-            fullName: response['full_name'],
-            role: response['role'],
-            token: response['access_token'],
-          );
-
-          // Сохраняем пользователя и учётные данные (логин/пароль) для авто-входа при синхронизации
-          await _authService.saveUser(user, passwordHash: response['password_hash']);
-          await _authService.saveCredentials(_usernameController.text.trim(), _passwordController.text);
-
-          // Предлагаем включить биометрическую аутентификацию
-          if (mounted && !_biometricEnabled) {
-            final biometricAvailable = await _biometricService.isBiometricAvailable();
-            if (biometricAvailable) {
-              _showBiometricSetupDialog();
-            } else {
-              context.go('/dashboard');
-            }
-          } else {
-            if (mounted) {
-              context.go('/dashboard');
-            }
-          }
-        } else {
+        if (response['two_factor_required'] == true) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Неверный логин или пароль'),
-                backgroundColor: Colors.red,
-              ),
+            setState(() => _isLoading = false);
+            await _promptTwoFactor(
+              username: response['username']?.toString() ??
+                  _usernameController.text.trim(),
+              password: _passwordController.text,
             );
           }
+          return;
+        }
+
+        if (response['access_token'] != null) {
+          await _finishLogin(response);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Неверный логин или пароль'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Ошибка входа: $e'),
+              content: Text('$e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -218,6 +310,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       if (authenticated) {
         final user = await _authService.getCurrentUser();
         if (user != null) {
+          await _authService.activateOfflineSession();
+          if (!mounted) return;
           context.go('/dashboard');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -348,6 +442,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     }
 
     if (!mounted) return;
+    await _authService.activateOfflineSession();
+    if (!mounted) return;
     context.go('/dashboard');
   }
 
@@ -457,6 +553,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       );
       return;
     }
+    await _authService.activateOfflineSession();
+    if (!mounted) return;
     context.go('/dashboard');
   }
 
@@ -545,6 +643,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
             backgroundColor: Colors.green,
           ),
         );
+        await _authService.activateOfflineSession();
+        if (!mounted) return;
         context.go('/dashboard');
       }
     }

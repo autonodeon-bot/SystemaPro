@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as Path;
 import '../services/image_resize_service.dart';
 import '../services/api_service.dart';
+import '../services/sync_service.dart';
 import '../services/auto_save_service.dart';
 import '../models/vessel_checklist.dart';
 import '../theme/app_colors.dart';
@@ -30,7 +31,16 @@ class _VikDefect {
 class QuickControlScreen extends StatefulWidget {
   /// При возобновлении черновика — сохранённые данные
   final Map<String, dynamic>? savedDraft;
-  const QuickControlScreen({super.key, this.savedDraft});
+  /// Заголовок AppBar (например, «Экспресс-диагностика НК» с хаба быстрого контроля)
+  final String? appBarTitle;
+  /// 0 — вкладка ВИК, 1 — УЗТ (экспресс-диагностика по методу).
+  final int initialTabIndex;
+  const QuickControlScreen({
+    super.key,
+    this.savedDraft,
+    this.appBarTitle,
+    this.initialTabIndex = 0,
+  });
 
   @override
   State<QuickControlScreen> createState() => _QuickControlScreenState();
@@ -40,6 +50,7 @@ class _QuickControlScreenState extends State<QuickControlScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _apiService = ApiService();
+  final _syncService = SyncService();
   final _autoSaveService = AutoSaveService();
   final _imagePicker = ImagePicker();
   late final String _draftId;
@@ -73,7 +84,8 @@ class _QuickControlScreenState extends State<QuickControlScreen>
     super.initState();
     _draftId = widget.savedDraft?['id'] as String? ??
         'qc_${DateTime.now().millisecondsSinceEpoch}';
-    _tabController = TabController(length: 2, vsync: this);
+    final tab = widget.initialTabIndex.clamp(0, 1);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: tab);
 
     // Восстанавливаем черновик если передан
     if (widget.savedDraft != null) {
@@ -383,7 +395,7 @@ class _QuickControlScreenState extends State<QuickControlScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
       appBar: AppBar(
-        title: const Text('Быстрый контроль ВИК/УЗТ'),
+        title: Text(widget.appBarTitle ?? 'Быстрый контроль ВИК/УЗТ'),
         backgroundColor: const Color(0xFF1e293b),
         foregroundColor: Colors.white,
         bottom: TabBar(
@@ -1072,9 +1084,34 @@ class _QuickControlScreenState extends State<QuickControlScreen>
                   onPressed: () async {
                     await _saveDraft(showMessage: false);
                     var ok = false;
+                    var queuedOffline = false;
+                    final title = _objectCtrl.text.trim().isNotEmpty
+                        ? _objectCtrl.text.trim()
+                        : 'Быстрый контроль ВИК/УЗТ';
                     try {
-                      await _submitStandaloneToServer();
-                      ok = true;
+                      final online = await _apiService.checkConnection();
+                      if (!online) {
+                        await _syncService.saveStandaloneProtocolOffline(
+                          title: title,
+                          kind: 'quick_control',
+                          payload: _toDraftData(),
+                        );
+                        ok = true;
+                        queuedOffline = true;
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Нет сети: протокол в очереди. Отправьте на экране «Синхронизация».',
+                              ),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                      } else {
+                        await _submitStandaloneToServer();
+                        ok = true;
+                      }
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1086,7 +1123,7 @@ class _QuickControlScreenState extends State<QuickControlScreen>
                       }
                     }
                     if (!mounted) return;
-                    if (ok) {
+                    if (ok && !queuedOffline) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(

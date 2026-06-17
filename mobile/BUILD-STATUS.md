@@ -15,6 +15,14 @@
 
 ## Решение проблемы
 
+### Вариант 0: Встроенный JDK в Android Studio (часто убирает SSL к maven/gradle.org)
+
+1. `File` → `Settings` → `Build, Execution, Deployment` → `Build Tools` → `Gradle`
+2. **Gradle JDK** — выберите **Embedded JDK** (JetBrains Runtime) или JDK 17 от Android Studio
+3. `File` → `Sync Project with Gradle Files`
+
+Корпоративный MITM-прокси: может понадобиться импорт корневого сертификата в хранилище доверенных JVM или использование прокси-настроек в `gradle.properties` (`systemProp.http.proxyHost` / `https`).
+
 ### Вариант 1: Скачать Gradle вручную
 
 1. Скачайте Gradle 8.5: https://gradle.org/releases/

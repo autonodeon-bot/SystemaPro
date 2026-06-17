@@ -110,6 +110,14 @@ async def _ensure_table(db: AsyncSession) -> None:
         CREATE UNIQUE INDEX IF NOT EXISTS ux_protocol_template_versions_tpl_ver
         ON protocol_template_versions(template_id, version)
     """))
+    await db.execute(text(
+        "ALTER TABLE protocol_templates ADD COLUMN IF NOT EXISTS quick_control_code TEXT"
+    ))
+    await db.execute(text("""
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_protocol_templates_qc_code
+        ON protocol_templates (quick_control_code)
+        WHERE quick_control_code IS NOT NULL
+    """))
 
 
 def _row_to_dict(row) -> dict:
@@ -211,6 +219,63 @@ async def get_block_types(
 ):
     """Возвращает список доступных типов блоков конструктора."""
     return [{"type": k, "label": v} for k, v in BLOCK_TYPES.items()]
+
+
+# ── GET /api/protocol-templates/by-quick-control/{code} ─────────────────────
+
+@router.get("/api/protocol-templates/by-quick-control/{code}")
+async def get_template_by_quick_control_code(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(verify_token),
+):
+    """Шаблон быстрого контроля по коду (qc_vik, qc_emergency, …)."""
+    try:
+        await _ensure_table(db)
+        result = await db.execute(
+            text(
+                """
+                SELECT * FROM protocol_templates
+                WHERE quick_control_code = :code
+                  AND is_active = TRUE
+                  AND status = 'published'
+                LIMIT 1
+                """
+            ),
+            {"code": code.strip()},
+        )
+        row = result.fetchone()
+        await db.commit()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Шаблон быстрого контроля «{code}» не найден. "
+                "Выполните seed на сервере или обратитесь к администратору.",
+            )
+        return _row_to_dict(row)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("get_template_by_quick_control_code error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/api/protocol-templates/quick-control-codes")
+async def list_quick_control_template_codes(
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(verify_token),
+):
+    """Список опубликованных кодов шаблонов быстрого контроля."""
+    try:
+        await _ensure_table(db)
+        from quick_control_protocol_templates import list_quick_control_codes
+
+        codes = await list_quick_control_codes(db)
+        await db.commit()
+        return {"codes": codes}
+    except Exception as exc:
+        logger.error("list_quick_control_template_codes error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ── GET /api/protocol-templates/{template_id} ────────────────────────────────

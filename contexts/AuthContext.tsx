@@ -38,7 +38,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Проверяем сохраненный токен при загрузке
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    
+
     if (savedToken && savedUser) {
       try {
         const userData = JSON.parse(savedUser);
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await fetch(`${API_BASE}/api/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${tokenToVerify}`,
+          Authorization: `Bearer ${tokenToVerify}`,
           'Content-Type': 'application/json',
         },
       });
@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Получаем информацию о пользователе
       const userResponse = await fetch(`${API_BASE}/api/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -126,7 +126,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       const userData = await userResponse.json();
-      
+
       setToken(accessToken);
       setUser(userData);
       localStorage.setItem('token', accessToken);
@@ -187,14 +187,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-
-
-
-
-
-
-
-
-
-

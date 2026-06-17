@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/material.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -9,9 +8,7 @@ import 'screens/questionnaire_screen.dart';
 import 'screens/opo_survey_screen.dart';
 import 'screens/sync_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/equipment_list_screen.dart';
-import 'screens/assignments_screen.dart';
-import 'screens/opo_list_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/add_ndt_method_screen.dart';
 import 'screens/verification_equipment_selection_screen.dart';
 import 'screens/thickness_measurement_screen.dart';
@@ -65,6 +62,7 @@ final appRouter = GoRouter(
           equipment: extra['equipment'] as Equipment,
           existingQuestionnaire:
               extra['existingQuestionnaire'] as Questionnaire?,
+          assignmentId: extra['assignmentId'] as String?,
         );
       },
     ),
@@ -85,6 +83,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/profile',
       builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
     ),
     GoRoute(
       path: '/add-ndt-method',

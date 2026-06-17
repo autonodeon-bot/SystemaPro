@@ -18,6 +18,10 @@ class SyncService {
   static const String _prefsKeyLastSync = 'last_sync';
   static const String _prefsKeyOfflineMode = 'offline_mode';
 
+  static final RegExp _serverQuestionnaireIdRe = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   final ApiService _apiService = ApiService();
   static const int _uploadArchiveRetryCount = 3;
   static const Duration _uploadArchiveRetryDelay = Duration(seconds: 2);
@@ -374,7 +378,13 @@ class SyncService {
       }
 
       final pendingInspections = await getPendingInspections();
-      if (pendingInspections.isEmpty) {
+      final pendingStandalone = await getPendingStandaloneProtocols();
+      final pendingQuestionnaires = await getPendingQuestionnaires();
+      final pendingQuestionnaireNdt = await getPendingQuestionnaireNdt();
+      if (pendingInspections.isEmpty &&
+          pendingStandalone.isEmpty &&
+          pendingQuestionnaires.isEmpty &&
+          pendingQuestionnaireNdt.isEmpty) {
         result.success = true;
         result.message ??=
             'Синхронизация завершена. Нет данных для отправки на сервер';
@@ -382,17 +392,19 @@ class SyncService {
       }
 
       final prefs = await SharedPreferences.getInstance();
-      final failedInspections = <Map<String, dynamic>>[];
-      final successfulInspections = <Map<String, dynamic>>[];
 
-      // Отправляем и DRAFT, и SIGNED: офлайн-работа должна появляться на сервере после синхронизации.
-      final toSend = List<Map<String, dynamic>>.from(pendingInspections);
-      final totalReports = toSend.length;
+      if (pendingInspections.isNotEmpty) {
+        final failedInspections = <Map<String, dynamic>>[];
+        final successfulInspections = <Map<String, dynamic>>[];
 
-      for (var reportIndex = 0; reportIndex < toSend.length; reportIndex++) {
-        final inspectionData = toSend[reportIndex];
-        String? zipPath;
-        try {
+        // Отправляем и DRAFT, и SIGNED: офлайн-работа должна появляться на сервере после синхронизации.
+        final toSend = List<Map<String, dynamic>>.from(pendingInspections);
+        final totalReports = toSend.length;
+
+        for (var reportIndex = 0; reportIndex < toSend.length; reportIndex++) {
+          final inspectionData = toSend[reportIndex];
+          String? zipPath;
+          try {
           final data = inspectionData['data'] as Map<String, dynamic>? ?? {};
           final rawEqId = inspectionData['equipment_id'];
           final equipmentId = rawEqId != null ? rawEqId.toString().trim() : '';
@@ -461,36 +473,53 @@ class SyncService {
           failedInspections.add(inspectionData);
           result.failedCount++;
         }
-      }
-
-      // Удаляем успешно отправленные инспекции из локального хранилища
-      // Оставляем только неудачные попытки и черновики (DRAFT)
-      final successfulKeys = successfulInspections.map(_queueKey).toSet();
-      final successfulAssignmentEquipment = successfulInspections
-          .where((s) => _nonEmptyString(s['assignment_id']) != null && _nonEmptyString(s['equipment_id']) != null)
-          .map((s) => '${_nonEmptyString(s['assignment_id'])}|${_nonEmptyString(s['equipment_id'])}')
-          .toSet();
-
-      final remainingInspections = pendingInspections.where((item) {
-        final key = _queueKey(item);
-        if (successfulKeys.contains(key)) {
-          return false;
         }
 
-        // После успешной отправки подписанного отчета очищаем связанные локальные записи по тому же assignment/equipment.
-        final assignmentId = _nonEmptyString(item['assignment_id']);
-        final equipmentId = _nonEmptyString(item['equipment_id']);
-        if (assignmentId != null && equipmentId != null) {
-          final pair = '$assignmentId|$equipmentId';
-          if (successfulAssignmentEquipment.contains(pair)) {
+        // Удаляем успешно отправленные инспекции из локального хранилища
+        // Оставляем только неудачные попытки и черновики (DRAFT)
+        final successfulKeys = successfulInspections.map(_queueKey).toSet();
+        final successfulAssignmentEquipment = successfulInspections
+            .where((s) => _nonEmptyString(s['assignment_id']) != null && _nonEmptyString(s['equipment_id']) != null)
+            .map((s) => '${_nonEmptyString(s['assignment_id'])}|${_nonEmptyString(s['equipment_id'])}')
+            .toSet();
+
+        final remainingInspections = pendingInspections.where((item) {
+          final key = _queueKey(item);
+          if (successfulKeys.contains(key)) {
             return false;
           }
-        }
-        return true;
-      }).toList();
-      
-      // Сохраняем только неудачные попытки и черновики
-      await DatabaseService.replacePendingInspections(remainingInspections);
+
+          // После успешной отправки подписанного отчета очищаем связанные локальные записи по тому же assignment/equipment.
+          final assignmentId = _nonEmptyString(item['assignment_id']);
+          final equipmentId = _nonEmptyString(item['equipment_id']);
+          if (assignmentId != null && equipmentId != null) {
+            final pair = '$assignmentId|$equipmentId';
+            if (successfulAssignmentEquipment.contains(pair)) {
+              return false;
+            }
+          }
+          return true;
+        }).toList();
+
+        // Сохраняем только неудачные попытки и черновики
+        await DatabaseService.replacePendingInspections(remainingInspections);
+      }
+
+      final standaloneFailed = await _syncPendingStandaloneProtocols(result);
+      await DatabaseService.replacePendingStandaloneProtocols(standaloneFailed);
+
+      final questionnaireFailed = await _syncPendingQuestionnaires(result);
+      await DatabaseService.replacePendingQuestionnaires(questionnaireFailed);
+
+      final ndtFailed = await _syncPendingQuestionnaireNdt(result);
+      await DatabaseService.replacePendingQuestionnaireNdt(ndtFailed);
+
+      // Дельта заданий после выгрузки — статусы COMPLETED и др. с сервера
+      try {
+        await syncAssignmentsDelta();
+      } catch (e) {
+        print('Дельта-синхронизация заданий: $e');
+      }
 
       // Синхронизация ОПО опросников
       try {
@@ -566,6 +595,399 @@ class SyncService {
     throw Exception(
       'Не удалось отправить архив после $_uploadArchiveRetryCount попыток: $lastError',
     );
+  }
+
+  /// Очередь автономного протокола (быстрый контроль, НК, шаблон) для POST после появления сети.
+  Future<void> saveStandaloneProtocolOffline({
+    required String title,
+    required String kind,
+    String? templateId,
+    String? templateName,
+    String? equipmentId,
+    String? equipmentName,
+    String? assignmentId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final id = 'sp_${DateTime.now().toUtc().millisecondsSinceEpoch}';
+    final item = <String, dynamic>{
+      'id': id,
+      'title': title.trim().isEmpty ? 'Протокол' : title.trim(),
+      'kind': kind,
+      if (templateId != null && templateId.trim().isNotEmpty)
+        'template_id': templateId.trim(),
+      if (templateName != null && templateName.trim().isNotEmpty)
+        'template_name': templateName.trim(),
+      if (equipmentId != null && equipmentId.trim().isNotEmpty)
+        'equipment_id': equipmentId.trim(),
+      if (equipmentName != null && equipmentName.trim().isNotEmpty)
+        'equipment_name': equipmentName.trim(),
+      if (assignmentId != null && assignmentId.trim().isNotEmpty)
+        'assignment_id': assignmentId.trim(),
+      'payload': payload,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    };
+    final existing = await DatabaseService.getPendingStandaloneProtocols();
+    existing.add(item);
+    await DatabaseService.replacePendingStandaloneProtocols(existing);
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingStandaloneProtocols() async {
+    try {
+      return await DatabaseService.getPendingStandaloneProtocols();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Сохранить опросный лист в очередь (офлайн или при ошибке сети).
+  Future<String> saveQuestionnaireOffline({
+    required String equipmentId,
+    required Map<String, dynamic> data,
+    String? assignmentId,
+    String? questionnaireId,
+    String status = 'DRAFT',
+    String? datePerformed,
+    List<Map<String, dynamic>> pendingNdtMethods = const [],
+  }) async {
+    final localId = 'pq_${DateTime.now().toUtc().millisecondsSinceEpoch}';
+    final item = <String, dynamic>{
+      'id': localId,
+      'equipment_id': equipmentId,
+      'data': data,
+      'status': status,
+      if (assignmentId != null && assignmentId.isNotEmpty)
+        'assignment_id': assignmentId,
+      if (questionnaireId != null && questionnaireId.isNotEmpty)
+        'questionnaire_id': questionnaireId,
+      if (datePerformed != null && datePerformed.isNotEmpty)
+        'date_performed': datePerformed,
+      'pending_ndt_methods': pendingNdtMethods,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    };
+    final existing = await getPendingQuestionnaires();
+    final removed = existing.where((e) {
+      final sameEq = e['equipment_id']?.toString() == equipmentId;
+      final sameAsg = (e['assignment_id']?.toString() ?? '') ==
+          (assignmentId ?? '');
+      return sameEq && sameAsg;
+    }).toList();
+    final keptNdt = <Map<String, dynamic>>[];
+    String? preservedLocalId;
+    for (final r in removed) {
+      preservedLocalId ??= r['id']?.toString();
+      final list = r['pending_ndt_methods'];
+      if (list is List) {
+        for (final m in list) {
+          if (m is Map) {
+            keptNdt.add(Map<String, dynamic>.from(m));
+          }
+        }
+      }
+    }
+    final merged = existing.where((e) {
+      final sameEq = e['equipment_id']?.toString() == equipmentId;
+      final sameAsg = (e['assignment_id']?.toString() ?? '') ==
+          (assignmentId ?? '');
+      return !(sameEq && sameAsg);
+    }).toList();
+    item['id'] = preservedLocalId ?? localId;
+    item['pending_ndt_methods'] = [...keptNdt, ...pendingNdtMethods];
+    merged.add(item);
+    await DatabaseService.replacePendingQuestionnaires(merged);
+    return item['id'] as String;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingQuestionnaires() async {
+    try {
+      return await DatabaseService.getPendingQuestionnaires();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingQuestionnaireNdt() async {
+    try {
+      return await DatabaseService.getPendingQuestionnaireNdt();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  bool isServerQuestionnaireId(String? id) {
+    if (id == null || id.trim().isEmpty) return false;
+    return _serverQuestionnaireIdRe.hasMatch(id.trim());
+  }
+
+  bool isPendingQuestionnaireLocalId(String id) =>
+      id.trim().startsWith('pq_');
+
+  /// Поставить метод НК с фото в офлайн-очередь.
+  Future<String> queueNdtMethodOffline({
+    required String questionnaireId,
+    required Map<String, dynamic> methodData,
+    List<String> localPhotoPaths = const [],
+    bool photosAnnotated = true,
+  }) async {
+    final offlinePhotos = await _persistNdtPhotoPaths(
+      localPhotoPaths,
+      annotated: photosAnnotated,
+    );
+    final entry = <String, dynamic>{
+      ...methodData,
+      'photos': <dynamic>[],
+      'offline_photo_paths': offlinePhotos,
+    };
+
+    if (isPendingQuestionnaireLocalId(questionnaireId)) {
+      await _appendNdtToPendingQuestionnaire(questionnaireId, entry);
+      return questionnaireId;
+    }
+
+    final localId = 'qndt_${DateTime.now().toUtc().millisecondsSinceEpoch}';
+    await DatabaseService.addPendingQuestionnaireNdt({
+      'id': localId,
+      'questionnaire_id': questionnaireId,
+      'method_data': entry,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    });
+    return localId;
+  }
+
+  Future<void> _appendNdtToPendingQuestionnaire(
+    String localQuestionnaireId,
+    Map<String, dynamic> methodEntry,
+  ) async {
+    final existing = await getPendingQuestionnaires();
+    final idx = existing.indexWhere(
+      (e) => e['id']?.toString() == localQuestionnaireId,
+    );
+    if (idx < 0) {
+      throw Exception('Опросный лист не найден в локальной очереди');
+    }
+    final item = Map<String, dynamic>.from(existing[idx]);
+    final ndt = <Map<String, dynamic>>[];
+    final rawList = item['pending_ndt_methods'];
+    if (rawList is List) {
+      for (final m in rawList) {
+        if (m is Map) ndt.add(Map<String, dynamic>.from(m));
+      }
+    }
+    ndt.add(methodEntry);
+    item['pending_ndt_methods'] = ndt;
+    existing[idx] = item;
+    await DatabaseService.replacePendingQuestionnaires(existing);
+  }
+
+  Future<List<Map<String, dynamic>>> _persistNdtPhotoPaths(
+    List<String> paths, {
+    bool annotated = true,
+  }) async {
+    if (paths.isEmpty) return [];
+    final dir = await getApplicationDocumentsDirectory();
+    final sub = Directory('${dir.path}/pending_ndt_photos');
+    if (!await sub.exists()) {
+      await sub.create(recursive: true);
+    }
+    final result = <Map<String, dynamic>>[];
+    for (final path in paths) {
+      final src = File(path);
+      if (!await src.exists()) continue;
+      final name =
+          '${DateTime.now().toUtc().millisecondsSinceEpoch}_${Path.basename(path)}';
+      final dest = File('${sub.path}/$name');
+      await src.copy(dest.path);
+      result.add({'path': dest.path, 'annotated': annotated});
+    }
+    return result;
+  }
+
+  Map<String, dynamic> _ndtPayloadForApi(Map<String, dynamic> raw) {
+    final m = Map<String, dynamic>.from(raw);
+    m.remove('offline_photo_paths');
+    m['photos'] ??= <dynamic>[];
+    return m;
+  }
+
+  Future<void> _uploadOfflineNdtPhotos({
+    required String questionnaireId,
+    required String methodId,
+    required List<dynamic>? photoPaths,
+  }) async {
+    if (photoPaths == null || photoPaths.isEmpty) return;
+    for (final item in photoPaths) {
+      if (item is! Map) continue;
+      final path = item['path']?.toString() ?? '';
+      if (path.isEmpty) continue;
+      final file = File(path);
+      if (!file.existsSync()) continue;
+      final annotated = item['annotated'] == true;
+      await _apiService.uploadNdtMethodPhoto(
+        questionnaireId: questionnaireId,
+        methodId: methodId,
+        filePath: path,
+        annotated: annotated,
+      );
+    }
+  }
+
+  Future<String?> _syncSingleNdtMethodEntry({
+    required String questionnaireId,
+    required Map<String, dynamic> rawMethod,
+  }) async {
+    final photoPaths = rawMethod['offline_photo_paths'];
+    final methodData = _ndtPayloadForApi(rawMethod);
+    final created = await _apiService.addNDTMethod(
+      questionnaireId: questionnaireId,
+      methodData: methodData,
+    );
+    final methodId = created['id']?.toString();
+    if (methodId != null && methodId.isNotEmpty) {
+      await _uploadOfflineNdtPhotos(
+        questionnaireId: questionnaireId,
+        methodId: methodId,
+        photoPaths: photoPaths is List ? photoPaths : null,
+      );
+    }
+    return methodId;
+  }
+
+  Future<List<Map<String, dynamic>>> _syncPendingQuestionnaireNdt(
+    SyncResult result,
+  ) async {
+    final pending = await getPendingQuestionnaireNdt();
+    if (pending.isEmpty) return [];
+
+    final failed = <Map<String, dynamic>>[];
+    for (final item in pending) {
+      try {
+        final qid = item['questionnaire_id']?.toString().trim() ?? '';
+        if (!isServerQuestionnaireId(qid)) {
+          failed.add(item);
+          result.failedCount++;
+          continue;
+        }
+        final raw = item['method_data'];
+        if (raw is! Map) {
+          failed.add(item);
+          result.failedCount++;
+          continue;
+        }
+        final methodData = Map<String, dynamic>.from(raw);
+        await _syncSingleNdtMethodEntry(
+          questionnaireId: qid,
+          rawMethod: methodData,
+        );
+        result.syncedCount++;
+      } catch (e) {
+        result.failedCount++;
+        result.lastFailureReason =
+            e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        failed.add(item);
+      }
+    }
+    return failed;
+  }
+
+  Future<List<Map<String, dynamic>>> _syncPendingQuestionnaires(
+    SyncResult result,
+  ) async {
+    final pending = await getPendingQuestionnaires();
+    if (pending.isEmpty) return [];
+
+    final failed = <Map<String, dynamic>>[];
+    for (final item in pending) {
+      try {
+        final equipmentId = item['equipment_id']?.toString().trim() ?? '';
+        if (equipmentId.isEmpty) {
+          failed.add(item);
+          result.failedCount++;
+          continue;
+        }
+        final data = item['data'] is Map
+            ? Map<String, dynamic>.from(item['data'] as Map)
+            : <String, dynamic>{};
+        var serverQid = item['questionnaire_id']?.toString().trim();
+        final assignmentId = item['assignment_id']?.toString().trim();
+        final status = item['status']?.toString() ?? 'DRAFT';
+        final datePerf = item['date_performed']?.toString();
+
+        final response = await _apiService.saveQuestionnaire(
+          equipmentId: equipmentId,
+          data: data,
+          assignmentId:
+              (assignmentId != null && assignmentId.isNotEmpty) ? assignmentId : null,
+          questionnaireId:
+              (serverQid != null && serverQid.isNotEmpty) ? serverQid : null,
+          status: status,
+          datePerformed: datePerf,
+        );
+        serverQid = response['id']?.toString() ?? serverQid;
+        if (serverQid == null || serverQid.isEmpty) {
+          throw Exception('Сервер не вернул id опросного листа');
+        }
+
+        final ndtList = item['pending_ndt_methods'];
+        if (ndtList is List) {
+          for (final raw in ndtList) {
+            if (raw is! Map) continue;
+            await _syncSingleNdtMethodEntry(
+              questionnaireId: serverQid,
+              rawMethod: Map<String, dynamic>.from(raw),
+            );
+          }
+        }
+        result.syncedCount++;
+      } catch (e) {
+        result.failedCount++;
+        result.lastFailureReason =
+            e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        failed.add(item);
+      }
+    }
+    return failed;
+  }
+
+  Future<List<Map<String, dynamic>>> _syncPendingStandaloneProtocols(
+    SyncResult result,
+  ) async {
+    final pending = await getPendingStandaloneProtocols();
+    if (pending.isEmpty) return [];
+
+    final failed = <Map<String, dynamic>>[];
+    for (final item in pending) {
+      try {
+        final payload = item['payload'];
+        final mapPayload = payload is Map<String, dynamic>
+            ? payload
+            : (payload is Map ? Map<String, dynamic>.from(payload) : <String, dynamic>{});
+
+        var aid = item['assignment_id']?.toString().trim();
+        if (aid == null || aid.isEmpty) {
+          final fromPayload = mapPayload['assignment_id']?.toString().trim();
+          if (fromPayload != null && fromPayload.isNotEmpty) {
+            aid = fromPayload;
+          }
+        }
+
+        await _apiService.submitStandaloneProtocol(
+          title: item['title']?.toString() ?? 'Протокол',
+          kind: item['kind']?.toString() ?? 'quick_control',
+          templateId: item['template_id']?.toString(),
+          templateName: item['template_name']?.toString(),
+          equipmentId: item['equipment_id']?.toString(),
+          equipmentName: item['equipment_name']?.toString(),
+          assignmentId: (aid != null && aid.isNotEmpty) ? aid : null,
+          payload: mapPayload,
+        );
+        result.syncedCount++;
+      } catch (e) {
+        result.failedCount++;
+        result.lastFailureReason =
+            e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        failed.add(item);
+      }
+    }
+    return failed;
   }
 
   /// Получить время последней синхронизации
@@ -649,7 +1071,8 @@ class SyncService {
   }
 
   /// Очистить офлайн-данные (при выходе/смене пользователя).
-  /// Очередь неотправленных обследований (pending_inspections) НЕ очищаем,
+  /// Очередь неотправленных обследований (pending_inspections) и автономных
+  /// протоколов (pending_standalone_protocols) НЕ очищаем,
   /// чтобы после повторного входа можно было подключиться и синхронизировать.
   Future<void> clearOfflineCache() async {
     final prefs = await SharedPreferences.getInstance();
@@ -661,6 +1084,7 @@ class SyncService {
   /// Полная очистка, включая очередь неотправленных обследований (только по явному запросу пользователя).
   Future<void> clearOfflineCacheIncludingPending() async {
     await DatabaseService.clearPendingInspections();
+    await DatabaseService.clearPendingStandaloneProtocols();
     await clearOfflineCache();
   }
 

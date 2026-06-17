@@ -699,9 +699,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: TextStyle(color: Colors.white),
               ),
               trailing: const Icon(Icons.chevron_right, color: Colors.white70),
-              onTap: () {
-                // TODO: Переход на экран настроек
-              },
+              onTap: () => context.push('/settings'),
             ),
           ),
           const SizedBox(height: 24),

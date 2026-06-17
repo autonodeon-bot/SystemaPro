@@ -32,6 +32,9 @@ export interface Assignment {
   branch_name?: string | null;
   workshop_id?: string | null;
   workshop_name?: string | null;
+  /** Обязательный шаблон из конструктора протоколов (мобильное приложение) */
+  protocol_template_id?: string | null;
+  protocol_template_name?: string | null;
 }
 
 export interface AssignmentCardProps {
@@ -120,6 +123,14 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
                 <Calendar size={14} />
                 {new Date(assignment.due_date).toLocaleDateString('ru-RU')}
                 {isOverdue && ' (Просрочено!)'}
+              </span>
+            )}
+            {assignment.protocol_template_id && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-200 border border-amber-500/35" title="Шаблон для мобильного протокола">
+                <FileText size={14} />
+                {assignment.protocol_template_name?.trim()
+                  ? assignment.protocol_template_name
+                  : `Шаблон ${assignment.protocol_template_id.slice(0, 8)}…`}
               </span>
             )}
           </div>

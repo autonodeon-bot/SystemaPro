@@ -4,7 +4,7 @@ API для работы с заданиями на диагностику/экс
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, update
+from sqlalchemy import select, and_, or_, func, update, text
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from pydantic import BaseModel
@@ -29,6 +29,7 @@ from models import (
     Opo,
 )
 from auth import verify_token
+from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,25 @@ async def _check_assignment_access(user: User, assignment: Assignment):
     raise HTTPException(status_code=403, detail="Нет доступа к этому заданию")
 
 
+async def _fetch_template_names(db: AsyncSession, template_ids: set) -> dict:
+    """Словарь id шаблона → имя (таблица protocol_templates)."""
+    ids = [str(t).strip() for t in template_ids if t and str(t).strip()]
+    if not ids:
+        return {}
+    placeholders = ", ".join(f":t{i}" for i in range(len(ids)))
+    q = text(f"SELECT id, name FROM protocol_templates WHERE id IN ({placeholders})")
+    params = {f"t{i}": ids[i] for i in range(len(ids))}
+    try:
+        result = await db.execute(q, params)
+        return {
+            str(row[0]): (str(row[1]) if row[1] is not None else "")
+            for row in result.fetchall()
+        }
+    except Exception as exc:
+        logger.warning("protocol_templates batch lookup failed: %s", exc)
+        return {}
+
+
 # Pydantic модели
 class AssignmentCreate(BaseModel):
     equipment_id: str
@@ -81,12 +101,14 @@ class AssignmentCreate(BaseModel):
     priority: Optional[str] = 'NORMAL'
     due_date: Optional[str] = None
     description: Optional[str] = None
+    protocol_template_id: Optional[str] = None
 
 class AssignmentUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     due_date: Optional[str] = None
     description: Optional[str] = None
+    protocol_template_id: Optional[str] = None
 
 class AssignmentsStatusSummaryRequest(BaseModel):
     assignment_ids: List[str]
@@ -116,6 +138,8 @@ class AssignmentResponse(BaseModel):
     opo_id: Optional[str] = None
     opo_name: Optional[str] = None
     opo_code: Optional[str] = None
+    protocol_template_id: Optional[str] = None
+    protocol_template_name: Optional[str] = None
 
 class ObjectEngineerProgress(BaseModel):
     user_id: str
@@ -199,6 +223,17 @@ async def create_assignment(
                 f"Инженер {assigned_user.id} не имеет назначения в иерархии для оборудования {equipment.id}"
             )
 
+        tpl_id_raw = (assignment_data.protocol_template_id or "").strip()
+        if tpl_id_raw:
+            tr = await db.execute(
+                text("SELECT id FROM protocol_templates WHERE id = :id"),
+                {"id": tpl_id_raw},
+            )
+            if tr.fetchone() is None:
+                raise HTTPException(status_code=400, detail="Шаблон протокола не найден")
+        else:
+            tpl_id_raw = None
+
         # Парсим дату
         due_date = None
         if assignment_data.due_date:
@@ -216,7 +251,8 @@ async def create_assignment(
             priority=assignment_data.priority,
             due_date=due_date,
             description=assignment_data.description,
-            status='PENDING'
+            status='PENDING',
+            protocol_template_id=tpl_id_raw,
         )
 
         db.add(new_assignment)
@@ -326,6 +362,13 @@ async def get_assignments(
         result = await db.execute(query)
         assignments = result.scalars().all()
 
+        tid_set = set()
+        for a in assignments:
+            ptid = getattr(a, "protocol_template_id", None)
+            if ptid:
+                tid_set.add(str(ptid))
+        template_map = await _fetch_template_names(db, tid_set)
+
         # --- Batch-загрузка связанных данных (устранение N+1) ---
         equipment_ids = {a.equipment_id for a in assignments}
         user_ids = {a.assigned_to for a in assignments}
@@ -400,6 +443,14 @@ async def get_assignments(
                 "opo_id": str(opo.id) if opo else None,
                 "opo_name": opo.name if opo else None,
                 "opo_code": opo.code if opo else None,
+                "protocol_template_id": str(assignment.protocol_template_id)
+                if getattr(assignment, "protocol_template_id", None)
+                else None,
+                "protocol_template_name": template_map.get(
+                    str(assignment.protocol_template_id)
+                )
+                if getattr(assignment, "protocol_template_id", None)
+                else None,
             })
 
         return assignments_list
@@ -457,6 +508,13 @@ async def get_assignments_sync(
 
         if not assignments:
             return []
+
+        tid_set = set()
+        for a in assignments:
+            ptid = getattr(a, "protocol_template_id", None)
+            if ptid:
+                tid_set.add(str(ptid))
+        template_map = await _fetch_template_names(db, tid_set)
 
         # Batch-загрузка связанных данных
         equipment_ids = {a.equipment_id for a in assignments}
@@ -531,6 +589,14 @@ async def get_assignments_sync(
                 "opo_id": str(opo.id) if opo else None,
                 "opo_name": opo.name if opo else None,
                 "opo_code": opo.code if opo else None,
+                "protocol_template_id": str(assignment.protocol_template_id)
+                if getattr(assignment, "protocol_template_id", None)
+                else None,
+                "protocol_template_name": template_map.get(
+                    str(assignment.protocol_template_id)
+                )
+                if getattr(assignment, "protocol_template_id", None)
+                else None,
             })
 
         return assignments_list
@@ -574,6 +640,12 @@ async def get_assignment(
         )
         assigned_user = assigned_user_result.scalar_one_or_none()
 
+        ptid = getattr(assignment, "protocol_template_id", None)
+        tpl_name = None
+        if ptid:
+            tmap = await _fetch_template_names(db, {str(ptid)})
+            tpl_name = tmap.get(str(ptid))
+
         return {
             "id": str(assignment.id),
             "equipment_id": str(assignment.equipment_id),
@@ -590,6 +662,8 @@ async def get_assignment(
             "created_at": assignment.created_at.isoformat() if assignment.created_at else None,
             "updated_at": assignment.updated_at.isoformat() if assignment.updated_at else None,
             "completed_at": (lambda t: t.isoformat() if t else None)(getattr(assignment, "completed_at", None)),
+            "protocol_template_id": str(ptid) if ptid else None,
+            "protocol_template_name": tpl_name,
         }
 
     except HTTPException:
@@ -634,6 +708,8 @@ async def update_assignment(
 
         # Обновляем поля
         if assignment_data.status:
+            if assignment_data.status == 'COMPLETED':
+                await assert_mandatory_standalone_protocol_uploaded(db, assignment)
             assignment.status = assignment_data.status
             if assignment_data.status == 'COMPLETED':
                 assignment.completed_at = datetime.now(timezone.utc)
@@ -649,6 +725,24 @@ async def update_assignment(
 
         if assignment_data.description is not None:
             assignment.description = assignment_data.description
+
+        if "protocol_template_id" in assignment_data.model_fields_set:
+            if user.role not in OPERATOR_ROLES:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Менять привязку шаблона могут только администратор, старший оператор или оператор",
+                )
+            tid = (assignment_data.protocol_template_id or "").strip()
+            if tid:
+                tr = await db.execute(
+                    text("SELECT id FROM protocol_templates WHERE id = :id"),
+                    {"id": tid},
+                )
+                if tr.fetchone() is None:
+                    raise HTTPException(status_code=400, detail="Шаблон протокола не найден")
+                assignment.protocol_template_id = tid
+            else:
+                assignment.protocol_template_id = None
 
         assignment.updated_at = datetime.now(timezone.utc)
 

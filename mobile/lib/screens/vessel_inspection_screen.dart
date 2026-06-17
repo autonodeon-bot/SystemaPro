@@ -37,6 +37,8 @@ class VesselInspectionScreen extends StatefulWidget {
   final String? assignmentId;
   final String? existingInspectionId;
   final String? inspectionType;
+  /// Предзаполнение из шаблона обследования объекта.
+  final Map<String, dynamic>? initialChecklistJson;
 
   const VesselInspectionScreen({
     super.key,
@@ -44,6 +46,7 @@ class VesselInspectionScreen extends StatefulWidget {
     this.assignmentId,
     this.existingInspectionId,
     this.inspectionType,
+    this.initialChecklistJson,
   });
 
   @override
@@ -121,6 +124,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
 
       _prefillFromEquipment();
+      _applyTemplateDefaults();
 
       Future.microtask(_loadEngineers);
       Future.microtask(_loadOpos);
@@ -600,6 +604,42 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   // ====================================================================
   //  Автозаполнение
   // ====================================================================
+
+  /// Поля шаблона обследования — только если в чек-листе ещё пусто.
+  void _applyTemplateDefaults() {
+    final raw = widget.initialChecklistJson;
+    if (raw == null || raw.isEmpty || _isCompressor) return;
+    try {
+      final tpl = VesselChecklist.fromJson(Map<String, dynamic>.from(raw));
+
+      void mergeStr(String? from, void Function(String v) set, String? current) {
+        if (from != null && from.trim().isNotEmpty &&
+            (current == null || current.trim().isEmpty)) {
+          set(from.trim());
+        }
+      }
+
+      mergeStr(tpl.purpose, (v) => _checklist.purpose = v, _checklist.purpose);
+      mergeStr(
+        tpl.organization,
+        (v) => _checklist.organization = v,
+        _checklist.organization,
+      );
+      mergeStr(
+        tpl.previousInspectionResult,
+        (v) => _checklist.previousInspectionResult = v,
+        _checklist.previousInspectionResult,
+      );
+      mergeStr(tpl.workingMedium, (v) => _checklist.workingMedium = v, _checklist.workingMedium);
+
+      if (tpl.inspectionType != null && tpl.inspectionType!.isNotEmpty) {
+        _checklist.inspectionType = tpl.inspectionType;
+      }
+      _checklist.includeOpoData = tpl.includeOpoData;
+    } catch (e) {
+      debugPrint('Шаблон обследования: $e');
+    }
+  }
 
   void _prefillFromEquipment() {
     final attrs = widget.equipment.attributes ?? {};

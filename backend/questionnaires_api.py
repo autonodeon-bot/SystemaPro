@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -23,6 +23,7 @@ from models import (
     Equipment,
     User,
     QuestionnaireDocumentFile,
+    Assignment,
 )
 from report_generator import ReportGenerator
 from shared import (
@@ -36,6 +37,28 @@ from shared import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["questionnaires"])
+
+
+def _parse_questionnaire_dt(val) -> Optional[datetime]:
+    if val is None or val == "":
+        return None
+    try:
+        return datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+async def _questionnaire_editor_user(db: AsyncSession, username: str) -> User:
+    """Пользователь с правом создавать/редактировать опросные листы (мобильное/web)."""
+    result = await db.execute(
+        select(User).where(or_(User.username == username, User.email == username))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    if user.role not in ("admin", "chief_operator", "operator", "engineer"):
+        raise HTTPException(status_code=403, detail="Недостаточно прав для опросного листа")
+    return user
 
 
 # ========== Опросные листы ==========
@@ -151,6 +174,130 @@ async def get_questionnaire(
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/questionnaires")
+async def create_questionnaire(
+    payload: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Создать опросный лист (структура JSON в поле data — как у мобильного клиента)."""
+    try:
+        user = await _questionnaire_editor_user(db, username)
+        equipment_id_raw = payload.get("equipment_id")
+        data = payload.get("data")
+        if not equipment_id_raw:
+            raise HTTPException(status_code=400, detail="Поле equipment_id обязательно")
+        if data is None or not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="Поле data должно быть объектом JSON")
+        try:
+            eid = uuid_lib.UUID(str(equipment_id_raw))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Неверный формат equipment_id")
+
+        eq_row = (await db.execute(select(Equipment).where(Equipment.id == eid))).scalar_one_or_none()
+        if not eq_row:
+            raise HTTPException(status_code=404, detail="Оборудование не найдено")
+
+        assignment_uuid = None
+        if payload.get("assignment_id"):
+            try:
+                assignment_uuid = uuid_lib.UUID(str(payload.get("assignment_id")))
+            except Exception:
+                raise HTTPException(status_code=400, detail="Неверный формат assignment_id")
+            asn = (
+                await db.execute(select(Assignment).where(Assignment.id == assignment_uuid))
+            ).scalar_one_or_none()
+            if not asn:
+                raise HTTPException(status_code=404, detail="Задание не найдено")
+            if asn.equipment_id != eid:
+                raise HTTPException(status_code=400, detail="Задание относится к другому оборудованию")
+
+        status_raw = payload.get("status") or "DRAFT"
+        status_val = status_raw.strip()[:50] if isinstance(status_raw, str) else "DRAFT"
+
+        dp = _parse_questionnaire_dt(payload.get("date_performed")) or _parse_questionnaire_dt(
+            data.get("inspection_date")
+        )
+
+        new_q = Questionnaire(
+            equipment_id=eid,
+            assignment_id=assignment_uuid,
+            date_performed=dp,
+            status=status_val,
+            data=data,
+            created_by=user.id,
+            updated_by=user.id,
+        )
+        db.add(new_q)
+        await db.commit()
+        await db.refresh(new_q)
+        return {
+            "id": str(new_q.id),
+            "equipment_id": str(new_q.equipment_id),
+            "assignment_id": str(new_q.assignment_id) if new_q.assignment_id else None,
+            "status": new_q.status,
+            "date_performed": new_q.date_performed.isoformat() if new_q.date_performed else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.exception("create_questionnaire")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/api/questionnaires/{questionnaire_id}")
+async def update_questionnaire(
+    questionnaire_id: str,
+    payload: dict,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить JSON опросного листа и при необходимости статус / дату."""
+    try:
+        user = await _questionnaire_editor_user(db, username)
+        try:
+            q_uuid = uuid_lib.UUID(questionnaire_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Неверный формат идентификатора")
+
+        q_row = (await db.execute(select(Questionnaire).where(Questionnaire.id == q_uuid))).scalar_one_or_none()
+        if not q_row:
+            raise HTTPException(status_code=404, detail="Опросный лист не найден")
+
+        if "data" in payload:
+            data = payload.get("data")
+            if data is not None and not isinstance(data, dict):
+                raise HTTPException(status_code=400, detail="Поле data должно быть объектом JSON")
+            if data is not None:
+                q_row.data = data
+
+        if payload.get("status") is not None:
+            s = payload.get("status")
+            q_row.status = (str(s).strip()[:50] if s is not None else q_row.status)
+
+        if payload.get("date_performed") is not None:
+            q_row.date_performed = _parse_questionnaire_dt(payload.get("date_performed"))
+        elif isinstance(payload.get("data"), dict) and payload["data"].get("inspection_date"):
+            q_row.date_performed = _parse_questionnaire_dt(payload["data"]["inspection_date"])
+
+        q_row.updated_by = user.id
+        await db.commit()
+        await db.refresh(q_row)
+        return {
+            "id": str(q_row.id),
+            "equipment_id": str(q_row.equipment_id),
+            "status": q_row.status,
+            "date_performed": q_row.date_performed.isoformat() if q_row.date_performed else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.exception("update_questionnaire")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -15,6 +15,9 @@ import '../widgets/assignments/assignment_dialogs.dart';
 import '../widgets/assignments/assignment_group.dart';
 import '../widgets/assignments/assignments_filters_section.dart';
 import '../widgets/assignments/assignments_grouped_list.dart';
+import 'custom_protocol_screen.dart';
+
+enum _AssignmentEntryChoice { template, inspection, cancel }
 
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({super.key});
@@ -152,6 +155,106 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       'existingInspectionId': existingInspectionId,
       'inspectionType': selectedType,
     });
+  }
+
+  Future<_AssignmentEntryChoice?> _promptAssignmentEntry(Assignment assignment) async {
+    final name = assignment.protocolTemplateName;
+    return showDialog<_AssignmentEntryChoice>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.darkSurface,
+        title: const Text(
+          'Шаблон задания',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          name != null && name.isNotEmpty
+              ? 'К заданию привязан шаблон: $name. Что открыть?'
+              : 'К заданию привязан обязательный шаблон протокола. Что открыть?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _AssignmentEntryChoice.cancel),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, _AssignmentEntryChoice.inspection),
+            child: const Text('Акт ТД / обследование'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(ctx, _AssignmentEntryChoice.template),
+            child: const Text('По шаблону'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openMandatoryTemplate(Assignment assignment) async {
+    final tid = assignment.protocolTemplateId;
+    if (tid == null || tid.isEmpty) return;
+    try {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) =>
+              const Center(child: CircularProgressIndicator()),
+        );
+      }
+      final raw = await _apiService.getProtocolTemplateById(tid);
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      final tpl = Map<String, dynamic>.from(raw);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomProtocolScreen(
+            template: tpl,
+            assignmentId: assignment.id,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Не удалось открыть шаблон: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openInspectionAfterTemplateChoice({
+    required Assignment assignment,
+    required Equipment equipment,
+    String? existingInspectionId,
+  }) async {
+    if (assignment.protocolTemplateId != null &&
+        assignment.protocolTemplateId!.trim().isNotEmpty) {
+      final choice = await _promptAssignmentEntry(assignment);
+      if (!mounted) return;
+      if (choice == null || choice == _AssignmentEntryChoice.cancel) return;
+      if (choice == _AssignmentEntryChoice.template) {
+        await _openMandatoryTemplate(assignment);
+        return;
+      }
+    }
+    await _openInspectionScreen(
+      equipment: equipment,
+      assignmentId: assignment.id,
+      existingInspectionId: existingInspectionId,
+      assignmentType: assignment.assignmentType,
+    );
   }
 
   Future<void> _loadAssignments() async {
@@ -500,11 +603,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   equipmentId: eq.id,
                   title: assignment.equipmentName,
                 );
-                await _openInspectionScreen(
+                await _openInspectionAfterTemplateChoice(
+                  assignment: assignment,
                   equipment: eq,
-                  assignmentId: assignment.id,
                   existingInspectionId: existingInspection['id'] as String,
-                  assignmentType: assignment.assignmentType,
                 );
                 _loadAssignments();
                 _loadRecent();
@@ -516,10 +618,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   equipmentId: eq.id,
                   title: assignment.equipmentName,
                 );
-                await _openInspectionScreen(
+                await _openInspectionAfterTemplateChoice(
+                  assignment: assignment,
                   equipment: eq,
-                  assignmentId: assignment.id,
-                  assignmentType: assignment.assignmentType,
                 );
                 _loadAssignments();
                 _loadRecent();
@@ -527,10 +628,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             }
           } catch (e) {
             if (mounted) {
-              await _openInspectionScreen(
+              await _openInspectionAfterTemplateChoice(
+                assignment: assignment,
                 equipment: eq,
-                assignmentId: assignment.id,
-                assignmentType: assignment.assignmentType,
               );
               _loadAssignments();
               _loadRecent();
@@ -543,10 +643,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           }
         } else if (choice == 'restart') {
           if (mounted) {
-            await _openInspectionScreen(
+            await _openInspectionAfterTemplateChoice(
+              assignment: assignment,
               equipment: eq,
-              assignmentId: assignment.id,
-              assignmentType: assignment.assignmentType,
             );
             _loadAssignments();
             _loadRecent();
@@ -654,10 +753,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           equipmentId: resolvedEquipment.id,
           title: assignment.equipmentName,
         );
-        await _openInspectionScreen(
+        await _openInspectionAfterTemplateChoice(
+          assignment: assignment,
           equipment: resolvedEquipment,
-          assignmentId: assignment.id,
-          assignmentType: assignment.assignmentType,
         );
         _loadAssignments();
         _loadRecent();
@@ -701,11 +799,24 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       }
       return;
     }
-    await _openInspectionScreen(
-      equipment: equipment,
-      assignmentId: item.assignmentId,
-      assignmentType: 'DIAGNOSTICS',
-    );
+    Assignment? asg;
+    try {
+      asg = _assignments.firstWhere((a) => a.id == item.assignmentId);
+    } catch (_) {
+      asg = null;
+    }
+    if (asg != null) {
+      await _openInspectionAfterTemplateChoice(
+        assignment: asg,
+        equipment: equipment,
+      );
+    } else {
+      await _openInspectionScreen(
+        equipment: equipment,
+        assignmentId: item.assignmentId,
+        assignmentType: 'DIAGNOSTICS',
+      );
+    }
     _loadAssignments();
     _loadRecent();
   }

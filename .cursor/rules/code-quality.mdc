@@ -49,4 +49,4 @@ alwaysApply: true
 2. **Отсутствуют тесты** — нужны unit и integration тесты
 3. **Отсутствует CI/CD** — нужен GitHub Actions pipeline
 4. **Нет error boundaries** на frontend
-5. **go_router** подключён но не используется в mobile — унифицировать навигацию
+5. **go_router** в mobile — навигация через `router.dart` и `MaterialApp.router`; новые экраны подключать в `GoRoute`.

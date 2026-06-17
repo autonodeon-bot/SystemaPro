@@ -156,6 +156,54 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+
+class ProjectInvoice(Base):
+    """Счета на оплату, привязанные к проекту (биллинг)."""
+    __tablename__ = "project_invoices"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    invoice_number = Column(String(100), nullable=True)
+    amount = Column(Numeric(15, 2), nullable=False)
+    currency = Column(String(10), nullable=False, default="RUB", server_default="RUB")
+    status = Column(String(30), nullable=False, default="DRAFT", server_default="DRAFT")
+    issued_date = Column(Date, nullable=True)
+    due_date = Column(Date, nullable=True)
+    paid_date = Column(Date, nullable=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class ProjectInvoicePayment(Base):
+    """Факт оплаты по счёту (может быть несколько платежей на один счёт)."""
+    __tablename__ = "project_invoice_payments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("project_invoices.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = Column(Numeric(15, 2), nullable=False)
+    payment_date = Column(Date, nullable=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProjectContract(Base):
+    """Договоры с заказчиком по проекту (биллинг)."""
+    __tablename__ = "project_contracts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    contract_number = Column(String(100), nullable=True)
+    title = Column(String(500), nullable=True)
+    signed_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    amount = Column(Numeric(15, 2), nullable=True)
+    status = Column(String(30), nullable=False, default="ACTIVE", server_default="ACTIVE")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class Engineer(Base):
     """Инженеры"""
     __tablename__ = "engineers"
@@ -274,6 +322,8 @@ class Assignment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # Обязательный шаблон протокола из конструктора (TEXT id в protocol_templates)
+    protocol_template_id = Column(String(64), nullable=True, index=True)
 
 class Inspection(Base):
     """Обследования/инспекции оборудования"""

@@ -3,7 +3,7 @@ import uuid
 import pytest
 from models import (
     EquipmentType, Enterprise, Branch, Workshop, OPO, Equipment,
-    EquipmentResource, PipelineSegment, Client, Project, Engineer,
+    EquipmentResource, PipelineSegment, Client, Project, ProjectInvoice, ProjectInvoicePayment, ProjectContract, Engineer,
     Certification, RegulatoryDocument, User, HierarchyEngineerAssignment,
     Assignment, Inspection, InspectionHistory, RepairJournal,
     ReportTemplate, Report, Questionnaire, QuestionnaireDocumentFile,
@@ -71,6 +71,14 @@ class TestModelDefaults:
         col = Project.__table__.columns['status']
         assert col.default.arg == 'PLANNED'
 
+    def test_project_invoice_status_default(self):
+        col = ProjectInvoice.__table__.columns['status']
+        assert col.default.arg == 'DRAFT'
+
+    def test_project_contract_status_default(self):
+        col = ProjectContract.__table__.columns['status']
+        assert col.default.arg == 'ACTIVE'
+
     def test_questionnaire_status_default(self):
         col = Questionnaire.__table__.columns['status']
         assert col.default.arg == 'DRAFT'
@@ -122,6 +130,9 @@ class TestModelTableNames:
         (PipelineSegment, 'pipeline_segments'),
         (Client, 'clients'),
         (Project, 'projects'),
+        (ProjectInvoice, 'project_invoices'),
+        (ProjectInvoicePayment, 'project_invoice_payments'),
+        (ProjectContract, 'project_contracts'),
         (Engineer, 'engineers'),
         (Certification, 'certifications'),
         (RegulatoryDocument, 'regulatory_documents'),
@@ -152,7 +163,7 @@ class TestModelPrimaryKeys:
 
     @pytest.mark.parametrize('model', [
         EquipmentType, Enterprise, Branch, Workshop, OPO, Equipment,
-        EquipmentResource, PipelineSegment, Client, Project, Engineer,
+        EquipmentResource, PipelineSegment, Client, Project, ProjectInvoice, ProjectInvoicePayment, ProjectContract, Engineer,
         Certification, RegulatoryDocument, User, HierarchyEngineerAssignment,
         Assignment, Inspection, InspectionHistory, RepairJournal,
         ReportTemplate, Report, Questionnaire, QuestionnaireDocumentFile,

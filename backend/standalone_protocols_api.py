@@ -16,11 +16,12 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import text
+from sqlalchemy import text, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import verify_token
 from database import get_db
+from models import Assignment, User
 from standalone_protocol_docx import build_standalone_protocol_docx
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,59 @@ async def _ensure_table(db: AsyncSession) -> None:
             "CREATE INDEX IF NOT EXISTS idx_standalone_protocols_created_at ON standalone_protocols(created_at DESC)"
         )
     )
+    await db.execute(
+        text(
+            """
+            ALTER TABLE standalone_protocols
+            ADD COLUMN IF NOT EXISTS assignment_id UUID REFERENCES assignments(id) ON DELETE SET NULL
+            """
+        )
+    )
+    await db.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_standalone_protocols_assignment_id ON standalone_protocols(assignment_id)"
+        )
+    )
+
+
+async def assert_mandatory_standalone_protocol_uploaded(
+    db: AsyncSession, assignment: Assignment
+) -> None:
+    """Если у задания назначен шаблон протокола — на сервере должна быть запись standalone_protocols."""
+    tpl = getattr(assignment, "protocol_template_id", None)
+    if not tpl or not str(tpl).strip():
+        return
+    await _ensure_table(db)
+    tid = str(tpl).strip()
+    aid = str(assignment.id)
+    r = await db.execute(
+        text(
+            """
+            SELECT 1 FROM standalone_protocols
+            WHERE assignment_id = CAST(:aid AS uuid) AND template_id = :tid
+            LIMIT 1
+            """
+        ),
+        {"aid": aid, "tid": tid},
+    )
+    if r.first() is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Нельзя завершить задание: нет загруженного протокола по назначенному шаблону. "
+                "Отправьте протокол из мобильного приложения и выполните синхронизацию."
+            ),
+        )
+
+
+def _payload_assignment_id(payload: Any) -> Optional[str]:
+    if not isinstance(payload, dict):
+        return None
+    v = payload.get("assignment_id")
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s if s else None
 
 
 async def _user_can_see_all(db: AsyncSession, username: str) -> bool:
@@ -82,6 +136,7 @@ class StandaloneProtocolCreate(BaseModel):
     template_name: Optional[str] = None
     equipment_id: Optional[str] = None
     equipment_name: Optional[str] = None
+    assignment_id: Optional[str] = None
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -92,14 +147,51 @@ async def create_standalone_protocol(
     db: AsyncSession = Depends(get_db),
 ):
     await _ensure_table(db)
+    resolved_assignment = (body.assignment_id or "").strip() or _payload_assignment_id(body.payload)
+    assignment_uuid = None
+    if resolved_assignment:
+        try:
+            assignment_uuid = uuid.UUID(resolved_assignment)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Некорректный assignment_id") from None
+        ar = await db.execute(select(Assignment).where(Assignment.id == assignment_uuid))
+        asg = ar.scalar_one_or_none()
+        if not asg:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        ur = await db.execute(
+            select(User).where(or_(User.username == username, User.email == username))
+        )
+        current_user = ur.scalar_one_or_none()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Пользователь не найден")
+        if current_user.role not in ("admin", "chief_operator", "operator"):
+            if asg.assigned_to != current_user.id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Протокол с привязкой к заданию может отправить только назначенный исполнитель",
+                )
+        req_tpl = (asg.protocol_template_id or "").strip()
+        if req_tpl:
+            got_tpl = (body.template_id or "").strip()
+            if got_tpl != req_tpl:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Шаблон протокола должен совпадать с шаблоном, назначенным в задании",
+                )
+        if body.equipment_id and str(asg.equipment_id) != str(body.equipment_id).strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Оборудование протокола не совпадает с оборудованием в задании",
+            )
+
     pid = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     await db.execute(
         text("""
         INSERT INTO standalone_protocols
-          (id, created_by, title, kind, template_id, template_name, equipment_id, equipment_name, payload, status, created_at, updated_at)
+          (id, created_by, title, kind, template_id, template_name, equipment_id, equipment_name, assignment_id, payload, status, created_at, updated_at)
         VALUES
-          (:id, :created_by, :title, :kind, :template_id, :template_name, :equipment_id, :equipment_name, CAST(:payload AS jsonb), 'completed', :created_at, :updated_at)
+          (:id, :created_by, :title, :kind, :template_id, :template_name, :equipment_id, :equipment_name, :assignment_id, CAST(:payload AS jsonb), 'completed', :created_at, :updated_at)
         """),
         {
             "id": pid,
@@ -110,6 +202,7 @@ async def create_standalone_protocol(
             "template_name": body.template_name,
             "equipment_id": body.equipment_id,
             "equipment_name": body.equipment_name,
+            "assignment_id": str(assignment_uuid) if assignment_uuid else None,
             "payload": json.dumps(body.payload, ensure_ascii=False),
             "created_at": now,
             "updated_at": now,
@@ -134,7 +227,7 @@ async def list_standalone_protocols(
     if broad:
         r = await db.execute(
             text("""
-            SELECT id, created_by, title, kind, template_id, template_name, equipment_id, equipment_name, status, created_at, updated_at
+            SELECT id, created_by, title, kind, template_id, template_name, equipment_id, equipment_name, assignment_id, status, created_at, updated_at
             FROM standalone_protocols
             ORDER BY created_at DESC
             LIMIT 500
@@ -143,7 +236,7 @@ async def list_standalone_protocols(
     else:
         r = await db.execute(
             text("""
-            SELECT id, created_by, title, kind, template_id, template_name, equipment_id, equipment_name, status, created_at, updated_at
+            SELECT id, created_by, title, kind, template_id, template_name, equipment_id, equipment_name, assignment_id, status, created_at, updated_at
             FROM standalone_protocols
             WHERE created_by = :u
             ORDER BY created_at DESC

@@ -9,7 +9,7 @@
  *  - Координаты точек — в процентах (0-100) от размеров оригинального изображения
  *  - Зум/пан через wheel и middle-drag
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Upload, Trash2, Edit3, Save, Plus, X, ArrowLeft, Image as ImageIcon,
   Target, Search, Filter, ZoomIn, ZoomOut, RotateCcw,
@@ -116,6 +116,10 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<string>('vessel');
   const [equipmentTypeId, setEquipmentTypeId] = useState<string>('');
+  const [equipmentInstanceId, setEquipmentInstanceId] = useState<string>('');
+  const [equipmentInstances, setEquipmentInstances] = useState<
+    { id: string; name: string; equipment_code?: string }[]
+  >([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dragOver = useRef(false);
@@ -127,6 +131,23 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const d = await apiJson<{ items: { id: string; name: string; equipment_code?: string }[] }>(
+          '/api/equipment?limit=500',
+        );
+        if (!cancelled) setEquipmentInstances(d.items || []);
+      } catch {
+        if (!cancelled) setEquipmentInstances([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pickFile = (f: File | null) => {
     if (!f) return;
@@ -157,6 +178,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
       if (description.trim()) fd.append('description', description.trim());
       if (category) fd.append('category', category);
       if (equipmentTypeId) fd.append('equipment_type_id', equipmentTypeId);
+      if (equipmentInstanceId) fd.append('equipment_id', equipmentInstanceId);
 
       const res = await fetch(`${API_BASE}/api/drawing-templates`, {
         method: 'POST',
@@ -265,6 +287,25 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onCreated, equipment
               </select>
               <p className="text-xs text-[var(--text-muted)] mt-1">
                 Если выбран тип, шаблон удобнее подбирать к конкретным единицам этого типа; пусто — для любого оборудования.
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="ind-label">Единица оборудования (опционально)</label>
+              <select
+                className="ind-input"
+                value={equipmentInstanceId}
+                onChange={(e) => setEquipmentInstanceId(e.target.value)}
+              >
+                <option value="">— Не привязывать к конкретной единице —</option>
+                {equipmentInstances.map((eq) => (
+                  <option key={eq.id} value={eq.id}>
+                    {(eq.equipment_code ? `${eq.equipment_code} — ` : '') + eq.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Индивидуальный чертёж для выбранного объекта; в списке заданий и на мобильном подставится при
+                совпадении equipment_id.
               </p>
             </div>
             <div className="md:col-span-2">
@@ -705,13 +746,26 @@ const DrawingTemplatesManager: React.FC = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editorId, setEditorId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [equipmentTypeListFilter, setEquipmentTypeListFilter] = useState<string>('');
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search), 320);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      params.set('active_only', 'true');
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
+      if (categoryFilter) params.set('category', categoryFilter);
+      if (equipmentTypeListFilter) params.set('equipment_type_id', equipmentTypeListFilter);
+      const qs = params.toString();
       const [list, types] = await Promise.all([
-        apiJson<{ items: DrawingTemplateSummary[] }>('/api/drawing-templates?active_only=true'),
+        apiJson<{ items: DrawingTemplateSummary[] }>(`/api/drawing-templates?${qs}`),
         apiJson<EquipmentType[] | { items: EquipmentType[] }>('/api/equipment-types').catch(() => ({ items: [] })),
       ]);
       setItems(list.items || []);
@@ -723,30 +777,17 @@ const DrawingTemplatesManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedSearch, categoryFilter, equipmentTypeListFilter]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const filtered = useMemo(() => {
-    return items.filter((t) => {
-      if (categoryFilter && t.category !== categoryFilter) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        return (
-          t.name.toLowerCase().includes(s) ||
-          (t.equipment_type_name || '').toLowerCase().includes(s) ||
-          (t.equipment_name || '').toLowerCase().includes(s)
-        );
-      }
-      return true;
-    });
-  }, [items, search, categoryFilter]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const removeTemplate = async (id: string) => {
     if (!confirm('Удалить шаблон? (soft-delete, можно восстановить)')) return;
     try {
       await apiJson(`/api/drawing-templates/${id}`, { method: 'DELETE' });
-      setItems((prev) => prev.filter((t) => t.id !== id));
+      await load();
     } catch (e) {
       alert(`Ошибка: ${(e as Error).message}`);
     }
@@ -782,7 +823,7 @@ const DrawingTemplatesManager: React.FC = () => {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               className="ind-input pl-9"
-              placeholder="Поиск по названию, типу оборудования..."
+              placeholder="Поиск по названию и описанию (на сервере)…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -801,8 +842,22 @@ const DrawingTemplatesManager: React.FC = () => {
               ))}
             </select>
           </div>
+          <div className="flex items-center gap-2 min-w-[220px]">
+            <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">Тип ОВ</span>
+            <select
+              className="ind-input flex-1"
+              value={equipmentTypeListFilter}
+              onChange={(e) => setEquipmentTypeListFilter(e.target.value)}
+              title="Шаблоны для типа + универсальные"
+            >
+              <option value="">Все / универсальные</option>
+              {equipmentTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="ind-chip ind-mono">
-            {filtered.length} / {items.length}
+            {items.length} шт.
           </div>
         </div>
       </div>
@@ -815,7 +870,7 @@ const DrawingTemplatesManager: React.FC = () => {
             <li>Выберите PNG или JPEG (до 10 МБ) или перетащите файл в область загрузки.</li>
             <li>Укажите название, при необходимости описание.</li>
             <li>В поле «Категория чертежа» выберите вид схемы (сосуды, трубопроводы, схема НК и т.д.).</li>
-            <li>При необходимости укажите тип оборудования из справочника или оставьте универсальный шаблон.</li>
+            <li>При необходимости укажите тип оборудования, или привяжите чертёж к конкретной единице из списка.</li>
             <li>После создания откройте редактор точек и расставьте точки замера на изображении.</li>
           </ol>
         </div>
@@ -823,15 +878,24 @@ const DrawingTemplatesManager: React.FC = () => {
 
       {/* Table */}
       <div className="ind-panel">
-        {loading ? (
-          <div className="ind-panel-body text-center text-[var(--text-muted)]">Загрузка...</div>
-        ) : filtered.length === 0 ? (
-          <div className="ind-panel-body text-center text-[var(--text-muted)] py-12">
-            <ImageIcon size={40} className="mx-auto mb-3 opacity-50" />
-            <div className="text-sm">Шаблонов пока нет</div>
-            <div className="text-xs mt-1">Загрузите первый чертёж, чтобы начать работу</div>
-          </div>
-        ) : (
+        {(() => {
+          const filtersActive =
+            Boolean(debouncedSearch.trim()) || Boolean(categoryFilter) || Boolean(equipmentTypeListFilter);
+          return loading ? (
+            <div className="ind-panel-body text-center text-[var(--text-muted)]">Загрузка...</div>
+          ) : items.length === 0 ? (
+            <div className="ind-panel-body text-center text-[var(--text-muted)] py-12">
+              <ImageIcon size={40} className="mx-auto mb-3 opacity-50" />
+              <div className="text-sm">
+                {filtersActive ? 'Нет шаблонов по текущим фильтрам' : 'Шаблонов пока нет'}
+              </div>
+              <div className="text-xs mt-1">
+                {filtersActive
+                  ? 'Измените поиск / категорию / тип ОВ или сбросьте фильтры'
+                  : 'Загрузите первый чертёж, чтобы начать работу'}
+              </div>
+            </div>
+          ) : (
           <table className="ind-table">
             <thead>
               <tr>
@@ -847,7 +911,7 @@ const DrawingTemplatesManager: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t) => (
+              {items.map((t) => (
                 <tr key={t.id}>
                   <td>
                     <div
@@ -913,18 +977,16 @@ const DrawingTemplatesManager: React.FC = () => {
               ))}
             </tbody>
           </table>
-        )}
+          );
+        })()}
       </div>
 
       {uploadOpen && (
         <UploadModal
           onClose={() => setUploadOpen(false)}
-          onCreated={(t) => {
+          onCreated={async (t) => {
             setUploadOpen(false);
-            setItems((prev) => [
-              { ...t, points_count: t.points?.length ?? 0 },
-              ...prev,
-            ]);
+            await load();
             setEditorId(t.id);
           }}
           equipmentTypes={equipmentTypes}

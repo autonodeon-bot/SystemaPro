@@ -37,6 +37,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _loadData() async {
     final pending = await _syncService.getPendingInspections();
+    final pendingStandalone = await _syncService.getPendingStandaloneProtocols();
+    final pendingQuestionnaires = await _syncService.getPendingQuestionnaires();
+    final pendingQuestionnaireNdt =
+        await _syncService.getPendingQuestionnaireNdt();
     final lastSync = await _syncService.getLastSyncTime();
     await _checkConnection();
     
@@ -61,7 +65,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     }
     
     setState(() {
-      _pendingCount = pending.length;
+      _pendingCount = pending.length +
+          pendingStandalone.length +
+          pendingQuestionnaires.length +
+          pendingQuestionnaireNdt.length;
       _lastSyncTime = lastSync;
       _draftCount = draftCount;
       _signedCount = signedCount;
@@ -639,7 +646,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '• Офлайн — данные копятся локально в очереди.\n'
+                '• Офлайн — в очереди: обследования (ZIP), автономные протоколы, опросные листы, методы НК с фото.\n'
+                '• После отправки обновляются задания и справочники на сервере.\n'
                 '• Часть файлов не ушла? Нажмите «Синхронизировать» снова.\n'
                 '• При ошибке авторизации — перелогиньтесь и повторите.\n'
                 '• Для больших фото лучше Wi-Fi или стабильный 4G.',
