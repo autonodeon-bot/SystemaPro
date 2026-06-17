@@ -55,7 +55,7 @@ def _fgis_vri_search(query: str, rows: int = 40) -> List[Dict[str, Any]]:
         url,
         headers={
             "Accept": "application/json",
-            "User-Agent": "SystemaPro-Monitor/3.6.0 (verification lookup)",
+            "User-Agent": "SystemaPro-Monitor/3.7.0 (verification lookup)",
         },
     )
     ctx = ssl.create_default_context()

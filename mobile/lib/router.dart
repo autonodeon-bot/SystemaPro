@@ -16,6 +16,7 @@ import 'screens/image_annotation_screen.dart';
 import 'screens/weld_defect_annotation_screen.dart';
 import 'screens/drawing_template_picker_screen.dart';
 import 'screens/drawing_annotation_screen.dart';
+import 'screens/equipment_hierarchy_admin_screen.dart';
 import 'models/equipment.dart';
 import 'models/questionnaire.dart';
 import 'models/vessel_checklist.dart';
@@ -158,6 +159,10 @@ final appRouter = GoRouter(
           existingMeasurements: extra['existingMeasurements'] as Map<String, double>?,
         );
       },
+    ),
+    GoRoute(
+      path: '/equipment-hierarchy-admin',
+      builder: (context, state) => const EquipmentHierarchyAdminScreen(),
     ),
   ],
 );

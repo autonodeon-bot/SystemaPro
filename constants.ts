@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.6.0';
+export const APP_VERSION = '3.7.0';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -300,7 +300,7 @@ export const RELEASE_NOTES_DATE = '06.05.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
-  'Релиз 3.6.0: матрица обследований xlsx, шаблоны объектов, опытная база, меню диагностики с сервера; APK 3.6.0+36.',
+  'Релиз 3.7.0: CRUD иерархии оборудования, автосохранение чек-листа, мульти-документы; APK 3.7.0+37.',
   'Релиз 3.31.0: протоколы с телефона на сервер и скачивание DOCX без чек-листа (веб → Генерация отчётов); отступы Safe Area для нижних кнопок на Android.',
   'Патч 3.30.2: светлая тема для проектов и модалок поверок; статистика использования поверочного оборудования; проверка в ФГИС «Аршин»; синхронизация версий.',
   'Патч 3.30.1: скрипт seed_demo_data.py для полного демо-стенда (иерархия, задания, обследования, шаблоны, реестр приборов)',
@@ -333,8 +333,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.6.0';
-export const MOBILE_APP_BUILD = '36';
+export const MOBILE_APP_VERSION = '3.7.0';
+export const MOBILE_APP_BUILD = '37';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

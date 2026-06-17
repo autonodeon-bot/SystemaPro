@@ -108,6 +108,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   List<Map<String, dynamic>> _opos = [];
   bool _loadingOpos = false;
   String? _selectedOpoId;
+  List<String> _organizationOptions = [];
+  List<String> _verificationEquipmentLabels = [];
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -128,6 +130,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
       Future.microtask(_loadEngineers);
       Future.microtask(_loadOpos);
+      Future.microtask(_loadOrganizationOptions);
       Future.microtask(_getGpsCoordinates);
       Future.microtask(_startAutoSaveTimer);
       
@@ -405,6 +408,79 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
+  Future<void> _loadOrganizationOptions() async {
+    try {
+      final enterprises = await _apiService.getHierarchyEnterprises();
+      final options = <String>[];
+      for (final ent in enterprises) {
+        final entId = ent['id']?.toString() ?? '';
+        final entName = ent['name']?.toString().trim() ?? '';
+        if (entId.isEmpty) continue;
+        final branches = await _apiService.getHierarchyBranches(entId);
+        if (branches.isEmpty && entName.isNotEmpty) {
+          options.add(entName);
+          continue;
+        }
+        for (final br in branches) {
+          final brName = br['name']?.toString().trim() ?? '';
+          final workshops = await _apiService.getHierarchyWorkshops(
+            br['id']?.toString() ?? '',
+          );
+          if (workshops.isEmpty) {
+            options.add('$entName / $brName');
+          } else {
+            for (final ws in workshops) {
+              final wsName = ws['name']?.toString().trim() ?? '';
+              options.add('$entName / $brName / $wsName');
+            }
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _organizationOptions = options.toSet().toList()..sort();
+      });
+    } catch (e) {
+      print('Ошибка загрузки организаций: $e');
+    }
+  }
+
+  Future<void> _refreshVerificationLabels() async {
+    if (_selectedEquipmentIds.isEmpty) {
+      if (mounted) setState(() => _verificationEquipmentLabels = []);
+      return;
+    }
+    try {
+      var list = await _syncService.getOfflineVerificationEquipment();
+      if (list.isEmpty) {
+        list = await _apiService.getVerificationEquipment(isActive: true);
+      }
+      final labels = <String>[];
+      for (final id in _selectedEquipmentIds) {
+        Map<String, dynamic>? match;
+        for (final e in list) {
+          if (e['id']?.toString() == id) {
+            match = e;
+            break;
+          }
+        }
+        if (match != null) {
+          final name =
+              (match['name'] ?? match['equipment_name'] ?? id).toString();
+          labels.add(name);
+        } else {
+          labels.add('Прибор $id');
+        }
+      }
+      if (mounted) setState(() => _verificationEquipmentLabels = labels);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _verificationEquipmentLabels =
+            _selectedEquipmentIds.map((id) => 'Прибор $id').toList());
+      }
+    }
+  }
+
   Future<bool> _loadLocalPendingIfExists() async {
     try {
       final pending = await _syncService.getLatestPendingInspection(
@@ -478,6 +554,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         }
       }
 
+      for (final docNum in VesselChecklist.multiDocumentNumbers) {
+        if (_documentFiles.containsKey(docNum) &&
+            !_documentFiles.containsKey(VesselChecklist.documentFileKey(docNum, 0))) {
+          _documentFiles[VesselChecklist.documentFileKey(docNum, 0)] =
+              _documentFiles[docNum]!;
+        }
+      }
+
       setState(() {
         final j = loadedChecklist.toJson();
         final merged = isCompressor
@@ -488,6 +572,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _checklist.executors = merged.executors;
         _checklist.organization = merged.organization;
         _checklist.documents = merged.documents;
+        _checklist.documentsInfo = merged.documentsInfo.map(
+          (k, v) => MapEntry(k, Map<String, String>.from(v)),
+        );
+        _checklist.includeOpoData = merged.includeOpoData;
+        _checklist.uztSchemes = List.from(merged.uztSchemes);
+        _checklist.ndtMethods = List<String>.from(merged.ndtMethods);
         _checklist.vesselName = merged.vesselName;
         _checklist.serialNumber = merged.serialNumber;
         _checklist.regNumber = merged.regNumber;
@@ -594,6 +684,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         }
         _formSeed++;
       });
+      await _refreshVerificationLabels();
       return true;
     } catch (e) {
       print('Ошибка загрузки локальных данных: $e');
@@ -1567,8 +1658,16 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         loadingOpos: _loadingOpos,
         selectedOpoId: _selectedOpoId,
         equipmentOpoId: widget.equipment.opoId,
+        organizationOptions: _organizationOptions,
+        selectedVerificationLabels: _verificationEquipmentLabels,
         onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-        onEquipmentIdsChanged: (ids) => setState(() => _selectedEquipmentIds = ids),
+        onEquipmentIdsChanged: (ids) {
+          setState(() {
+            _selectedEquipmentIds = ids;
+            _hasUnsavedChanges = true;
+          });
+          _refreshVerificationLabels();
+        },
         onManualEquipmentChanged: (items) {
           setState(() {
             _manualVerificationEquipment = items;
@@ -1705,10 +1804,16 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       onTap: () => setState(() => _showPageNav = !_showPageNav),
       child: PageView(
         controller: _pageController,
-        onPageChanged: (idx) => setState(() {
-          _currentPage = idx;
-          _showPageNav = true;
-        }),
+        onPageChanged: (idx) {
+          if (_hasUnsavedChanges && !_isSubmitting) {
+            _autoSaveDraft();
+          }
+          setState(() {
+            _currentPage = idx;
+            _showPageNav = true;
+            _formSeed++;
+          });
+        },
         children: [page0, page1, page2, page3, page4, page5, page6],
       ),
     );

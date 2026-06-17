@@ -57,11 +57,16 @@ InputDecoration _fieldDecoration(String label) {
 }
 
 Widget buildInspectionTextField(
-    String name, String label, Function(String?) onChanged) {
+  String name,
+  String label,
+  Function(String?) onChanged, {
+  String? initialValue,
+}) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: FormBuilderTextField(
       name: name,
+      initialValue: initialValue,
       decoration: _fieldDecoration(label),
       style: const TextStyle(color: Colors.white),
       onChanged: onChanged,

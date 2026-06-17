@@ -19,6 +19,8 @@ class InspectionGeneralInfoSection extends StatelessWidget {
   final bool loadingOpos;
   final String? selectedOpoId;
   final String? equipmentOpoId;
+  final List<String> organizationOptions;
+  final List<String> selectedVerificationLabels;
   final VoidCallback onStateChanged;
   final void Function(List<String>) onEquipmentIdsChanged;
   final void Function(List<Map<String, String>>) onManualEquipmentChanged;
@@ -39,6 +41,8 @@ class InspectionGeneralInfoSection extends StatelessWidget {
     required this.loadingOpos,
     required this.selectedOpoId,
     required this.equipmentOpoId,
+    required this.organizationOptions,
+    required this.selectedVerificationLabels,
     required this.onStateChanged,
     required this.onEquipmentIdsChanged,
     required this.onManualEquipmentChanged,
@@ -54,19 +58,15 @@ class InspectionGeneralInfoSection extends StatelessWidget {
       children: [
         buildSectionHeader('1. Основная информация'),
         _buildVerificationEquipmentButton(context),
+        _buildSelectedVerificationChips(),
         _buildManualEquipmentSection(context),
         if (selectedEquipmentIds.isEmpty && manualVerificationEquipment.isEmpty)
           _buildVerificationWarning(),
         buildDateField('inspection_date', 'Дата обследования', (date) {
           checklist.inspectionDate = date?.toIso8601String();
         }),
-        buildInspectionTextField('executors', 'Исполнители', (value) {
-          checklist.executors = value;
-        }),
-        buildInspectionTextField(
-            'organization', 'Организация (НГДУ, цех, месторождение)', (value) {
-          checklist.organization = value;
-        }),
+        _buildExecutorsField(context),
+        _buildOrganizationField(context),
         if (equipmentOpoId == null || equipmentOpoId!.isEmpty)
           _buildOpoSelectionField(),
         const SizedBox(height: 16),
@@ -114,6 +114,206 @@ class InspectionGeneralInfoSection extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildSelectedVerificationChips() {
+    if (selectedVerificationLabels.isEmpty &&
+        manualVerificationEquipment.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final labels = <String>[
+      ...selectedVerificationLabels,
+      ...manualVerificationEquipment.map((e) => e['name'] ?? 'Прибор'),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: labels
+            .map((name) => Chip(
+                  label: Text(name, style: const TextStyle(fontSize: 12)),
+                  backgroundColor: Colors.green.withOpacity(0.15),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildExecutorsField(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Исполнители',
+              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: engineers.isEmpty
+                ? null
+                : () => _showExecutorsPicker(context),
+            icon: const Icon(Icons.people_outline, size: 18),
+            label: Text(
+              (checklist.executors ?? '').trim().isEmpty
+                  ? 'Выбрать из справочника'
+                  : checklist.executors!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 44),
+            ),
+          ),
+          const SizedBox(height: 6),
+          buildInspectionTextField('executors', 'Или введите вручную', (value) {
+            checklist.executors = value;
+          }, initialValue: checklist.executors),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrganizationField(BuildContext context) {
+    if (organizationOptions.isEmpty) {
+      return buildInspectionTextField(
+        'organization',
+        'Организация (НГДУ, цех, месторождение)',
+        (value) {
+          checklist.organization = value;
+        },
+        initialValue: checklist.organization,
+      );
+    }
+    final current = checklist.organization?.trim() ?? '';
+    final inList = organizationOptions.contains(current);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FormBuilderDropdown<String>(
+            name: 'organization_select',
+            initialValue: inList ? current : null,
+            decoration: const InputDecoration(
+              labelText: 'Организация (из справочника)',
+              labelStyle: TextStyle(color: Colors.white70),
+            ),
+            dropdownColor: kInspectionDarkBg,
+            style: const TextStyle(color: Colors.white),
+            items: [
+              ...organizationOptions.map(
+                (o) => DropdownMenuItem(value: o, child: Text(o)),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                checklist.organization = value;
+                onStateChanged();
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          buildInspectionTextField(
+            'organization_custom',
+            'Или укажите вручную',
+            (value) {
+              checklist.organization = value;
+            },
+            initialValue: inList ? '' : current,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showExecutorsPicker(BuildContext context) async {
+    final selected = <String>{};
+    final current = (checklist.executors ?? '')
+        .split(RegExp(r'[,;]'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    for (final eng in engineers) {
+      final name = (eng['full_name'] ?? eng['name'] ?? '').toString().trim();
+      if (name.isNotEmpty && current.contains(name)) {
+        selected.add(eng['id']?.toString() ?? name);
+      }
+    }
+
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) {
+        final temp = Set<String>.from(selected);
+        return StatefulBuilder(
+          builder: (ctx, setDlg) => AlertDialog(
+            backgroundColor: kInspectionDarkBg,
+            title: const Text('Исполнители',
+                style: TextStyle(color: Colors.white)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: engineers.map((eng) {
+                  final id = eng['id']?.toString() ?? '';
+                  final name =
+                      (eng['full_name'] ?? eng['name'] ?? id).toString();
+                  final key = id.isNotEmpty ? id : name;
+                  return CheckboxListTile(
+                    value: temp.contains(key),
+                    title: Text(name,
+                        style: const TextStyle(color: Colors.white)),
+                    subtitle: eng['position'] != null
+                        ? Text(eng['position'].toString(),
+                            style: const TextStyle(color: Colors.white54))
+                        : null,
+                    onChanged: (v) {
+                      setDlg(() {
+                        if (v == true) {
+                          temp.add(key);
+                        } else {
+                          temp.remove(key);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Отмена'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, temp),
+                child: const Text('Готово'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null) return;
+    final names = <String>[];
+    for (final key in result) {
+      Map<String, dynamic>? found;
+      for (final eng in engineers) {
+        if (eng['id']?.toString() == key) {
+          found = eng;
+          break;
+        }
+      }
+      if (found != null) {
+        names.add((found['full_name'] ?? found['name'] ?? key).toString());
+      } else {
+        names.add(key);
+      }
+    }
+    checklist.executors = names.join(', ');
+    onStateChanged();
   }
 
   Widget _buildVerificationWarning() {

@@ -347,4 +347,93 @@ mixin ApiEquipmentMixin on ApiServiceBase {
       throw Exception('Error updating equipment OPO: $e');
     }
   }
+
+  Future<List<Map<String, dynamic>>> getHierarchyEnterprises() async {
+    return _hierarchyList('/api/hierarchy/enterprises');
+  }
+
+  Future<List<Map<String, dynamic>>> getHierarchyBranches(String enterpriseId) async {
+    return _hierarchyList(
+      '/api/hierarchy/branches?enterprise_id=$enterpriseId',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getHierarchyWorkshops(String branchId) async {
+    return _hierarchyList('/api/hierarchy/workshops?branch_id=$branchId');
+  }
+
+  Future<Map<String, dynamic>> updateHierarchyEntity(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.put(
+      Uri.parse('${ApiServiceBase.baseUrl}$path'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: json.encode(body),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception(_parseHierarchyError(response));
+  }
+
+  Future<void> deleteHierarchyEntity(String path) async {
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.delete(
+      Uri.parse('${ApiServiceBase.baseUrl}$path'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_parseHierarchyError(response));
+    }
+  }
+
+  Future<void> deleteEquipmentById(String equipmentId) async {
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.delete(
+      Uri.parse('${ApiServiceBase.baseUrl}/api/equipment/$equipmentId'),
+      headers: {
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Не удалось удалить оборудование: ${response.statusCode}');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _hierarchyList(String path) async {
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.get(
+      Uri.parse('${ApiServiceBase.baseUrl}$path'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final items = data['items'] as List? ?? [];
+      return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    throw Exception(_parseHierarchyError(response));
+  }
+
+  String _parseHierarchyError(http.Response response) {
+    try {
+      final data = json.decode(response.body);
+      if (data['detail'] != null) return data['detail'].toString();
+    } catch (_) {}
+    return 'Ошибка ${response.statusCode}';
+  }
 }

@@ -119,6 +119,58 @@ class VesselChecklist {
   
   VesselChecklist();
 
+  /// Пункты документов, где допускается несколько комплектов (номер + дата + файл).
+  static const Set<String> multiDocumentNumbers = {'15', '17'};
+
+  List<Map<String, String>> getDocumentSets(String docNumber) {
+    final setsRaw = additionalData?['document_sets'];
+    if (setsRaw is Map) {
+      final list = setsRaw[docNumber];
+      if (list is List && list.isNotEmpty) {
+        return list
+            .whereType<Map>()
+            .map((e) => <String, String>{
+                  'number': (e['number'] ?? '').toString(),
+                  'date': (e['date'] ?? '').toString(),
+                })
+            .toList();
+      }
+    }
+    final info = documentsInfo[docNumber];
+    if (info != null &&
+        ((info['number'] ?? '').isNotEmpty || (info['date'] ?? '').isNotEmpty)) {
+      return [Map<String, String>.from(info)];
+    }
+    return [];
+  }
+
+  void setDocumentSets(String docNumber, List<Map<String, String>> sets) {
+    additionalData ??= {};
+    final raw = additionalData!['document_sets'];
+    if (raw is! Map) {
+      additionalData!['document_sets'] = <String, dynamic>{};
+    }
+    (additionalData!['document_sets'] as Map)[docNumber] = sets
+        .map((e) => {'number': e['number'] ?? '', 'date': e['date'] ?? ''})
+        .toList();
+    if (sets.isNotEmpty) {
+      documentsInfo[docNumber] = Map<String, String>.from(sets.first);
+    } else {
+      documentsInfo.remove(docNumber);
+    }
+  }
+
+  void ensureAtLeastOneDocumentSet(String docNumber) {
+    if (getDocumentSets(docNumber).isEmpty) {
+      setDocumentSets(docNumber, [
+        {'number': '', 'date': ''},
+      ]);
+    }
+  }
+
+  static String documentFileKey(String docNumber, int setIndex) =>
+      '${docNumber}_$setIndex';
+
   static bool? _asBool(dynamic v) {
     if (v == null) return null;
     if (v is bool) return v;

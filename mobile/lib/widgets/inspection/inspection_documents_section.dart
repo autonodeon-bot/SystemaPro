@@ -41,7 +41,13 @@ class InspectionDocumentsSection extends StatelessWidget {
           final n = int.tryParse(doc['number'] ?? '0') ?? 0;
           if (checklist.includeOpoData) return true;
           return n >= 10;
-        }).map((doc) => _buildDocumentCheckbox(context, doc)),
+        }).map((doc) {
+          final num = doc['number'] ?? '';
+          if (VesselChecklist.multiDocumentNumbers.contains(num)) {
+            return _buildMultiDocumentSets(context, doc);
+          }
+          return _buildDocumentCheckbox(context, doc);
+        }),
       ],
     );
   }
@@ -72,6 +78,206 @@ class InspectionDocumentsSection extends StatelessWidget {
           style: const TextStyle(color: Colors.white70),
         ),
         activeColor: Colors.green,
+      ),
+    );
+  }
+
+  Widget _buildMultiDocumentSets(
+      BuildContext context, Map<String, String> doc) {
+    final documentNumber = doc['number']!;
+    checklist.ensureAtLeastOneDocumentSet(documentNumber);
+    final sets = checklist.getDocumentSets(documentNumber);
+    final isChecked = checklist.documents[documentNumber] ?? false;
+    final hasAnyFile = sets.asMap().entries.any((e) =>
+        documentFiles.containsKey(
+            VesselChecklist.documentFileKey(documentNumber, e.key)) ||
+        (e.key == 0 && documentFiles.containsKey(documentNumber)));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        color: kInspectionDarkBg,
+        child: Column(
+          children: [
+            CheckboxListTile(
+              title: Text(
+                '${doc['number']}. ${doc['name']}',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'Можно добавить несколько комплектов (номер, дата, файл)',
+                style: TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+              value: isChecked,
+              onChanged: (value) {
+                checklist.documents[documentNumber] = value ?? false;
+                if (value == true) {
+                  checklist.ensureAtLeastOneDocumentSet(documentNumber);
+                }
+                onStateChanged();
+              },
+              activeColor: kInspectionAccentBlue,
+              secondary: hasAnyFile
+                  ? const Icon(Icons.attach_file, color: Colors.green, size: 20)
+                  : null,
+            ),
+            if (isChecked)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Column(
+                  children: [
+                    ...sets.asMap().entries.map((entry) {
+                      final setIndex = entry.key;
+                      final info = entry.value;
+                      final fileKey =
+                          VesselChecklist.documentFileKey(documentNumber, setIndex);
+                      final hasFile = documentFiles.containsKey(fileKey) ||
+                          (setIndex == 0 &&
+                              documentFiles.containsKey(documentNumber));
+                      DateTime? infoDate;
+                      if ((info['date'] ?? '').isNotEmpty) {
+                        try {
+                          infoDate = DateTime.parse(info['date']!);
+                        } catch (_) {}
+                      }
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.white24),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Комплект ${setIndex + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (sets.length > 1)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        color: Colors.red, size: 20),
+                                    onPressed: () {
+                                      final updated =
+                                          List<Map<String, String>>.from(sets);
+                                      updated.removeAt(setIndex);
+                                      checklist.setDocumentSets(
+                                          documentNumber, updated);
+                                      documentFiles.remove(fileKey);
+                                      if (setIndex == 0) {
+                                        documentFiles.remove(documentNumber);
+                                      }
+                                      onStateChanged();
+                                    },
+                                    tooltip: 'Удалить комплект',
+                                  ),
+                              ],
+                            ),
+                            FormBuilderTextField(
+                              name: 'doc_number_${documentNumber}_$setIndex',
+                              initialValue: info['number'],
+                              decoration: const InputDecoration(
+                                labelText: 'Номер документа',
+                                labelStyle: TextStyle(color: Colors.white70),
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                              onChanged: (value) {
+                                final updated =
+                                    List<Map<String, String>>.from(sets);
+                                updated[setIndex] = {
+                                  'number': value ?? '',
+                                  'date': updated[setIndex]['date'] ?? '',
+                                };
+                                checklist.setDocumentSets(
+                                    documentNumber, updated);
+                                onStateChanged();
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            FormBuilderDateTimePicker(
+                              name: 'doc_date_${documentNumber}_$setIndex',
+                              inputType: InputType.date,
+                              initialValue: infoDate,
+                              decoration: const InputDecoration(
+                                labelText: 'Дата документа',
+                                labelStyle: TextStyle(color: Colors.white70),
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                              onChanged: (value) {
+                                final updated =
+                                    List<Map<String, String>>.from(sets);
+                                updated[setIndex] = {
+                                  'number': updated[setIndex]['number'] ?? '',
+                                  'date': value != null
+                                      ? value.toIso8601String().split('T')[0]
+                                      : '',
+                                };
+                                checklist.setDocumentSets(
+                                    documentNumber, updated);
+                                onStateChanged();
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _pickDocumentFile(
+                                      context,
+                                      documentNumber,
+                                      fileStorageKey: fileKey,
+                                    ),
+                                    icon: Icon(hasFile
+                                        ? Icons.edit
+                                        : Icons.attach_file),
+                                    label: Text(hasFile
+                                        ? 'Изменить файл'
+                                        : 'Прикрепить файл'),
+                                  ),
+                                ),
+                                if (hasFile)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.red),
+                                    onPressed: () {
+                                      documentFiles.remove(fileKey);
+                                      documentFiles.remove(documentNumber);
+                                      onStateChanged();
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          final updated =
+                              List<Map<String, String>>.from(sets);
+                          updated.add({'number': '', 'date': ''});
+                          checklist.setDocumentSets(documentNumber, updated);
+                          onStateChanged();
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Добавить комплект документов'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -240,7 +446,11 @@ class InspectionDocumentsSection extends StatelessWidget {
   }
 
   Future<void> _pickDocumentFile(
-      BuildContext context, String documentNumber) async {
+    BuildContext context,
+    String documentNumber, {
+    String? fileStorageKey,
+  }) async {
+    final storageKey = fileStorageKey ?? documentNumber;
     try {
       await showDialog<void>(
         context: context,
@@ -265,7 +475,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                       source: ImageSource.camera);
                   if (image != null) {
                     _handleDocumentFile(
-                        context, documentNumber, image.path, image.name);
+                        context, storageKey, image.path, image.name);
                   }
                 },
               ),
@@ -283,7 +493,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                       source: ImageSource.gallery);
                   if (image != null) {
                     _handleDocumentFile(
-                        context, documentNumber, image.path, image.name);
+                        context, storageKey, image.path, image.name);
                   }
                 },
               ),
@@ -311,7 +521,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                     }
                     if (pickedPath != null && context.mounted) {
                       _handleDocumentFile(
-                          context, documentNumber, pickedPath, picked.name);
+                          context, storageKey, pickedPath, picked.name);
                     } else if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -390,27 +600,27 @@ class InspectionDocumentsSection extends StatelessWidget {
     return targetPath;
   }
 
-  Future<void> _handleDocumentFile(BuildContext context,
-      String documentNumber, String filePath, String fileName) async {
+  Future<void> _handleDocumentFile(BuildContext context, String fileStorageKey,
+      String filePath, String fileName) async {
     String persistedPath = filePath;
     try {
       if (await File(filePath).exists()) {
         persistedPath = await _persistPickedFile(
           sourcePath: filePath,
           fileName: fileName,
-          documentNumber: documentNumber,
+          documentNumber: fileStorageKey,
         );
       }
     } catch (_) {}
 
-    documentFiles[documentNumber] = persistedPath;
+    documentFiles[fileStorageKey] = persistedPath;
     onStateChanged();
 
     if (questionnaireId != null) {
       try {
         await apiService.uploadDocumentFile(
           questionnaireId: questionnaireId!,
-          documentNumber: documentNumber,
+          documentNumber: fileStorageKey.split('_').first,
           filePath: persistedPath,
           fileName: fileName,
         );

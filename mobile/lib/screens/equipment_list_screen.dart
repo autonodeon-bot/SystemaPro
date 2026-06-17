@@ -59,10 +59,13 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
   final TextEditingController _searchController = TextEditingController();
   final Map<String, bool> _expandedGroups = {}; // Для раскрывающихся списков
   int _lastEquipmentHash = 0;
+  bool _canManageHierarchy = false;
+  final _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
+    _loadManageRole();
     // Инициализируем фильтры при первом получении списка оборудования.
     // ВАЖНО: не делать setState() напрямую внутри build().
     ref.listen<AsyncValue<List<Equipment>>>(equipmentListProvider, (_, next) {
@@ -76,6 +79,15 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
           _loadFilters(equipmentList);
         });
       });
+    });
+  }
+
+  Future<void> _loadManageRole() async {
+    final user = await _authService.getCurrentUser();
+    if (!mounted) return;
+    setState(() {
+      _canManageHierarchy =
+          user?.role == 'admin' || user?.role == 'chief_operator';
     });
   }
 
@@ -418,6 +430,9 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
           'equipment': equipment,
         });
       },
+      onLongPress: _canManageHierarchy
+          ? () => _showEquipmentAdminActions(equipment)
+          : null,
       child: Container(
         padding: EdgeInsets.fromLTRB(
           (12 + (level * 6)).toDouble(),
@@ -513,6 +528,55 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
     super.dispose();
   }
 
+  Future<void> _showEquipmentAdminActions(Equipment equipment) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Удалить оборудование'),
+              onTap: () => Navigator.pop(ctx, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action != 'delete' || !mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить оборудование?'),
+        content: Text(equipment.name),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _apiService.deleteEquipmentById(equipment.id);
+      ref.invalidate(equipmentListProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Оборудование удалено'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final equipmentAsync = ref.watch(equipmentListProvider);
@@ -527,6 +591,14 @@ class _EquipmentListScreenState extends ConsumerState<EquipmentListScreen> {
             letterSpacing: -0.2,
           ),
         ),
+        actions: [
+          if (_canManageHierarchy)
+            IconButton(
+              icon: const Icon(Icons.account_tree_outlined),
+              tooltip: 'Управление иерархией',
+              onPressed: () => context.push('/equipment-hierarchy-admin'),
+            ),
+        ],
       ),
       body: Column(
         children: [

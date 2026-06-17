@@ -16,7 +16,7 @@ main (production)
 ```
 
 ## Версионирование (SemVer)
-- Текущая версия: **3.6.0**
+- Текущая версия: **3.7.0**
 - Обновлять синхронно: `package.json`, `package-lock.json`, `mobile/pubspec.yaml`, `backend/main.py` (и `APP_VERSION`), `constants.ts` (`APP_VERSION`, `MOBILE_*`), `backend/mobile_stats_api.py`, запись в `pages/Changelog.tsx`.
 
 ## Коммиты
