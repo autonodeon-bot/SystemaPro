@@ -719,6 +719,37 @@ class ApiService extends ApiServiceBase
     throw Exception('Шаблоны обследования: ${response.statusCode}');
   }
 
+  /// Профиль оборудования + default_data для чек-листа (единый реестр backend).
+  Future<Map<String, dynamic>> resolveEquipmentProfile({
+    String? typeCode,
+    String? preset,
+    String inspectionDirection = 'technical',
+    bool includeUztTemplate = true,
+  }) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final q = <String, String>{
+      'inspection_direction': inspectionDirection,
+      'include_uzt_template': includeUztTemplate.toString(),
+    };
+    if (typeCode != null && typeCode.isNotEmpty) q['type_code'] = typeCode;
+    if (preset != null && preset.isNotEmpty) q['preset'] = preset;
+    final uri = Uri.parse('$baseUrl/api/equipment-profiles/resolve')
+        .replace(queryParameters: q);
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+    }
+    throw Exception('Профиль оборудования: ${response.statusCode}');
+  }
+
   Future<Map<String, dynamic>> getDiagnosticMenuPublished() async {
     await ensureValidToken();
     final authService = AuthService();

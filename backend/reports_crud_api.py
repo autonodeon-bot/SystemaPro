@@ -29,6 +29,7 @@ from models import (
 )
 from report_generator import ReportGenerator
 from shared import resolve_report_file_path, metrics
+from report_attachments import enrich_document_files_from_inspection
 from client_access import get_client_accessible_equipment_ids, client_user_can_access_equipment
 
 _resolve_report_file_path = resolve_report_file_path
@@ -508,6 +509,13 @@ async def generate_report(
                     if _p:
                         document_files.append({"document_number": _key, "file_name": os.path.basename(_p), "file_path": _inspect_attachment_path(_p) or _p})
                         _existing_dn.add(_key)
+            document_files = enrich_document_files_from_inspection(
+                document_files,
+                _data,
+                resolve_fn=_inspect_attachment_path,
+                questionnaire_id=questionnaire_scope,
+            )
+            _existing_dn = {str(f.get("document_number")) for f in document_files if f.get("document_number")}
             _vd = _data.get("visual_defects")
             if isinstance(_vd, list):
                 for _i, _d in enumerate(_vd):
@@ -598,10 +606,21 @@ async def generate_report(
                     templates = _json.loads(templates_path.read_text(encoding="utf-8") or "[]")
                     # ищем шаблон по типу оборудования (type_id), report_type и format
                     eq_type_id = str(getattr(equipment, "type_id", "") or "")
+                    eq_type_code_upper = (equipment_type_code or "").strip().upper()
+
+                    def _type_ok(t: dict) -> bool:
+                        tid = (t.get("equipment_type_id") or "").strip()
+                        tcode = (t.get("equipment_type_code") or "").strip().upper()
+                        if tid and tid != eq_type_id:
+                            return False
+                        if tcode and eq_type_code_upper and tcode != eq_type_code_upper:
+                            return False
+                        return True
+
                     def _match(t):
                         if not isinstance(t, dict) or not t.get("is_active"):
                             return False
-                        if (t.get("equipment_type_id") or "") and (t.get("equipment_type_id") != eq_type_id):
+                        if not _type_ok(t):
                             return False
                         if (t.get("report_type") or "") and (t.get("report_type") != report_type):
                             return False
@@ -611,22 +630,24 @@ async def generate_report(
 
                     chosen = next((t for t in templates if _match(t)), None)
                     if not chosen:
-                        # fallback: любой активный по type_id
+                        # fallback: любой активный по type_id / type_code
                         def _match2(t):
                             if not isinstance(t, dict) or not t.get("is_active"):
                                 return False
-                            if (t.get("equipment_type_id") or "") and (t.get("equipment_type_id") != eq_type_id):
+                            if not _type_ok(t):
                                 return False
                             if (t.get("report_type") or "") and (t.get("report_type") != report_type):
                                 return False
                             return True
                         chosen = next((t for t in templates if _match2(t)), None)
                     if not chosen:
-                        # fallback: общий активный (equipment_type_id null/empty)
+                        # fallback: общий активный (equipment_type_id / code null/empty)
                         def _match3(t):
                             if not isinstance(t, dict) or not t.get("is_active"):
                                 return False
-                            if t.get("equipment_type_id") not in (None, "", "null"):
+                            if (t.get("equipment_type_id") or "").strip():
+                                return False
+                            if (t.get("equipment_type_code") or "").strip():
                                 return False
                             if (t.get("report_type") or "") and (t.get("report_type") != report_type):
                                 return False

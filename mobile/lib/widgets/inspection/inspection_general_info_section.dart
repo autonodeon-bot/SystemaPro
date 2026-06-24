@@ -3,6 +3,7 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../services/api_service.dart';
 import 'inspection_form_fields.dart';
@@ -53,10 +54,11 @@ class InspectionGeneralInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildSectionHeader('1. Основная информация'),
+        buildSectionHeader(form.sectionHeader('general', fallback: '1. Основная информация')),
         _buildVerificationEquipmentButton(context),
         _buildSelectedVerificationChips(),
         _buildManualEquipmentSection(context),

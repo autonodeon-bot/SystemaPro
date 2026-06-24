@@ -11,6 +11,7 @@ import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/equipment.dart';
+import '../data/technical_report_form_registry.dart';
 import '../models/vessel_checklist.dart';
 import '../models/compressor_checklist.dart';
 import '../services/api_service.dart';
@@ -30,6 +31,7 @@ import '../widgets/inspection/inspection_checks_section.dart';
 import '../widgets/inspection/inspection_safety_devices_section.dart';
 import '../widgets/inspection/inspection_measurements_section.dart';
 import '../widgets/inspection/inspection_defects_section.dart';
+import '../widgets/inspection/inspection_passport_section.dart';
 import '../widgets/inspection/inspection_conclusion_section.dart';
 
 class VesselInspectionScreen extends StatefulWidget {
@@ -37,6 +39,8 @@ class VesselInspectionScreen extends StatefulWidget {
   final String? assignmentId;
   final String? existingInspectionId;
   final String? inspectionType;
+  /// Форма технического отчёта (to-1, to-3, …).
+  final String? reportFormId;
   /// Предзаполнение из шаблона обследования объекта.
   final Map<String, dynamic>? initialChecklistJson;
 
@@ -46,6 +50,7 @@ class VesselInspectionScreen extends StatefulWidget {
     this.assignmentId,
     this.existingInspectionId,
     this.inspectionType,
+    this.reportFormId,
     this.initialChecklistJson,
   });
 
@@ -60,16 +65,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   // Постраничная навигация (П.3.1)
   final _pageController = PageController();
   int _currentPage = 0;
-  bool _showPageNav = false; // показывать/скрывать навигацию
-  static const _pageLabels = [
-    '1. Основная информация',
-    '2. Документы',
-    '3. Карта обследования',
-    '4. Проверки + Дефекты',
-    '5. ЗРА + СППК',
-    '6. Измерения (7-10)',
-    '7. Заключение',
-  ];
+  late TechnicalReportForm _reportForm;
   final ApiService _apiService = ApiService();
   final SyncService _syncService = SyncService();
   final LocationService _locationService = LocationService();
@@ -82,6 +78,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   DateTime? _lastAutoSaveTime;
   int _formSeed = 0;
 
+  List<String> get _pageLabels => _reportForm.navigationLabels;
+
   late final VesselChecklist _checklist;
 
   bool get _isCompressor {
@@ -91,6 +89,51 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         typeCode.contains('КОМПРЕССОР') ||
         typeName.contains('COMPRESSOR') ||
         typeName.contains('КОМПРЕССОР');
+  }
+
+  bool get _isGasSeparator {
+    final typeCode = widget.equipment.typeCode?.toUpperCase() ?? '';
+    final typeName = widget.equipment.typeName?.toUpperCase() ?? '';
+    final attrs = widget.equipment.attributes ?? {};
+    final objectType = (attrs['object_type'] ?? '').toString().toLowerCase();
+    return typeCode.contains('GAS_SEPARATOR') ||
+        typeCode.contains('GAS_SEP') ||
+        typeName.contains('ГАЗОСЕПАРАТОР') ||
+        objectType == 'gas_separator';
+  }
+
+  bool get _isUndergroundTank {
+    final typeCode = widget.equipment.typeCode?.toUpperCase() ?? '';
+    final typeName = widget.equipment.typeName?.toUpperCase() ?? '';
+    final attrs = widget.equipment.attributes ?? {};
+    final objectType = (attrs['object_type'] ?? '').toString().toLowerCase();
+    final eqName = (widget.equipment.name ?? '').toUpperCase();
+    return typeCode.contains('UNDERGROUND_TANK') ||
+        typeName.contains('ЁМКОСТ') ||
+        typeName.contains('ЕМКОСТ') ||
+        typeName.contains('ПОДЗЕМН') ||
+        eqName.contains('ЁМКОСТ') ||
+        eqName.contains('ЕМКОСТ') ||
+        objectType == 'underground_tank';
+  }
+
+  bool get _isOilSettler {
+    final typeCode = widget.equipment.typeCode?.toUpperCase() ?? '';
+    final typeName = widget.equipment.typeName?.toUpperCase() ?? '';
+    final attrs = widget.equipment.attributes ?? {};
+    final objectType = (attrs['object_type'] ?? '').toString().toLowerCase();
+    final eqName = (widget.equipment.name ?? '').toUpperCase();
+    return typeCode.contains('OIL_SETTLER') ||
+        typeName.contains('ОТСТОЙНИК') ||
+        eqName.contains('ОТСТОЙНИК') ||
+        objectType == 'oil_settler';
+  }
+
+  String get _pressureEquipmentTypeCode {
+    if (_isGasSeparator) return 'GAS_SEPARATOR';
+    if (_isUndergroundTank) return 'UNDERGROUND_TANK';
+    if (_isOilSettler) return 'OIL_SETTLER';
+    return 'VESSEL';
   }
 
   File? _factoryPlatePhoto;
@@ -118,10 +161,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     try {
+      final formId = widget.reportFormId ??
+          TechnicalReportFormRegistry.suggestFormId(widget.equipment);
+      _reportForm = TechnicalReportFormRegistry.getById(formId);
+
       _checklist = _isCompressor ? CompressorChecklist() : VesselChecklist();
       _checklist.inspectionType = widget.inspectionType;
+      _checklist.reportFormId = _reportForm.id;
+      _checklist.reportFormTitle = _reportForm.displayTitle;
 
-      for (var doc in ChecklistConstants.documents) {
+      final docs = _reportForm.documents.isNotEmpty
+          ? _reportForm.documents
+          : ChecklistConstants.documents;
+      for (var doc in docs) {
         _checklist.documents[doc['number']!] = false;
       }
 
@@ -142,8 +194,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         await _prefillFromOpo();
       });
     } catch (e) {
+      _reportForm = TechnicalReportFormRegistry.getById('to-1');
       _checklist = VesselChecklist();
       _checklist.inspectionType = widget.inspectionType;
+      _checklist.reportFormId = _reportForm.id;
+      _checklist.reportFormTitle = _reportForm.displayTitle;
       for (var doc in ChecklistConstants.documents) {
         _checklist.documents[doc['number']!] = false;
       }
@@ -722,11 +777,52 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _checklist.previousInspectionResult,
       );
       mergeStr(tpl.workingMedium, (v) => _checklist.workingMedium = v, _checklist.workingMedium);
+      mergeStr(tpl.constructionType, (v) => _checklist.constructionType = v, _checklist.constructionType);
+      mergeStr(tpl.schemeIndex, (v) => _checklist.schemeIndex = v, _checklist.schemeIndex);
+      mergeStr(tpl.volume, (v) => _checklist.volume = v, _checklist.volume);
+      mergeStr(tpl.residualLifeText, (v) => _checklist.residualLifeText = v, _checklist.residualLifeText);
+
+      void mergeNum(dynamic from, void Function(String v) set, String? current) {
+        if (from != null && (current == null || current.trim().isEmpty)) {
+          set(from.toString());
+        }
+      }
+
+      mergeNum(raw['working_pressure'], (v) => _checklist.workingPressure = v, _checklist.workingPressure);
+      mergeNum(raw['design_pressure'], (v) => _checklist.designPressure = v, _checklist.designPressure);
+      mergeNum(raw['test_pressure'], (v) => _checklist.testPressure = v, _checklist.testPressure);
+      mergeNum(raw['wall_thickness'], (v) => _checklist.wallThickness = v, _checklist.wallThickness);
+      mergeNum(raw['diameter'], (v) => _checklist.diameter = v, _checklist.diameter);
+      mergeNum(raw['corrosion_allowance'], (v) => _checklist.corrosionAllowance = v, _checklist.corrosionAllowance);
+      mergeNum(raw['commissioning_year'], (v) => _checklist.commissioningYear = v, _checklist.commissioningYear);
 
       if (tpl.inspectionType != null && tpl.inspectionType!.isNotEmpty) {
         _checklist.inspectionType = tpl.inspectionType;
       }
+      if (tpl.equipmentTypeCode != null && tpl.equipmentTypeCode!.isNotEmpty) {
+        _checklist.equipmentTypeCode = tpl.equipmentTypeCode;
+      }
       _checklist.includeOpoData = tpl.includeOpoData;
+
+      void mergeList<T>(List<T> from, List<T> target) {
+        if (from.isNotEmpty && target.isEmpty) {
+          target.addAll(from);
+        }
+      }
+
+      mergeList(tpl.vesselElements, _checklist.vesselElements);
+      mergeList(tpl.heatTreatmentRecords, _checklist.heatTreatmentRecords);
+      mergeList(tpl.hydraulicTestHistory, _checklist.hydraulicTestHistory);
+      mergeList(tpl.ndtControlHistory, _checklist.ndtControlHistory);
+      mergeList(tpl.repairHistory, _checklist.repairHistory);
+      mergeList(tpl.fittingsAndInstruments, _checklist.fittingsAndInstruments);
+      mergeList(tpl.hardnessTests, _checklist.hardnessTests);
+      mergeList(tpl.weldInspections, _checklist.weldInspections);
+      mergeList(tpl.thicknessMeasurements, _checklist.thicknessMeasurements);
+
+      if (_checklist.calculationData == null && tpl.calculationData != null) {
+        _checklist.calculationData = Map<String, dynamic>.from(tpl.calculationData!);
+      }
     } catch (e) {
       debugPrint('Шаблон обследования: $e');
     }
@@ -742,6 +838,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
 
     _checklist.vesselName = getAttr('vessel_name') ?? widget.equipment.name;
+    _checklist.equipmentTypeCode = _pressureEquipmentTypeCode;
     _checklist.serialNumber =
         getAttr('serial_number') ?? widget.equipment.serialNumber;
     _checklist.regNumber = getAttr('reg_number');
@@ -754,7 +851,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       _checklist.diameter = getAttr('diameter');
       _checklist.workingPressure = getAttr('working_pressure');
       _checklist.wallThickness = getAttr('wall_thickness');
-      _checklist.purpose = getAttr('purpose');
+      _checklist.purpose = getAttr('purpose') ??
+          (_isGasSeparator
+              ? 'сепарация нефти и попутного нефтяного газа'
+              : _isUndergroundTank
+                  ? 'слив нефти, нефтегазоводяной смеси из технологических трубопроводов и аппаратов'
+                  : _isOilSettler
+                      ? 'трехфазное разделение предварительно подготовленной нефти (нефтегазоводяной смеси)'
+                      : null);
       _checklist.commissioningYear =
           getAttr('commissioning_year') ?? widget.equipment.commissioningDate?.substring(0, 4);
       _checklist.designPressure = getAttr('design_pressure');
@@ -1603,7 +1707,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Обследование: ${widget.equipment.name}'),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.equipment.name,
+                style: const TextStyle(fontSize: 16),
+              ),
+              Text(
+                _reportForm.displayTitle,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              ),
+            ],
+          ),
           backgroundColor: kInspectionScaffoldBg,
           foregroundColor: Colors.white,
           actions: [
@@ -1613,8 +1729,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
               )
             else ...[
-              IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: _exportToPdf, tooltip: 'Экспорт чек-листа в PDF'),
-              IconButton(icon: const Icon(Icons.save), onPressed: _saveDraft, tooltip: 'Сохранить черновик локально (отправка при синхронизации)'),
+              // Навигация по разделам — по нажатию, не автоматически
+              IconButton(
+                icon: const Icon(Icons.list_alt_outlined, size: 22),
+                tooltip: 'Разделы отчёта',
+                onPressed: _showSectionNavigator,
+              ),
+              IconButton(icon: const Icon(Icons.save_outlined), onPressed: _saveDraft, tooltip: 'Сохранить черновик'),
             ],
           ],
         ),
@@ -1627,25 +1748,22 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               if (!_hasUnsavedChanges) setState(() => _hasUnsavedChanges = true);
             },
             initialValue: initialValues,
-            child: Stack(
-              children: [
-                // PageView по разделам
-                _buildPageView(conclusionSection),
-                // Полупрозрачная навигация по страницам (П.3.1)
-                _buildPageNavOverlay(),
-              ],
-            ),
+            child: _buildPageView(conclusionSection),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPageView(dynamic conclusionSection) {
+  Widget _buildPageView(InspectionConclusionSection conclusionSection) {
     // Страница 0: Основная информация
     final page0 = _buildSinglePage(
       pageIndex: 0,
-      progressWidget: conclusionSection.buildProgressIndicator(),
+      progressWidget: buildInspectionProgressIndicator(
+        checklist: _checklist,
+        selectedEquipmentIds: _selectedEquipmentIds,
+        factoryPlatePhoto: _factoryPlatePhoto,
+      ),
       child: InspectionGeneralInfoSection(
         checklist: _checklist,
         selectedEquipmentIds: _selectedEquipmentIds,
@@ -1722,9 +1840,18 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       ),
     );
 
-    // Страница 2: Карта обследования (фото таблички, доп.фото, схема)
+    // Страница 2: Паспорт (приложение Б) — для ЭПБ
     final page2 = _buildSinglePage(
       pageIndex: 2,
+      child: InspectionPassportSection(
+        checklist: _checklist,
+        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+      ),
+    );
+
+    // Страница 3: Карта обследования (фото таблички, доп.фото, схема)
+    final page3 = _buildSinglePage(
+      pageIndex: 3,
       child: InspectionSurveyCardSection(
         checklist: _checklist,
         isCompressor: _isCompressor,
@@ -1747,9 +1874,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       ),
     );
 
-    // Страница 3: Проверки + Дефекты (р.11)
-    final page3 = _buildSinglePage(
-      pageIndex: 3,
+    // Страница 4: Проверки + Дефекты (р.11)
+    final page4 = _buildSinglePage(
+      pageIndex: 4,
       children: [
         InspectionChecksSection(
           checklist: _checklist,
@@ -1765,18 +1892,18 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       ],
     );
 
-    // Страница 4: ЗРА + СППК
-    final page4 = _buildSinglePage(
-      pageIndex: 4,
+    // Страница 5: ЗРА + СППК
+    final page5 = _buildSinglePage(
+      pageIndex: 5,
       child: InspectionSafetyDevicesSection(
         checklist: _checklist,
         onStateChanged: () => setState(() => _hasUnsavedChanges = true),
       ),
     );
 
-    // Страница 5: Измерения 7-10 (овальность, твёрдость, ПВК/УЗК, УЗТ)
-    final page5 = _buildSinglePage(
-      pageIndex: 5,
+    // Страница 6: Измерения 7-10 (овальность, твёрдость, ПВК/УЗК, УЗТ)
+    final page6 = _buildSinglePage(
+      pageIndex: 6,
       child: InspectionMeasurementsSection(
         checklist: _checklist,
         controlSchemeImage: _controlSchemeImage,
@@ -1794,28 +1921,24 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       ),
     );
 
-    // Страница 6: Заключение + кнопки
-    final page6 = _buildSinglePage(
-      pageIndex: 6,
+    // Страница 7: Заключение + кнопки
+    final page7 = _buildSinglePage(
+      pageIndex: 7,
       child: conclusionSection,
     );
 
-    return GestureDetector(
-      onTap: () => setState(() => _showPageNav = !_showPageNav),
-      child: PageView(
-        controller: _pageController,
-        onPageChanged: (idx) {
-          if (_hasUnsavedChanges && !_isSubmitting) {
-            _autoSaveDraft();
-          }
-          setState(() {
-            _currentPage = idx;
-            _showPageNav = true;
-            _formSeed++;
-          });
-        },
-        children: [page0, page1, page2, page3, page4, page5, page6],
-      ),
+    return PageView(
+      controller: _pageController,
+      onPageChanged: (idx) {
+        if (_hasUnsavedChanges && !_isSubmitting) {
+          _autoSaveDraft();
+        }
+        setState(() {
+          _currentPage = idx;
+          _formSeed++;
+        });
+      },
+      children: [page0, page1, page2, page3, page4, page5, page6, page7],
     );
   }
 
@@ -1876,7 +1999,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              _pageLabels[pageIndex],
+              _reportForm.navigationLabel(pageIndex),
               style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
@@ -1930,84 +2053,129 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     );
   }
 
-  /// Полупрозрачная навигация по страницам (П.3.1) — снизу экрана
-  Widget _buildPageNavOverlay() {
-    if (!_showPageNav) return const SizedBox.shrink();
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      // SafeArea исключает overlap с системной панелью жестов/кнопок Android.
-      child: SafeArea(
-        top: false,
-        child: GestureDetector(
-        onTap: () {}, // Не скрывать при тапе на само меню
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.82),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white12),
+  /// Bottom sheet навигации по разделам — вызывается только по кнопке.
+  void _showSectionNavigator() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1B2438),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
+          padding: EdgeInsets.fromLTRB(
+              16, 16, 16, MediaQuery.viewPaddingOf(sheetCtx).bottom + 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Ручка
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Навигация по разделам',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600)),
-                  GestureDetector(
-                    onTap: () => setState(() => _showPageNav = false),
-                    child: const Icon(Icons.close, color: Colors.white54, size: 16),
+                  const Icon(Icons.list_alt_outlined, color: Colors.white70, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    _reportForm.displayTitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: List.generate(_pageLabels.length, (idx) {
-                  final isCurrent = idx == _currentPage;
-                  return GestureDetector(
+              const SizedBox(height: 12),
+              ...List.generate(_pageLabels.length, (idx) {
+                final isCurrent = idx == _currentPage;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
                     onTap: () {
-                      _pageController.animateToPage(idx,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut);
-                      setState(() => _showPageNav = false);
+                      Navigator.pop(sheetCtx);
+                      _pageController.animateToPage(
+                        idx,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      margin: const EdgeInsets.only(bottom: 4),
                       decoration: BoxDecoration(
                         color: isCurrent
-                            ? kInspectionAccentBlue
-                            : Colors.white12,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _pageLabels[idx],
-                        style: TextStyle(
-                          color: isCurrent ? Colors.white : Colors.white70,
-                          fontSize: 11,
-                          fontWeight: isCurrent
-                              ? FontWeight.bold
-                              : FontWeight.normal,
+                            ? kInspectionAccentBlue.withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isCurrent
+                              ? kInspectionAccentBlue.withValues(alpha: 0.4)
+                              : Colors.white.withValues(alpha: 0.06),
                         ),
                       ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? kInspectionAccentBlue
+                                  : Colors.white12,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${idx + 1}',
+                              style: TextStyle(
+                                color: isCurrent ? Colors.white : Colors.white54,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _pageLabels[idx],
+                              style: TextStyle(
+                                color: isCurrent ? Colors.white : Colors.white70,
+                                fontSize: 13,
+                                fontWeight: isCurrent
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          if (isCurrent)
+                            const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
+                        ],
+                      ),
                     ),
-                  );
-                }),
-              ),
+                  ),
+                );
+              }),
             ],
           ),
-        ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

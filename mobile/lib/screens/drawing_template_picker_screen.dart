@@ -40,6 +40,9 @@ class _DrawingTemplatePickerScreenState
 
   static const _categoryLabels = {
     'vessel': 'Сосуды',
+    'gas_separator': 'Газосепараторы',
+    'oil_settler': 'Отстойники нефти',
+    'underground_tank': 'Ёмкости подземные',
     'pipeline': 'Трубопроводы',
     'ndt_scheme': 'Схема НК',
     'thickness_scheme': 'Схема УЗТ',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import 'inspection_form_fields.dart';
 
@@ -14,10 +15,13 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildSectionHeader('5. ЗРА (Запорно-регулирующая арматура)'),
+        buildSectionHeader(
+          form.sectionHeader('zra', fallback: '5. ЗРА (Запорно-регулирующая арматура)'),
+        ),
         buildAddItemButton('Добавить ЗРА', () => _showZraDialog(context)),
         ...checklist.zraItems.asMap().entries.map((e) {
           final idx = e.key;
@@ -41,7 +45,9 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
           );
         }),
         const SizedBox(height: 24),
-        buildSectionHeader('6. СППК (Система предохранительных клапанов)'),
+        buildSectionHeader(
+          form.sectionHeader('sppk', fallback: '6. СППК (Система предохранительных клапанов)'),
+        ),
         buildAddItemButton('Добавить СППК', () => _showSppkDialog(context)),
         ...checklist.sppkItems.asMap().entries.map((e) {
           final idx = e.key;

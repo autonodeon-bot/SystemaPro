@@ -1,7 +1,7 @@
 name: es_td_ngo_mobile
 description: Монитор (SystemaPro) — мобильное приложение инженера диагностики
 publish_to: 'none'
-version: 3.7.0+37
+version: 3.7.3+40
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -79,6 +79,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/vessel_template.png
+    - assets/data/technical_report_forms.json
 
 
 

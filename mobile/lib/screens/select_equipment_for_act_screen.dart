@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/technical_report_form_registry.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
@@ -59,9 +60,19 @@ class _SelectEquipmentForActScreenState
   String? _filterType;
 
   // Типы оборудования, для которых есть акт ТД(ЭПБ)
-  static const _supportedTypes = ['vessel', 'compressor', 'pipeline'];
+  static const _supportedTypes = [
+    'vessel',
+    'gas_separator',
+    'underground_tank',
+    'oil_settler',
+    'compressor',
+    'pipeline',
+  ];
   static const _typeLabels = {
     'vessel': 'Сосуд / Аппарат',
+    'gas_separator': 'Газосепаратор',
+    'underground_tank': 'Ёмкость подземная',
+    'oil_settler': 'Отстойник нефти',
     'compressor': 'Компрессор',
     'pipeline': 'Трубопровод',
   };
@@ -131,10 +142,37 @@ class _SelectEquipmentForActScreenState
     switch (preset) {
       case 'vessel':
         return code.contains('vessel') ||
+            code.contains('gas_separator') ||
+            code.contains('gas_sep') ||
+            code.contains('underground_tank') ||
+            code.contains('oil_settler') ||
             name.contains('сосуд') ||
+            name.contains('газосепаратор') ||
             name.contains('аппарат') ||
             name.contains('ёмкост') ||
-            ename.contains('сосуд');
+            name.contains('емкост') ||
+            ename.contains('сосуд') ||
+            ename.contains('газосепаратор') ||
+            ename.contains('ёмкост') ||
+            ename.contains('емкост') ||
+            ename.contains('отстойник') ||
+            ename.contains('сепаратор');
+      case 'gas_separator':
+        return code.contains('gas_separator') ||
+            code.contains('gas_sep') ||
+            name.contains('газосепаратор') ||
+            ename.contains('газосепаратор');
+      case 'oil_settler':
+        return code.contains('oil_settler') ||
+            name.contains('отстойник') ||
+            ename.contains('отстойник');
+      case 'underground_tank':
+        return code.contains('underground_tank') ||
+            name.contains('ёмкост') ||
+            name.contains('емкост') ||
+            name.contains('подземн') ||
+            ename.contains('ёмкост') ||
+            ename.contains('емкост');
       case 'pipeline':
         return code.contains('pipeline') || name.contains('трубопровод');
       case 'compressor':
@@ -206,22 +244,30 @@ class _SelectEquipmentForActScreenState
           equipmentPreset: widget.presetCategory,
         );
         final rawList = resolved['templates'];
+        final autoApply = resolved['auto_apply'] == true;
+        final recommended = resolved['recommended'];
         if (rawList is List && rawList.isNotEmpty && mounted) {
           final templates = rawList
               .map((e) => InspectionObjectTemplate.fromJson(
                     Map<String, dynamic>.from(e as Map),
                   ))
               .toList();
-          selectedTemplate = await showModalBottomSheet<InspectionObjectTemplate?>(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (sheetCtx) => InspectionTemplatePickerSheet(
-              templates: templates,
-              equipmentName: eq.name ?? 'Объект',
-              onConfirm: (t) => Navigator.pop(sheetCtx, t),
-            ),
-          );
+          if (autoApply && recommended is Map) {
+            selectedTemplate = InspectionObjectTemplate.fromJson(
+              Map<String, dynamic>.from(recommended),
+            );
+          } else {
+            selectedTemplate = await showModalBottomSheet<InspectionObjectTemplate?>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (sheetCtx) => InspectionTemplatePickerSheet(
+                templates: templates,
+                equipmentName: eq.name ?? 'Объект',
+                onConfirm: (t) => Navigator.pop(sheetCtx, t),
+              ),
+            );
+          }
         }
       } catch (_) {}
     }
@@ -272,6 +318,7 @@ class _SelectEquipmentForActScreenState
           equipment: eq,
           assignmentId: widget.assignmentId,
           inspectionType: inspectionType,
+          reportFormId: TechnicalReportFormRegistry.suggestFormId(eq),
           initialChecklistJson: tpl?.defaultData,
         ),
       ),

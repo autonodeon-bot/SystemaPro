@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../models/equipment.dart';
 import '../../data/checklist_constants.dart';
@@ -32,11 +33,14 @@ class InspectionMeasurementsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- Раздел 7: Измерительный контроль ---
-        buildSectionHeader('7. Измерительный контроль'),
+        // --- Измерительный контроль (Прил. № 3) ---
+        buildSectionHeader(
+          form.sectionHeader('measurements_vik', fallback: '7. Измерительный контроль'),
+        ),
         buildSubsectionHeader('Овальность'),
         buildAddItemButton('Добавить измерение овальности',
             () => _showOvalityDialog(context)),
@@ -82,7 +86,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
         const SizedBox(height: 24),
 
         // --- Раздел 8: Твёрдость ---
-        buildSectionHeader('8. Результаты контроля твердости'),
+        buildSectionHeader(
+          form.sectionHeader('measurements_hardness', fallback: '8. Результаты контроля твердости'),
+        ),
         buildAddItemButton('Добавить измерение твердости',
             () => _showHardnessDialog(context)),
         ...checklist.hardnessTests.asMap().entries.map((e) {
@@ -111,7 +117,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
         const SizedBox(height: 24),
 
         // --- Раздел 9: ПВК (МК) и УЗК ---
-        buildSectionHeader('9. Результаты ПВК (МК) и УЗК'),
+        buildSectionHeader(
+          form.sectionHeader('measurements_ndt', fallback: '9. Результаты ПВК (МК) и УЗК'),
+        ),
         buildAddItemButton('Добавить сварное соединение',
             () => _showWeldInspectionDialog(context)),
         ...checklist.weldInspections.asMap().entries.map((e) {
@@ -142,7 +150,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
         const SizedBox(height: 24),
 
         // --- Раздел 10: УЗТ (множественные схемы контроля, П.3.2) ---
-        buildSectionHeader('10. УЗТ (Ультразвуковая толщинометрия)'),
+        buildSectionHeader(
+          form.sectionHeader('measurements_uzt', fallback: '10. УЗТ (Ультразвуковая толщинометрия)'),
+        ),
         // Существующая одиночная схема (обратная совместимость)
         if (checklist.uztSchemes.isEmpty) ...[
           _buildControlSchemePhoto(context),
@@ -610,8 +620,12 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final allowedBase = TextEditingController();
     final allowedWeld = TextEditingController();
     final base = TextEditingController();
+    final baseT1 = TextEditingController();
+    final baseT5 = TextEditingController();
     final w = TextEditingController();
     final haz = TextEditingController();
+    final hazT2 = TextEditingController();
+    final hazT4 = TextEditingController();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -623,15 +637,18 @@ class InspectionMeasurementsSection extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              buildDialogTextField(weld, 'Номер шва *'),
+              buildDialogTextField(weld, 'Номер шва / участка *'),
               buildDialogTextField(area, 'Номер участка'),
               buildDialogTextField(
                   allowedBase, 'Допустимая твердость (осн.)'),
               buildDialogTextField(
                   allowedWeld, 'Допустимая твердость (шов)'),
-              buildDialogTextField(base, 'Твердость (осн.)'),
-              buildDialogTextField(w, 'Твердость (шов)'),
-              buildDialogTextField(haz, 'Твердость (ЗТВ)'),
+              buildDialogTextField(baseT1, 'Т.1 (основной металл)'),
+              buildDialogTextField(baseT5, 'Т.5 (основной металл)'),
+              buildDialogTextField(w, 'Т.3 (шов)'),
+              buildDialogTextField(hazT2, 'Т.2 (ЗТВ)'),
+              buildDialogTextField(hazT4, 'Т.4 (ЗТВ)'),
+              buildDialogTextField(base, 'Твердость (осн.) — устар.'),
             ],
           ),
         ),
@@ -648,14 +665,19 @@ class InspectionMeasurementsSection extends StatelessWidget {
 
     if (ok == true && weld.text.trim().isNotEmpty) {
       final t = HardnessTest(weldNumber: weld.text.trim());
+      t.location = weld.text.trim();
       t.areaNumber = area.text.trim().isEmpty ? null : area.text.trim();
       t.allowedHardnessBase =
           allowedBase.text.trim().isEmpty ? null : allowedBase.text.trim();
       t.allowedHardnessWeld =
           allowedWeld.text.trim().isEmpty ? null : allowedWeld.text.trim();
-      t.hardnessBase = base.text.trim().isEmpty ? null : base.text.trim();
+      t.hardnessBaseT1 = baseT1.text.trim().isEmpty ? (base.text.trim().isEmpty ? null : base.text.trim()) : baseT1.text.trim();
+      t.hardnessBaseT5 = baseT5.text.trim().isEmpty ? t.hardnessBaseT1 : baseT5.text.trim();
       t.hardnessWeld = w.text.trim().isEmpty ? null : w.text.trim();
-      t.hardnessHaz = haz.text.trim().isEmpty ? null : haz.text.trim();
+      t.hardnessHazT2 = hazT2.text.trim().isEmpty ? (haz.text.trim().isEmpty ? null : haz.text.trim()) : hazT2.text.trim();
+      t.hardnessHazT4 = hazT4.text.trim().isEmpty ? t.hardnessHazT2 : hazT4.text.trim();
+      t.hardnessBase = t.hardnessBaseT1;
+      t.hardnessHaz = t.hardnessHazT2;
       checklist.hardnessTests.add(t);
       onStateChanged();
     }
@@ -668,6 +690,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
         TextEditingController(text: editWeld?.locationOnControlMap ?? '');
     final pvk = TextEditingController(text: editWeld?.pvkDefect ?? '');
     final uzk = TextEditingController(text: editWeld?.uzkDefect ?? '');
+    String controlMethod = editWeld?.controlMethod?.toUpperCase() ?? 'MPK';
     final xPercent = TextEditingController(
         text: editWeld?.xPercent != null
             ? editWeld!.xPercent!.toStringAsFixed(1)
@@ -695,6 +718,19 @@ class InspectionMeasurementsSection extends StatelessWidget {
               children: [
                 buildDialogTextField(weld, 'Номер шва *'),
                 buildDialogTextField(loc, 'Место на карте контроля'),
+                DropdownButtonFormField<String>(
+                  value: controlMethod,
+                  decoration: const InputDecoration(
+                    labelText: 'Метод контроля (ЭПБ)',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                  dropdownColor: kInspectionDarkBg,
+                  items: const [
+                    DropdownMenuItem(value: 'MPK', child: Text('МПК', style: TextStyle(color: Colors.white))),
+                    DropdownMenuItem(value: 'UZK', child: Text('УЗК', style: TextStyle(color: Colors.white))),
+                  ],
+                  onChanged: (v) => setInner(() => controlMethod = v ?? 'MPK'),
+                ),
                 buildDialogTextField(pvk, 'Дефект (ПВК/МК)'),
                 buildDialogTextField(uzk, 'Дефект (УЗК)'),
                 const SizedBox(height: 8),
@@ -754,8 +790,12 @@ class InspectionMeasurementsSection extends StatelessWidget {
       w.weldNumber = weld.text.trim();
       w.locationOnControlMap =
           loc.text.trim().isEmpty ? null : loc.text.trim();
+      w.controlMethod = controlMethod;
       w.pvkDefect = pvk.text.trim().isEmpty ? null : pvk.text.trim();
       w.uzkDefect = uzk.text.trim().isEmpty ? null : uzk.text.trim();
+      w.defectDescription = controlMethod == 'UZK'
+          ? (w.uzkDefect ?? 'дефектов не обнаружено')
+          : (w.pvkDefect ?? 'дефектов не обнаружено');
       w.conclusion = conclusion;
       final xVal =
           double.tryParse(xPercent.text.trim().replaceAll(',', '.'));

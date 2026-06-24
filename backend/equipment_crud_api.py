@@ -242,10 +242,20 @@ async def get_equipment_by_id(equipment_id: str, db: AsyncSession = Depends(get_
         eq = result.scalar_one_or_none()
         if not eq:
             raise HTTPException(status_code=404, detail="Equipment not found")
+        type_code = None
+        type_name = None
+        if eq.type_id:
+            tr = await db.execute(select(EquipmentType).where(EquipmentType.id == eq.type_id))
+            et = tr.scalar_one_or_none()
+            if et:
+                type_code = et.code
+                type_name = et.name
         return {
             "id": str(eq.id),
             "name": eq.name,
             "type_id": str(eq.type_id) if eq.type_id else None,
+            "type_code": type_code,
+            "type_name": type_name,
             "serial_number": eq.serial_number,
             "location": eq.location,
             "attributes": eq.attributes or {},

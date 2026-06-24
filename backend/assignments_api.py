@@ -102,6 +102,7 @@ class AssignmentCreate(BaseModel):
     due_date: Optional[str] = None
     description: Optional[str] = None
     protocol_template_id: Optional[str] = None
+    ndt_method_codes: Optional[List[str]] = None
 
 class AssignmentUpdate(BaseModel):
     status: Optional[str] = None
@@ -140,6 +141,7 @@ class AssignmentResponse(BaseModel):
     opo_code: Optional[str] = None
     protocol_template_id: Optional[str] = None
     protocol_template_name: Optional[str] = None
+    ndt_method_codes: Optional[List[str]] = None
 
 class ObjectEngineerProgress(BaseModel):
     user_id: str
@@ -253,6 +255,7 @@ async def create_assignment(
             description=assignment_data.description,
             status='PENDING',
             protocol_template_id=tpl_id_raw,
+            ndt_method_codes=assignment_data.ndt_method_codes or [],
         )
 
         db.add(new_assignment)
@@ -451,6 +454,7 @@ async def get_assignments(
                 )
                 if getattr(assignment, "protocol_template_id", None)
                 else None,
+                "ndt_method_codes": list(getattr(assignment, "ndt_method_codes", None) or []),
             })
 
         return assignments_list
@@ -597,6 +601,7 @@ async def get_assignments_sync(
                 )
                 if getattr(assignment, "protocol_template_id", None)
                 else None,
+                "ndt_method_codes": list(getattr(assignment, "ndt_method_codes", None) or []),
             })
 
         return assignments_list
@@ -664,6 +669,7 @@ async def get_assignment(
             "completed_at": (lambda t: t.isoformat() if t else None)(getattr(assignment, "completed_at", None)),
             "protocol_template_id": str(ptid) if ptid else None,
             "protocol_template_name": tpl_name,
+            "ndt_method_codes": list(getattr(assignment, "ndt_method_codes", None) or []),
         }
 
     except HTTPException:

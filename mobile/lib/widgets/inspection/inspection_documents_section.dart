@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../services/api_service.dart';
 import '../../services/image_resize_service.dart';
@@ -32,12 +33,18 @@ class InspectionDocumentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final docs = form.documents.isNotEmpty
+        ? form.documents
+        : ChecklistConstants.documents;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildSectionHeader('2. Перечень рассмотренных документов'),
+        buildSectionHeader(
+          form.sectionHeader('documents', fallback: '2. Перечень рассмотренных документов'),
+        ),
         _buildOpoDataSwitch(),
-        ...ChecklistConstants.documents.where((doc) {
+        ...docs.where((doc) {
           final n = int.tryParse(doc['number'] ?? '0') ?? 0;
           if (checklist.includeOpoData) return true;
           return n >= 10;

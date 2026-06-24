@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, Plus, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, Clock, FileDown, History, BarChart3, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Calendar, Eye, Edit, Trash2, CheckCircle, XCircle, Clock, FileDown, History, BarChart3, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface VerificationEquipment {
@@ -39,6 +39,8 @@ const VerificationsManagement: React.FC = () => {
   const [usageStatistics, setUsageStatistics] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [sortCol, setSortCol] = useState<string>('next_verification_date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     loadEquipment();
@@ -250,6 +252,35 @@ const VerificationsManagement: React.FC = () => {
     }
   };
 
+  const handleSort = (col: string) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedEquipment = [...filteredEquipment].sort((a, b) => {
+    let av: any = (a as any)[sortCol];
+    let bv: any = (b as any)[sortCol];
+    if (sortCol === 'next_verification_date' || sortCol === 'verification_date') {
+      av = av ? new Date(av).getTime() : Infinity;
+      bv = bv ? new Date(bv).getTime() : Infinity;
+    }
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortCol !== col) return <ArrowUpDown size={13} className="ml-1 opacity-30 inline" />;
+    return sortDir === 'asc'
+      ? <ArrowUp size={13} className="ml-1 text-[var(--accent)] inline" />
+      : <ArrowDown size={13} className="ml-1 text-[var(--accent)] inline" />;
+  };
+
   if (loading) {
     return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
   }
@@ -428,24 +459,34 @@ const VerificationsManagement: React.FC = () => {
           <table className="w-full">
             <thead className="bg-app-panel/50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Название</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Тип</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Серийный номер</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Следующая поверка</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Статус</th>
+                {[
+                  { col: 'name', label: 'Название' },
+                  { col: 'equipment_type', label: 'Тип' },
+                  { col: 'serial_number', label: 'Серийный №' },
+                  { col: 'next_verification_date', label: 'Следующая поверка' },
+                  { col: 'is_expired', label: 'Статус' },
+                ].map(({ col, label }) => (
+                  <th
+                    key={col}
+                    className="px-4 py-3 text-left text-sm font-semibold text-app-text2 cursor-pointer hover:text-app-text select-none"
+                    onClick={() => handleSort(col)}
+                  >
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
                 <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Скан</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-app-text2">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-app-line">
-              {filteredEquipment.length === 0 ? (
+              {sortedEquipment.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-app-text3">
                     Оборудование не найдено
                   </td>
                 </tr>
               ) : (
-                filteredEquipment.map((item) => (
+                sortedEquipment.map((item) => (
                   <tr key={item.id} className="hover:bg-app-panel/30 transition">
                     <td className="px-4 py-3 text-app-text">{item.name}</td>
                     <td className="px-4 py-3 text-app-text2">{item.equipment_type}</td>

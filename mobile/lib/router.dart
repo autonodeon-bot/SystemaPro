@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
@@ -47,11 +48,22 @@ final appRouter = GoRouter(
       path: '/inspection',
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>? ?? {};
+        final equipment = extra['equipment'];
+        if (equipment is! Equipment) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Ошибка')),
+            body: const Center(
+              child: Text('Не удалось открыть обследование: данные оборудования не переданы'),
+            ),
+          );
+        }
         return VesselInspectionScreen(
-          equipment: extra['equipment'] as Equipment,
+          equipment: equipment,
           assignmentId: extra['assignmentId'] as String?,
           existingInspectionId: extra['existingInspectionId'] as String?,
           inspectionType: extra['inspectionType'] as String?,
+          reportFormId: extra['reportFormId'] as String?,
+          initialChecklistJson: extra['initialChecklistJson'] as Map<String, dynamic>?,
         );
       },
     ),

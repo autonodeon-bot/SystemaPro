@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../data/checklist_constants.dart';
 import 'inspection_form_fields.dart';
@@ -15,10 +16,13 @@ class InspectionChecksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildSectionHeader('4. Проверки'),
+        buildSectionHeader(
+          form.sectionHeader('checks', fallback: '4. Проверки'),
+        ),
         buildYesNoField('matches_drawing', 'Соответствует ли сосуд чертежу',
             (value) {
           checklist.matchesDrawing = value == 'yes';

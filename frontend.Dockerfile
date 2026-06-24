@@ -7,8 +7,8 @@ WORKDIR /app
 COPY package.json ./
 COPY package-lock.json* ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (ci надёжнее install на VPS)
+RUN npm ci --no-audit --fund=false || (npm cache clean --force && npm ci --no-audit --fund=false)
 
 # Copy source files
 COPY . .
@@ -22,7 +22,7 @@ ARG BUILD_REF=dev
 RUN echo "frontend build ref: ${BUILD_REF}"
 
 # Build the application
-RUN npm run build
+RUN ./node_modules/.bin/vite build
 
 # Production stage
 FROM nginx:alpine

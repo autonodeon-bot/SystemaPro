@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as Path;
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../services/image_resize_service.dart';
 import 'inspection_form_fields.dart';
@@ -23,10 +24,13 @@ class InspectionDefectsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildSectionHeader('11. Дефекты'),
+        buildSectionHeader(
+          form.sectionHeader('defects', fallback: '11. Дефекты'),
+        ),
         buildYesNoField(
             'has_local_deformations', 'Локально деформированные зоны',
             (value) {

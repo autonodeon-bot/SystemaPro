@@ -19,7 +19,8 @@ class InstrumentService {
       }
       
       // Проверка включенности Bluetooth
-      if (await FlutterBluePlus.isOn == false) {
+      final adapterState = await FlutterBluePlus.adapterState.first;
+      if (adapterState != BluetoothAdapterState.on) {
         throw Exception('Bluetooth выключен. Пожалуйста, включите Bluetooth');
       }
       
@@ -47,7 +48,12 @@ class InstrumentService {
   /// Подключиться к прибору
   Future<void> connectToDevice(BluetoothDevice device) async {
     try {
-      await device.connect(timeout: const Duration(seconds: 15));
+      await device.connect(
+        license: License.free,
+        timeout: const Duration(seconds: 15),
+        autoConnect: false,
+        mtu: null,
+      );
       _connectedDevice = device;
       
       // Найти сервис и характеристику
@@ -97,7 +103,7 @@ class InstrumentService {
     // Подписаться на уведомления
     _characteristic!.setNotifyValue(true);
     
-    return _characteristic!.value;
+    return _characteristic!.lastValueStream;
   }
   
   /// Парсить данные толщиномера (пример для ультразвукового толщиномера)
@@ -147,7 +153,7 @@ class InstrumentService {
   
   /// Получить имя подключенного устройства
   String? getConnectedDeviceName() {
-    return _connectedDevice?.name;
+    return _connectedDevice?.platformName;
   }
 }
 

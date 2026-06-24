@@ -1,7 +1,16 @@
 // Константы для чек-листа обследования сосуда
 
+import 'technical_report_form_registry.dart';
+
 class ChecklistConstants {
-  // Перечень документов (17 пунктов)
+  /// Документы по форме ТО «Обследование сосудов и аппаратов» (синхронизировано с backend).
+  static List<Map<String, String>> documentsForForm(String? reportFormId) {
+    final form = TechnicalReportFormRegistry.formForChecklist(reportFormId);
+    if (form.documents.isNotEmpty) return form.documents;
+    return documents;
+  }
+
+  // Перечень документов (17 пунктов) — устаревший список, для совместимости
   static const List<Map<String, String>> documents = [
     {
       'number': '1',

@@ -886,37 +886,58 @@ const AssignmentsManagement = () => {
             </div>
           ))
         ) : (
-          filteredAssignments.map((assignment) => (
-            <AssignmentCard
-              key={assignment.id}
-              assignment={assignment}
-              isSelected={selectedAssignments.has(assignment.id)}
-              onSelect={(id) => {
-                setSelectedAssignments(prev => {
-                  const newSet = new Set(prev);
-                  if (newSet.has(id)) {
-                    newSet.delete(id);
-                  } else {
-                    newSet.add(id);
-                  }
-                  return newSet;
-                });
-              }}
-              getStatusIcon={getStatusIcon}
-              getStatusLabel={getStatusLabel}
-              getTypeLabel={getTypeLabel}
-              getPriorityColor={getPriorityColor}
-              onViewChecklist={handleViewChecklist}
-              onGenerateReport={handleGenerateReport}
-              onDownloadReport={handleDownloadReport}
-              onArchive={handleArchiveAssignment}
-              onDelete={handleDeleteAssignment}
-              onEdit={setEditingAssignment}
-              generatingReport={generatingReport}
-              serverSummary={serverSummary[assignment.id]}
-              userRole={user?.role}
-            />
-          ))
+          <div className="overflow-x-auto rounded-xl border border-app-line">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-app-deep text-app-text3 uppercase text-xs">
+                <tr>
+                  <th className="px-3 py-2">Оборудование</th>
+                  <th className="px-3 py-2 hidden md:table-cell">Инженер</th>
+                  <th className="px-3 py-2">Статус</th>
+                  <th className="px-3 py-2 hidden lg:table-cell">Срок</th>
+                  <th className="px-3 py-2">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAssignments.map((assignment) => (
+                  <tr key={assignment.id} className="border-t border-app-line hover:bg-app-surface-alt/50">
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-app-text">{assignment.equipment_name}</div>
+                      <div className="text-xs text-app-text3">{assignment.equipment_code}</div>
+                    </td>
+                    <td className="px-3 py-2 hidden md:table-cell text-app-text2">
+                      {assignment.assigned_to_name || '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="text-xs font-bold">{getStatusLabel(assignment.status)}</span>
+                    </td>
+                    <td className="px-3 py-2 hidden lg:table-cell text-app-text3">
+                      {assignment.due_date
+                        ? new Date(assignment.due_date).toLocaleDateString('ru-RU')
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleViewChecklist(assignment.id)}
+                          className="px-2 py-1 text-xs rounded bg-app-soft hover:bg-app-softer"
+                        >
+                          Чек-лист
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingAssignment(assignment)}
+                          className="px-2 py-1 text-xs rounded bg-app-soft hover:bg-app-softer"
+                        >
+                          Изменить
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

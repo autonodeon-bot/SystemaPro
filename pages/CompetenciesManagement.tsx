@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
-import { User, Award, Plus, AlertTriangle, CheckCircle, Edit, Trash2, X, FileText, Clock } from 'lucide-react';
+import { User, Award, Plus, AlertTriangle, CheckCircle, Edit, Trash2, X, FileText, Clock, Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
 
@@ -65,6 +65,9 @@ const CompetenciesManagement = () => {
   const [engineerListFilter, setEngineerListFilter] = useState<
     'all' | 'attention' | 'expiring' | 'expired'
   >('all');
+  const [engineerSearch, setEngineerSearch] = useState('');
+  const [engineerSortCol, setEngineerSortCol] = useState<'full_name' | 'certs'>('full_name');
+  const [engineerSortDir, setEngineerSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -495,17 +498,46 @@ const CompetenciesManagement = () => {
   const { validCount = 0, expiringSoonCount = 0, expiredCount = 0 } = statistics;
 
   const engineersFiltered = useMemo(() => {
-    return engineers.filter((engineer) => {
+    let list = engineers.filter((engineer) => {
       const engCerts = certifications.filter((c) => c.engineer_id === engineer.id);
       const hasExpiring = engCerts.some((c) => isCertificationExpiring(c.expiry_date));
       const hasExpired = engCerts.some((c) => isCertificationExpired(c.expiry_date));
-      if (engineerListFilter === 'all') return true;
-      if (engineerListFilter === 'expired') return hasExpired;
-      if (engineerListFilter === 'expiring') return hasExpiring;
-      if (engineerListFilter === 'attention') return hasExpired || hasExpiring;
-      return true;
+      const statusOk = (() => {
+        if (engineerListFilter === 'all') return true;
+        if (engineerListFilter === 'expired') return hasExpired;
+        if (engineerListFilter === 'expiring') return hasExpiring;
+        if (engineerListFilter === 'attention') return hasExpired || hasExpiring;
+        return true;
+      })();
+      const searchOk = !engineerSearch || [engineer.full_name, engineer.position, engineer.email]
+        .some(v => v?.toLowerCase().includes(engineerSearch.toLowerCase()));
+      return statusOk && searchOk;
     });
-  }, [engineers, certifications, engineerListFilter]);
+    list = [...list].sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+      if (engineerSortCol === 'full_name') { av = a.full_name.toLowerCase(); bv = b.full_name.toLowerCase(); }
+      if (engineerSortCol === 'certs') {
+        av = certifications.filter(c => c.engineer_id === a.id).length;
+        bv = certifications.filter(c => c.engineer_id === b.id).length;
+      }
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return engineerSortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [engineers, certifications, engineerListFilter, engineerSearch, engineerSortCol, engineerSortDir]);
+
+  const handleEngineerSort = (col: 'full_name' | 'certs') => {
+    if (engineerSortCol === col) setEngineerSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setEngineerSortCol(col); setEngineerSortDir('asc'); }
+  };
+
+  const EngineerSortIcon = ({ col }: { col: string }) => {
+    if (engineerSortCol !== col) return <ArrowUpDown size={12} className="ml-1 opacity-30 inline" />;
+    return engineerSortDir === 'asc'
+      ? <ArrowUp size={12} className="ml-1 inline text-blue-400" />
+      : <ArrowDown size={12} className="ml-1 inline text-blue-400" />;
+  };
 
   if (loading) {
     return <div className="text-center text-app-text3 mt-20">Загрузка...</div>;
@@ -640,29 +672,59 @@ const CompetenciesManagement = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-sm text-app-text3 mr-1">Список:</span>
-        {(
-          [
-            { id: 'all' as const, label: 'Все' },
-            { id: 'attention' as const, label: 'Нужно внимание (просрочка или ≤90 дн.)' },
-            { id: 'expiring' as const, label: 'Есть истекающие' },
-            { id: 'expired' as const, label: 'Есть просроченные' },
-          ]
-        ).map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => setEngineerListFilter(opt.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-              engineerListFilter === opt.id
-                ? 'bg-accent text-white border-accent'
-                : 'bg-app-panel text-app-text3 border-app-line hover:border-accent/40'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
+      {/* Поиск + фильтры + сортировка инженеров */}
+      <div className="bg-app-panel rounded-xl border border-app-line p-3 space-y-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-app-text3" />
+            <input
+              type="text"
+              placeholder="Поиск по ФИО, должности, email…"
+              value={engineerSearch}
+              onChange={(e) => setEngineerSearch(e.target.value)}
+              className="ind-input w-full pl-8 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex gap-1 items-center">
+            <span className="text-xs text-app-text3">Сорт.:</span>
+            <button
+              onClick={() => handleEngineerSort('full_name')}
+              className={`px-2 py-1 rounded text-xs border transition ${engineerSortCol === 'full_name' ? 'border-accent/40 text-accent bg-accent/10' : 'border-app-line text-app-text3'}`}
+            >
+              По имени<EngineerSortIcon col="full_name" />
+            </button>
+            <button
+              onClick={() => handleEngineerSort('certs')}
+              className={`px-2 py-1 rounded text-xs border transition ${engineerSortCol === 'certs' ? 'border-accent/40 text-accent bg-accent/10' : 'border-app-line text-app-text3'}`}
+            >
+              По кол-ву серт.<EngineerSortIcon col="certs" />
+            </button>
+          </div>
+          <span className="text-xs text-app-text3 ml-auto">{engineersFiltered.length} из {engineers.length}</span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              { id: 'all' as const, label: 'Все' },
+              { id: 'attention' as const, label: 'Требуют внимания' },
+              { id: 'expiring' as const, label: 'Истекают' },
+              { id: 'expired' as const, label: 'Просрочены' },
+            ]
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setEngineerListFilter(opt.id)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                engineerListFilter === opt.id
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-app-deep text-app-text3 border-app-line hover:border-accent/40'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Форма добавления */}

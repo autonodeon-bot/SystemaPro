@@ -8,6 +8,15 @@ interface CreateAssignmentModalProps {
   engineersList: any[];
 }
 
+const NDT_METHOD_OPTIONS = [
+  { code: 'VIK', label: 'ВИК' },
+  { code: 'UZT', label: 'УЗТ' },
+  { code: 'UZK', label: 'УЗК' },
+  { code: 'MPK', label: 'МПК' },
+  { code: 'TVI', label: 'Твердометрия' },
+  { code: 'PVK', label: 'ПВК' },
+];
+
 const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, onSuccess, equipmentList: _equipmentList, engineersList }) => {
   const [formData, setFormData] = useState({
     selectedEquipmentIds: [] as string[],
@@ -17,7 +26,9 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
     due_date: '',
     description: '',
     protocol_template_id: '',
+    ndt_method_codes: [] as string[],
   });
+  const [engineerFilter, setEngineerFilter] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enterprises, setEnterprises] = useState<any[]>([]);
@@ -295,13 +306,14 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
       const token = localStorage.getItem('token');
       
       const promises = formData.selectedEquipmentIds.map(equipmentId => {
-        const payload: Record<string, string | null> = {
+        const payload: Record<string, string | string[] | null> = {
           equipment_id: equipmentId,
           assignment_type: formData.assignment_type,
           assigned_to: formData.assigned_to,
           priority: formData.priority,
           due_date: formData.due_date ? `${formData.due_date}T23:59:59` : null,
           description: formData.description || null,
+          ndt_method_codes: formData.ndt_method_codes,
         };
         if (formData.protocol_template_id.trim()) {
           payload.protocol_template_id = formData.protocol_template_id.trim();
@@ -501,19 +513,75 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
             <label className="block text-sm font-medium text-app-text2 mb-1">
               Назначить инженеру *
             </label>
+            <input
+              type="search"
+              placeholder="Поиск инженера..."
+              value={engineerFilter}
+              onChange={(e) => setEngineerFilter(e.target.value)}
+              className="w-full mb-2 px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+            />
             <select
               required
               value={formData.assigned_to}
               onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+              className="w-full max-h-48 px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+              size={Math.min(8, Math.max(4, engineersList.filter((eng) => {
+                const q = engineerFilter.trim().toLowerCase();
+                if (!q) return true;
+                const name = (eng.full_name || eng.username || '').toLowerCase();
+                return name.includes(q);
+              }).length + 1))}
             >
               <option value="">Выберите инженера</option>
-              {engineersList.map((eng) => (
+              {engineersList
+                .filter((eng) => {
+                  const q = engineerFilter.trim().toLowerCase();
+                  if (!q) return true;
+                  const name = (eng.full_name || eng.username || '').toLowerCase();
+                  return name.includes(q);
+                })
+                .map((eng) => (
                 <option key={eng.id} value={eng.id}>
                   {eng.full_name || eng.username}
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app-text2 mb-2">
+              Методы неразрушающего контроля
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {NDT_METHOD_OPTIONS.map((m) => {
+                const checked = formData.ndt_method_codes.includes(m.code);
+                return (
+                  <label
+                    key={m.code}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${
+                      checked
+                        ? 'border-accent bg-accent/15 text-accent'
+                        : 'border-app-line bg-app-deep text-app-text2'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      onChange={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          ndt_method_codes: checked
+                            ? prev.ndt_method_codes.filter((c) => c !== m.code)
+                            : [...prev.ndt_method_codes, m.code],
+                        }));
+                      }}
+                    />
+                    {m.label}
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div>

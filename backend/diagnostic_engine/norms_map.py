@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Iterable
 
 NORMS_MAP: dict[str, dict[str, list[str]]] = {
-    # Сосуды и аппараты под давлением
+    # Сосуды, газосепараторы и аппараты под давлением
     "pressure_vessel": {
         "VIC": ["РД 03-606-03", "ГОСТ Р 55724-2013"],
         "UT": ["ГОСТ Р ИСО 16809-2015", "РД 09-539-03"],
@@ -42,7 +42,20 @@ NORMS_MAP: dict[str, dict[str, list[str]]] = {
 
 def resolve_methods_for_object(object_type: str) -> dict[str, list[str]]:
     """Возвращает карту method→[нормы]. Пустой dict если тип неизвестен."""
-    return dict(NORMS_MAP.get(object_type, {}))
+    key = object_type
+    if key in (
+        "gas_separator",
+        "GAS_SEPARATOR",
+        "underground_tank",
+        "UNDERGROUND_TANK",
+        "oil_settler",
+        "OIL_SETTLER",
+        "vessel",
+        "VESSEL",
+        "receiver",
+    ):
+        key = "pressure_vessel"
+    return dict(NORMS_MAP.get(key, {}))
 
 
 def list_object_types() -> Iterable[str]:

@@ -15,42 +15,41 @@ final syncServiceProvider = Provider<SyncService>((ref) => SyncService());
 
 final locationServiceProvider = Provider<LocationService>((ref) => LocationService());
 
-// ─── State providers ─────────────────────────────────────────────────────────
+// ─── State providers (Riverpod 3.x) ──────────────────────────────────────────
 
 final assignmentsProvider =
-    StateNotifierProvider<AssignmentsNotifier, AsyncValue<List<Assignment>>>((ref) {
-  return AssignmentsNotifier(
-    ref.read(apiServiceProvider),
-    ref.read(syncServiceProvider),
-  );
-});
+    AsyncNotifierProvider<AssignmentsNotifier, List<Assignment>>(
+  AssignmentsNotifier.new,
+);
 
-class AssignmentsNotifier extends StateNotifier<AsyncValue<List<Assignment>>> {
-  final ApiService _apiService;
-  final SyncService _syncService;
+class AssignmentsNotifier extends AsyncNotifier<List<Assignment>> {
+  late final ApiService _apiService;
+  late final SyncService _syncService;
 
-  AssignmentsNotifier(this._apiService, this._syncService)
-      : super(const AsyncValue.loading());
+  @override
+  Future<List<Assignment>> build() async {
+    _apiService = ref.read(apiServiceProvider);
+    _syncService = ref.read(syncServiceProvider);
+    return _loadAssignments();
+  }
 
-  Future<void> loadAssignments() async {
-    state = const AsyncValue.loading();
+  Future<List<Assignment>> _loadAssignments() async {
     try {
       final assignments = await _apiService.getAssignments();
       await _syncService.saveAssignmentsOffline(assignments);
-      state = AsyncValue.data(assignments);
-    } catch (e, st) {
-      // Фолбэк на офлайн-кэш
+      return assignments;
+    } catch (e) {
       try {
-        final offline = await _syncService.getOfflineAssignments();
-        state = AsyncValue.data(offline);
+        return await _syncService.getOfflineAssignments();
       } catch (_) {
-        state = AsyncValue.error(e, st);
+        rethrow;
       }
     }
   }
 
   Future<void> refresh() async {
-    await loadAssignments();
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(_loadAssignments);
   }
 }
 

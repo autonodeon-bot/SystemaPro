@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:workmanager/workmanager.dart';
+import 'data/technical_report_form_registry.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
@@ -64,6 +65,8 @@ Future<void> _bootstrap() async {
     ),
     existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
   );
+
+  await TechnicalReportFormRegistry.ensureLoaded();
 
   runApp(const ProviderScope(child: MyApp()));
 }

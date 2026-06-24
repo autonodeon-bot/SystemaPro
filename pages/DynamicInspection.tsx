@@ -1,7 +1,15 @@
 ﻿
-import React, { useState } from 'react';
-import { VESSEL_SCHEMA, HIERARCHY_TREE } from '../constants';
+import React, { useState, useEffect, useCallback } from 'react';
+import { VESSEL_SCHEMA, HIERARCHY_TREE, inspectionSchemaForEquipment } from '../constants';
 import { FormField, ModuleSchema, HierarchyNode, NodeType, MaintenanceEvent, AttachedDocument, DocCategory, EquipmentAttributes } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import EquipmentProfilePassportPanel from '../components/inspection/EquipmentProfilePassportPanel';
+import {
+  fetchEquipmentProfileResolve,
+  profileFieldDefaults,
+  resolveEquipmentTypeCode,
+  type EquipmentProfileResponse,
+} from '../utils/equipmentProfiles';
 import { 
   Camera, Save, Calculator, PenTool, Check, 
   ChevronRight, ChevronDown, 
@@ -155,9 +163,11 @@ const ThicknessMeasurementWidget = () => {
 
 interface FormFieldRendererProps {
   field: FormField;
+  defaultValues?: Record<string, string>;
 }
 
-const FormFieldRenderer: React.FC<FormFieldRendererProps> = ({ field }) => {
+const FormFieldRenderer: React.FC<FormFieldRendererProps> = ({ field, defaultValues }) => {
+  const initial = defaultValues?.[field.id] ?? '';
   return (
     <div className="mb-6">
       <label className="block text-sm font-medium text-app-text2 mb-2">
@@ -165,18 +175,19 @@ const FormFieldRenderer: React.FC<FormFieldRendererProps> = ({ field }) => {
       </label>
       
       {field.type === 'text' && (
-        <input type="text" className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none" placeholder="..." />
+        <input type="text" defaultValue={initial} className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none" placeholder="..." />
       )}
       
       {field.type === 'select' && (
-        <select className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none">
-          {field.options?.map(opt => <option key={opt}>{opt}</option>)}
+        <select defaultValue={initial || undefined} className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none">
+          {!initial && <option value="">—</option>}
+          {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
       )}
 
       {field.type === 'number' && (
         <div className="relative">
-           <input type="number" className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none pr-10" placeholder="0.00" />
+           <input type="number" defaultValue={initial} className="w-full bg-app-panel border border-app-line rounded px-3 py-2 text-app-text focus:ring-2 focus:ring-accent outline-none pr-10" placeholder="0.00" />
            {field.unit && <span className="absolute right-3 top-2 text-app-text3 text-sm">{field.unit}</span>}
         </div>
       )}
@@ -725,8 +736,49 @@ const ExpertiseTab = ({ node }: { node: HierarchyNode }) => {
 
 // --- MAIN INSPECTION LOGIC (Existing Form) ---
 
-const InspectionForm = ({ schema }: { schema: ModuleSchema }) => {
+const InspectionForm = ({
+  schema,
+  equipmentTypeCode,
+  equipmentName,
+}: {
+  schema: ModuleSchema;
+  equipmentTypeCode?: string;
+  equipmentName?: string;
+}) => {
   const [activeSection, setActiveSection] = useState(0);
+  const { getToken } = useAuth();
+  const [profileData, setProfileData] = useState<EquipmentProfileResponse | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const loadProfile = useCallback(async () => {
+    const token = getToken();
+    if (!token || !equipmentTypeCode) {
+      setProfileData(null);
+      return;
+    }
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      const data = await fetchEquipmentProfileResolve(token, {
+        typeCode: equipmentTypeCode,
+        inspectionDirection: 'technical',
+        includeUztTemplate: true,
+      });
+      setProfileData(data);
+    } catch (e) {
+      setProfileError((e as Error).message);
+      setProfileData(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [equipmentTypeCode, getToken]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  const fieldDefaults = profileFieldDefaults(profileData?.default_data);
 
   return (
     <div className="flex gap-6 h-full min-h-0 animate-in fade-in duration-300">
@@ -750,13 +802,19 @@ const InspectionForm = ({ schema }: { schema: ModuleSchema }) => {
       </div>
 
       <div className="flex-1 bg-app-panel/30 rounded-xl border border-app-line p-6 overflow-y-auto">
+          <EquipmentProfilePassportPanel
+            displayName={profileData?.profile.display_name || equipmentName || 'Оборудование'}
+            defaultData={profileData?.default_data || {}}
+            loading={profileLoading}
+            error={profileError}
+          />
           <h3 className="text-lg font-bold text-app-text mb-6 pb-2 border-b border-app-line sticky top-0 bg-[#151e32] z-10">
             {schema.sections[activeSection].title}
           </h3>
           
           <div className="space-y-6">
               {schema.sections[activeSection].fields.map(field => (
-                <FormFieldRenderer key={field.id} field={field} />
+                <FormFieldRenderer key={field.id} field={field} defaultValues={fieldDefaults} />
               ))}
           </div>
 
@@ -941,7 +999,20 @@ const DynamicInspection = () => {
               {activeTab === 'HISTORY' && <HistoryTab events={selectedNode.history} onAddEvent={handleAddHistoryEvent} />}
               {activeTab === 'DOCS' && <DocsTab docs={selectedNode.documents} />}
               {activeTab === 'EXPERT' && <ExpertiseTab node={selectedNode} />}
-              {activeTab === 'INSPECTION' && <InspectionForm schema={VESSEL_SCHEMA} />}
+              {activeTab === 'INSPECTION' && (
+                <InspectionForm
+                  schema={inspectionSchemaForEquipment(
+                    selectedNode.equipmentType,
+                    selectedNode.name,
+                  )}
+                  equipmentTypeCode={resolveEquipmentTypeCode(
+                    selectedNode.equipmentType,
+                    selectedNode.name,
+                    selectedNode.name,
+                  )}
+                  equipmentName={selectedNode.name}
+                />
+              )}
            </div>
         </div>
      );

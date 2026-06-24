@@ -1,6 +1,9 @@
 
 export enum EquipmentType {
-  VESSEL = 'VESSEL', // СРпД
+  VESSEL = 'VESSEL', // СРпД — сосуды
+  GAS_SEPARATOR = 'GAS_SEPARATOR', // Газосепаратор (СРпД)
+  UNDERGROUND_TANK = 'UNDERGROUND_TANK', // Ёмкость подземная (СРпД)
+  OIL_SETTLER = 'OIL_SETTLER', // Отстойник нефти (СРпД)
   PIPELINE = 'PIPELINE', // Трубопроводы
   TANK = 'TANK', // РВС
   FURNACE = 'FURNACE', // Печи
@@ -92,8 +95,14 @@ export interface EquipmentAttributes {
   regNumber?: string; // Рег. номер в РТН
   designLife?: number; // Расчетный срок службы (лет)
   
-  // Vessel / Column
+  // Vessel / Gas separator / Underground tank / Column
   volume?: number; // м3
+  constructionType?: string; // горизонтальный, вертикальный
+  purpose?: string; // назначение
+  schemeIndex?: string; // индекс по схеме (ДЕ-1 и т.д.)
+  internalDiameter?: number; // мм — внутренний диаметр ёмкости
+  pressureCategory?: 'low' | 'high'; // до 0,07 МПа или выше
+  testPressureType?: string; // налив, гидравлическое
   pressureDesign?: number; // МПа
   pressureWork?: number; // МПа
   tempDesign?: number; // C

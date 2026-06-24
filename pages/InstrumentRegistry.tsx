@@ -328,7 +328,7 @@ const InstrumentRegistry: React.FC = () => {
   const [filterSpecialist, setFilterSpecialist] = useState('');
   const [filterCondition, setFilterCondition] = useState('');
   const [filterExpiring, setFilterExpiring] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
   const [modalInstrument, setModalInstrument] = useState<Instrument | null | 'new'>('new' as any);
   const [prefillVeId, setPrefillVeId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);

@@ -4,6 +4,9 @@ class VesselChecklist {
   // Основная информация
   String? inspectionDate;
   String? inspectionType; // VISUAL, NDT, QUESTIONNAIRE, EXPERTISE
+  /// Форма ТО: to-1, to-3, to-33 …
+  String? reportFormId;
+  String? reportFormTitle;
   String? executors; // Исполнители
   String? organization; // Организация (НГДУ, цех, месторождение)
   
@@ -14,6 +17,9 @@ class VesselChecklist {
 
   // Данные по ОПО (пункты 1-9). Если false — показываем/заполняем только документы 10-17.
   bool includeOpoData = true;
+
+  /// VESSEL | GAS_SEPARATOR | UNDERGROUND_TANK | OIL_SETTLER — терминология отчёта
+  String? equipmentTypeCode;
   
   // Карта обследования
   String? vesselName; // Наименование сосуда
@@ -38,6 +44,19 @@ class VesselChecklist {
   String? corrosionAllowance; // Прибавка для компенсации коррозии, мм
   // Анализ результатов предыдущих обследований
   String? previousInspectionResult;
+
+  // ЭПБ: паспортные данные (приложение Б)
+  String? constructionType;
+  String? volume;
+  String? schemeIndex;
+  List<VesselElement> vesselElements = [];
+  List<HeatTreatmentRecord> heatTreatmentRecords = [];
+  List<HydraulicTestRecord> hydraulicTestHistory = [];
+  List<NdtControlRecord> ndtControlHistory = [];
+  List<RepairRecord> repairHistory = [];
+  List<FittingInstrument> fittingsAndInstruments = [];
+  Map<String, dynamic>? calculationData;
+  String? residualLifeText;
   
   // Фото заводской таблички
   String? factoryPlatePhoto;
@@ -189,9 +208,11 @@ class VesselChecklist {
   
   Map<String, dynamic> toJson() {
     return {
-      'equipment_type': 'VESSEL', // Тип оборудования для правильного определения при синхронизации
+      'equipment_type': equipmentTypeCode ?? 'VESSEL',
       'inspection_date': inspectionDate,
       'inspection_type': inspectionType,
+      'report_form_id': reportFormId,
+      'report_form_title': reportFormTitle,
       'executors': executors,
       'organization': organization,
       'documents': documents,
@@ -224,6 +245,17 @@ class VesselChecklist {
       'medium_group': mediumGroup,
       'corrosion_allowance': corrosionAllowance,
       'previous_inspection_result': previousInspectionResult,
+      'construction_type': constructionType,
+      'volume': volume,
+      'scheme_index': schemeIndex,
+      'vessel_elements': vesselElements.map((e) => e.toJson()).toList(),
+      'heat_treatment_records': heatTreatmentRecords.map((e) => e.toJson()).toList(),
+      'hydraulic_test_history': hydraulicTestHistory.map((e) => e.toJson()).toList(),
+      'ndt_control_history': ndtControlHistory.map((e) => e.toJson()).toList(),
+      'repair_history': repairHistory.map((e) => e.toJson()).toList(),
+      'fittings_and_instruments': fittingsAndInstruments.map((e) => e.toJson()).toList(),
+      'calculation_data': calculationData,
+      'residual_life_text': residualLifeText,
       'factory_plate_photo': factoryPlatePhoto,
       'matches_drawing': matchesDrawing,
       'has_thermal_insulation': hasThermalInsulation,
@@ -266,10 +298,13 @@ class VesselChecklist {
 
     checklist.inspectionDate = json['inspection_date'] as String?;
     checklist.inspectionType = json['inspection_type'] as String?;
+    checklist.reportFormId = json['report_form_id'] as String?;
+    checklist.reportFormTitle = json['report_form_title'] as String?;
     checklist.executors = json['executors'] as String?;
     checklist.organization = json['organization'] as String?;
 
     checklist.includeOpoData = _asBool(json['include_opo_data']) ?? true;
+    checklist.equipmentTypeCode = json['equipment_type']?.toString();
 
     final docsRaw = json['documents'];
     if (docsRaw is Map) {
@@ -332,6 +367,26 @@ class VesselChecklist {
     checklist.mediumGroup = json['medium_group'] as String?;
     checklist.corrosionAllowance = json['corrosion_allowance'] as String?;
     checklist.previousInspectionResult = json['previous_inspection_result'] as String?;
+    checklist.constructionType = json['construction_type']?.toString();
+    checklist.volume = json['volume']?.toString();
+    checklist.schemeIndex = json['scheme_index']?.toString();
+    checklist.residualLifeText = json['residual_life_text']?.toString();
+
+    checklist.vesselElements = _parseList(json['vessel_elements'], VesselElement.fromJson);
+    checklist.heatTreatmentRecords =
+        _parseList(json['heat_treatment_records'], HeatTreatmentRecord.fromJson);
+    checklist.hydraulicTestHistory =
+        _parseList(json['hydraulic_test_history'], HydraulicTestRecord.fromJson);
+    checklist.ndtControlHistory =
+        _parseList(json['ndt_control_history'], NdtControlRecord.fromJson);
+    checklist.repairHistory = _parseList(json['repair_history'], RepairRecord.fromJson);
+    checklist.fittingsAndInstruments =
+        _parseList(json['fittings_and_instruments'], FittingInstrument.fromJson);
+
+    final calcRaw = json['calculation_data'];
+    if (calcRaw is Map) {
+      checklist.calculationData = Map<String, dynamic>.from(calcRaw);
+    }
 
     checklist.factoryPlatePhoto = json['factory_plate_photo'] as String?;
     checklist.controlSchemeImage = json['control_scheme_image'] as String?;
@@ -454,6 +509,11 @@ class VesselChecklist {
           .toList();
     }
 
+    final ndtRaw = json['ndt_methods'];
+    if (ndtRaw is List) {
+      checklist.ndtMethods = ndtRaw.map((e) => e.toString()).toList();
+    }
+
     final vdRaw = json['visual_defects'];
     if (vdRaw is List) {
       checklist.visualDefects = vdRaw
@@ -470,6 +530,17 @@ class VesselChecklist {
     }
 
     return checklist;
+  }
+
+  static List<T> _parseList<T>(
+    dynamic raw,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map>()
+        .map((e) => fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 }
 
@@ -716,28 +787,36 @@ class DeflectionMeasurement {
 class HardnessTest {
   String weldNumber;
   String? areaNumber;
-  String? location; // Обечайка, Днище 1, Днище 2 — для группировки в протоколе
+  String? location;
   String? allowedHardnessBase;
   String? allowedHardnessWeld;
   String? hardnessBase;
   String? hardnessWeld;
   String? hardnessHaz;
+  String? hardnessBaseT1;
+  String? hardnessBaseT5;
+  String? hardnessHazT2;
+  String? hardnessHazT4;
   
   HardnessTest({required this.weldNumber});
   
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
+    'location': location ?? weldNumber,
     'area_number': areaNumber,
-    'location': location,
     'allowed_hardness_base': allowedHardnessBase,
     'allowed_hardness_weld': allowedHardnessWeld,
-    'hardness_base': hardnessBase,
+    'hardness_base': hardnessBase ?? hardnessBaseT1,
     'hardness_weld': hardnessWeld,
-    'hardness_haz': hardnessHaz,
+    'hardness_haz': hardnessHaz ?? hardnessHazT2,
+    'hardness_base_t1': hardnessBaseT1 ?? hardnessBase,
+    'hardness_base_t5': hardnessBaseT5 ?? hardnessBase,
+    'hardness_haz_t2': hardnessHazT2 ?? hardnessHaz,
+    'hardness_haz_t4': hardnessHazT4 ?? hardnessHaz,
   };
 
   factory HardnessTest.fromJson(Map<String, dynamic> json) {
-    final t = HardnessTest(weldNumber: (json['weld_number'] ?? '').toString());
+    final t = HardnessTest(weldNumber: (json['weld_number'] ?? json['location'] ?? '').toString());
     t.areaNumber = json['area_number']?.toString();
     t.location = json['location']?.toString();
     t.allowedHardnessBase = json['allowed_hardness_base']?.toString();
@@ -745,6 +824,10 @@ class HardnessTest {
     t.hardnessBase = json['hardness_base']?.toString();
     t.hardnessWeld = json['hardness_weld']?.toString();
     t.hardnessHaz = json['hardness_haz']?.toString();
+    t.hardnessBaseT1 = json['hardness_base_t1']?.toString();
+    t.hardnessBaseT5 = json['hardness_base_t5']?.toString();
+    t.hardnessHazT2 = json['hardness_haz_t2']?.toString();
+    t.hardnessHazT4 = json['hardness_haz_t4']?.toString();
     return t;
   }
 }
@@ -752,19 +835,24 @@ class HardnessTest {
 class WeldInspection {
   String weldNumber;
   String? locationOnControlMap;
+  String? controlMethod; // MPK | UZK
   String? pvkDefect;
   String? uzkDefect;
-  String? conclusion; // годен, ремонт и т.д.
-  double? xPercent; // Позиция на схеме X (0–100)
-  double? yPercent; // Позиция на схеме Y (0–100)
+  String? defectDescription;
+  String? conclusion;
+  double? xPercent;
+  double? yPercent;
   
   WeldInspection({required this.weldNumber});
   
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
     'location_on_control_map': locationOnControlMap,
+    'control_method': controlMethod,
     'pvk_defect': pvkDefect,
     'uzk_defect': uzkDefect,
+    'defect_description': defectDescription ??
+        (controlMethod?.toUpperCase() == 'UZK' ? uzkDefect : pvkDefect),
     'conclusion': conclusion,
     'x_percent': xPercent,
     'y_percent': yPercent,
@@ -773,8 +861,10 @@ class WeldInspection {
   factory WeldInspection.fromJson(Map<String, dynamic> json) {
     final w = WeldInspection(weldNumber: (json['weld_number'] ?? '').toString());
     w.locationOnControlMap = json['location_on_control_map']?.toString();
+    w.controlMethod = json['control_method']?.toString() ?? json['method']?.toString();
     w.pvkDefect = json['pvk_defect']?.toString();
     w.uzkDefect = json['uzk_defect']?.toString();
+    w.defectDescription = json['defect_description']?.toString();
     w.conclusion = json['conclusion']?.toString();
     w.xPercent = VesselChecklist._asDouble(json['x_percent']);
     w.yPercent = VesselChecklist._asDouble(json['y_percent']);
@@ -915,6 +1005,165 @@ class VisualDefect {
   }
 }
 
+class VesselElement {
+  String? name;
+  String? diameterMm;
+  String? lengthMm;
+  String? wallThicknessMm;
+  String? material;
+  String? gost;
+  String? weldData;
 
+  VesselElement();
 
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'diameter_mm': diameterMm,
+        'length_mm': lengthMm,
+        'wall_thickness_mm': wallThicknessMm,
+        'material': material,
+        'gost': gost,
+        'weld_data': weldData,
+      };
+
+  factory VesselElement.fromJson(Map<String, dynamic> json) {
+    final e = VesselElement();
+    e.name = json['name']?.toString();
+    e.diameterMm = json['diameter_mm']?.toString();
+    e.lengthMm = json['length_mm']?.toString();
+    e.wallThicknessMm = json['wall_thickness_mm']?.toString();
+    e.material = json['material']?.toString();
+    e.gost = json['gost']?.toString();
+    e.weldData = json['weld_data']?.toString();
+    return e;
+  }
+}
+
+class HeatTreatmentRecord {
+  String? element;
+  String? type;
+  String? temperature;
+  String? duration;
+  String? cooling;
+
+  HeatTreatmentRecord();
+
+  Map<String, dynamic> toJson() => {
+        'element': element,
+        'type': type,
+        'temperature': temperature,
+        'duration': duration,
+        'cooling': cooling,
+      };
+
+  factory HeatTreatmentRecord.fromJson(Map<String, dynamic> json) {
+    final r = HeatTreatmentRecord();
+    r.element = json['element']?.toString();
+    r.type = json['type']?.toString();
+    r.temperature = json['temperature']?.toString();
+    r.duration = json['duration']?.toString();
+    r.cooling = json['cooling']?.toString();
+    return r;
+  }
+}
+
+class HydraulicTestRecord {
+  String? date;
+  String? testType;
+  String? pressure;
+  String? medium;
+  String? note;
+
+  HydraulicTestRecord();
+
+  Map<String, dynamic> toJson() => {
+        'date': date,
+        'test_type': testType,
+        'pressure': pressure,
+        'medium': medium,
+        'note': note,
+      };
+
+  factory HydraulicTestRecord.fromJson(Map<String, dynamic> json) {
+    final r = HydraulicTestRecord();
+    r.date = json['date']?.toString();
+    r.testType = json['test_type']?.toString();
+    r.pressure = json['pressure']?.toString();
+    r.medium = json['medium']?.toString();
+    r.note = json['note']?.toString();
+    return r;
+  }
+}
+
+class NdtControlRecord {
+  String? date;
+  String? scope;
+  String? result;
+  String? organization;
+
+  NdtControlRecord();
+
+  Map<String, dynamic> toJson() => {
+        'date': date,
+        'scope': scope,
+        'result': result,
+        'organization': organization,
+      };
+
+  factory NdtControlRecord.fromJson(Map<String, dynamic> json) {
+    final r = NdtControlRecord();
+    r.date = json['date']?.toString();
+    r.scope = json['scope']?.toString();
+    r.result = json['result']?.toString();
+    r.organization = json['organization']?.toString();
+    return r;
+  }
+}
+
+class RepairRecord {
+  String? year;
+  String? description;
+  String? ndtResult;
+
+  RepairRecord();
+
+  Map<String, dynamic> toJson() => {
+        'year': year,
+        'description': description,
+        'ndt_result': ndtResult,
+      };
+
+  factory RepairRecord.fromJson(Map<String, dynamic> json) {
+    final r = RepairRecord();
+    r.year = json['year']?.toString();
+    r.description = json['description']?.toString();
+    r.ndtResult = json['ndt_result']?.toString();
+    return r;
+  }
+}
+
+class FittingInstrument {
+  String? name;
+  String? quantity;
+  String? dn;
+  String? pressure;
+
+  FittingInstrument();
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'quantity': quantity,
+        'dn': dn,
+        'pressure': pressure,
+      };
+
+  factory FittingInstrument.fromJson(Map<String, dynamic> json) {
+    final f = FittingInstrument();
+    f.name = json['name']?.toString();
+    f.quantity = json['quantity']?.toString();
+    f.dn = json['dn']?.toString();
+    f.pressure = json['pressure']?.toString();
+    return f;
+  }
+}
 

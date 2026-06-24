@@ -167,6 +167,26 @@ const GroupedReportList = ({
                               </button>
                               <button
                                 type="button"
+                                onClick={() => onGenerateDirectly(inspection.id, 'EXPERTISE', 'pdf')}
+                                disabled={generatingId === inspection.id}
+                                className="bg-violet-500/10 text-violet-300 border border-violet-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-violet-500/20 disabled:opacity-50"
+                              >
+                                <FileText size={14} className="md:w-4 md:h-4" />
+                                <span className="hidden sm:inline">Сгенерировать ЭПБ (PDF)</span>
+                                <span className="sm:hidden">ЭПБ PDF</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onGenerateDirectly(inspection.id, 'EXPERTISE', 'docx')}
+                                disabled={generatingId === inspection.id}
+                                className="bg-violet-500/10 text-violet-400 border border-violet-500/30 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-violet-500/20 disabled:opacity-50"
+                              >
+                                <FileText size={14} className="md:w-4 md:h-4" />
+                                <span className="hidden sm:inline">Сгенерировать ЭПБ (DOCX)</span>
+                                <span className="sm:hidden">ЭПБ DOCX</span>
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => onGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'pdf')}
                                 disabled={generatingId === inspection.id}
                                 className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-500/20 disabled:opacity-50"

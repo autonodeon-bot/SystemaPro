@@ -18,7 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import verify_token
 from database import get_db
-from models import Equipment, User
+from models import Equipment, EquipmentType, User
+from equipment_presets import preset_from_equipment_data
+from equipment_profiles import build_inspection_default_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["inspection-object-templates"])
@@ -54,6 +56,103 @@ class InspectionObjectTemplateUpdate(BaseModel):
 
 # Стартовые шаблоны (идемпотентный seed).
 SEED_TEMPLATES: list[dict[str, Any]] = [
+    {
+        "id": "iot-srpd-oil-settler-epb",
+        "name": "Отстойник нефти · ЭПБ / ТД",
+        "category_code": "srpd",
+        "equipment_preset": "oil_settler",
+        "inspection_direction": "technical",
+        "target_flow": "vessel_checklist",
+        "equipment_kind": "Отстойник нефти",
+        "equipment_mark": "ОГ",
+        "default_data": {
+            "inspection_type": "EXPERTISE",
+            "include_opo_data": True,
+            "purpose": "трехфазное разделение предварительно подготовленной нефти (нефтегазоводяной смеси)",
+            "construction_type": "горизонтальный с эллиптическими днищами",
+            "pressure_category": "high",
+            "working_pressure": 1.0,
+            "volume": 200,
+            "equipment_type": "OIL_SETTLER",
+        },
+    },
+    {
+        "id": "iot-srpd-oil-settler-nivo",
+        "name": "Отстойник нефти · Наружный/внутренний осмотр",
+        "category_code": "srpd",
+        "equipment_preset": "oil_settler",
+        "inspection_direction": "external",
+        "target_flow": "vessel_checklist",
+        "equipment_kind": "Отстойник нефти",
+        "default_data": {
+            "inspection_type": "VISUAL",
+            "purpose": "трехфазное разделение предварительно подготовленной нефти (нефтегазоводяной смеси)",
+            "equipment_type": "OIL_SETTLER",
+        },
+    },
+    {
+        "id": "iot-srpd-underground-tank-epb",
+        "name": "Ёмкость подземная · ЭПБ / ТД",
+        "category_code": "srpd",
+        "equipment_preset": "underground_tank",
+        "inspection_direction": "technical",
+        "target_flow": "vessel_checklist",
+        "equipment_kind": "Ёмкость подземная",
+        "equipment_mark": "ЕПП",
+        "default_data": {
+            "inspection_type": "EXPERTISE",
+            "include_opo_data": True,
+            "purpose": "слив нефти, нефтегазоводяной смеси из технологических трубопроводов и аппаратов",
+            "construction_type": "горизонтальный с коническими днищами",
+            "pressure_category": "low",
+            "working_pressure": 0.07,
+            "equipment_type": "UNDERGROUND_TANK",
+        },
+    },
+    {
+        "id": "iot-srpd-underground-tank-nivo",
+        "name": "Ёмкость подземная · Наружный/внутренний осмотр",
+        "category_code": "srpd",
+        "equipment_preset": "underground_tank",
+        "inspection_direction": "external",
+        "target_flow": "vessel_checklist",
+        "equipment_kind": "Ёмкость подземная",
+        "default_data": {
+            "inspection_type": "VISUAL",
+            "purpose": "слив нефти, нефтегазоводяной смеси из технологических трубопроводов и аппаратов",
+            "equipment_type": "UNDERGROUND_TANK",
+        },
+    },
+    {
+        "id": "iot-srpd-gas-separator-epb",
+        "name": "Газосепаратор · ЭПБ / ТД",
+        "category_code": "srpd",
+        "equipment_preset": "gas_separator",
+        "inspection_direction": "technical",
+        "target_flow": "vessel_checklist",
+        "equipment_kind": "Газосепаратор",
+        "default_data": {
+            "inspection_type": "EXPERTISE",
+            "include_opo_data": True,
+            "purpose": "сепарация нефти и попутного нефтяного газа",
+            "construction_type": "горизонтальный",
+            "equipment_type": "GAS_SEPARATOR",
+        },
+    },
+    {
+        "id": "iot-srpd-gas-separator-nivo",
+        "name": "Газосепаратор · Наружный/внутренний осмотр",
+        "category_code": "srpd",
+        "equipment_preset": "gas_separator",
+        "inspection_direction": "external",
+        "target_flow": "vessel_checklist",
+        "equipment_kind": "Газосепаратор",
+        "default_data": {
+            "inspection_type": "VISUAL",
+            "purpose": "сепарация нефти и попутного нефтяного газа",
+            "equipment_type": "GAS_SEPARATOR",
+        },
+    },
     {
         "id": "iot-srpd-nivo",
         "name": "СРпД · Наружный/внутренний осмотр (НиВО)",
@@ -96,6 +195,22 @@ SEED_TEMPLATES: list[dict[str, Any]] = [
         "target_flow": "pressure_test",
         "default_data": {"test_type": "ГИ"},
     },
+]
+
+
+def _enrich_seed_template(item: dict[str, Any]) -> dict[str, Any]:
+    """Дополнить default_data из единого реестра профилей."""
+    preset = item.get("equipment_preset")
+    if not preset:
+        return item
+    direction = item.get("inspection_direction") or "technical"
+    profile_defaults = build_inspection_default_data(preset, direction)
+    merged = {**profile_defaults, **(item.get("default_data") or {})}
+    return {**item, "default_data": merged}
+
+
+SEED_TEMPLATES_ENRICHED: list[dict[str, Any]] = [
+    _enrich_seed_template(t) for t in SEED_TEMPLATES
 ]
 
 
@@ -173,7 +288,7 @@ def _validate_target_flow(flow: str) -> str:
 async def ensure_inspection_object_templates_seed(db: AsyncSession) -> int:
     await _ensure_table(db)
     count = 0
-    for item in SEED_TEMPLATES:
+    for item in SEED_TEMPLATES_ENRICHED:
         await db.execute(
             text(
                 """
@@ -280,16 +395,33 @@ async def resolve_template(
     """
     await _ensure_table(db)
     eq_name = ""
-    eq_preset = equipment_preset
+    eq_type_code = ""
+    effective_preset = (equipment_preset or "").strip() or None
+
     if equipment_id:
         try:
             eid = uuid.UUID(equipment_id.strip())
         except ValueError:
             raise HTTPException(status_code=400, detail="Некорректный equipment_id")
-        er = await db.execute(select(Equipment).where(Equipment.id == eid))
-        eq = er.scalar_one_or_none()
-        if eq:
+        er = await db.execute(
+            select(Equipment, EquipmentType)
+            .join(EquipmentType, Equipment.type_id == EquipmentType.id, isouter=True)
+            .where(Equipment.id == eid)
+        )
+        row = er.first()
+        if row:
+            eq, et = row
             eq_name = eq.name or ""
+            if et and et.code:
+                eq_type_code = et.code
+            if not effective_preset:
+                attrs = eq.attributes if isinstance(eq.attributes, dict) else {}
+                effective_preset = preset_from_equipment_data({
+                    "type_code": eq_type_code,
+                    "type_name": et.name if et else "",
+                    "name": eq_name,
+                    "attributes": attrs,
+                })
 
     result = await db.execute(
         text(
@@ -306,30 +438,37 @@ async def resolve_template(
     rows = result.fetchall()
     items = [_row_to_dict(r) for r in rows]
 
-    if equipment_preset:
-        items = [
-            t
-            for t in items
-            if not t.get("equipment_preset")
-            or t.get("equipment_preset") == equipment_preset
-        ]
-
     kind_hay = (equipment_kind or eq_name or "").strip().lower()
     mark_hay = (equipment_mark or "").strip().lower()
 
     def _score(t: dict[str, Any]) -> int:
         s = 0
+        tp = (t.get("equipment_preset") or "").strip()
+        if effective_preset and tp == effective_preset:
+            s += 10
+        elif effective_preset and not tp:
+            s += 2
         tk = (t.get("equipment_kind") or "").lower()
         tm = (t.get("equipment_mark") or "").lower()
-        if kind_hay and tk and kind_hay in tk:
-            s += 3
+        if kind_hay and tk and (kind_hay in tk or tk in kind_hay):
+            s += 4
         if mark_hay and tm and mark_hay in tm:
-            s += 2
-        if not tk and not tm:
+            s += 3
+        if eq_type_code and t.get("default_data", {}).get("equipment_type") == eq_type_code:
+            s += 5
+        if not tk and not tm and not tp:
             s += 1
         return s
 
     items.sort(key=_score, reverse=True)
+
+    top_score = _score(items[0]) if items else 0
+    second_score = _score(items[1]) if len(items) > 1 else 0
+    auto_apply = bool(
+        items
+        and top_score >= 10
+        and (len(items) == 1 or top_score - second_score >= 5)
+    )
 
     await db.commit()
     return {
@@ -337,6 +476,9 @@ async def resolve_template(
         "inspection_direction": inspection_direction,
         "equipment_id": equipment_id,
         "equipment_name": eq_name,
+        "equipment_type_code": eq_type_code,
+        "equipment_preset": effective_preset,
+        "auto_apply": auto_apply,
         "templates": items,
         "recommended": items[0] if items else None,
     }

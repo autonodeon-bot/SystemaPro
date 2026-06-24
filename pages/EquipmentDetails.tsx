@@ -1,8 +1,14 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileText, Info, MapPin, Package, Users, Wrench, Eye, X, Sparkles, Download, Trash2, CheckCircle2, Image as ImageIcon, Target, Upload, Plus } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, Info, MapPin, Package, Users, Wrench, Eye, X, Sparkles, Download, Trash2, CheckCircle2, Image as ImageIcon, Target, Upload, Plus, Search, ArrowUpDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
+import EquipmentProfilePassportPanel from '../components/inspection/EquipmentProfilePassportPanel';
+import {
+  fetchEquipmentProfileResolve,
+  resolveEquipmentTypeCode,
+  type EquipmentProfileResponse,
+} from '../utils/equipmentProfiles';
 
 const EquipmentDetails = () => {
   const { id } = useParams();
@@ -20,10 +26,18 @@ const EquipmentDetails = () => {
   const [assignedEngineers, setAssignedEngineers] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
 
+  const [activeTab, setActiveTab] = useState<'info' | 'inspections' | 'assignments' | 'reports' | 'repairs'>('info');
+  const [inspectionSearch, setInspectionSearch] = useState('');
+  const [inspectionSortDesc, setInspectionSortDesc] = useState(true);
+
   const [previewData, setPreviewData] = useState<any | null>(null);
   const [previewType, setPreviewType] = useState<'TECHNICAL_REPORT' | 'EXPERTISE'>('TECHNICAL_REPORT');
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [equipmentProfile, setEquipmentProfile] = useState<EquipmentProfileResponse | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [attrForm, setAttrForm] = useState<Record<string, string>>({});
+  const [savingAttrs, setSavingAttrs] = useState(false);
 
   const headers = useMemo(() => {
     const token = getToken();
@@ -35,6 +49,60 @@ const EquipmentDetails = () => {
     const role = (user?.role || '').toLowerCase();
     return ['admin', 'chief_operator', 'operator'].includes(role);
   }, [user]);
+
+  useEffect(() => {
+    if (!equipment) return;
+    const a = (equipment.attributes || {}) as Record<string, unknown>;
+    setAttrForm({
+      registration_number: String(a.registration_number ?? ''),
+      inventory_number: String(a.inventory_number ?? ''),
+      manufacturer: String(a.manufacturer ?? ''),
+      commissioning_year: String(a.commissioning_year ?? ''),
+      working_pressure: String(a.working_pressure ?? ''),
+      working_temperature: String(a.working_temperature ?? ''),
+      diameter: String(a.diameter ?? ''),
+      wall_thickness: String(a.wall_thickness ?? ''),
+      volume: String(a.volume ?? ''),
+      working_medium: String(a.working_medium ?? ''),
+      location_detail: String(a.location_detail ?? equipment.location ?? ''),
+    });
+  }, [equipment]);
+
+  const saveEquipmentAttributes = async () => {
+    if (!id || !headers || !equipment) return;
+    setSavingAttrs(true);
+    try {
+      const merged = { ...(equipment.attributes || {}), ...attrForm };
+      Object.keys(merged).forEach((k) => {
+        if (merged[k] === '') delete merged[k];
+      });
+      const res = await fetch(`${API_BASE}/api/equipment/${id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: attrForm.location_detail || equipment.location,
+          attributes: merged,
+          commissioning_date: attrForm.commissioning_year
+            ? `${attrForm.commissioning_year}-01-01`
+            : equipment.commissioning_date,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const updated = await res.json();
+      setEquipment((prev: any) => ({
+        ...prev,
+        location: updated.location ?? prev?.location,
+        attributes: updated.attributes ?? merged,
+        commissioning_date: attrForm.commissioning_year
+          ? `${attrForm.commissioning_year}-01-01`
+          : prev?.commissioning_date,
+      }));
+    } catch (e) {
+      alert(`Ошибка сохранения: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSavingAttrs(false);
+    }
+  };
 
   const reloadReportsAndInspections = useCallback(async () => {
     if (!id || !headers) return;
@@ -123,6 +191,24 @@ const EquipmentDetails = () => {
     };
     load();
   }, [id, headers]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token || !equipment) {
+      setEquipmentProfile(null);
+      return;
+    }
+    const typeCode = resolveEquipmentTypeCode(
+      equipment.type_code,
+      equipment.type_name,
+      equipment.name,
+    );
+    setProfileLoading(true);
+    fetchEquipmentProfileResolve(token, { typeCode, inspectionDirection: 'technical' })
+      .then(setEquipmentProfile)
+      .catch(() => setEquipmentProfile(null))
+      .finally(() => setProfileLoading(false));
+  }, [equipment, getToken]);
 
   const updateInspectionStatus = async (inspectionId: string, status: 'DRAFT' | 'SIGNED' | 'APPROVED') => {
     if (!headers) return;
@@ -258,6 +344,28 @@ const EquipmentDetails = () => {
   const eqName = equipment?.name || 'Оборудование';
   const eqCode = equipment?.equipment_code || equipment?.code || '';
 
+  const EQ_TABS = [
+    { key: 'info' as const, label: 'Информация', icon: Info },
+    { key: 'inspections' as const, label: `Обследования (${inspections.length})`, icon: Sparkles },
+    { key: 'assignments' as const, label: `Задания (${assignments.length})`, icon: Users },
+    { key: 'reports' as const, label: `Документы (${reports.length})`, icon: FileText },
+    { key: 'repairs' as const, label: `Ремонты (${repairJournal.length})`, icon: Wrench },
+  ];
+
+  const filteredInspections = inspections
+    .filter((insp: any) => {
+      if (!inspectionSearch) return true;
+      const q = inspectionSearch.toLowerCase();
+      const inspector = insp?.data?.inspector_name || insp?.data?.executors || '';
+      const date = insp.date_performed ? new Date(insp.date_performed).toLocaleDateString('ru-RU') : '';
+      return inspector.toLowerCase().includes(q) || date.includes(q) || (insp.conclusion || '').toLowerCase().includes(q);
+    })
+    .sort((a: any, b: any) => {
+      const da = a.date_performed ? new Date(a.date_performed).getTime() : 0;
+      const db = b.date_performed ? new Date(b.date_performed).getTime() : 0;
+      return inspectionSortDesc ? db - da : da - db;
+    });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -273,7 +381,28 @@ const EquipmentDetails = () => {
         </div>
       </div>
 
-      {/* Основные данные */}
+      {/* Вкладки навигации */}
+      <div className="flex gap-1 flex-wrap border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+        {EQ_TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors"
+            style={{
+              color: activeTab === key ? 'var(--accent)' : 'var(--text-muted)',
+              borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent',
+              background: 'transparent',
+              marginBottom: '-1px',
+            }}
+          >
+            <Icon size={14} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* === Вкладка: Информация === */}
+      {activeTab === 'info' && (<div className="space-y-6">
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Info className="text-accent" size={20} />
@@ -306,24 +435,87 @@ const EquipmentDetails = () => {
           </div>
 
           <div className="bg-app-deep rounded-lg p-4 border border-app-line">
-            <div className="text-sm text-app-text2 font-semibold mb-2">Характеристики</div>
-            <pre className="text-xs text-app-text3 whitespace-pre-wrap">
-              {JSON.stringify(equipment?.attributes || {}, null, 2)}
-            </pre>
+            <div className="text-sm text-app-text2 font-semibold mb-3">Паспортные характеристики (редактирование с сайта)</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              {[
+                ['registration_number', 'Рег. №'],
+                ['inventory_number', 'Инв. №'],
+                ['manufacturer', 'Завод-изготовитель'],
+                ['commissioning_year', 'Год ввода'],
+                ['working_pressure', 'Раб. давление'],
+                ['working_temperature', 'Раб. температура'],
+                ['diameter', 'Диаметр, мм'],
+                ['wall_thickness', 'Толщина стенки'],
+                ['volume', 'Объём, м³'],
+                ['working_medium', 'Рабочая среда'],
+                ['location_detail', 'Место установки'],
+              ].map(([key, label]) => (
+                <label key={key} className="block">
+                  <span className="text-app-text3 text-xs">{label}</span>
+                  <input
+                    type="text"
+                    value={attrForm[key] ?? ''}
+                    onChange={(e) => setAttrForm((p) => ({ ...p, [key]: e.target.value }))}
+                    className="mt-1 w-full px-2 py-1.5 rounded bg-app-panel border border-app-line text-app-text"
+                  />
+                </label>
+              ))}
+            </div>
+            {canApprove && (
+              <button
+                type="button"
+                onClick={() => void saveEquipmentAttributes()}
+                disabled={savingAttrs}
+                className="mt-4 px-4 py-2 rounded-lg bg-accent text-white text-sm font-bold disabled:opacity-50"
+              >
+                {savingAttrs ? 'Сохранение...' : 'Сохранить характеристики'}
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {equipment && (
+        <div className="bg-app-panel rounded-xl border border-app-line p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Шаблон ЭПБ (профиль оборудования)</h2>
+          <EquipmentProfilePassportPanel
+            displayName={equipmentProfile?.profile.display_name || equipment.type_name || eqName}
+            defaultData={equipmentProfile?.default_data || {}}
+            loading={profileLoading}
+            error={equipmentProfile ? null : profileLoading ? null : 'Профиль не найден для данного типа'}
+          />
+        </div>
+      )}
 
       {/* Чертежи и схемы */}
       {equipment && (
         <EquipmentDrawingTemplatesSection
           equipmentId={String(id)}
           equipmentTypeId={equipment.type_id || equipment.equipment_type_id || null}
+          drawingCategory={
+            equipment.type_code?.toUpperCase().includes('GAS_SEPARATOR') ||
+            equipment.attributes?.object_type === 'gas_separator'
+              ? 'gas_separator'
+              : equipment.type_code?.toUpperCase().includes('UNDERGROUND_TANK') ||
+                  equipment.attributes?.object_type === 'underground_tank' ||
+                  String(equipment.type_name || '').toLowerCase().includes('ёмкост') ||
+                  String(equipment.type_name || '').toLowerCase().includes('емкост')
+                ? 'underground_tank'
+                : equipment.type_code?.toUpperCase().includes('OIL_SETTLER') ||
+                    equipment.attributes?.object_type === 'oil_settler' ||
+                    String(equipment.type_name || '').toLowerCase().includes('отстойник')
+                  ? 'oil_settler'
+                  : 'vessel'
+          }
           headers={headers}
           canEdit={canApprove}
         />
       )}
+      </div>)} {/* end activeTab === 'info' */}
 
+      {/* === Вкладка: Обследования === */}
+      {activeTab === 'inspections' && (
+      <div className="space-y-4">
       {/* История обследований */}
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -376,17 +568,40 @@ const EquipmentDetails = () => {
         )}
       </div>
 
-      {/* Обследования инженера (сырые данные + предпросмотр перед генерацией) */}
+      {/* Чек-листы инженеров */}
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <Sparkles className="text-accent" size={20} />
-          Данные обследований (перед генерацией) ({inspections.length})
-        </h2>
-        {inspections.length === 0 ? (
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Sparkles className="text-accent" size={20} />
+            Чек-листы обследований ({filteredInspections.length})
+          </h2>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-app-text3" />
+              <input
+                type="text"
+                placeholder="Поиск…"
+                value={inspectionSearch}
+                onChange={e => setInspectionSearch(e.target.value)}
+                className="ind-input pl-8 py-1.5 text-sm"
+                style={{ minWidth: 160 }}
+              />
+            </div>
+            <button
+              onClick={() => setInspectionSortDesc(v => !v)}
+              className="ind-btn py-1.5"
+              title={inspectionSortDesc ? 'По возрастанию даты' : 'По убыванию даты'}
+            >
+              <ArrowUpDown size={14} />
+              {inspectionSortDesc ? 'Новые' : 'Старые'}
+            </button>
+          </div>
+        </div>
+        {filteredInspections.length === 0 ? (
           <p className="text-app-text3">Обследований пока нет</p>
         ) : (
           <div className="space-y-2">
-            {inspections.slice(0, 20).map((insp: any) => {
+            {filteredInspections.slice(0, 30).map((insp: any) => {
               const inspectorName =
                 insp?.data?.inspector_name ||
                 insp?.data?.executors ||
@@ -439,8 +654,11 @@ const EquipmentDetails = () => {
           </div>
         )}
       </div>
+      </div>
+      )} {/* end activeTab === 'inspections' */}
 
-      {/* Задания по этому оборудованию (выполнено/не выполнено) */}
+      {/* === Вкладка: Задания === */}
+      {activeTab === 'assignments' && (
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Users className="text-accent" size={20} />
@@ -450,7 +668,7 @@ const EquipmentDetails = () => {
           <p className="text-app-text3">Задания не назначены</p>
         ) : (
           <div className="space-y-2">
-            {assignments.slice(0, 20).map((a: any) => (
+            {assignments.map((a: any) => (
               <div key={a.id} className="bg-app-deep rounded-lg p-4 border border-app-line flex items-start justify-between gap-3">
                 <div>
                   <div className="text-white font-semibold">{a.assignment_type}</div>
@@ -466,8 +684,10 @@ const EquipmentDetails = () => {
           </div>
         )}
       </div>
+      )} {/* end activeTab === 'assignments' */}
 
-      {/* Журнал ремонтов */}
+      {/* === Вкладка: Ремонты === */}
+      {activeTab === 'repairs' && (
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Wrench className="text-accent" size={20} />
@@ -477,7 +697,7 @@ const EquipmentDetails = () => {
           <p className="text-app-text3">Ремонты не проводились</p>
         ) : (
           <div className="space-y-2">
-            {repairJournal.slice(0, 20).map((repair: any) => (
+            {repairJournal.map((repair: any) => (
               <div key={repair.id} className="bg-app-deep rounded-lg p-4 border border-app-line">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -495,8 +715,10 @@ const EquipmentDetails = () => {
           </div>
         )}
       </div>
+      )} {/* end activeTab === 'repairs' */}
 
-      {/* Документы */}
+      {/* === Вкладка: Документы === */}
+      {activeTab === 'reports' && (<div className="space-y-4">
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <FileText className="text-accent" size={20} />
@@ -570,25 +792,21 @@ const EquipmentDetails = () => {
         )}
       </div>
 
-      {/* Назначенные инженеры */}
-      <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <Users className="text-accent" size={20} />
-          Назначенные инженеры ({assignedEngineers.length})
-        </h2>
-        {assignedEngineers.length === 0 ? (
-          <p className="text-app-text3">Инженеры не назначены</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {assignedEngineers.length > 0 && (
+        <div className="bg-app-panel rounded-xl border border-app-line p-4">
+          <div className="text-sm font-semibold text-app-text2 mb-3 flex items-center gap-2">
+            <Users size={14} className="text-app-text3" /> Назначенные инженеры ({assignedEngineers.length})
+          </div>
+          <div className="flex flex-wrap gap-2">
             {assignedEngineers.map((e: any) => (
-              <div key={e.user_id} className="bg-app-deep rounded-lg p-4 border border-app-line">
-                <div className="text-white font-semibold">{e.full_name || e.username}</div>
-                {e.email && <div className="text-xs text-app-text3 mt-1">{e.email}</div>}
-              </div>
+              <span key={e.user_id} className="px-3 py-1 rounded-full text-sm" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>
+                {e.full_name || e.username}
+              </span>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+      </div>)} {/* end activeTab === 'reports' */}
 
       {/* Модалка предпросмотра перед генерацией */}
       {previewData && (
@@ -700,6 +918,9 @@ interface DrawingItem {
 
 const CATEGORY_RU: Record<string, string> = {
   vessel: 'Сосуды',
+  gas_separator: 'Газосепараторы',
+  oil_settler: 'Отстойники нефти',
+  underground_tank: 'Ёмкости подземные',
   pipeline: 'Трубопроводы',
   ndt_scheme: 'Схема НК',
   thickness_scheme: 'Схема УЗТ',
@@ -709,9 +930,10 @@ const CATEGORY_RU: Record<string, string> = {
 const EquipmentDrawingTemplatesSection: React.FC<{
   equipmentId: string;
   equipmentTypeId: string | null;
+  drawingCategory?: string;
   headers: HeadersInit | null;
   canEdit: boolean;
-}> = ({ equipmentId, equipmentTypeId: _equipmentTypeId, headers, canEdit }) => {
+}> = ({ equipmentId, equipmentTypeId: _equipmentTypeId, drawingCategory = 'vessel', headers, canEdit }) => {
   const [items, setItems] = useState<DrawingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -746,7 +968,7 @@ const EquipmentDrawingTemplatesSection: React.FC<{
       const fd = new FormData();
       fd.append('file', file);
       fd.append('name', file.name.replace(/\.[^.]+$/, ''));
-      fd.append('category', 'vessel');
+      fd.append('category', drawingCategory);
       fd.append('equipment_id', equipmentId);
       const res = await fetch(`${API_BASE}/api/drawing-templates`, {
         method: 'POST',

@@ -115,6 +115,9 @@ async def init_test_hierarchy_data():
             # Получаем или создаем типы оборудования
             equipment_types_data = [
                 {"name": "Сосуд под давлением", "code": "VESSEL"},
+                {"name": "Газосепаратор", "code": "GAS_SEPARATOR"},
+                {"name": "Ёмкость подземная", "code": "UNDERGROUND_TANK"},
+                {"name": "Отстойник нефти", "code": "OIL_SETTLER"},
                 {"name": "Трубопровод", "code": "PIPELINE"},
                 {"name": "Резервуар", "code": "TANK"},
                 {"name": "Компрессор", "code": "COMPRESSOR"},

@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.7.0';
+export const APP_VERSION = '3.7.3';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -296,10 +296,13 @@ export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
 export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
 
 /** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
-export const RELEASE_NOTES_DATE = '06.05.2026';
+export const RELEASE_NOTES_DATE = '24.06.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Релиз 3.7.3: исправлен белый экран после выбора шаблона/формы ТО в мобильном приложении; APK 3.7.3+40.',
+  'Релиз 3.7.2: переработка UI веб и мобильного — списки заданий, навигация по разделам отчёта, сортировки и фильтры на страницах сотрудников, компетенций и реестра приборов; APK 3.7.2+39.',
+  'Релиз 3.7.1: заключение ЭПБ (прил. Б, протоколы №3–№6, прил. Е), реестр профилей оборудования, мобильный паспорт Б1–Б6; APK 3.7.1+38.',
   'Релиз 3.7.0: CRUD иерархии оборудования, автосохранение чек-листа, мульти-документы; APK 3.7.0+37.',
   'Релиз 3.31.0: протоколы с телефона на сервер и скачивание DOCX без чек-листа (веб → Генерация отчётов); отступы Safe Area для нижних кнопок на Android.',
   'Патч 3.30.2: светлая тема для проектов и модалок поверок; статистика использования поверочного оборудования; проверка в ФГИС «Аршин»; синхронизация версий.',
@@ -333,8 +336,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.7.0';
-export const MOBILE_APP_BUILD = '37';
+export const MOBILE_APP_VERSION = '3.7.3';
+export const MOBILE_APP_BUILD = '40';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =
@@ -373,13 +376,123 @@ export const VESSEL_SCHEMA: ModuleSchema = {
         { 
           id: 'thickness_map', 
           label: 'Схема замера толщины стенки', 
-          type: 'drawing_thickness', // NEW COMPLEX TYPE
+          type: 'drawing_thickness',
           required: true 
         },
       ]
     }
   ]
 };
+
+/** Газосепаратор — тот же чек-лист СРпД, иная предметная лексика в отчёте */
+export const GAS_SEPARATOR_SCHEMA: ModuleSchema = {
+  ...VESSEL_SCHEMA,
+  type: EquipmentType.GAS_SEPARATOR,
+  title: 'Техническое диагностирование газосепаратора',
+  sections: [
+    {
+      title: '1. Паспортные и эксплуатационные данные',
+      fields: [
+        { id: 'purpose', label: 'Назначение', type: 'text', required: true },
+        { id: 'construction_type', label: 'Конструктивное исполнение', type: 'select', required: false, options: ['горизонтальный', 'вертикальный'] },
+        { id: 'pressure_current', label: 'Текущее рабочее давление (МПа)', type: 'number', required: true, unit: 'МПа' },
+        { id: 'temp_wall', label: 'Температура стенки (°C)', type: 'number', required: true, unit: '°C' },
+        { id: 'volume', label: 'Внутренний объём (м³)', type: 'number', required: false, unit: 'м³' },
+      ]
+    },
+    ...VESSEL_SCHEMA.sections.slice(1),
+  ],
+};
+
+/** Ёмкость подземная — СРпД низкого давления (РУА-93), тот же чек-лист */
+export const UNDERGROUND_TANK_SCHEMA: ModuleSchema = {
+  ...VESSEL_SCHEMA,
+  type: EquipmentType.UNDERGROUND_TANK,
+  title: 'Техническое диагностирование ёмкости подземной',
+  sections: [
+    {
+      title: '1. Паспортные и эксплуатационные данные',
+      fields: [
+        { id: 'purpose', label: 'Назначение', type: 'text', required: true },
+        { id: 'scheme_index', label: 'Индекс по схеме', type: 'text', required: false },
+        { id: 'construction_type', label: 'Конструктивное исполнение', type: 'select', required: false, options: ['горизонтальный с коническими днищами', 'горизонтальный', 'вертикальный'] },
+        { id: 'internal_diameter', label: 'Внутренний диаметр (мм)', type: 'number', required: false, unit: 'мм' },
+        { id: 'pressure_current', label: 'Рабочее давление (МПа)', type: 'number', required: true, unit: 'МПа' },
+        { id: 'volume', label: 'Внутренний объём (м³)', type: 'number', required: false, unit: 'м³' },
+      ],
+    },
+    ...VESSEL_SCHEMA.sections.slice(1),
+  ],
+};
+
+/** Отстойник нефти — СРпД, трёхфазное разделение НГВС */
+export const OIL_SETTLER_SCHEMA: ModuleSchema = {
+  ...VESSEL_SCHEMA,
+  type: EquipmentType.OIL_SETTLER,
+  title: 'Техническое диагностирование отстойника нефти',
+  sections: [
+    {
+      title: '1. Паспортные и эксплуатационные данные',
+      fields: [
+        { id: 'purpose', label: 'Назначение', type: 'text', required: true },
+        { id: 'construction_type', label: 'Конструктивное исполнение', type: 'select', required: false, options: ['горизонтальный с эллиптическими днищами', 'горизонтальный', 'вертикальный'] },
+        { id: 'pressure_current', label: 'Рабочее давление (МПа)', type: 'number', required: true, unit: 'МПа' },
+        { id: 'volume', label: 'Внутренний объём (м³)', type: 'number', required: false, unit: 'м³' },
+        { id: 'working_medium', label: 'Рабочая среда', type: 'text', required: false },
+      ],
+    },
+    ...VESSEL_SCHEMA.sections.slice(1),
+  ],
+};
+
+export function isPressureDeviceType(code?: string | null, name?: string | null): boolean {
+  const c = (code || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+  return (
+    c.includes('VESSEL') ||
+    c.includes('GAS_SEPARATOR') ||
+    c.includes('GAS_SEP') ||
+    c.includes('UNDERGROUND_TANK') ||
+    c.includes('OIL_SETTLER') ||
+    n.includes('СОСУД') ||
+    n.includes('ГАЗОСЕПАРАТОР') ||
+    n.includes('ЁМКОСТ') ||
+    n.includes('ЕМКОСТ') ||
+    n.includes('ОТСТОЙНИК') ||
+    n.includes('РЕСИВЕР') ||
+    n.includes('АППАРАТ')
+  );
+}
+
+export function isGasSeparatorType(code?: string | null, name?: string | null): boolean {
+  const c = (code || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+  return c.includes('GAS_SEPARATOR') || c.includes('GAS_SEP') || n.includes('ГАЗОСЕПАРАТОР');
+}
+
+export function isUndergroundTankType(code?: string | null, name?: string | null): boolean {
+  const c = (code || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+  return (
+    c.includes('UNDERGROUND_TANK') ||
+    n.includes('ЁМКОСТ') ||
+    n.includes('ЕМКОСТ') ||
+    n.includes('ПОДЗЕМН')
+  );
+}
+
+export function isOilSettlerType(code?: string | null, name?: string | null): boolean {
+  const c = (code || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+  return c.includes('OIL_SETTLER') || n.includes('ОТСТОЙНИК');
+}
+
+export function inspectionSchemaForEquipment(code?: string | null, name?: string | null): ModuleSchema {
+  if (isGasSeparatorType(code, name)) return GAS_SEPARATOR_SCHEMA;
+  if (isUndergroundTankType(code, name)) return UNDERGROUND_TANK_SCHEMA;
+  if (isOilSettlerType(code, name)) return OIL_SETTLER_SCHEMA;
+  return VESSEL_SCHEMA;
+}
 
 // --- MOCK HIERARCHY TREE WITH DIGITAL PASSPORT DATA ---
 

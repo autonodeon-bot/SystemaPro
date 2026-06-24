@@ -324,6 +324,7 @@ class Assignment(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     # Обязательный шаблон протокола из конструктора (TEXT id в protocol_templates)
     protocol_template_id = Column(String(64), nullable=True, index=True)
+    ndt_method_codes = Column(JSONB, nullable=True)  # ['UZT','VIK','UZK',...]
 
 class Inspection(Base):
     """Обследования/инспекции оборудования"""

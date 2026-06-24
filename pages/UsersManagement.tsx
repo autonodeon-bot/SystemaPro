@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Save } from 'lucide-react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
+import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Save, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
 
@@ -23,6 +23,9 @@ const UsersManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterActive, setFilterActive] = useState<string>('all');
+  const [sortCol, setSortCol] = useState<string>('full_name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
@@ -276,14 +279,45 @@ const UsersManagement = () => {
     return colors[role] || 'bg-app-text3/20 text-app-text3 border-app-line/50';
   };
 
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = searchQuery === '' || 
-      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.full_name && u.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (u.email && u.email.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesRole = filterRole === 'all' || u.role === filterRole;
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = useMemo(() => {
+    let list = users.filter(u => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = q === '' ||
+        u.username.toLowerCase().includes(q) ||
+        (u.full_name?.toLowerCase().includes(q) ?? false) ||
+        (u.email?.toLowerCase().includes(q) ?? false) ||
+        (u.position?.toLowerCase().includes(q) ?? false) ||
+        (u.department?.toLowerCase().includes(q) ?? false);
+      const matchesRole = filterRole === 'all' || u.role === filterRole;
+      const matchesActive = filterActive === 'all'
+        || (filterActive === 'active' && u.is_active !== false)
+        || (filterActive === 'inactive' && u.is_active === false);
+      return matchesSearch && matchesRole && matchesActive;
+    });
+    list = [...list].sort((a, b) => {
+      let av: string = '';
+      let bv: string = '';
+      if (sortCol === 'full_name') { av = (a.full_name || a.username).toLowerCase(); bv = (b.full_name || b.username).toLowerCase(); }
+      else if (sortCol === 'role') { av = a.role; bv = b.role; }
+      else if (sortCol === 'email') { av = a.email?.toLowerCase() ?? ''; bv = b.email?.toLowerCase() ?? ''; }
+      else if (sortCol === 'position') { av = a.position?.toLowerCase() ?? ''; bv = b.position?.toLowerCase() ?? ''; }
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [users, searchQuery, filterRole, filterActive, sortCol, sortDir]);
+
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortCol !== col) return <ArrowUpDown size={12} className="ml-1 opacity-30 inline" />;
+    return sortDir === 'asc'
+      ? <ArrowUp size={12} className="ml-1 inline" style={{ color: 'var(--accent)' }} />
+      : <ArrowDown size={12} className="ml-1 inline" style={{ color: 'var(--accent)' }} />;
+  };
 
   if (currentUser?.role !== 'admin') {
     return (
@@ -324,23 +358,23 @@ const UsersManagement = () => {
 
       {/* Фильтры */}
       <div className="sp-surface" style={{ padding: '12px' }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={16} style={{ color: 'var(--text-muted)' }} />
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={15} style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder="Поиск по имени, логину, email..."
+              placeholder="Поиск по имени, логину, email, должности..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="ind-input w-full pl-9"
-              style={{ height: '40px' }}
+              style={{ height: '38px' }}
             />
           </div>
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
             className="ind-input"
-            style={{ height: '40px' }}
+            style={{ height: '38px', minWidth: 140 }}
           >
             <option value="all">Все роли</option>
             <option value="admin">Администратор</option>
@@ -349,71 +383,107 @@ const UsersManagement = () => {
             <option value="engineer">Инженер</option>
             <option value="client">Клиент</option>
           </select>
+          <select
+            value={filterActive}
+            onChange={(e) => setFilterActive(e.target.value)}
+            className="ind-input"
+            style={{ height: '38px', minWidth: 130 }}
+          >
+            <option value="all">Все</option>
+            <option value="active">Активные</option>
+            <option value="inactive">Отключённые</option>
+          </select>
+          <span className="text-sm ml-auto" style={{ color: 'var(--text-muted)' }}>
+            {filteredUsers.length} из {users.length}
+          </span>
         </div>
       </div>
 
-      {/* Список пользователей */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filteredUsers.map((user) => (
-          <div key={user.id} className="sp-surface" style={{ padding: '16px' }}>
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3 min-w-0">
-                {user.photo_url || photoPreview ? (
-                  <img
-                    src={user.photo_url || photoPreview || ''}
-                    alt={user.full_name || user.username}
-                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent-glow)' }}>
-                    <User size={18} style={{ color: 'var(--accent)' }} />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-                    {user.full_name || user.username}
-                  </h3>
-                  <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user.username}</p>
-                </div>
-              </div>
-              <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => openEditModal(user)} className="ind-btn" title="Редактировать" style={{ padding: '0 8px' }}>
-                  <Edit size={14} />
-                </button>
-                <button onClick={() => handleDeleteUser(user.id)} className="ind-btn" title="Удалить" style={{ padding: '0 8px', color: 'var(--danger)' }}>
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              {user.email && (
-                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  <Mail size={13} />
-                  <span className="truncate">{user.email}</span>
-                </div>
-              )}
-              {user.phone && (
-                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  <Phone size={13} />
-                  <span>{user.phone}</span>
-                </div>
-              )}
-              {user.position && (
-                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  <Briefcase size={13} />
-                  <span className="truncate">{user.position}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 pt-1">
-                <Shield size={13} style={{ color: 'var(--text-muted)' }} />
-                <span className={`px-2 py-1 rounded text-xs font-semibold border ${getRoleColor(user.role)}`}>
-                  {getRoleLabel(user.role)}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
+      {/* Таблица пользователей */}
+      <div className="sp-surface overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-tertiary)' }}>
+                <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" style={{ color: 'var(--text-secondary)' }} onClick={() => handleSort('full_name')}>
+                  Сотрудник<SortIcon col="full_name" />
+                </th>
+                <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" style={{ color: 'var(--text-secondary)' }} onClick={() => handleSort('role')}>
+                  Роль<SortIcon col="role" />
+                </th>
+                <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none hidden md:table-cell" style={{ color: 'var(--text-secondary)' }} onClick={() => handleSort('email')}>
+                  Email<SortIcon col="email" />
+                </th>
+                <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none hidden lg:table-cell" style={{ color: 'var(--text-secondary)' }} onClick={() => handleSort('position')}>
+                  Должность<SortIcon col="position" />
+                </th>
+                <th className="px-4 py-3 text-left font-semibold" style={{ color: 'var(--text-secondary)' }}>Статус</th>
+                <th className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--text-secondary)' }}>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center" style={{ color: 'var(--text-muted)' }}>
+                    Сотрудники не найдены
+                  </td>
+                </tr>
+              ) : filteredUsers.map((user) => (
+                <tr key={user.id} style={{ borderBottom: '1px solid var(--border-subtle)' }} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {user.photo_url ? (
+                        <img src={user.photo_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent-glow)' }}>
+                          <User size={15} style={{ color: 'var(--accent)' }} />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user.full_name || user.username}</div>
+                        <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{user.username}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${getRoleColor(user.role)}`}>
+                      {getRoleLabel(user.role)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    {user.email ? (
+                      <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <Mail size={12} />{user.email}
+                      </div>
+                    ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    {user.position ? (
+                      <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <Briefcase size={12} />{user.position}
+                      </div>
+                    ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {user.is_active !== false
+                      ? <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--success)' }}><CheckCircle size={13} />Активен</span>
+                      : <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--danger)' }}><XCircle size={13} />Отключён</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEditModal(user)} className="ind-btn" title="Редактировать" style={{ padding: '4px 8px' }}>
+                        <Edit size={14} />
+                      </button>
+                      <button onClick={() => handleDeleteUser(user.id)} className="ind-btn" title="Удалить" style={{ padding: '4px 8px', color: 'var(--danger)' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {filteredUsers.length === 0 && (

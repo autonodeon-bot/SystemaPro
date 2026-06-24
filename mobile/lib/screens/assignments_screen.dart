@@ -13,8 +13,7 @@ import '../services/sync_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/assignments/assignment_dialogs.dart';
 import '../widgets/assignments/assignment_group.dart';
-import '../widgets/assignments/assignments_filters_section.dart';
-import '../widgets/assignments/assignments_grouped_list.dart';
+import '../widgets/assignments/assignments_flat_list.dart';
 import 'custom_protocol_screen.dart';
 
 enum _AssignmentEntryChoice { template, inspection, cancel }
@@ -26,12 +25,22 @@ class AssignmentsScreen extends StatefulWidget {
   State<AssignmentsScreen> createState() => _AssignmentsScreenState();
 }
 
-class _AssignmentsScreenState extends State<AssignmentsScreen> {
+class _AssignmentsScreenState extends State<AssignmentsScreen>
+    with SingleTickerProviderStateMixin {
   static const String _prefsFilterStatus = 'assignments_filter_status';
   static const String _prefsFilterSort = 'assignments_filter_sort';
   static const String _prefsFilterAsc = 'assignments_filter_asc';
   static const String _prefsFilterAssignmentType = 'assignments_filter_assignment_type';
   static const String _prefsFilterSearch = 'assignments_filter_search';
+
+  late final TabController _tabController;
+
+  static const List<_StatusTab> _tabs = [
+    _StatusTab('all', 'Все', null),
+    _StatusTab('PENDING', 'Ожидает', AppColors.warning),
+    _StatusTab('IN_PROGRESS', 'В работе', AppColors.accent),
+    _StatusTab('COMPLETED', 'Завершено', AppColors.success),
+  ];
 
   final _apiService = ApiService();
   final _syncService = SyncService();
@@ -50,19 +59,24 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   bool _sortAscending = false;
   String _searchQuery = '';
   bool _isSyncing = false;
-  bool _showFilters = false;
-
-  final Map<String, bool> _expandedGroups = {};
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        final tab = _tabs[_tabController.index];
+        _onStatusChanged(tab.value);
+      }
+    });
     _restoreFilterAndLoad();
     _loadRecent();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -79,8 +93,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
+      final savedStatus = prefs.getString(_prefsFilterStatus) ?? 'all';
       setState(() {
-        _selectedStatus = prefs.getString(_prefsFilterStatus) ?? 'all';
+        _selectedStatus = savedStatus;
         _selectedSort = prefs.getString(_prefsFilterSort) ?? 'due_date';
         _sortAscending = prefs.getBool(_prefsFilterAsc) ?? false;
         _selectedAssignmentType =
@@ -88,6 +103,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         _searchQuery = prefs.getString(_prefsFilterSearch) ?? '';
       });
       _searchController.text = _searchQuery;
+      // Синхронизировать TabController с сохранённым статусом
+      final tabIdx = _tabs.indexWhere((t) => t.value == savedStatus);
+      if (tabIdx >= 0) _tabController.animateTo(tabIdx);
     } catch (_) {}
     await _loadAssignments();
   }
@@ -122,38 +140,26 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     await _saveFilterToPrefs();
   }
 
-  String _defaultInspectionTypeFromAssignment(String assignmentType) {
-    switch (assignmentType.toUpperCase()) {
-      case 'EXPERTISE':
-        return 'EXPERTISE';
-      case 'INSPECTION':
-        return 'VISUAL';
-      case 'DIAGNOSTICS':
-      case 'CHTO':
-      case 'PTO':
-      case 'NVO':
-      case 'NVO_GI':
-      default:
-        return 'NDT';
-    }
-  }
-
   Future<void> _openInspectionScreen({
     required Equipment equipment,
     required String assignmentId,
     String? existingInspectionId,
     required String assignmentType,
+    String? initialReportFormId,
   }) async {
-    final selectedType = await showInspectionTypeSelectDialog(
+    final selection = await showTechnicalReportFormSelectDialog(
       context,
-      initialType: _defaultInspectionTypeFromAssignment(assignmentType),
+      equipment: equipment,
+      assignmentType: assignmentType,
+      initialFormId: initialReportFormId,
     );
-    if (!mounted || selectedType == null) return;
+    if (!mounted || selection == null) return;
     await context.push('/inspection', extra: {
       'equipment': equipment,
       'assignmentId': assignmentId,
       'existingInspectionId': existingInspectionId,
-      'inspectionType': selectedType,
+      'inspectionType': selection.inspectionType,
+      'reportFormId': selection.reportFormId,
     });
   }
 
@@ -848,6 +854,11 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pending = _assignments.where((a) => a.status == 'PENDING').length;
+    final inProgress = _assignments.where((a) => a.status == 'IN_PROGRESS').length;
+    final completed = _assignments.where((a) => a.status == 'COMPLETED').length;
+    final counts = [_assignments.length, pending, inProgress, completed];
+
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
@@ -886,150 +897,232 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         backgroundColor: AppColors.darkBackgroundDeep,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        actions: [
-          Semantics(
-            label: 'Показать или скрыть фильтры',
-            child: IconButton(
-              icon: Icon(
-                _showFilters ? Icons.filter_list : Icons.filter_list_off,
-                size: 20,
-                color: _showFilters ? AppColors.accent : AppColors.textPrimary,
-                semanticLabel: _showFilters ? 'Фильтры активны' : 'Фильтры скрыты',
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(88),
+          child: Column(
+            children: [
+              // Строка поиска — всегда видна
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                child: TextField(
+                  controller: _searchController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Поиск по коду, названию, предприятию…',
+                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 13),
+                    prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white38, size: 18),
+                            onPressed: _onClearSearch,
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.darkSurface,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.darkBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.darkBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.accent),
+                    ),
+                  ),
+                  onChanged: _onSearchChanged,
+                ),
               ),
-              onPressed: () {
-                setState(() {
-                  _showFilters = !_showFilters;
-                });
-              },
-              tooltip: 'Фильтры',
-            ),
+              // Вкладки статусов
+              TabBar(
+                controller: _tabController,
+                isScrollable: false,
+                labelColor: AppColors.accent,
+                unselectedLabelColor: AppColors.textSecondary,
+                indicatorColor: AppColors.accent,
+                indicatorSize: TabBarIndicatorSize.label,
+                indicatorWeight: 2,
+                dividerColor: AppColors.darkBorder,
+                labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                unselectedLabelStyle: const TextStyle(fontSize: 12),
+                tabs: List.generate(_tabs.length, (i) {
+                  final tab = _tabs[i];
+                  final cnt = counts[i];
+                  return Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (tab.color != null)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(right: 5),
+                            decoration: BoxDecoration(
+                              color: tab.color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        Text(tab.label),
+                        if (cnt > 0) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.darkBorder,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$cnt',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ],
           ),
-          Semantics(
-            label: 'Синхронизировать задания с сервером',
-            child: IconButton(
-              icon: _isSyncing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
-                      ),
-                    )
-                  : const Icon(Icons.sync, size: 20),
-              onPressed: _isSyncing ? null : _syncAssignments,
-              tooltip: 'Синхронизировать',
-            ),
+        ),
+        actions: [
+          // Быстрая сортировка
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort, size: 20),
+            tooltip: 'Сортировка',
+            color: AppColors.darkSurface,
+            itemBuilder: (_) => [
+              _sortItem('due_date', 'По сроку', Icons.calendar_today_outlined),
+              _sortItem('priority', 'По приоритету', Icons.flag_outlined),
+              _sortItem('created_at', 'По дате создания', Icons.access_time),
+              _sortItem('equipment_name', 'По оборудованию', Icons.precision_manufacturing_outlined),
+            ],
+            onSelected: (v) {
+              if (_selectedSort == v) {
+                setState(() {
+                  _sortAscending = !_sortAscending;
+                  _filterAssignments();
+                });
+              } else {
+                setState(() {
+                  _selectedSort = v;
+                  _filterAssignments();
+                });
+              }
+              _saveFilterToPrefs();
+            },
+          ),
+          IconButton(
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                    ),
+                  )
+                : const Icon(Icons.sync, size: 20),
+            onPressed: _isSyncing ? null : _syncAssignments,
+            tooltip: 'Синхронизировать',
           ),
           const SizedBox(width: 4),
         ],
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _filteredAssignments.isEmpty && _recentItems.isEmpty
+              ? _buildEmpty()
+              : AssignmentsFlatList(
+                  assignments: _filteredAssignments,
+                  recentItems: _recentItems,
+                  localInspectionState: _localInspectionState,
+                  opoHasData: _opoHasData,
+                  formatDate: _formatDate,
+                  onAssignmentTap: _startAssignment,
+                  onRecentItemTap: _openRecentItem,
+                  onAssignmentsReload: _loadAssignments,
+                ),
+    );
+  }
+
+  PopupMenuItem<String> _sortItem(String value, String label, IconData icon) {
+    final selected = _selectedSort == value;
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
         children: [
-          AssignmentsFiltersSection(
-            showExpanded: _showFilters,
-            searchController: _searchController,
-            searchQuery: _searchQuery,
-            selectedStatus: _selectedStatus,
-            selectedAssignmentType: _selectedAssignmentType,
-            selectedSort: _selectedSort,
-            sortAscending: _sortAscending,
-            onSearchChanged: _onSearchChanged,
-            onClearSearch: _onClearSearch,
-            onResetFilters: _resetFilters,
-            onStatusChanged: _onStatusChanged,
-            onAssignmentTypeChanged: (v) {
-              setState(() {
-                _selectedAssignmentType = v;
-                _filterAssignments();
-              });
-              _saveFilterToPrefs();
-            },
-            onSortChanged: (v) {
-              setState(() {
-                _selectedSort = v;
-                _filterAssignments();
-              });
-              _saveFilterToPrefs();
-            },
-            onToggleSortDirection: () {
-              setState(() {
-                _sortAscending = !_sortAscending;
-                _filterAssignments();
-              });
-              _saveFilterToPrefs();
-            },
+          Icon(icon, size: 16, color: selected ? AppColors.accent : AppColors.textSecondary),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.accent : Colors.white,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            ),
           ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : (_filteredAssignments.isEmpty && _recentItems.isEmpty)
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(18),
-                                decoration: BoxDecoration(
-                                  color: AppColors.darkSurface,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: AppColors.darkBorder),
-                                ),
-                                child: const Icon(
-                                  Icons.assignment_outlined,
-                                  size: 36,
-                                  color: AppColors.textSecondary,
-                                  semanticLabel: 'Нет заданий',
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Список заданий пуст',
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Нажмите иконку синхронизации вверху,\nчтобы загрузить задания с сервера',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                  height: 1.5,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadAssignments,
-                        child: AssignmentsGroupedList(
-                          groups: _groupAssignments(_filteredAssignments),
-                          recentItems: _recentItems,
-                          expandedGroups: _expandedGroups,
-                          localInspectionState: _localInspectionState,
-                          opoHasData: _opoHasData,
-                          formatDate: _formatDate,
-                          onExpansionChanged: (groupKey, expanded) {
-                            setState(() {
-                              _expandedGroups[groupKey] = expanded;
-                            });
-                          },
-                          onAssignmentTap: _startAssignment,
-                          onRecentItemTap: _openRecentItem,
-                          onAssignmentsReload: _loadAssignments,
-                        ),
-                      ),
+          if (selected) ...[
+            const Spacer(),
+            Icon(
+              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+              size: 14,
+              color: AppColors.accent,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.darkSurface,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.darkBorder),
+            ),
+            child: const Icon(
+              Icons.assignment_outlined,
+              size: 36,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Список заданий пуст',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Нажмите иконку синхронизации вверху,\nчтобы загрузить задания с сервера',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
+}
+
+class _StatusTab {
+  const _StatusTab(this.value, this.label, this.color);
+  final String value;
+  final String label;
+  final Color? color;
 }

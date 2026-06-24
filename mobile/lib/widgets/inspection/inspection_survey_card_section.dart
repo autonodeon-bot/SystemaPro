@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../models/compressor_checklist.dart';
 import '../../services/api_service.dart';
@@ -38,10 +39,13 @@ class InspectionSurveyCardSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        buildSectionHeader('3. Карта обследования'),
+        buildSectionHeader(
+          form.sectionHeader('survey', fallback: '3. Карта обследования'),
+        ),
         buildInspectionTextField(
           'vessel_name',
           isCompressor
@@ -57,7 +61,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
             (value) => checklist.manufacturer = value),
         buildInspectionTextField('manufacture_year', 'Год изготовления',
             (value) => checklist.manufactureYear = value),
-        if (!isCompressor) ..._buildVesselFields(),
+        if (!isCompressor) ..._buildVesselFields(form),
         if (isCompressor) _buildCompressorFields(),
         const SizedBox(height: 16),
         _buildPhotoSection(context, 'Фото заводской таблички',
@@ -67,7 +71,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildVesselFields() {
+  List<Widget> _buildVesselFields(TechnicalReportForm form) {
     return [
       buildInspectionTextField('diameter', 'Диаметр сосуда',
           (value) => checklist.diameter = value),
@@ -76,7 +80,9 @@ class InspectionSurveyCardSection extends StatelessWidget {
       buildInspectionTextField(
           'wall_thickness', 'Толщина стенки (обечайка / днище)',
           (value) => checklist.wallThickness = value),
-      buildSectionHeader('Краткая техническая характеристика (таблица 6)'),
+      buildSectionHeader(
+        form.sectionHeader('survey', fallback: 'Краткая техническая характеристика'),
+      ),
       buildInspectionTextField(
           'purpose', 'Назначение', (v) => checklist.purpose = v),
       buildInspectionTextField('commissioning_year',
@@ -106,7 +112,9 @@ class InspectionSurveyCardSection extends StatelessWidget {
       buildInspectionTextField('corrosion_allowance',
           'Прибавка для компенсации коррозии, мм',
           (v) => checklist.corrosionAllowance = v),
-      buildSectionHeader('Анализ результатов предыдущих обследований'),
+      buildSectionHeader(
+        form.sectionHeader('survey_prev', fallback: '12. Анализ результатов предыдущих обследований'),
+      ),
       buildMultilineField(
           'previous_inspection_result',
           'Замечания по результатам предыдущих обследований',

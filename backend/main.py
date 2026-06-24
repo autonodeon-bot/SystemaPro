@@ -49,6 +49,7 @@ from protocol_templates_api import router as protocol_templates_router
 from experience_base_api import router as experience_base_router
 from diagnostic_menu_api import router as diagnostic_menu_router
 from inspection_object_templates_api import router as inspection_object_templates_router
+from equipment_profiles_api import router as equipment_profiles_router
 from drawing_templates_api import router as drawing_templates_router
 from standalone_protocols_api import router as standalone_protocols_router
 from diagnostic_engine.api import router as diagnostic_router
@@ -58,7 +59,7 @@ from report_verify_api import router as report_verify_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.7.0",
+    version="3.7.3",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -76,7 +77,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.7.0")
+os.environ.setdefault("APP_VERSION", "3.7.3")
 init_observability(app)
 log = get_logger("main")
 
@@ -155,6 +156,7 @@ app.include_router(protocol_templates_router)
 app.include_router(experience_base_router)
 app.include_router(diagnostic_menu_router)
 app.include_router(inspection_object_templates_router)
+app.include_router(equipment_profiles_router)
 app.include_router(drawing_templates_router)
 app.include_router(standalone_protocols_router)
 app.include_router(diagnostic_router)
@@ -182,10 +184,34 @@ async def startup():
         await _ensure_experience_base_seed()
         await _ensure_diagnostic_menu_config()
         await _ensure_inspection_object_templates_seed()
+        await _ensure_equipment_types_seed()
+        await _ensure_report_templates_seed()
 
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
         traceback.print_exc()
+
+
+async def _ensure_report_templates_seed() -> None:
+    try:
+        from report_templates_seed import ensure_report_templates_seed
+
+        n = ensure_report_templates_seed()
+        print(f"✅ Report templates seed: {n}")
+    except Exception as e:
+        print(f"⚠️  Report templates seed skipped: {e}")
+
+
+async def _ensure_equipment_types_seed() -> None:
+    try:
+        from database import AsyncSessionLocal
+        from equipment_types_seed import ensure_default_equipment_types
+
+        async with AsyncSessionLocal() as session:
+            n = await ensure_default_equipment_types(session)
+        print(f"✅ Equipment types seed: {n}")
+    except Exception as e:
+        print(f"⚠️  Equipment types seed skipped: {e}")
 
 
 async def _ensure_inspection_object_templates_seed() -> None:
@@ -312,6 +338,7 @@ async def _run_migrations():
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id)",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS protocol_template_id VARCHAR(64)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS ndt_method_codes JSONB",
         ]),
         # projects — дедлайн и бюджет (иначе SELECT по ORM падает на старых БД без колонок)
         ("projects deadline budget", [
@@ -627,7 +654,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.7.0", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.7.3", "status": "running"}
 
 
 @app.get("/health")
@@ -662,7 +689,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.7.0")
+    checks["version"] = os.getenv("APP_VERSION", "3.7.3")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}
