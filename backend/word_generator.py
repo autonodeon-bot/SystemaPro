@@ -40,6 +40,21 @@ from epb_protocol_tables import (
 from report_attachments import build_attachments_index
 from suitability_conclusions import conclusion_from_inspection_data
 from technical_report_builder import TechnicalReportContext, append_technical_protocol_doc_analysis
+from report_org_settings import load_report_org_settings, merge_client_into_settings
+from report_format_helpers import (
+    add_inspector_signature_block,
+    add_protocol_header_from_settings,
+    append_technical_toc,
+    build_specialist_rows,
+    contractor_table_rows,
+    customer_table_rows,
+    doc_meta_extended,
+    format_work_result_row,
+    normative_bullets,
+    previous_inspection_rows,
+    tech_characteristic_rows,
+    work_basis_text,
+)
 
 NORMATIVE_BASE_ORDER_536 = (
     "Федеральные нормы и правила в области промышленной безопасности "
@@ -477,9 +492,12 @@ class WordGenerator:
         specialist_docs: Optional[List[Dict[str, Any]]] = None,
         verification_equipment: Optional[List[Dict[str, Any]]] = None,
         template_definition: Optional[Dict[str, Any]] = None,
+        org_settings: Optional[Dict[str, Any]] = None,
     ):
         """Генерировать Word документ отчета"""
         self._set_report_path_scope(inspection_data)
+        if org_settings is None:
+            org_settings = load_report_org_settings()
         rt = (report_type or "").strip().upper()
         if rt in ["DIAGNOSTICS", "DIAGNOSTIC", "TECHNICAL_DIAGNOSTICS"]:
             return self._generate_diagnostics_report_word(
@@ -491,6 +509,7 @@ class WordGenerator:
                 specialist_docs=specialist_docs,
                 verification_equipment=verification_equipment,
                 template_definition=template_definition,
+                org_settings=org_settings,
             )
         
         # Сосуд / газосепаратор / ресивер — единый шаблон отчёта СРпД
@@ -505,6 +524,7 @@ class WordGenerator:
                 specialist_docs=specialist_docs,
                 verification_equipment=verification_equipment,
                 template_definition=template_definition,
+                org_settings=org_settings,
             )
 
         doc = Document()
@@ -2817,6 +2837,7 @@ class WordGenerator:
         specialist_docs: Optional[List[Dict[str, Any]]] = None,
         verification_equipment: Optional[List[Dict[str, Any]]] = None,
         template_definition: Optional[Dict[str, Any]] = None,
+        org_settings: Optional[Dict[str, Any]] = None,
     ):
         """
         Генерация технического отчета для сосудов/ресиверов по образцу reciver.md и rabota.md
@@ -2824,6 +2845,8 @@ class WordGenerator:
         """
         doc = Document()
         self._setup_styles(doc)
+        if org_settings is None:
+            org_settings = load_report_org_settings()
         
         data = inspection_data.get("data") or {}
         if not isinstance(data, dict):
@@ -2955,7 +2978,12 @@ class WordGenerator:
         device_name = g("equipment_device_name", "vessel_name", default=equipment_data.get("name") or "—")
         serial = g("serial_number", default=equipment_data.get("serial_number") or "—")
         reg_no = g("reg_number", default=attrs.get("reg_number") or attrs.get("regNumber") or "—")
-        org = g("organization", "customer_name", "enterprise_name", default="—")
+        org = g(
+            "organization",
+            "customer_name",
+            "enterprise_name",
+            default=(org_settings.get("customer") or {}).get("legal_name") or "—",
+        )
         location = g("location", "equipment_location", default=equipment_data.get("location") or "—")
         opo_name = _opo_get("name", "opo_name", default=g("opo_name", default="—"))
         opo_reg = _opo_get("registration_number", "opo_code", "reg_number", default=g("opo_code", default="—"))
@@ -2992,7 +3020,11 @@ class WordGenerator:
                 epb_tbl.rows[i].cells[0].text = k
                 epb_tbl.rows[i].cells[1].text = v
             doc.add_paragraph("")
-            doc.add_paragraph("Дата внесения в реестр: «____» _______________20____г.")
+            registry_date = g(
+                "epb_registry_date",
+                default=(org_settings or {}).get("epb_registry_date") or "«____» _______________20____г.",
+            )
+            doc.add_paragraph(f"Дата внесения в реестр: {registry_date}")
         else:
             # Заголовок технического отчёта
             title_table = doc.add_table(rows=1, cols=1)
@@ -3032,10 +3064,21 @@ class WordGenerator:
         sign_tbl.columns[1].width = Inches(3.5)
         sign_tbl.cell(0, 0).text = ""
         
-        contractor = g("contractor_name", default='ООО «ЮТАР»')
-        director_title = g("director_title", default="Генеральный директор")
-        director_name = g("director_name", default="__________________")
-        city = g("report_city", "city", default="г. Урай")
+        contractor = g(
+            "contractor_name",
+            default=(org_settings.get("contractor") or {}).get("short_name")
+            or (org_settings.get("contractor") or {}).get("name")
+            or 'ООО «ЮТАР»',
+        )
+        director_title = g(
+            "director_title",
+            default=(org_settings.get("contractor") or {}).get("director_title") or "Генеральный директор",
+        )
+        director_name = g(
+            "director_name",
+            default=(org_settings.get("contractor") or {}).get("director_name") or "__________________",
+        )
+        city = g("report_city", "city", default=(org_settings or {}).get("report_city") or "г. Урай")
         year = datetime.now().strftime("%Y")
         
         p = sign_tbl.cell(0, 1).paragraphs[0]
@@ -3050,9 +3093,7 @@ class WordGenerator:
         if is_epb:
             append_epb_toc(doc)
         else:
-            doc.add_heading("СОДЕРЖАНИЕ", level=1)
-            self._add_toc_field(doc)
-            doc.add_page_break()
+            append_technical_toc(doc)
         
         # --------------- РАЗДЕЛЫ 1-15 ---------------
         performed = [m for m in (ndt_methods or []) if m.get("is_performed")]
@@ -3101,35 +3142,12 @@ class WordGenerator:
             return m
 
         def _doc_meta(num: str):
-            num_key = str(num)
-            present = None
-            doc_number = ""
-            doc_date = ""
-            if isinstance(docs_dict, dict) and num_key in docs_dict:
-                val = docs_dict.get(num_key)
-                if isinstance(val, dict):
-                    present = val.get("present")
-                    if present is None:
-                        present = val.get("has") if val.get("has") is not None else val.get("value")
-                    doc_number = str(val.get("number") or val.get("doc_number") or "")
-                    doc_date = str(val.get("date") or val.get("doc_date") or "")
-                else:
-                    if isinstance(val, str):
-                        present = val.strip().lower() in ("true", "1", "yes", "да")
-                    else:
-                        present = bool(val)
-            if isinstance(docs_info, dict) and num_key in docs_info:
-                info = docs_info.get(num_key) or {}
-                if isinstance(info, dict):
-                    if present is None:
-                        present = info.get("present")
-                        if present is None:
-                            present = info.get("has") if info.get("has") is not None else info.get("value")
-                    if not doc_number:
-                        doc_number = str(info.get("number") or info.get("doc_number") or "")
-                    if not doc_date:
-                        doc_date = str(info.get("date") or info.get("doc_date") or "")
-            return (present, doc_number, doc_date)
+            present, doc_number, doc_date, pages = doc_meta_extended(
+                num,
+                docs_dict if isinstance(docs_dict, dict) else {},
+                docs_info if isinstance(docs_info, dict) else {},
+            )
+            return (present, doc_number, doc_date, pages)
         
         def _engineer_for_method(method_code: str) -> str:
             if not isinstance(inspection_engineers, list):
@@ -3195,8 +3213,7 @@ class WordGenerator:
         if not is_epb:
             # 1. Основания для проведения работ
             doc.add_heading("1. Основания для проведения работ", level=1)
-            basis = g("basis", "work_basis", default="Работы по техническому диагностированию проведены согласно договору.")
-            doc.add_paragraph(str(basis))
+            doc.add_paragraph(work_basis_text(org_settings, g))
             doc.add_paragraph()
         
             # 2. Сроки проведения работ
@@ -3207,26 +3224,24 @@ class WordGenerator:
         
             # 3. Перечень нормативных и правовых актов
             doc.add_heading("3. Перечень нормативных и правовых актов, устанавливающих требования к объекту диагностирования", level=1)
-            normative_base = g("normative_base", default=normative_base_default)
-            doc.add_paragraph(str(normative_base))
+            for bullet in normative_bullets(org_settings, g, normative_base_default):
+                doc.add_paragraph(f"- {bullet}")
             doc.add_paragraph()
         
             # 4. Сведения о Заказчике
             doc.add_heading("4. Сведения о Заказчике", level=1)
             doc.add_paragraph("Таблица №1")
             doc.add_paragraph()
-            customer_tbl = doc.add_table(rows=2, cols=2)
+            cust_rows = customer_table_rows(org_settings, g, str(org), str(location))
+            customer_tbl = doc.add_table(rows=len(cust_rows), cols=2)
             customer_tbl.style = "Table Grid"
-            customer_tbl.rows[0].cells[0].text = "Полное наименование организации"
-            customer_tbl.rows[0].cells[1].text = str(org)
-            customer_tbl.rows[1].cells[0].text = "Адрес местонахождения"
-            customer_tbl.rows[1].cells[1].text = str(location)
-            for row in customer_tbl.rows:
-                for cell in row.cells:
-                    try:
-                        cell.paragraphs[0].runs[0].font.bold = True
-                    except:
-                        pass
+            for i, (label, value) in enumerate(cust_rows):
+                customer_tbl.rows[i].cells[0].text = label
+                customer_tbl.rows[i].cells[1].text = str(value)
+                try:
+                    customer_tbl.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
+                except Exception:
+                    pass
             doc.add_paragraph()
 
             # 4.1. Сведения об ОПО (если есть)
@@ -3277,20 +3292,17 @@ class WordGenerator:
             doc.add_heading("5. Сведения об организации, проводившей техническое диагностирование", level=1)
             doc.add_paragraph("Таблица №2")
             doc.add_paragraph()
-            contractor_tbl = doc.add_table(rows=4, cols=2)
+            contractor_rows = contractor_table_rows(
+                org_settings, g, str(contractor), str(director_title), str(director_name)
+            )
+            contractor_tbl = doc.add_table(rows=len(contractor_rows), cols=2)
             contractor_tbl.style = "Table Grid"
-            contractor_rows = [
-                ("Наименование организации:", str(contractor)),
-                ("Организационно-правовая форма организации:", "Общество с ограниченной ответственностью"),
-                ("Юридический адрес:", str(g("contractor_address", default="628285, Ханты-Мансийский автономный округ — Югра, г.Урай, улица Ивана Шестакова, строение 46Б"))),
-                ("Руководитель экспертной организации:", f"{director_title} {director_name}"),
-            ]
             for i, (k, v) in enumerate(contractor_rows):
                 contractor_tbl.rows[i].cells[0].text = k
                 contractor_tbl.rows[i].cells[1].text = v
                 try:
                     contractor_tbl.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
-                except:
+                except Exception:
                     pass
             doc.add_paragraph()
         
@@ -3299,81 +3311,32 @@ class WordGenerator:
             doc.add_paragraph("Таблица № 3")
             doc.add_paragraph()
         
-            # Собираем специалистов
-            inspectors = []
-            inspector_details = {}
-        
-            if isinstance(inspection_engineers, list):
-                for ie in inspection_engineers:
-                    if not isinstance(ie, dict):
-                        continue
-                    name = (ie.get("full_name") or "").strip()
-                    method = _normalize_method(ie.get("method"))
-                    cert_num = (ie.get("certificate_number") or "").strip()
-                    valid_until = (ie.get("valid_until") or "").strip()
-                    if name and name not in inspectors:
-                        inspectors.append(name)
-                    if name:
-                        if name not in inspector_details:
-                            inspector_details[name] = {}
-                        methods = inspector_details[name].get("methods", [])
-                        if method:
-                            methods.append(method)
-                        inspector_details[name]["methods"] = methods
-                        if cert_num:
-                            certs = inspector_details[name].get("certifications_inline", [])
-                            certs.append(f"{cert_num}" + (f" до {valid_until}" if valid_until else ""))
-                            inspector_details[name]["certifications_inline"] = certs
-        
-            for m in (ndt_methods or []):
-                name = (m.get("inspector_name") or "").strip()
-                if name and name not in inspectors:
-                    inspectors.append(name)
-                if name:
-                    if name not in inspector_details:
-                        inspector_details[name] = {}
-                    md = inspector_details[name]
-                    md["level"] = md.get("level") or m.get("inspector_level")
-                    cert_num = m.get("certificate_number") or m.get("certification_number")
-                    if cert_num:
-                        md["certification"] = cert_num
-                        md["certification_number"] = cert_num
-                        if not md.get("certifications_inline"):
-                            md["certifications_inline"] = [str(cert_num)]
-                    method = _normalize_method(m.get("method_code") or m.get("method_name"))
-                    if method:
-                        methods = md.get("methods", [])
-                        if method not in methods:
-                            methods.append(method)
-                        md["methods"] = methods
-        
-            if inspectors:
-                spec_table = doc.add_table(rows=len(inspectors) + 1, cols=4)
+            specialist_rows = build_specialist_rows(
+                inspection_engineers if isinstance(inspection_engineers, list) else [],
+                ndt_methods or [],
+                _normalize_method,
+            )
+            if specialist_rows:
+                spec_table = doc.add_table(rows=len(specialist_rows) + 1, cols=5)
                 spec_table.style = "Table Grid"
-                headers = ["№ п/п", "Фамилия И.О.", "№ удостоверения", "Область аттестации / Срок действия"]
+                headers = [
+                    "№ п/п",
+                    "Фамилия И.О.",
+                    "№ удостоверения",
+                    "Срок действия удостоверения",
+                    "Область аттестации",
+                ]
                 for i, h in enumerate(headers):
                     cell = spec_table.rows[0].cells[i]
                     cell.text = h
                     cell.paragraphs[0].runs[0].font.bold = True
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-                for idx, name in enumerate(inspectors, 1):
+                for idx, row in enumerate(specialist_rows, 1):
                     spec_table.rows[idx].cells[0].text = str(idx)
-                    spec_table.rows[idx].cells[1].text = name
-                    details = inspector_details.get(name, {})
-                    cert_nums = details.get("certifications_inline") or []
-                    if not cert_nums and details.get("certification"):
-                        cert_nums = [details["certification"]]
-                    if not cert_nums and details.get("certificate_number"):
-                        cert_nums = [details["certificate_number"]]
-                    methods_str = ", ".join(sorted(set(details.get("methods", [])))) if details.get("methods") else ""
-                    spec_table.rows[idx].cells[2].text = "; ".join(cert_nums) if cert_nums else "—"
-                    area_parts = []
-                    if details.get("level"):
-                        area_parts.append(f"Уровень: {details['level']}")
-                    if methods_str:
-                        area_parts.append(f"Методы: {methods_str}")
-                    spec_table.rows[idx].cells[3].text = "; ".join(area_parts) if area_parts else "—"
+                    spec_table.rows[idx].cells[1].text = row["name"]
+                    spec_table.rows[idx].cells[2].text = row["cert"]
+                    spec_table.rows[idx].cells[3].text = row["valid_until"]
+                    spec_table.rows[idx].cells[4].text = row["area"]
             else:
                 doc.add_paragraph("Специалисты не указаны.")
             doc.add_paragraph()
@@ -3392,46 +3355,44 @@ class WordGenerator:
                     if name not in [e.get("name") for e in fallback_equipment]:
                         fallback_equipment.append({"name": name})
 
+            def _fmt_verification_date(raw: Any) -> str:
+                if not raw:
+                    return ""
+                try:
+                    from datetime import datetime as dt
+                    d = dt.fromisoformat(str(raw).replace("Z", "+00:00"))
+                    return d.strftime("%d.%m.%Y")
+                except Exception:
+                    return str(raw)
+
+            def _render_equipment_table(items: List[Dict[str, Any]]) -> None:
+                eq_table = doc.add_table(rows=len(items) + 1, cols=5)
+                eq_table.style = "Table Grid"
+                headers = [
+                    "№ п/п",
+                    "Наименование прибора",
+                    "Заводской номер прибора",
+                    "Номер свидетельства о поверке",
+                    "Действительно до",
+                ]
+                for i, h in enumerate(headers):
+                    cell = eq_table.rows[0].cells[i]
+                    cell.text = h
+                    cell.paragraphs[0].runs[0].font.bold = True
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for idx, eq in enumerate(items, 1):
+                    eq_table.rows[idx].cells[0].text = str(idx)
+                    eq_table.rows[idx].cells[1].text = eq.get("name", "—")
+                    eq_table.rows[idx].cells[2].text = eq.get("serial_number", "—")
+                    eq_table.rows[idx].cells[3].text = eq.get("verification_certificate_number", "—") or "—"
+                    eq_table.rows[idx].cells[4].text = _fmt_verification_date(
+                        eq.get("next_verification_date")
+                    ) or "—"
+
             if verification_equipment and isinstance(verification_equipment, list) and len(verification_equipment) > 0:
-                eq_table = doc.add_table(rows=len(verification_equipment) + 1, cols=4)
-                eq_table.style = "Table Grid"
-                headers = ["№ п/п", "Наименование прибора", "Заводской номер прибора", "Свидетельство о поверке / Действительна до"]
-                for i, h in enumerate(headers):
-                    cell = eq_table.rows[0].cells[i]
-                    cell.text = h
-                    cell.paragraphs[0].runs[0].font.bold = True
-                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-                for idx, eq in enumerate(verification_equipment, 1):
-                    eq_table.rows[idx].cells[0].text = str(idx)
-                    eq_table.rows[idx].cells[1].text = eq.get('name', '—')
-                    eq_table.rows[idx].cells[2].text = eq.get('serial_number', '—')
-                
-                    cert_num = eq.get('verification_certificate_number', '')
-                    next_date = eq.get('next_verification_date', '')
-                    if next_date:
-                        try:
-                            from datetime import datetime as dt
-                            d = dt.fromisoformat(next_date.replace('Z', '+00:00'))
-                            next_date = d.strftime('%d.%m.%Y')
-                        except:
-                            pass
-                    ver_info = f"{cert_num} / {next_date}" if cert_num and next_date else (cert_num or next_date or "—")
-                    eq_table.rows[idx].cells[3].text = ver_info
+                _render_equipment_table(verification_equipment)
             elif fallback_equipment:
-                eq_table = doc.add_table(rows=len(fallback_equipment) + 1, cols=4)
-                eq_table.style = "Table Grid"
-                headers = ["№ п/п", "Наименование прибора", "Заводской номер прибора", "Свидетельство о поверке / Действительна до"]
-                for i, h in enumerate(headers):
-                    cell = eq_table.rows[0].cells[i]
-                    cell.text = h
-                    cell.paragraphs[0].runs[0].font.bold = True
-                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                for idx, eq in enumerate(fallback_equipment, 1):
-                    eq_table.rows[idx].cells[0].text = str(idx)
-                    eq_table.rows[idx].cells[1].text = eq.get("name") or "—"
-                    eq_table.rows[idx].cells[2].text = "—"
-                    eq_table.rows[idx].cells[3].text = "—"
+                _render_equipment_table(fallback_equipment)
             else:
                 doc.add_paragraph("Оборудование не указано.")
             doc.add_paragraph()
@@ -3462,37 +3423,21 @@ class WordGenerator:
             doc.add_paragraph("Таблица № 6")
             doc.add_paragraph()
         
-            tech_tbl = doc.add_table(rows=15, cols=2)
+            tech_rows = tech_characteristic_rows(g, str(device_name), purpose_default, equipment_data)
+            tech_tbl = doc.add_table(rows=len(tech_rows), cols=2)
             tech_tbl.style = "Table Grid"
-            tech_rows = [
-                ("Наименование объекта", device_name),
-                ("Назначение", g("purpose", "vessel_purpose", default=purpose_default or "—")),
-                ("Наименование завода-изготовителя", g("manufacturer", default="—")),
-                ("Год изготовления", g("manufacturing_year", default="—")),
-                ("Год ввода в эксплуатацию", g("commissioning_year", default=str(equipment_data.get("commissioning_date", "—")))),
-                ("Рабочее давление, МПа", g("working_pressure", default="—")),
-                ("Расчетное давление, МПа", g("design_pressure", default="—")),
-                ("Пробное давление гидравлического испытания, МПа", g("test_pressure", default="—")),
-                ("Допустимая рабочая температура стенки, ℃", g("working_temperature", default="—")),
-                ("Расчетная температура стенки, ℃", g("design_temperature", default="—")),
-                ("Наименование рабочей среды", g("working_medium", default="—")),
-                ("Характеристика рабочей среды", g("medium_characteristics", default="—")),
-                ("Группа сосуда", g("vessel_group", default="—")),
-                ("Группа рабочей среды", g("medium_group", default="—")),
-                ("Прибавка для компенсации коррозии, мм", g("corrosion_allowance", default="—")),
-            ]
             for i, (k, v) in enumerate(tech_rows):
                 tech_tbl.rows[i].cells[0].text = k
                 tech_tbl.rows[i].cells[1].text = str(v)
                 try:
                     tech_tbl.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
-                except:
+                except Exception:
                     pass
             doc.add_paragraph()
         
             # 10. Перечень работ
             doc.add_heading("10. Перечень работ, выполненных в процессе технического освидетельствования", level=1)
-            doc.add_paragraph("Таблица № 6")
+            doc.add_paragraph("Таблица № 7")
             doc.add_paragraph()
         
             work_names = {
@@ -3524,7 +3469,7 @@ class WordGenerator:
         
             # 11. Сведения о рассмотренных документах
             doc.add_heading("11. Сведения о рассмотренных в процессе технического освидетельствования документах", level=1)
-            doc.add_paragraph("Таблица № 7")
+            doc.add_paragraph("Таблица № 8")
             doc.add_paragraph()
         
             document_names = {
@@ -3554,9 +3499,15 @@ class WordGenerator:
                 if isinstance(docs_info, dict):
                     doc_keys.update([str(k) for k in docs_info.keys()])
                 doc_keys = sorted(doc_keys, key=lambda x: int(x) if str(x).isdigit() else 999)
-                docs_tbl = doc.add_table(rows=len(doc_keys) + 1, cols=3)
+                docs_tbl = doc.add_table(rows=len(doc_keys) + 1, cols=5)
                 docs_tbl.style = "Table Grid"
-                headers = ["№ п/п", "Наименование документа", "Идентификационный номер документа / Объём рассмотренных документов, листов"]
+                headers = [
+                    "№ п/п",
+                    "Наименование документа",
+                    "Идентификационный номер документа",
+                    "Дата документа",
+                    "Объём рассмотренных документов, листов",
+                ]
                 for i, h in enumerate(headers):
                     cell = docs_tbl.rows[0].cells[i]
                     cell.text = h
@@ -3565,16 +3516,15 @@ class WordGenerator:
             
                 row_idx = 1
                 for num in doc_keys:
+                    if not str(num).isdigit():
+                        continue
                     name = document_names.get(str(num), f'Документ {num}')
-                    _present, doc_number, doc_date = _doc_meta(str(num))
-                    ident = "—"
-                    if doc_number or doc_date:
-                        ident = doc_number
-                        if doc_date:
-                            ident = f"{ident} от {doc_date}" if ident else f"от {doc_date}"
+                    _present, doc_number, doc_date, pages = _doc_meta(str(num))
                     docs_tbl.rows[row_idx].cells[0].text = str(num)
                     docs_tbl.rows[row_idx].cells[1].text = name
-                    docs_tbl.rows[row_idx].cells[2].text = ident
+                    docs_tbl.rows[row_idx].cells[2].text = doc_number or "—"
+                    docs_tbl.rows[row_idx].cells[3].text = doc_date or "—"
+                    docs_tbl.rows[row_idx].cells[4].text = pages or "—"
                     row_idx += 1
             else:
                 doc.add_paragraph("Документы не указаны.")
@@ -3582,9 +3532,10 @@ class WordGenerator:
         
             # 12. Анализ результатов предыдущих обследований
             doc.add_heading("12. Анализ результатов предыдущих обследований", level=1)
-            doc.add_paragraph("Таблица № 8")
+            doc.add_paragraph("Таблица № 9")
             doc.add_paragraph()
-            prev_tbl = doc.add_table(rows=2, cols=3)
+            prev_rows = previous_inspection_rows(g)
+            prev_tbl = doc.add_table(rows=len(prev_rows) + 1, cols=3)
             prev_tbl.style = "Table Grid"
             headers = ["№ п/п", "Вид обследования", "Результаты контроля / Наименование и номер отчетной документации"]
             for i, h in enumerate(headers):
@@ -3592,15 +3543,27 @@ class WordGenerator:
                 cell.text = h
                 cell.paragraphs[0].runs[0].font.bold = True
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            prev_tbl.rows[1].cells[0].text = "1"
-            prev_tbl.rows[1].cells[1].text = "Техническое диагностирование"
-            prev_tbl.rows[1].cells[2].text = g("previous_inspection_result", default="—")
+            for idx, row in enumerate(prev_rows, 1):
+                prev_tbl.rows[idx].cells[0].text = str(idx)
+                prev_tbl.rows[idx].cells[1].text = row["kind"]
+                prev_tbl.rows[idx].cells[2].text = row["result"]
             doc.add_paragraph()
         
             # 13. Результаты технического освидетельствования
             doc.add_heading("13. Результаты технического освидетельствования", level=1)
-            doc.add_paragraph("Таблица № 9")
+            doc.add_paragraph("Таблица № 10")
             doc.add_paragraph()
+            appendix_map = {
+                "ВИК": 3,
+                "VIK": 3,
+                "УЗТ": 4,
+                "UZT": 4,
+                "УЗК": 5,
+                "UZK": 5,
+                "ТВИ": 6,
+                "TVI": 6,
+                "АНАЛИЗ ДОК.": 1,
+            }
             results_tbl = doc.add_table(rows=len(work_list) + 1, cols=3)
             results_tbl.style = "Table Grid"
             headers = ["№ п/п", "Наименование работы", "Результаты контроля / Наименование и номер отчетной документации"]
@@ -3613,9 +3576,12 @@ class WordGenerator:
             for idx, m in enumerate(work_list, 1):
                 work_name = m.get("work_name") or work_names.get(m.get("method_name", ""), m.get("method_name", "—"))
                 conclusion = m.get("conclusion", "Дефектов не обнаружено")
+                method_code = str(m.get("method_name") or m.get("method_code") or "").upper()
                 results_tbl.rows[idx].cells[0].text = str(idx)
                 results_tbl.rows[idx].cells[1].text = work_name
-                results_tbl.rows[idx].cells[2].text = f"{conclusion} / Приложение №{idx+1}"
+                results_tbl.rows[idx].cells[2].text = format_work_result_row(
+                    idx, work_name, conclusion, method_code, appendix_map
+                )
             doc.add_paragraph()
         
             # 14. Результаты расчетной оценки
@@ -3631,13 +3597,20 @@ class WordGenerator:
                 equipment_data,
                 g,
                 explicit_conclusion=inspection_data.get("conclusion"),
+                org_settings=org_settings,
             )
             doc.add_paragraph(str(conclusion_text))
             doc.add_paragraph()
         
             # Подпись эксперта
-            expert_name = inspectors[0] if inspectors else "—"
+            expert_name = specialist_rows[0]["name"] if specialist_rows else "—"
             doc.add_paragraph(f"Эксперт Э12ТУ {expert_name}")
+            add_inspector_signature_block(
+                doc,
+                expert_name,
+                specialist_docs,
+                self._find_image_path,
+            )
             doc.add_paragraph()
         
         # --------------- ПРИЛОЖЕНИЯ ---------------
@@ -3659,24 +3632,21 @@ class WordGenerator:
             app_no += 1
 
         def _add_protocol_header_block():
-            """Блок заголовка: Заказчик, Объект, Место, Дата, НТД."""
-            ht = doc.add_table(rows=5, cols=2)
-            ht.style = "Table Grid"
-            nd = str(g("normative_base", default="приказ Ростехнадзора от 15.12.2020 №536, СО 153-34.17.439-2003, ГОСТ Р 55614-2013, ГОСТ Р ИСО 16809-2015"))
-            for i, (lbl, val) in enumerate([
-                ("Заказчик:", str(org)),
-                ("Объект контроля:", f"{device_name} зав.№ {serial}"),
-                ("Место проведения контроля:", str(location)),
-                ("Дата проведения контроля:", date_perf_ru),
-                ("НТД, по которой выполнен контроль:", nd),
-            ]):
-                ht.rows[i].cells[0].text = lbl
-                ht.rows[i].cells[1].text = val
-                try:
-                    ht.rows[i].cells[0].paragraphs[0].runs[0].font.bold = True
-                except Exception:
-                    pass
-            doc.add_paragraph()
+            """Блок заголовка протокола из справочника настроек."""
+            nd_bullets = normative_bullets(org_settings, g, normative_base_default)
+            nd = ", ".join(nd_bullets[:4]) if nd_bullets else str(
+                g("normative_base", default="приказ Ростехнадзора от 15.12.2020 №536")
+            )
+            add_protocol_header_from_settings(
+                doc,
+                org_settings,
+                org=str(org),
+                device_name=str(device_name),
+                serial=str(serial),
+                location=str(location),
+                date_perf_ru=date_perf_ru,
+                normative_text=nd,
+            )
         
         # ПРИЛОЖЕНИЕ № 1 (техотчёт): протокол анализа технической документации — форма ТО
         if not is_epb:
@@ -3910,6 +3880,13 @@ class WordGenerator:
             doc.add_paragraph("5. Заключение по результатам визуального и измерительного контроля")
             doc.add_paragraph("По результатам визуального и измерительного контроля основного металла и сварных соединений сосуда, недопустимых дефектов не обнаружено, что удовлетворяет требованиям нормативно-технической документации")
             doc.add_paragraph()
+            vik_inspector = (vik_method or {}).get("inspector_name") or _engineer_for_method("VIK")
+            add_inspector_signature_block(
+                doc,
+                vik_inspector,
+                specialist_docs,
+                self._find_image_path,
+            )
         app_no += 1
 
         # Протокол №3 (твердометрия) — только ЭПБ, до УЗТ

@@ -115,12 +115,87 @@ class InspectionSurveyCardSection extends StatelessWidget {
       buildSectionHeader(
         form.sectionHeader('survey_prev', fallback: '12. Анализ результатов предыдущих обследований'),
       ),
+      _buildPreviousInspectionsTable(context),
       buildMultilineField(
           'previous_inspection_result',
-          'Замечания по результатам предыдущих обследований',
+          'Дополнительные замечания по предыдущим обследованиям',
           (v) => checklist.previousInspectionResult = v),
     ];
   }
+
+  Widget _buildPreviousInspectionsTable(BuildContext context) {
+    if (checklist.previousInspections.isEmpty) {
+      checklist.previousInspections.add(PreviousInspectionRecord());
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...checklist.previousInspections.asMap().entries.map((entry) {
+          final index = entry.key;
+          final row = entry.value;
+          return Card(
+            color: kInspectionDarkBg,
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Text('Запись ${index + 1}',
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      if (checklist.previousInspections.length > 1)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          onPressed: () {
+                            checklist.previousInspections.removeAt(index);
+                            onStateChanged();
+                          },
+                        ),
+                    ],
+                  ),
+                  buildInspectionTextField(
+                    'prev_kind_$index',
+                    'Вид обследования',
+                    (v) => row.kind = v,
+                    initialValue: row.kind,
+                  ),
+                  buildInspectionTextField(
+                    'prev_date_$index',
+                    'Дата обследования',
+                    (v) => row.date = v,
+                    initialValue: row.date,
+                  ),
+                  buildInspectionTextField(
+                    'prev_report_$index',
+                    'Номер отчётной документации',
+                    (v) => row.reportNumber = v,
+                    initialValue: row.reportNumber,
+                  ),
+                  buildInspectionTextField(
+                    'prev_result_$index',
+                    'Результаты контроля',
+                    (v) => row.result = v,
+                    initialValue: row.result,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        OutlinedButton.icon(
+          onPressed: () {
+            checklist.previousInspections.add(PreviousInspectionRecord());
+            onStateChanged();
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Добавить запись'),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
 
   Widget _buildCompressorFields() {
     final c = checklist as CompressorChecklist;

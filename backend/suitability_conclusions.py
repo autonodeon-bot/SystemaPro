@@ -8,11 +8,17 @@ from typing import Any, Callable, Dict, Optional
 SUITABILITY_FIT = "FIT"
 SUITABILITY_UNFIT = "UNFIT"
 SUITABILITY_LIMITED = "LIMITED_FIT"
+COMPLIANCE_COMPLIANT = "COMPLIANT"
+COMPLIANCE_NON_COMPLIANT = "NON_COMPLIANT"
+COMPLIANCE_PARTIALLY_COMPLIANT = "PARTIALLY_COMPLIANT"
 
 SUITABILITY_LABELS = {
     SUITABILITY_FIT: "Пригоден",
     SUITABILITY_UNFIT: "Не пригоден",
     SUITABILITY_LIMITED: "Ограниченно пригоден",
+    COMPLIANCE_COMPLIANT: "Соответствует требованиям",
+    COMPLIANCE_NON_COMPLIANT: "Не соответствует требованиям",
+    COMPLIANCE_PARTIALLY_COMPLIANT: "Ограниченно соответствует",
 }
 
 
@@ -51,14 +57,14 @@ def build_suitability_conclusion(
         ident += f", инв. № {inv_no}"
 
     st = (status or "").upper()
-    if st in (SUITABILITY_UNFIT, "NOT_FIT", "UNFIT"):
+    if st in (SUITABILITY_UNFIT, "NOT_FIT", "UNFIT", COMPLIANCE_NON_COMPLIANT, "NOT_COMPLIANT"):
         return (
             f"На основании результатов выполненного комплекса работ по техническому диагностированию "
             f"{ident} техническое состояние оценивается как неудовлетворительное. "
             f"Дальнейшая эксплуатация оборудования не допускается до устранения выявленных недостатков "
             f"и проведения повторного обследования."
         )
-    if st in (SUITABILITY_LIMITED, "LIMITED", "LIMITED_FIT"):
+    if st in (SUITABILITY_LIMITED, "LIMITED", "LIMITED_FIT", COMPLIANCE_PARTIALLY_COMPLIANT):
         restr = (restrictions or "").strip()
         restr_text = (
             f" Эксплуатация допускается при соблюдении ограничений: {restr}."
@@ -85,6 +91,7 @@ def conclusion_from_inspection_data(
     equipment_data: Dict[str, Any],
     g: Callable[..., Any],
     explicit_conclusion: Optional[str] = None,
+    org_settings: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Вернуть заключение: явное из обследования или по suitability_status."""
     if explicit_conclusion and str(explicit_conclusion).strip():
@@ -92,7 +99,18 @@ def conclusion_from_inspection_data(
     data = inspection_data.get("data") if isinstance(inspection_data.get("data"), dict) else {}
     attrs = equipment_data.get("attributes") or {}
     status = resolve_suitability_status(data if isinstance(data, dict) else {})
+    templates = (org_settings or {}).get("conclusion_templates") or {}
     if status:
+        st = status.upper()
+        template_key = {
+            "COMPLIANT": "COMPLIANT",
+            "NON_COMPLIANT": "NON_COMPLIANT",
+            "PARTIALLY_COMPLIANT": "PARTIALLY_COMPLIANT",
+            "NOT_COMPLIANT": "NON_COMPLIANT",
+            "LIMITED_COMPLIANT": "PARTIALLY_COMPLIANT",
+        }.get(st, st)
+        if template_key in templates and str(templates[template_key]).strip():
+            return str(templates[template_key]).strip()
         add = data.get("additional_data") if isinstance(data.get("additional_data"), dict) else {}
         return build_suitability_conclusion(
             status,

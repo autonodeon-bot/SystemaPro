@@ -64,7 +64,7 @@ def _header_row(tbl, headers: List[str]) -> None:
 def _doc_meta_rows(
     docs_dict: Dict[str, Any],
     docs_info: Dict[str, Any],
-    doc_meta_fn: Callable[[str], Tuple[bool, str, str]],
+    doc_meta_fn: Callable[[str], Tuple],
 ) -> List[Tuple[str, str, str, str]]:
     keys = set()
     if isinstance(docs_dict, dict):
@@ -78,11 +78,16 @@ def _doc_meta_rows(
         if not str(num).isdigit():
             continue
         name = TO_DOCUMENT_NAMES.get(str(num), f"Документ {num}")
-        _present, doc_number, doc_date = doc_meta_fn(str(num))
+        meta = doc_meta_fn(str(num))
+        if len(meta) >= 4:
+            _present, doc_number, doc_date, pages = meta[:4]
+        else:
+            _present, doc_number, doc_date = meta[:3]
+            pages = ""
         ident = doc_number or ""
         if doc_date:
             ident = f"{ident} от {doc_date}".strip() if ident else f"от {doc_date}"
-        rows.append((str(num), name, ident or MISSING, MISSING))
+        rows.append((str(num), name, ident or MISSING, pages or MISSING))
     return rows
 
 

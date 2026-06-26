@@ -35,6 +35,19 @@ String suitabilityConclusionText(
           : ' Эксплуатация допускается при соблюдении установленных ограничений.';
       return 'На основании результатов выполненного комплекса работ по техническому '
           'диагностированию $ident техническое состояние оценивается как ограниченно пригодное.$restr';
+    case 'COMPLIANT':
+      return 'На основании результатов выполненного комплекса работ по техническому '
+          'диагностированию $ident оборудование соответствует требованиям нормативно-технической '
+          'документации и пригодно к дальнейшей эксплуатации.';
+    case 'NON_COMPLIANT':
+    case 'NOT_COMPLIANT':
+      return 'На основании результатов выполненного комплекса работ по техническому '
+          'диагностированию $ident оборудование не соответствует требованиям нормативно-технической '
+          'документации. Дальнейшая эксплуатация не допускается до устранения выявленных недостатков.';
+    case 'PARTIALLY_COMPLIANT':
+      return 'На основании результатов выполненного комплекса работ по техническому '
+          'диагностированию $ident оборудование ограниченно соответствует требованиям '
+          'нормативно-технической документации при соблюдении установленных ограничений.';
     default:
       return 'На основании результатов выполненного комплекса работ по техническому '
           'диагностированию $ident, работающего под давлением, техническое состояние оценивается '
@@ -221,6 +234,21 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
               label: const Text('Не пригоден'),
               selected: _suitabilityStatus == 'UNFIT',
               onSelected: (_) => _applySuitability('UNFIT'),
+            ),
+            ChoiceChip(
+              label: const Text('Соответствует'),
+              selected: _suitabilityStatus == 'COMPLIANT',
+              onSelected: (_) => _applySuitability('COMPLIANT'),
+            ),
+            ChoiceChip(
+              label: const Text('Не соответствует'),
+              selected: _suitabilityStatus == 'NON_COMPLIANT',
+              onSelected: (_) => _applySuitability('NON_COMPLIANT'),
+            ),
+            ChoiceChip(
+              label: const Text('Ограниченно соответствует'),
+              selected: _suitabilityStatus == 'PARTIALLY_COMPLIANT',
+              onSelected: (_) => _applySuitability('PARTIALLY_COMPLIANT'),
             ),
           ],
         ),

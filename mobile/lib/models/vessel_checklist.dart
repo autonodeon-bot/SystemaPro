@@ -44,6 +44,7 @@ class VesselChecklist {
   String? corrosionAllowance; // Прибавка для компенсации коррозии, мм
   // Анализ результатов предыдущих обследований
   String? previousInspectionResult;
+  List<PreviousInspectionRecord> previousInspections = [];
 
   // ЭПБ: паспортные данные (приложение Б)
   String? constructionType;
@@ -222,6 +223,7 @@ class VesselChecklist {
           'present': present,
           'number': (v['number'] ?? ''),
           'date': (v['date'] ?? ''),
+          'pages': (v['pages'] ?? ''),
         });
       }),
       'include_opo_data': includeOpoData,
@@ -245,6 +247,7 @@ class VesselChecklist {
       'medium_group': mediumGroup,
       'corrosion_allowance': corrosionAllowance,
       'previous_inspection_result': previousInspectionResult,
+      'previous_inspections': previousInspections.map((e) => e.toJson()).toList(),
       'construction_type': constructionType,
       'volume': volume,
       'scheme_index': schemeIndex,
@@ -367,6 +370,10 @@ class VesselChecklist {
     checklist.mediumGroup = json['medium_group'] as String?;
     checklist.corrosionAllowance = json['corrosion_allowance'] as String?;
     checklist.previousInspectionResult = json['previous_inspection_result'] as String?;
+    checklist.previousInspections = _parseList(
+      json['previous_inspections'],
+      PreviousInspectionRecord.fromJson,
+    );
     checklist.constructionType = json['construction_type']?.toString();
     checklist.volume = json['volume']?.toString();
     checklist.schemeIndex = json['scheme_index']?.toString();
@@ -1036,6 +1043,29 @@ class VesselElement {
     e.gost = json['gost']?.toString();
     e.weldData = json['weld_data']?.toString();
     return e;
+  }
+}
+
+class PreviousInspectionRecord {
+  String? kind;
+  String? date;
+  String? reportNumber;
+  String? result;
+
+  Map<String, dynamic> toJson() => {
+        'kind': kind,
+        'date': date,
+        'report_number': reportNumber,
+        'result': result,
+      };
+
+  static PreviousInspectionRecord fromJson(Map<String, dynamic> json) {
+    final r = PreviousInspectionRecord();
+    r.kind = json['kind']?.toString();
+    r.date = json['date']?.toString();
+    r.reportNumber = json['report_number']?.toString();
+    r.result = json['result']?.toString();
+    return r;
   }
 }
 

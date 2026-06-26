@@ -54,12 +54,13 @@ from drawing_templates_api import router as drawing_templates_router
 from standalone_protocols_api import router as standalone_protocols_router
 from diagnostic_engine.api import router as diagnostic_router
 from report_verify_api import router as report_verify_router
+from report_org_settings_api import router as report_org_settings_router
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.7.3",
+    version="3.7.4",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -77,7 +78,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.7.3")
+os.environ.setdefault("APP_VERSION", "3.7.4")
 init_observability(app)
 log = get_logger("main")
 
@@ -138,6 +139,7 @@ app.include_router(access_router)
 app.include_router(hierarchy_router)
 app.include_router(assignments_router)
 app.include_router(report_templates_router)
+app.include_router(report_org_settings_router)
 app.include_router(equipment_history_router)
 app.include_router(inspection_archive_router)
 app.include_router(equipment_crud_router)
@@ -654,7 +656,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.7.3", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.7.4", "status": "running"}
 
 
 @app.get("/health")
@@ -689,7 +691,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.7.3")
+    checks["version"] = os.getenv("APP_VERSION", "3.7.4")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}

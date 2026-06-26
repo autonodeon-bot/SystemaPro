@@ -25,17 +25,55 @@ from models import (
     Workshop, Branch, Enterprise, Opo, EquipmentResource,
     NDTMethod, Questionnaire, QuestionnaireDocumentFile,
     InspectionEquipment, VerificationEquipment, Certification,
-    Engineer,
+    Engineer, Client,
 )
 from report_generator import ReportGenerator
 from shared import resolve_report_file_path, metrics
 from report_attachments import enrich_document_files_from_inspection
 from client_access import get_client_accessible_equipment_ids, client_user_can_access_equipment
+from report_org_settings import load_report_org_settings, merge_client_into_settings
 
 _resolve_report_file_path = resolve_report_file_path
 _metrics = metrics
 
 router = APIRouter(tags=["reports"])
+
+
+async def _resolve_client_context(
+    db: AsyncSession,
+    equipment: Equipment,
+) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Получить данные клиента и предприятия по цепочке workshop → branch → enterprise."""
+    enterprise_name = None
+    if not equipment or not getattr(equipment, "workshop_id", None):
+        return None, enterprise_name
+    ws_res = await db.execute(select(Workshop).where(Workshop.id == equipment.workshop_id))
+    workshop = ws_res.scalar_one_or_none()
+    if not workshop or not workshop.branch_id:
+        return None, enterprise_name
+    br_res = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
+    branch = br_res.scalar_one_or_none()
+    if not branch or not branch.enterprise_id:
+        return None, enterprise_name
+    ent_res = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
+    enterprise = ent_res.scalar_one_or_none()
+    if not enterprise:
+        return None, enterprise_name
+    enterprise_name = enterprise.name
+    if not enterprise.client_id:
+        return None, enterprise_name
+    cl_res = await db.execute(select(Client).where(Client.id == enterprise.client_id))
+    client = cl_res.scalar_one_or_none()
+    if not client:
+        return None, enterprise_name
+    return {
+        "name": client.name,
+        "inn": client.inn,
+        "address": client.address,
+        "phone": client.phone,
+        "email": client.email,
+        "contact_person": client.contact_person,
+    }, enterprise_name
 
 
 async def _load_user_by_login(db: AsyncSession, username: str) -> Optional[User]:
@@ -896,6 +934,12 @@ async def generate_report(
                 print(f"Warning: Could not merge OPO data into report payload: {e}")
 
             _report_gen_t0 = time.time()
+            client_data, enterprise_name = await _resolve_client_context(db, equipment)
+            org_settings = merge_client_into_settings(
+                load_report_org_settings(),
+                client=client_data,
+                enterprise_name=enterprise_name,
+            )
             if is_docx:
                 # Генерация Word документа во временный файл, затем перемещение (восстановление после сбоя)
                 import tempfile as _tf
@@ -921,6 +965,7 @@ async def generate_report(
                         specialist_docs=specialist_docs,
                         verification_equipment=verification_equipment_list,
                         template_definition=template_definition,
+                        org_settings=org_settings,
                     )
                     os.replace(_tmp_path, str(file_path))
                 except Exception:
@@ -1169,6 +1214,7 @@ async def bulk_export_reports(
                     specialist_docs=[],
                     verification_equipment=[],
                     template_definition=None,
+                    org_settings=load_report_org_settings(),
                 )
                 generated.append((insp_id, out_path))
             except Exception as e:

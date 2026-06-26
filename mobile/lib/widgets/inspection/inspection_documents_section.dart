@@ -295,7 +295,7 @@ class InspectionDocumentsSection extends StatelessWidget {
     final hasFile = documentFiles.containsKey(documentNumber);
     final isChecked = checklist.documents[documentNumber] ?? false;
     final info =
-        checklist.documentsInfo[documentNumber] ?? {'number': '', 'date': ''};
+        checklist.documentsInfo[documentNumber] ?? {'number': '', 'date': '', 'pages': ''};
     DateTime? infoDate;
     if ((info['date'] ?? '').isNotEmpty) {
       try {
@@ -322,6 +322,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                   checklist.documentsInfo[documentNumber] = {
                     'number': '',
                     'date': '',
+                    'pages': '',
                   };
                 }
                 if (value == false && hasFile) {
@@ -370,6 +371,35 @@ class InspectionDocumentsSection extends StatelessWidget {
                         checklist.documentsInfo[documentNumber] = {
                           'number': value ?? '',
                           'date': current['date'] ?? '',
+                          'pages': current['pages'] ?? '',
+                        };
+                        onStateChanged();
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    FormBuilderTextField(
+                      name: 'doc_pages_$documentNumber',
+                      initialValue: info['pages'],
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Количество страниц',
+                        labelStyle: TextStyle(color: Colors.white70),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide:
+                              BorderSide(color: kInspectionAccentBlue),
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      onChanged: (value) {
+                        final current =
+                            checklist.documentsInfo[documentNumber] ?? {};
+                        checklist.documentsInfo[documentNumber] = {
+                          'number': current['number'] ?? '',
+                          'date': current['date'] ?? '',
+                          'pages': value ?? '',
                         };
                         onStateChanged();
                       },
@@ -399,6 +429,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                           'date': value != null
                               ? value.toIso8601String().split('T')[0]
                               : '',
+                          'pages': current['pages'] ?? '',
                         };
                         onStateChanged();
                       },

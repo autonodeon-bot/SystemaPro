@@ -36,6 +36,7 @@ const UsersManagement = lazy(() => import('./pages/UsersManagement'));
 const VerificationsManagement = lazy(() => import('./pages/VerificationsManagement'));
 const VerificationsCalendar = lazy(() => import('./pages/VerificationsCalendar'));
 const ReportTemplates = lazy(() => import('./pages/ReportTemplates'));
+const ReportOrgSettings = lazy(() => import('./pages/ReportOrgSettings'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const EngineerPanel = lazy(() => import('./pages/EngineerPanel'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal'));
@@ -206,6 +207,7 @@ const Layout: React.FC = () => {
             <SidebarItem to="/admin" icon={Shield} label={isSidebarOpen ? "Админ-панель" : ""} />
             <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
             <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
+            <SidebarItem to="/report-org-settings" icon={FileText} label={isSidebarOpen ? "Данные отчёта" : ""} />
           </>)}
 
           {(user?.role === 'admin' || user?.role === 'chief_operator') && (
@@ -446,6 +448,7 @@ const App = () => {
             <Route path="/engineer-panel" element={<EngineerPanel />} />
             <Route path="/users" element={<ProtectedRoute requiredRole="admin"><UsersManagement /></ProtectedRoute>} />
             <Route path="/report-templates" element={<ProtectedRoute requiredRole="admin"><ReportTemplates /></ProtectedRoute>} />
+            <Route path="/report-org-settings" element={<ProtectedRoute requiredRole="admin"><ReportOrgSettings /></ProtectedRoute>} />
             <Route path="/inspection" element={<DynamicInspection />} />
             <Route path="/specs" element={<TechSpecs />} />
             <Route path="/glossary" element={<Glossary />} />
