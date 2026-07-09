@@ -67,8 +67,8 @@ if (Test-Path ".dockerignore") { & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD 
 Write-Host "  Files copied" -ForegroundColor Green
 
 Write-Host "[3.2/7] Copy mobile source for server build..." -ForegroundColor Yellow
-Invoke-Remote "mkdir -p $REMOTE/mobile/lib $REMOTE/mobile/android $REMOTE/mobile/assets"
-$mobileItems = @("lib", "android", "assets", "pubspec.yaml", "pubspec.lock", "analysis_options.yaml")
+Invoke-Remote "mkdir -p $REMOTE/mobile/lib $REMOTE/mobile/android/app $REMOTE/mobile/assets"
+$mobileItems = @("lib", "assets", "pubspec.yaml", "pubspec.lock", "analysis_options.yaml")
 foreach ($item in $mobileItems) {
     $path = Join-Path "mobile" $item
     if (Test-Path $path) {
@@ -78,6 +78,24 @@ foreach ($item in $mobileItems) {
             & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD $path "${SERVER}:${REMOTE}/mobile/"
         }
     }
+}
+$androidItems = @(
+    "android\build.gradle", "android\build.gradle.kts", "android\settings.gradle", "android\settings.gradle.kts",
+    "android\gradle.properties", "android\gradlew", "android\gradlew.bat", "android\init.gradle", "android\.gitignore"
+)
+foreach ($item in $androidItems) {
+    if (Test-Path $item) {
+        $remoteDir = Split-Path "$REMOTE/mobile/$($item -replace '\\','/')" -Parent
+        Invoke-Remote "mkdir -p $remoteDir"
+        & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD $item "${SERVER}:${REMOTE}/mobile/$($item -replace '\\','/')"
+    }
+}
+if (Test-Path "mobile\android\app") {
+    Copy-Remote "mobile\android\app\*" "$REMOTE/mobile/android/app/"
+}
+if (Test-Path "mobile\android\gradle\wrapper") {
+    Invoke-Remote "mkdir -p $REMOTE/mobile/android/gradle/wrapper"
+    Copy-Remote "mobile\android\gradle\wrapper\*" "$REMOTE/mobile/android/gradle/wrapper/"
 }
 Write-Host "  Mobile source copied" -ForegroundColor Green
 

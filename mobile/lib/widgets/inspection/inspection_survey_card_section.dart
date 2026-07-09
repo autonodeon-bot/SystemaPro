@@ -61,7 +61,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
             (value) => checklist.manufacturer = value),
         buildInspectionTextField('manufacture_year', 'Год изготовления',
             (value) => checklist.manufactureYear = value),
-        if (!isCompressor) ..._buildVesselFields(form),
+        if (!isCompressor) ..._buildVesselFields(form, context),
         if (isCompressor) _buildCompressorFields(),
         const SizedBox(height: 16),
         _buildPhotoSection(context, 'Фото заводской таблички',
@@ -71,7 +71,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildVesselFields(TechnicalReportForm form) {
+  List<Widget> _buildVesselFields(TechnicalReportForm form, BuildContext context) {
     return [
       buildInspectionTextField('diameter', 'Диаметр сосуда',
           (value) => checklist.diameter = value),
@@ -196,6 +196,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
         const SizedBox(height: 16),
       ],
     );
+  }
 
   Widget _buildCompressorFields() {
     final c = checklist as CompressorChecklist;
