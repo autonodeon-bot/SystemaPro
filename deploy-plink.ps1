@@ -88,7 +88,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($buildScriptLocal, $content, $utf8NoBom)
 & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD $buildScriptLocal "${SERVER}:/tmp/build-apk-server.sh"
 Invoke-Remote "chmod +x /tmp/build-apk-server.sh; bash /tmp/build-apk-server.sh > /tmp/build-apk.log 2>&1"
-Invoke-Remote "test -f $REMOTE/mobile-apk/es-td-ngo-3.7.4-41.apk"
+Invoke-Remote "test -f $REMOTE/mobile-apk/es-td-ngo-3.7.5-42.apk"
 Write-Host "  APK built on server" -ForegroundColor Green
 
 Write-Host "[4/7] Docker build..." -ForegroundColor Yellow
@@ -109,4 +109,4 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Site:   https://neftcontrol.ru/" -ForegroundColor White
-Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.4-41.apk" -ForegroundColor White
+Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.5-42.apk" -ForegroundColor White

@@ -605,8 +605,12 @@ const ReportGeneration = () => {
     return eq?.name || 'Неизвестное оборудование';
   };
 
-  const getInspectionReport = (inspectionId: string) => {
-    return reports.find((r) => r.inspection_id === inspectionId);
+  const getInspectionReports = (inspectionId: string) => {
+    const forInsp = reports.filter((r) => r.inspection_id === inspectionId);
+    return {
+      technical: forInsp.find((r) => r.report_type === 'TECHNICAL_REPORT'),
+      expertise: forInsp.find((r) => r.report_type === 'EXPERTISE'),
+    };
   };
 
   const getGroupDisplayName = (group: GroupedItem): string => {
@@ -725,7 +729,7 @@ const ReportGeneration = () => {
         getGroupDisplayName={getGroupDisplayName}
         formatDateRu={formatDateRu}
         getEquipmentName={getEquipmentName}
-        getInspectionReport={getInspectionReport}
+        getInspectionReports={getInspectionReports}
         loadingPreview={loadingPreview}
         generatingId={generating}
         onLoadPreview={loadPreview}
@@ -752,6 +756,9 @@ const ReportGeneration = () => {
           navigate={navigate}
           onGenerateFromPreview={handleGenerateFromPreview}
           onExportExcel={handleExportPreviewExcel}
+          hasTechnicalReport={Boolean(
+            getInspectionReports(previewData.inspection.id).technical,
+          )}
         />
       )}
     </div>

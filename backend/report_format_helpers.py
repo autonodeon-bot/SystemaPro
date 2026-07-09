@@ -3,8 +3,10 @@
 """
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -12,6 +14,73 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 
 from report_org_settings import TO_TOC_ITEMS
+
+# Фиксированная нумерация приложений по образцу отчёта ТО (см. TO_TOC_ITEMS)
+TO_APPENDIX_NUM = {
+    "DOC_ANALYSIS": 1,
+    "OPERATIONAL": 2,
+    "VIK": 3,
+    "UZT": 4,
+    "UZK": 5,
+    "HARDNESS": 6,
+    "SCHEME": 7,
+    "RESIDUAL": 8,
+    "HYDRO": 9,
+    "NORMATIVE": 10,
+}
+
+# Ссылки на приложения в таблице №10 (раздел 13)
+STANDARD_APPENDIX_MAP = {
+    "ВИК": TO_APPENDIX_NUM["VIK"],
+    "VIK": TO_APPENDIX_NUM["VIK"],
+    "УЗТ": TO_APPENDIX_NUM["UZT"],
+    "UZT": TO_APPENDIX_NUM["UZT"],
+    "УЗК": TO_APPENDIX_NUM["UZK"],
+    "UZK": TO_APPENDIX_NUM["UZK"],
+    "ТВЕРДОМЕТРИЯ": TO_APPENDIX_NUM["HARDNESS"],
+    "TVI": TO_APPENDIX_NUM["HARDNESS"],
+    "HARDNESS": TO_APPENDIX_NUM["HARDNESS"],
+    "ТК": TO_APPENDIX_NUM["HARDNESS"],
+    "АНАЛИЗ ДОК.": TO_APPENDIX_NUM["DOC_ANALYSIS"],
+    "АНАЛИЗ": TO_APPENDIX_NUM["DOC_ANALYSIS"],
+    "ОВАЛЬНОСТЬ": TO_APPENDIX_NUM["VIK"],
+    "ОПЕРАТИВ": TO_APPENDIX_NUM["OPERATIONAL"],
+    "МПК": TO_APPENDIX_NUM["UZK"],
+    "MK": TO_APPENDIX_NUM["UZK"],
+    "MPK": TO_APPENDIX_NUM["UZK"],
+}
+
+
+def method_matches(method: Dict[str, Any], *tokens: str) -> bool:
+    code = str(method.get("method_code") or "").upper()
+    name = str(method.get("method_name") or "").upper()
+    for token in tokens:
+        t = token.upper()
+        if code == t or name == t or t in name:
+            return True
+    return False
+
+
+def build_document_table_rows(
+    document_names: Dict[str, str],
+    docs_dict: Dict[str, Any],
+    docs_info: Dict[str, Any],
+    doc_meta_fn: Callable[[str], Tuple],
+) -> List[Tuple[str, str, str, str, str]]:
+    """Строки таблицы документов (раздел 11): всегда полный перечень 1..N по образцу."""
+    rows: List[Tuple[str, str, str, str, str]] = []
+    for num in sorted(document_names.keys(), key=lambda x: int(x) if str(x).isdigit() else 999):
+        if not str(num).isdigit():
+            continue
+        name = document_names[str(num)]
+        meta = doc_meta_fn(str(num))
+        if len(meta) >= 4:
+            _present, doc_number, doc_date, pages = meta[:4]
+        else:
+            _present, doc_number, doc_date = meta[:3]
+            pages = ""
+        rows.append((str(num), name, doc_number or "—", doc_date or "—", pages or "—"))
+    return rows
 
 
 def append_technical_toc(doc: Document) -> None:
@@ -347,7 +416,7 @@ def tech_characteristic_rows(
         ("Назначение", g("purpose", "vessel_purpose", default=purpose_default or "—")),
         (
             "Условное обозначение",
-            g("designation", "conditional_designation", default="—"),
+            g("designation", "conditional_designation", "scheme_index", default="—"),
         ),
         ("Наименование завода-изготовителя", g("manufacturer", default="—")),
         ("Год изготовления", g("manufacturing_year", "manufacture_year", default="—")),
@@ -402,3 +471,388 @@ def format_work_result_row(
     if appendix_no:
         return f"{conclusion} / Приложение № {appendix_no}"
     return f"{conclusion} / Протокол № {idx}"
+
+
+def resolve_functional_params_from_mobile(g: Callable[..., Any]) -> Tuple[str, str, str, str, str]:
+    """Параметры оперативной диагностики из мобильного чек-листа."""
+    wp = g("working_pressure")
+    wt = g("working_temperature")
+    wm = g("working_medium")
+    parts: List[str] = []
+    if wp:
+        parts.append(f"Pраб={wp} МПа")
+    if wt:
+        parts.append(f"Траб={wt} °C")
+    if wm:
+        parts.append(f"среда: {wm}")
+    func_params = str(g("functional_params", default="") or "")
+    if not func_params and parts:
+        func_params = "; ".join(parts)
+    if not func_params:
+        func_params = "Соответствуют"
+
+    vibration = str(g("vibration", default="Не выявлена") or "Не выявлена")
+    support = str(g("support_state", default="Работоспособное") or "Работоспособное")
+
+    kip = str(g("kip_state", default="") or "")
+    if not kip:
+        kip_parts: List[str] = []
+        gauge = g("gauge", default={})
+        if isinstance(gauge, dict) and gauge.get("has_metrological_verification"):
+            kip_parts.append("манометр поверен")
+        for key, label in [
+            ("level_sensor", "датчик уровня"),
+            ("level_alarm", "сигнализатор уровня"),
+            ("switching_device", "отключающее устройство"),
+        ]:
+            dev = g(key, default={})
+            if isinstance(dev, dict) and (dev.get("type") or dev.get("serial_number")):
+                kip_parts.append(f"{label}: исправен")
+        kip = "; ".join(kip_parts) if kip_parts else "Работоспособное"
+
+    manometer = str(g("manometer_verification", default="") or "")
+    if not manometer:
+        gauge = g("gauge", default={})
+        if isinstance(gauge, dict) and gauge.get("verification_date"):
+            suffix = " (соответствует)" if gauge.get("has_metrological_verification") else ""
+            manometer = f"Поверен {gauge.get('verification_date')}{suffix}"
+    if not manometer:
+        manometer = "Соответствует"
+
+    return func_params, vibration, support, kip, manometer
+
+
+def resolve_hydrostatic_test_from_mobile(g: Callable[..., Any]) -> Dict[str, Any]:
+    """Гидроиспытания: прямое поле или последняя запись из hydraulic_test_history."""
+    hydro = g("hydrostatic_test", default={})
+    if isinstance(hydro, dict) and hydro:
+        return hydro
+    hist = g("hydraulic_test_history", default=[])
+    if not isinstance(hist, list) or not hist:
+        return {}
+    last = hist[-1]
+    if not isinstance(last, dict):
+        return {}
+    return {
+        "date": last.get("date") or "—",
+        "test_pressure": last.get("pressure") or g("test_pressure", default="—"),
+        "medium": last.get("medium") or "—",
+        "result": last.get("note") or "Соответствует",
+    }
+
+
+def append_zra_sppk_tables(doc: Document, g: Callable[..., Any]) -> None:
+    """Таблицы ЗРА и СППК из мобильного приложения."""
+    zra = g("zra_items", default=[])
+    doc.add_paragraph("Запорно-регулирующая арматура (ЗРА)").runs[0].bold = True
+    doc.add_paragraph()
+    if isinstance(zra, list) and zra:
+        t = doc.add_table(rows=len(zra) + 1, cols=6)
+        t.style = "Table Grid"
+        headers = ["№", "Кол-во", "Типоразмер", "Тех. №", "Зав. №", "Место на схеме"]
+        for i, h in enumerate(headers):
+            cell = t.rows[0].cells[i]
+            cell.text = h
+            cell.paragraphs[0].runs[0].font.bold = True
+        for i, it in enumerate(zra, start=1):
+            if not isinstance(it, dict):
+                continue
+            t.rows[i].cells[0].text = str(i)
+            t.rows[i].cells[1].text = str(it.get("quantity") or "—")
+            t.rows[i].cells[2].text = str(it.get("type_size") or "—")
+            t.rows[i].cells[3].text = str(it.get("tech_number") or "—")
+            t.rows[i].cells[4].text = str(it.get("serial_number") or "—")
+            t.rows[i].cells[5].text = str(it.get("location_on_scheme") or "—")
+    else:
+        doc.add_paragraph("Данные не внесены (—)")
+    doc.add_paragraph()
+
+    sppk = g("sppk_items", default=[])
+    doc.add_paragraph("Предохранительные клапаны (СППК)").runs[0].bold = True
+    doc.add_paragraph()
+    if isinstance(sppk, list) and sppk:
+        t = doc.add_table(rows=len(sppk) + 1, cols=6)
+        t.style = "Table Grid"
+        headers = ["№", "Кол-во", "Типоразмер", "Тех. №", "Зав. №", "Место на схеме"]
+        for i, h in enumerate(headers):
+            cell = t.rows[0].cells[i]
+            cell.text = h
+            cell.paragraphs[0].runs[0].font.bold = True
+        for i, it in enumerate(sppk, start=1):
+            if not isinstance(it, dict):
+                continue
+            t.rows[i].cells[0].text = str(i)
+            t.rows[i].cells[1].text = str(it.get("quantity") or "—")
+            t.rows[i].cells[2].text = str(it.get("type_size") or "—")
+            t.rows[i].cells[3].text = str(it.get("tech_number") or "—")
+            t.rows[i].cells[4].text = str(it.get("serial_number") or "—")
+            t.rows[i].cells[5].text = str(it.get("location_on_scheme") or "—")
+    else:
+        doc.add_paragraph("Данные не внесены (—)")
+    doc.add_paragraph()
+
+
+def append_valve_inspections_table(doc: Document, g: Callable[..., Any]) -> None:
+    """Таблица осмотра арматуры на патрубках."""
+    valves = g("valve_inspections", default=[])
+    if not isinstance(valves, list) or not valves:
+        return
+    doc.add_paragraph("Состояние арматуры на патрубках").runs[0].bold = True
+    doc.add_paragraph()
+    t = doc.add_table(rows=len(valves) + 1, cols=4)
+    t.style = "Table Grid"
+    headers = ["№", "Элемент", "Место на схеме", "Техническое состояние"]
+    for i, h in enumerate(headers):
+        cell = t.rows[0].cells[i]
+        cell.text = h
+        cell.paragraphs[0].runs[0].font.bold = True
+    for i, it in enumerate(valves, start=1):
+        if not isinstance(it, dict):
+            continue
+        t.rows[i].cells[0].text = str(i)
+        t.rows[i].cells[1].text = str(it.get("element_name") or "—")
+        t.rows[i].cells[2].text = str(it.get("location_on_scheme") or "—")
+        t.rows[i].cells[3].text = str(it.get("technical_state") or "—")
+    doc.add_paragraph()
+
+
+_DOC_KEY_RE = re.compile(r"^(?:doc_)?(\d+)(?:_(\d+))?$")
+
+
+def _attachment_sort_key(key: str) -> tuple:
+    """Упорядочивание ключей вложений: документы, vd_, uzt_, прочее."""
+    k = str(key)
+    m = _DOC_KEY_RE.match(k)
+    if m:
+        num = int(m.group(1))
+        sub = int(m.group(2)) if m.group(2) is not None else -1
+        return (0, num, sub, k)
+    if k.startswith("vd_"):
+        parts = k.split("_")
+        try:
+            return (1, int(parts[1]), int(parts[2]), k)
+        except (IndexError, ValueError):
+            return (1, 999, 999, k)
+    if k.startswith("uzt_point_"):
+        parts = k.split("_")
+        try:
+            return (2, int(parts[2]), int(parts[3]), k)
+        except (IndexError, ValueError):
+            return (2, 999, 999, k)
+    if k.startswith("uzt_scheme_"):
+        parts = k.split("_")
+        try:
+            return (3, int(parts[2]), int(parts[3]) if len(parts) > 3 else -1, k)
+        except (IndexError, ValueError):
+            return (3, 999, 999, k)
+    if k.startswith("object_photo_"):
+        try:
+            return (4, int(k.split("_")[-1]), 0, k)
+        except ValueError:
+            return (4, 999, 0, k)
+    return (5, 0, 0, k)
+
+
+def document_attachment_label(
+    key: str,
+    document_names: Optional[Dict[str, str]] = None,
+    attachment_names: Optional[Dict[str, str]] = None,
+) -> str:
+    names = document_names or {}
+    att_names = attachment_names or {}
+    if key in att_names and att_names[key]:
+        return str(att_names[key])
+    m = _DOC_KEY_RE.match(str(key))
+    if m:
+        num, idx = m.group(1), m.group(2)
+        base = names.get(num) or f"Документ {num}"
+        if idx is not None:
+            return f"{base} (комплект {int(idx) + 1})"
+        return base
+    if str(key).startswith("vd_"):
+        return f"Фото дефекта ВИК ({key})"
+    if str(key).startswith("uzt_point_"):
+        return f"Фото точки УЗТ ({key})"
+    if str(key).startswith("uzt_scheme_"):
+        return f"Схема УЗТ ({key})"
+    if str(key).startswith("object_photo_"):
+        return f"Фото объекта ({key})"
+    return f"Вложение: {key}"
+
+
+def _is_document_attachment_key(key: str) -> bool:
+    return bool(_DOC_KEY_RE.match(str(key)))
+
+
+def append_attachment_paths(
+    doc: Document,
+    attachments: Dict[str, str],
+    keys: List[str],
+    add_picture_fn: Callable[..., bool],
+    *,
+    title_for_key: Optional[Callable[[str], str]] = None,
+    rendered: Optional[Set[str]] = None,
+) -> Set[str]:
+    """Вставить изображения/PDF по списку ключей вложений."""
+    done: Set[str] = set(rendered or ())
+    for key in keys:
+        if key in done:
+            continue
+        path = attachments.get(key)
+        if not path:
+            continue
+        label = title_for_key(key) if title_for_key else document_attachment_label(key)
+        if add_picture_fn(label, path):
+            done.add(key)
+    return done
+
+
+def append_uzt_measurement_photos(
+    doc: Document,
+    g: Callable[..., Any],
+    attachments: Dict[str, str],
+    add_picture_fn: Callable[..., bool],
+    *,
+    rendered: Optional[Set[str]] = None,
+) -> Set[str]:
+    """Фото точек замера УЗТ из чек-листа и индекса вложений."""
+    done: Set[str] = set(rendered or ())
+    doc.add_paragraph("Фото точек замера толщины").runs[0].bold = True
+    doc.add_paragraph()
+    has_any = False
+    thickness = g("thickness_measurements", "thicknessMeasurements", default=[])
+    if isinstance(thickness, list):
+        for i, point in enumerate(thickness):
+            if not isinstance(point, dict):
+                continue
+            photos = point.get("photos") or []
+            if not isinstance(photos, list):
+                continue
+            loc = point.get("location") or point.get("point_number") or i + 1
+            for j, ph in enumerate(photos):
+                key = f"uzt_point_{i}_{j}"
+                path = ph if isinstance(ph, str) and ph.strip() else attachments.get(key)
+                if not path:
+                    continue
+                title = f"Точка {loc}, фото {j + 1}"
+                if add_picture_fn(title, path):
+                    has_any = True
+                    done.add(key)
+    uzt_keys = sorted(
+        [k for k in attachments if str(k).startswith("uzt_point_") and k not in done],
+        key=_attachment_sort_key,
+    )
+    for key in uzt_keys:
+        if add_picture_fn(document_attachment_label(key), attachments[key]):
+            has_any = True
+            done.add(key)
+    if not has_any:
+        doc.add_paragraph("Фото не приложены (—)")
+    doc.add_paragraph()
+    return done
+
+
+def append_uzt_scheme_images(
+    doc: Document,
+    g: Callable[..., Any],
+    attachments: Dict[str, str],
+    add_picture_fn: Callable[..., bool],
+    *,
+    rendered: Optional[Set[str]] = None,
+) -> Set[str]:
+    """Схемы УЗТ (uzt_schemes) и связанные изображения."""
+    done: Set[str] = set(rendered or ())
+    schemes = g("uzt_schemes", default=[])
+    if not isinstance(schemes, list) or not schemes:
+        return done
+    doc.add_paragraph("Дополнительные схемы контроля УЗТ").runs[0].bold = True
+    doc.add_paragraph()
+    for i, scheme in enumerate(schemes):
+        if not isinstance(scheme, dict):
+            continue
+        label = str(scheme.get("label") or f"Схема {i + 1}")
+        key = f"uzt_scheme_{i}"
+        path = scheme.get("scheme_image_path") or attachments.get(key)
+        if path and add_picture_fn(label, path):
+            done.add(key)
+        measurements = scheme.get("measurements") or []
+        if isinstance(measurements, list):
+            for j, m in enumerate(measurements):
+                if not isinstance(m, dict):
+                    continue
+                for k, ph in enumerate(m.get("photos") or []):
+                    sub_key = f"uzt_scheme_{i}_point_{j}_{k}"
+                    p = ph if isinstance(ph, str) and ph.strip() else attachments.get(sub_key)
+                    if p and add_picture_fn(f"{label} — точка {j + 1}, фото {k + 1}", p):
+                        done.add(sub_key)
+    doc.add_paragraph()
+    return done
+
+
+def append_all_inspection_attachments(
+    doc: Document,
+    attachments: Dict[str, str],
+    attachment_names: Dict[str, str],
+    add_picture_fn: Callable[..., bool],
+    *,
+    document_names: Optional[Dict[str, str]] = None,
+    skip_keys: Optional[Set[str]] = None,
+    rendered: Optional[Set[str]] = None,
+) -> Set[str]:
+    """
+    Вставить в отчёт все сканы документов, фото дефектов, фото объекта и прочие вложения.
+    """
+    skip = set(skip_keys or ())
+    done: Set[str] = set(rendered or ())
+
+    def label_fn(key: str) -> str:
+        return document_attachment_label(key, document_names, attachment_names)
+
+    doc_keys = sorted(
+        [k for k in attachments if _is_document_attachment_key(k) and k not in skip and k not in done],
+        key=_attachment_sort_key,
+    )
+    if doc_keys:
+        doc.add_paragraph("Сканы рассмотренных документов").runs[0].bold = True
+        doc.add_paragraph()
+        done = append_attachment_paths(doc, attachments, doc_keys, add_picture_fn, title_for_key=label_fn, rendered=done)
+
+    vd_keys = sorted(
+        [k for k in attachments if str(k).startswith("vd_") and k not in skip and k not in done],
+        key=_attachment_sort_key,
+    )
+    if vd_keys:
+        doc.add_paragraph("Фото дефектов ВИК").runs[0].bold = True
+        doc.add_paragraph()
+        done = append_attachment_paths(doc, attachments, vd_keys, add_picture_fn, title_for_key=label_fn, rendered=done)
+
+    obj_keys = sorted(
+        [k for k in attachments if str(k).startswith("object_photo_") and k not in skip and k not in done],
+        key=_attachment_sort_key,
+    )
+    if obj_keys:
+        doc.add_paragraph("Фотографии объекта").runs[0].bold = True
+        doc.add_paragraph()
+        done = append_attachment_paths(doc, attachments, obj_keys, add_picture_fn, title_for_key=label_fn, rendered=done)
+
+    other_keys = sorted(
+        [
+            k
+            for k in attachments
+            if k not in done
+            and k not in skip
+            and not _is_document_attachment_key(k)
+            and not str(k).startswith("vd_")
+            and not str(k).startswith("uzt_point_")
+            and not str(k).startswith("uzt_scheme_")
+            and not str(k).startswith("object_photo_")
+            and k not in ("factory_plate_photo", "control_scheme_image", "factory_plate", "control_scheme")
+        ],
+        key=_attachment_sort_key,
+    )
+    if other_keys:
+        doc.add_paragraph("Прочие приложенные материалы").runs[0].bold = True
+        doc.add_paragraph()
+        done = append_attachment_paths(doc, attachments, other_keys, add_picture_fn, title_for_key=label_fn, rendered=done)
+
+    return done

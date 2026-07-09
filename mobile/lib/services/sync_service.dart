@@ -168,6 +168,41 @@ class SyncService {
         }
       }
 
+      // Схемы и фото УЗТ (uzt_schemes)
+      final uztSchemes = checklistJson['uzt_schemes'];
+      if (uztSchemes is List) {
+        for (var i = 0; i < uztSchemes.length; i++) {
+          final scheme = uztSchemes[i];
+          if (scheme is Map) {
+            final schemePath = scheme['scheme_image_path']?.toString();
+            if (schemePath != null && schemePath.trim().isNotEmpty) {
+              structuredDocumentFiles['uzt_scheme_$i'] = {
+                'file_path': schemePath,
+                'file_name': Path.basename(schemePath),
+              };
+            }
+            final measurements = scheme['measurements'];
+            if (measurements is List) {
+              for (var j = 0; j < measurements.length; j++) {
+                final m = measurements[j];
+                if (m is Map && m['photos'] is List) {
+                  final photos = m['photos'] as List;
+                  for (var k = 0; k < photos.length; k++) {
+                    final path = photos[k]?.toString();
+                    if (path != null && path.trim().isNotEmpty) {
+                      structuredDocumentFiles['uzt_scheme_${i}_point_${j}_$k'] = {
+                        'file_path': path,
+                        'file_name': Path.basename(path),
+                      };
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       final inspectionData = <String, dynamic>{
         'equipment_id': equipmentId,
         'data': checklistJson,

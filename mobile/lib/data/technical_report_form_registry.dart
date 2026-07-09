@@ -139,7 +139,7 @@ class TechnicalReportFormRegistry {
     'measurements_operational':
         'Прил. № 2. Оперативная (функциональная) диагностика',
     'measurements_hardness':
-        'Прил. № 5. Протокол контроля твердости',
+        'Прил. № 6. Протокол контроля твердости',
     'measurements_ndt':
         'Прил. № 6–7. Протоколы УЗК и магнитопорошкового контроля',
     'measurements_uzt':

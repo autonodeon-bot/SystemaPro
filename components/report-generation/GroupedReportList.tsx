@@ -1,4 +1,5 @@
-﻿import {
+﻿import type { ReactNode } from 'react';
+import {
   FileText,
   FileCode,
   Download,
@@ -10,8 +11,17 @@
   Building2,
   Factory,
   Trash2,
+  FilePlus,
+  ClipboardList,
+  Shield,
+  Wrench,
 } from 'lucide-react';
 import type { GroupedItem, Inspection, Report } from './types';
+
+export interface InspectionReports {
+  technical?: Report;
+  expertise?: Report;
+}
 
 interface GroupedReportListProps {
   groupedItems: GroupedItem[];
@@ -20,7 +30,7 @@ interface GroupedReportListProps {
   getGroupDisplayName: (group: GroupedItem) => string;
   formatDateRu: (value?: string | null) => string;
   getEquipmentName: (equipmentId: string) => string;
-  getInspectionReport: (inspectionId: string) => Report | undefined;
+  getInspectionReports: (inspectionId: string) => InspectionReports;
   loadingPreview: boolean;
   generatingId: string | null;
   onLoadPreview: (inspectionId: string, reportType: string) => void;
@@ -34,6 +44,124 @@ interface GroupedReportListProps {
   showArchived: boolean;
 }
 
+const iconBtnBase =
+  'p-2 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center';
+
+const IconAction = ({
+  title,
+  onClick,
+  disabled,
+  className,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  className: string;
+  children: ReactNode;
+}) => (
+  <button
+    type="button"
+    title={title}
+    aria-label={title}
+    onClick={onClick}
+    disabled={disabled}
+    className={`${iconBtnBase} ${className}`}
+  >
+    {children}
+  </button>
+);
+
+const ReportActionGroup = ({
+  label,
+  icon: Icon,
+  accentClass,
+  inspectionId,
+  generatingId,
+  loadingPreview,
+  canUseExpertise,
+  technicalReady,
+  existingReport,
+  onLoadPreview,
+  onGenerateDirectly,
+  onDownloadReport,
+  reportType,
+}: {
+  label: string;
+  icon: typeof Wrench;
+  accentClass: string;
+  inspectionId: string;
+  generatingId: string | null;
+  loadingPreview: boolean;
+  technicalReady?: boolean;
+  existingReport?: Report;
+  onLoadPreview: (inspectionId: string, reportType: string) => void;
+  onGenerateDirectly: (inspectionId: string, reportType: string, format?: string) => void;
+  onDownloadReport: (reportId: string, format?: 'pdf' | 'docx') => void;
+  reportType: 'TECHNICAL_REPORT' | 'EXPERTISE';
+}) => {
+  const blocked = reportType === 'EXPERTISE' && !technicalReady;
+  const disabled = generatingId === inspectionId || loadingPreview || blocked;
+  const expertiseHint = blocked ? 'Сначала сгенерируйте технический отчёт' : label;
+
+  return (
+    <div
+      className={`flex items-center gap-1 rounded-lg border px-2 py-1.5 ${accentClass} ${blocked ? 'opacity-50' : ''}`}
+    >
+      <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mr-1 min-w-[2.5rem]">
+        <Icon size={12} aria-hidden />
+        {reportType === 'TECHNICAL_REPORT' ? 'ТО' : 'ЭПБ'}
+      </span>
+      <IconAction
+        title={reportType === 'EXPERTISE' ? expertiseHint : `Предпросмотр: ${label}`}
+        onClick={() => onLoadPreview(inspectionId, reportType)}
+        disabled={disabled}
+        className="text-purple-400 border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/20"
+      >
+        <Eye size={16} />
+      </IconAction>
+      <IconAction
+        title={blocked ? expertiseHint : `Сгенерировать PDF: ${label}`}
+        onClick={() => onGenerateDirectly(inspectionId, reportType, 'pdf')}
+        disabled={disabled}
+        className="text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20"
+      >
+        <FilePlus size={16} />
+      </IconAction>
+      <IconAction
+        title={blocked ? expertiseHint : `Сгенерировать DOCX: ${label}`}
+        onClick={() => onGenerateDirectly(inspectionId, reportType, 'docx')}
+        disabled={disabled}
+        className="text-green-400 border-green-500/20 bg-green-500/10 hover:bg-green-500/20"
+      >
+        <FileCode size={16} />
+      </IconAction>
+      {existingReport && (
+        <>
+          <IconAction
+            title={`Скачать PDF: ${label}`}
+            onClick={() => onDownloadReport(existingReport.id, 'pdf')}
+            disabled={generatingId === inspectionId}
+            className="text-amber-300 border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20"
+          >
+            <Download size={16} />
+          </IconAction>
+          {existingReport.word_file_path && (
+            <IconAction
+              title={`Скачать DOCX: ${label}`}
+              onClick={() => onDownloadReport(existingReport.id, 'docx')}
+              disabled={generatingId === inspectionId}
+              className="text-teal-400 border-teal-500/20 bg-teal-500/10 hover:bg-teal-500/20"
+            >
+              <FileText size={16} />
+            </IconAction>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 const GroupedReportList = ({
   groupedItems,
   expandedGroups,
@@ -41,7 +169,7 @@ const GroupedReportList = ({
   getGroupDisplayName,
   formatDateRu,
   getEquipmentName,
-  getInspectionReport,
+  getInspectionReports,
   loadingPreview,
   generatingId,
   onLoadPreview,
@@ -89,8 +217,11 @@ const GroupedReportList = ({
                     <h3 className="text-sm font-bold text-app-text3 mb-2">Чек-листы ({group.inspections.length})</h3>
                     <div className="space-y-3">
                       {group.inspections.map((inspection: Inspection) => {
-                        const existingReport = getInspectionReport(inspection.id);
+                        const { technical: technicalReport, expertise: expertiseReport } = getInspectionReports(
+                          inspection.id,
+                        );
                         const eqName = getEquipmentName(inspection.equipment_id);
+                        const hasAnyReport = Boolean(technicalReport || expertiseReport);
 
                         return (
                           <div key={inspection.id} className="sp-card">
@@ -106,9 +237,19 @@ const GroupedReportList = ({
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
-                                {existingReport && (
-                                  <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
-                                    Отчет создан
+                                {technicalReport && (
+                                  <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20">
+                                    ТО готов
+                                  </span>
+                                )}
+                                {expertiseReport && (
+                                  <span className="text-xs text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20">
+                                    ЭПБ готов
+                                  </span>
+                                )}
+                                {!hasAnyReport && (
+                                  <span className="text-xs text-app-text3 bg-app-panel px-2 py-1 rounded border border-app-line">
+                                    Без отчёта
                                   </span>
                                 )}
                                 <button
@@ -134,90 +275,48 @@ const GroupedReportList = ({
                               <p className="text-sm text-app-text2 mb-4 line-clamp-2">{inspection.conclusion}</p>
                             )}
 
-                            <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() => onLoadPreview(inspection.id, 'TECHNICAL_REPORT')}
-                                disabled={loadingPreview || generatingId === inspection.id}
-                                className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-purple-500/20 disabled:opacity-50"
-                              >
-                                <Eye size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Предпросмотр технического отчета</span>
-                                <span className="sm:hidden">Предпросмотр (PDF)</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onLoadPreview(inspection.id, 'EXPERTISE')}
-                                disabled={loadingPreview || generatingId === inspection.id}
-                                className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 disabled:opacity-50"
-                              >
-                                <Eye size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Предпросмотр экспертизы ПБ</span>
-                                <span className="sm:hidden">Предпросмотр (ЭПБ)</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onGenerateDirectly(inspection.id, 'DIAGNOSTICS', 'docx')}
-                                disabled={generatingId === inspection.id}
-                                className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-amber-500/20 disabled:opacity-50"
-                              >
-                                <FileText size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Диагностический отчет (DOCX)</span>
-                                <span className="sm:hidden">Диагн. DOCX</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onGenerateDirectly(inspection.id, 'EXPERTISE', 'pdf')}
-                                disabled={generatingId === inspection.id}
-                                className="bg-violet-500/10 text-violet-300 border border-violet-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-violet-500/20 disabled:opacity-50"
-                              >
-                                <FileText size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Сгенерировать ЭПБ (PDF)</span>
-                                <span className="sm:hidden">ЭПБ PDF</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onGenerateDirectly(inspection.id, 'EXPERTISE', 'docx')}
-                                disabled={generatingId === inspection.id}
-                                className="bg-violet-500/10 text-violet-400 border border-violet-500/30 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-violet-500/20 disabled:opacity-50"
-                              >
-                                <FileText size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Сгенерировать ЭПБ (DOCX)</span>
-                                <span className="sm:hidden">ЭПБ DOCX</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'pdf')}
-                                disabled={generatingId === inspection.id}
-                                className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-500/20 disabled:opacity-50"
-                              >
-                                <FileText size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Сгенерировать новый отчет (PDF)</span>
-                                <span className="sm:hidden">PDF</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onGenerateDirectly(inspection.id, 'TECHNICAL_REPORT', 'docx')}
-                                disabled={generatingId === inspection.id}
-                                className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20 disabled:opacity-50"
-                              >
-                                <FileText size={14} className="md:w-4 md:h-4" />
-                                <span className="hidden sm:inline">Сгенерировать новый отчет (DOCX)</span>
-                                <span className="sm:hidden">DOCX</span>
-                              </button>
-                              {existingReport && (
-                                <button
-                                  type="button"
-                                  onClick={() => onDownloadReport(existingReport.id, 'pdf')}
-                                  className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-500/20"
+                            <div className="flex flex-col gap-2">
+                              <ReportActionGroup
+                                label="Технический отчёт"
+                                icon={Wrench}
+                                accentClass="border-blue-500/20 bg-blue-500/5"
+                                inspectionId={inspection.id}
+                                generatingId={generatingId}
+                                loadingPreview={loadingPreview}
+                                existingReport={technicalReport}
+                                onLoadPreview={onLoadPreview}
+                                onGenerateDirectly={onGenerateDirectly}
+                                onDownloadReport={onDownloadReport}
+                                reportType="TECHNICAL_REPORT"
+                              />
+                              <ReportActionGroup
+                                label="Экспертиза ПБ"
+                                icon={Shield}
+                                accentClass="border-indigo-500/20 bg-indigo-500/5"
+                                inspectionId={inspection.id}
+                                generatingId={generatingId}
+                                loadingPreview={loadingPreview}
+                                technicalReady={Boolean(technicalReport)}
+                                existingReport={expertiseReport}
+                                onLoadPreview={onLoadPreview}
+                                onGenerateDirectly={onGenerateDirectly}
+                                onDownloadReport={onDownloadReport}
+                                reportType="EXPERTISE"
+                              />
+                              <div className="flex items-center gap-1 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 w-fit">
+                                <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mr-1 text-amber-300">
+                                  <ClipboardList size={12} aria-hidden />
+                                  Диагн.
+                                </span>
+                                <IconAction
+                                  title="Диагностический отчёт (DOCX)"
+                                  onClick={() => onGenerateDirectly(inspection.id, 'DIAGNOSTICS', 'docx')}
+                                  disabled={generatingId === inspection.id}
+                                  className="text-amber-300 border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20"
                                 >
-                                  <Download size={14} className="md:w-4 md:h-4" />
-                                  <span className="hidden sm:inline">
-                                    Скачать {existingReport.report_type === 'TECHNICAL_REPORT' ? 'отчет' : 'экспертизу'}
-                                  </span>
-                                  <span className="sm:hidden">Скачать</span>
-                                </button>
-                              )}
+                                  <FilePlus size={16} />
+                                </IconAction>
+                              </div>
                             </div>
                           </div>
                         );
@@ -233,12 +332,12 @@ const GroupedReportList = ({
                       {group.reports.map((report: Report) => (
                         <div
                           key={report.id}
-                          className="bg-app-deep p-3 rounded-lg border border-app-line flex justify-between items-center"
+                          className="bg-app-deep p-3 rounded-lg border border-app-line flex justify-between items-center gap-2"
                         >
-                          <div className="flex-1">
-                            <p className="text-white font-bold">{report.title}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-bold truncate">{report.title}</p>
                             {report.equipment_name && (
-                              <p className="text-sm text-app-text3">Оборудование: {report.equipment_name}</p>
+                              <p className="text-sm text-app-text3 truncate">Оборудование: {report.equipment_name}</p>
                             )}
                             <p className="text-sm text-app-text3">
                               {report.report_type === 'TECHNICAL_REPORT'
@@ -252,53 +351,45 @@ const GroupedReportList = ({
                               Статус: {report.status}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 shrink-0">
                             {report.file_path && (
-                              <button
-                                type="button"
+                              <IconAction
+                                title="Просмотр PDF"
                                 onClick={() => onPreviewReport(report.id, 'pdf')}
-                                className="bg-app-text3/10 text-app-text border border-app-text3/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-app-text3/20"
-                                title="Открыть PDF в браузере"
+                                className="text-app-text border-app-text3/30 bg-app-text3/10 hover:bg-app-text3/20"
                               >
                                 <Eye size={16} />
-                                Просмотр
-                              </button>
+                              </IconAction>
                             )}
                             {report.file_path && (
-                              <button
-                                type="button"
-                                onClick={() => onDownloadReport(report.id, 'pdf')}
-                                className="bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-red-500/20"
+                              <IconAction
                                 title="Скачать PDF"
+                                onClick={() => onDownloadReport(report.id, 'pdf')}
+                                className="text-red-400 border-red-500/30 bg-red-500/10 hover:bg-red-500/20"
                               >
-                                <FileText size={16} />
-                                PDF
-                              </button>
+                                <Download size={16} />
+                              </IconAction>
                             )}
                             {report.word_file_path && (
-                              <button
-                                type="button"
+                              <IconAction
+                                title="Просмотр DOCX"
                                 onClick={() => onPreviewReport(report.id, 'docx')}
-                                className="bg-app-text3/10 text-app-text border border-app-text3/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-app-text3/20"
-                                title="Открыть DOCX в браузере"
-                              >
-                                <Eye size={16} />
-                                DOCX
-                              </button>
-                            )}
-                            {report.word_file_path && (
-                              <button
-                                type="button"
-                                onClick={() => onDownloadReport(report.id, 'docx')}
-                                className="bg-blue-500/10 text-blue-400 border border-blue-500/30 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-500/20"
-                                title="Скачать DOCX"
+                                className="text-app-text border-app-text3/30 bg-app-text3/10 hover:bg-app-text3/20"
                               >
                                 <FileCode size={16} />
-                                DOCX
-                              </button>
+                              </IconAction>
+                            )}
+                            {report.word_file_path && (
+                              <IconAction
+                                title="Скачать DOCX"
+                                onClick={() => onDownloadReport(report.id, 'docx')}
+                                className="text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20"
+                              >
+                                <Download size={16} />
+                              </IconAction>
                             )}
                             {!report.file_path && !report.word_file_path && (
-                              <span className="text-app-text3 text-sm">Файл не сгенерирован</span>
+                              <span className="text-app-text3 text-sm px-2">Нет файла</span>
                             )}
                             <button
                               type="button"

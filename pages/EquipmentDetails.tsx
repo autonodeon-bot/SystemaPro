@@ -861,7 +861,7 @@ const EquipmentDetails = () => {
                 <pre className="text-xs text-app-text2 whitespace-pre-wrap">{JSON.stringify(previewData?.inspection?.data || {}, null, 2)}</pre>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 justify-end">
+              <div className="flex flex-col sm:flex-row gap-2 justify-end items-center">
                 <button
                   onClick={() => setPreviewType('TECHNICAL_REPORT')}
                   className={`px-4 py-2 rounded-lg text-sm font-bold ${previewType === 'TECHNICAL_REPORT' ? 'bg-accent text-white' : 'bg-app-soft text-app-text hover:bg-app-softer'}`}
@@ -877,16 +877,20 @@ const EquipmentDetails = () => {
                 <button
                   onClick={() => generateReportFromPreview('pdf')}
                   disabled={generating}
-                  className="px-4 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 inline-flex items-center gap-2"
+                  title="Сгенерировать PDF"
+                  aria-label="Сгенерировать PDF"
+                  className="p-2.5 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 inline-flex items-center justify-center"
                 >
-                  <Download size={16} /> Сгенерировать PDF
+                  <Download size={18} />
                 </button>
                 <button
                   onClick={() => generateReportFromPreview('docx')}
                   disabled={generating}
-                  className="px-4 py-2 rounded-lg text-sm font-bold bg-app-soft text-app-text hover:bg-app-softer disabled:opacity-50 inline-flex items-center gap-2"
+                  title="Сгенерировать DOCX"
+                  aria-label="Сгенерировать DOCX"
+                  className="p-2.5 rounded-lg text-sm font-bold bg-app-soft text-app-text hover:bg-app-softer disabled:opacity-50 inline-flex items-center justify-center"
                 >
-                  <Download size={16} /> Сгенерировать DOCX
+                  <FileText size={18} />
                 </button>
               </div>
             </div>

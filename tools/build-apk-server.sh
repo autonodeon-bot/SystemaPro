@@ -30,6 +30,6 @@ cd /opt/es-td-ngo/mobile
 flutter pub get
 flutter build apk --release
 cp build/app/outputs/flutter-apk/app-release.apk /opt/es-td-ngo/mobile-apk/app-release.apk
-cp /opt/es-td-ngo/mobile-apk/app-release.apk /opt/es-td-ngo/mobile-apk/es-td-ngo-3.7.4-41.apk
+cp /opt/es-td-ngo/mobile-apk/app-release.apk /opt/es-td-ngo/mobile-apk/es-td-ngo-3.7.5-42.apk
 chmod -R a+rX /opt/es-td-ngo/mobile-apk
 ls -lh /opt/es-td-ngo/mobile-apk/app-release.apk

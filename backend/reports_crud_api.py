@@ -377,6 +377,20 @@ async def generate_report(
                 )
                 if not own:
                     raise HTTPException(status_code=403, detail="Нет прав на генерацию отчёта по этому обследованию")
+
+            report_type_req = (report_data.get("report_type") or "TECHNICAL_REPORT").strip().upper()
+            if report_type_req == "EXPERTISE":
+                to_check = await db.execute(
+                    select(Report.id).where(
+                        Report.inspection_id == inspection_id,
+                        Report.report_type == "TECHNICAL_REPORT",
+                    ).limit(1)
+                )
+                if not to_check.scalar_one_or_none():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Сначала необходимо сгенерировать технический отчёт по этому обследованию",
+                    )
             
             # Get equipment data
             eq_result = await db.execute(
@@ -572,6 +586,33 @@ async def generate_report(
                         if isinstance(_ph, str) and _ph.strip() and f"uzt_point_{_i}_{_j}" not in _existing_dn:
                             document_files.append({"document_number": f"uzt_point_{_i}_{_j}", "file_name": os.path.basename(_ph), "file_path": _inspect_attachment_path(_ph) or _ph})
                             _existing_dn.add(f"uzt_point_{_i}_{_j}")
+            _uzt_schemes = _data.get("uzt_schemes")
+            if isinstance(_uzt_schemes, list):
+                for _i, _scheme in enumerate(_uzt_schemes):
+                    if not isinstance(_scheme, dict):
+                        continue
+                    _sp = _scheme.get("scheme_image_path")
+                    if isinstance(_sp, str) and _sp.strip() and f"uzt_scheme_{_i}" not in _existing_dn:
+                        document_files.append({
+                            "document_number": f"uzt_scheme_{_i}",
+                            "file_name": os.path.basename(_sp),
+                            "file_path": _inspect_attachment_path(_sp) or _sp,
+                        })
+                        _existing_dn.add(f"uzt_scheme_{_i}")
+                    _meas = _scheme.get("measurements") or []
+                    if isinstance(_meas, list):
+                        for _j, _m in enumerate(_meas):
+                            if not isinstance(_m, dict):
+                                continue
+                            for _k, _ph in enumerate(_m.get("photos") or []):
+                                _dk = f"uzt_scheme_{_i}_point_{_j}_{_k}"
+                                if isinstance(_ph, str) and _ph.strip() and _dk not in _existing_dn:
+                                    document_files.append({
+                                        "document_number": _dk,
+                                        "file_name": os.path.basename(_ph),
+                                        "file_path": _inspect_attachment_path(_ph) or _ph,
+                                    })
+                                    _existing_dn.add(_dk)
 
             # Проверка целостности вложений: логируем отсутствующие файлы
             _missing_att = []

@@ -109,6 +109,29 @@ def enrich_document_files_from_inspection(
                 if isinstance(ph, str) and ph.strip():
                     _append_file(result, existing_dn, f"uzt_point_{i}_{j}", ph, resolve_fn=resolve_fn)
 
+    uzt_schemes = data.get("uzt_schemes")
+    if isinstance(uzt_schemes, list):
+        for i, scheme in enumerate(uzt_schemes):
+            if not isinstance(scheme, dict):
+                continue
+            sp = scheme.get("scheme_image_path")
+            if isinstance(sp, str) and sp.strip():
+                _append_file(result, existing_dn, f"uzt_scheme_{i}", sp, resolve_fn=resolve_fn)
+            measurements = scheme.get("measurements") or []
+            if isinstance(measurements, list):
+                for j, m in enumerate(measurements):
+                    if not isinstance(m, dict):
+                        continue
+                    for k, ph in enumerate(m.get("photos") or []):
+                        if isinstance(ph, str) and ph.strip():
+                            _append_file(
+                                result,
+                                existing_dn,
+                                f"uzt_scheme_{i}_point_{j}_{k}",
+                                ph,
+                                resolve_fn=resolve_fn,
+                            )
+
     if questionnaire_id:
         q_root = Path("/app/uploads/questionnaire_documents") / questionnaire_id
         if q_root.is_dir():

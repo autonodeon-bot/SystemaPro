@@ -1,10 +1,13 @@
 ﻿import {
   FileText,
+  FileCode,
   X,
   CheckCircle,
   AlertCircle,
   Sparkles,
   Factory,
+  FilePlus,
+  Download,
 } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import { API_BASE } from '../../constants';
@@ -22,6 +25,7 @@ interface ReportPreviewModalProps {
   navigate: NavigateFunction;
   onGenerateFromPreview: (format?: string) => void;
   onExportExcel: () => Promise<void>;
+  hasTechnicalReport?: boolean;
 }
 
 const isImageDoc = (mime?: string) => (mime || '').toLowerCase().startsWith('image/');
@@ -39,6 +43,7 @@ const ReportPreviewModal = ({
   navigate,
   onGenerateFromPreview,
   onExportExcel,
+  hasTechnicalReport = false,
 }: ReportPreviewModalProps) => {
   const previewDocs = previewData.document_files ?? [];
   const questionnaireId = previewData.questionnaire?.id;
@@ -49,6 +54,7 @@ const ReportPreviewModal = ({
   };
 
   const isGenerating = generatingId === previewData.inspection.id;
+  const expertiseBlocked = previewType === 'EXPERTISE' && !hasTechnicalReport;
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-2 md:p-4">
@@ -390,49 +396,39 @@ const ReportPreviewModal = ({
             <button
               type="button"
               onClick={() => onGenerateFromPreview('pdf')}
-              disabled={isGenerating}
-              className="px-3 md:px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+              disabled={isGenerating || expertiseBlocked}
+              title={
+                expertiseBlocked
+                  ? 'Сначала сгенерируйте технический отчёт'
+                  : `Сгенерировать PDF (${previewType === 'TECHNICAL_REPORT' ? 'ТО' : 'ЭПБ'})`
+              }
+              aria-label="Сгенерировать PDF"
+              className="p-2.5 bg-accent hover:bg-blue-600 text-white rounded-lg flex items-center justify-center disabled:opacity-50"
             >
-              {isGenerating ? (
-                <>
-                  <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
-                  <span>Генерация...</span>
-                </>
-              ) : (
-                <>
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">PDF</span>
-                  <span className="sm:hidden">PDF</span>
-                </>
-              )}
+              {isGenerating ? <Sparkles size={18} className="animate-spin" /> : <FilePlus size={18} />}
             </button>
             <button
               type="button"
               onClick={() => onGenerateFromPreview('docx')}
-              disabled={isGenerating}
-              className="px-3 md:px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base"
+              disabled={isGenerating || expertiseBlocked}
+              title={
+                expertiseBlocked
+                  ? 'Сначала сгенерируйте технический отчёт'
+                  : `Сгенерировать DOCX (${previewType === 'TECHNICAL_REPORT' ? 'ТО' : 'ЭПБ'})`
+              }
+              aria-label="Сгенерировать DOCX"
+              className="p-2.5 bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 rounded-lg flex items-center justify-center disabled:opacity-50"
             >
-              {isGenerating ? (
-                <>
-                  <Sparkles size={14} className="md:w-4 md:h-4 animate-spin" />
-                  <span>Генерация...</span>
-                </>
-              ) : (
-                <>
-                  <FileText size={14} className="md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Сгенерировать Word (DOCX)</span>
-                  <span className="sm:hidden">Word</span>
-                </>
-              )}
+              {isGenerating ? <Sparkles size={18} className="animate-spin" /> : <FileCode size={18} />}
             </button>
             <button
               type="button"
               onClick={() => void onExportExcel()}
-              className="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base"
+              title="Экспорт в Excel"
+              aria-label="Экспорт в Excel"
+              className="p-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center"
             >
-              <FileText size={14} className="md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Excel</span>
-              <span className="sm:hidden">XLSX</span>
+              <Download size={18} />
             </button>
           </div>
         </div>
