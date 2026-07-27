@@ -4,16 +4,18 @@ $ProjectRoot = $PSScriptRoot
 if (-not $ProjectRoot) { $ProjectRoot = Get-Location.Path }
 Set-Location $ProjectRoot
 
-$SERVER = "root@5.129.203.182"
-$REMOTE = "/opt/es-td-ngo"
-$HOSTKEY = "SHA256:0le6080AaJ2eq4TG//RZ7kRC5J7PyfsloqaGt2N7VQM"
-$PASSWORD = "ydR9+CL3?S@dgH"
+. (Join-Path $ProjectRoot "scripts\deploy-credentials.ps1")
+
+$SERVER = $DEPLOY_SERVER
+$REMOTE = $DEPLOY_REMOTE_PATH
+$HOSTKEY = $DEPLOY_SSH_HOSTKEY
+$PASSWORD = $DEPLOY_SSH_PASSWORD
 $PLINK = Join-Path $ProjectRoot "tools\putty\plink.exe"
 $PSCP = Join-Path $ProjectRoot "tools\putty\pscp.exe"
 
-function Invoke-Remote([string]$Cmd) {
+function Invoke-Remote([string]$Cmd, [switch]$AllowFail) {
     & $PLINK -batch -hostkey $HOSTKEY -ssh -pw $PASSWORD $SERVER $Cmd
-    if ($LASTEXITCODE -ne 0) { throw "Remote command failed: $Cmd" }
+    if (-not $AllowFail -and $LASTEXITCODE -ne 0) { throw "Remote command failed: $Cmd" }
 }
 
 function Copy-Remote([string]$Local, [string]$RemotePath) {
@@ -64,6 +66,11 @@ foreach ($f in $rootFiles) {
 }
 if (Test-Path "package-lock.json") { & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD "package-lock.json" "${SERVER}:${REMOTE}/" }
 if (Test-Path ".dockerignore") { & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD ".dockerignore" "${SERVER}:${REMOTE}/.dockerignore" }
+
+# pscp передаёт кириллические имена файлов как CP1251-байты (невалидный UTF-8),
+# из-за чего docker build падает: "string field contains invalid UTF-8".
+# Все формы имеют ASCII-алиасы to-N.docx, поэтому кириллические дубликаты удаляем.
+Invoke-Remote "LC_ALL=C find $REMOTE/backend/report_forms -name '*[^ -~]*' -type f -delete" -AllowFail
 Write-Host "  Files copied" -ForegroundColor Green
 
 Write-Host "[3.2/7] Copy mobile source for server build..." -ForegroundColor Yellow
@@ -99,17 +106,7 @@ if (Test-Path "mobile\android\gradle\wrapper") {
 }
 Write-Host "  Mobile source copied" -ForegroundColor Green
 
-Write-Host "[3.5/7] Build APK on server (Flutter)..." -ForegroundColor Yellow
-$buildScriptLocal = Join-Path $ProjectRoot "tools\build-apk-server.sh"
-$content = [System.IO.File]::ReadAllText($buildScriptLocal).Replace("`r`n", "`n")
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
-[System.IO.File]::WriteAllText($buildScriptLocal, $content, $utf8NoBom)
-& $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD $buildScriptLocal "${SERVER}:/tmp/build-apk-server.sh"
-Invoke-Remote "chmod +x /tmp/build-apk-server.sh; bash /tmp/build-apk-server.sh > /tmp/build-apk.log 2>&1"
-Invoke-Remote "test -f $REMOTE/mobile-apk/es-td-ngo-3.7.5-42.apk"
-Write-Host "  APK built on server" -ForegroundColor Green
-
-Write-Host "[4/7] Docker build..." -ForegroundColor Yellow
+Write-Host "[4/7] Docker build (web first)..." -ForegroundColor Yellow
 $buildRef = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 Invoke-Remote "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build backend"
 Invoke-Remote "cd $REMOTE; export BUILD_REF=$buildRef; docker-compose build frontend"
@@ -119,12 +116,26 @@ Write-Host "[5/7] Start stack..." -ForegroundColor Yellow
 Invoke-Remote "cd $REMOTE; docker-compose run --rm backend python add_certification_area_column.py 2>/dev/null; docker-compose run --rm backend python add_certification_areas_column.py 2>/dev/null; docker-compose run --rm backend python add_inspection_grouping_columns.py 2>/dev/null; docker-compose up -d --remove-orphans"
 Write-Host "  Done" -ForegroundColor Green
 
+Write-Host "[3.5/7] Build APK on server (Flutter, optional)..." -ForegroundColor Yellow
+try {
+    $buildScriptLocal = Join-Path $ProjectRoot "tools\build-apk-server.sh"
+    $content = [System.IO.File]::ReadAllText($buildScriptLocal).Replace("`r`n", "`n")
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($buildScriptLocal, $content, $utf8NoBom)
+    & $PSCP -batch -hostkey $HOSTKEY -pw $PASSWORD $buildScriptLocal "${SERVER}:/tmp/build-apk-server.sh"
+    Invoke-Remote "nohup bash /tmp/build-apk-server.sh > /tmp/build-apk.log 2>&1 &"
+    Write-Host "  APK build started in background (see /tmp/build-apk.log)" -ForegroundColor Green
+} catch {
+    Write-Host "  APK build skipped: $_" -ForegroundColor Red
+}
+
 Write-Host "[6/7] Verify..." -ForegroundColor Yellow
 Invoke-Remote "cd $REMOTE; docker-compose ps"
-Invoke-Remote "docker exec es_td_ngo_backend python -c \"import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())\" 2>/dev/null || true"
+Invoke-Remote "docker exec es_td_ngo_backend python -c 'import urllib.request; print(urllib.request.urlopen(\"http://127.0.0.1:8000/health\").read().decode())'" -AllowFail
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Site:   https://neftcontrol.ru/" -ForegroundColor White
-Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.5-42.apk" -ForegroundColor White
+Write-Host "Mobile: https://neftcontrol.ru/mobile/app.apk" -ForegroundColor White
+Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.12-49.apk" -ForegroundColor White
