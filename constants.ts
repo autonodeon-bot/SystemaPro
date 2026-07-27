@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.7.5';
+export const APP_VERSION = '3.7.13';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -300,6 +300,7 @@ export const RELEASE_NOTES_DATE = '09.07.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Релиз 3.7.7: UX мобильного, светлая тема, загрузка НД, просмотр шаблонов; APK 3.7.7+44.',
   'Релиз 3.7.5: отчёт ТО — все приложения 1–10, фото/чертежи/сканы из мобильного; UI генерации — иконки, сначала ТО затем ЭПБ; APK 3.7.5+42.',
   'Релиз 3.7.4: доработка отчёта ТО/ЭПБ (титул, содержание, таблицы, выводы, справочник «Данные отчёта»); мобильное — страницы документов, предыдущие обследования; APK 3.7.4+41.',
   'Релиз 3.7.3: исправлен белый экран после выбора шаблона/формы ТО в мобильном приложении; APK 3.7.3+40.',
@@ -338,8 +339,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.7.5';
-export const MOBILE_APP_BUILD = '42';
+export const MOBILE_APP_VERSION = '3.7.13';
+export const MOBILE_APP_BUILD = '50';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

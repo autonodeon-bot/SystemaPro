@@ -1239,6 +1239,11 @@ class _NewNdkProtocolScreenState extends State<NewNdkProtocolScreen> {
                   } catch (e) {
                     if (mounted) _showError('Сервер: $e');
                   }
+                  if (ok) {
+                    // Протокол завершён (на сервере или в очереди) —
+                    // удаляем черновик, чтобы в реестре не висел «не завершён»
+                    await _autoSaveService.deleteDraft(_draftId);
+                  }
                   if (!mounted) return;
                   if (ok && !queuedOffline) {
                     ScaffoldMessenger.of(context).showSnackBar(

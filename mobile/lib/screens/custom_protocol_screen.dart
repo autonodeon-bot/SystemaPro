@@ -943,6 +943,11 @@ class _CustomProtocolScreenState extends State<CustomProtocolScreen> {
         );
       }
     } finally {
+      if (serverOk) {
+        // Протокол завершён (на сервере или в очереди) —
+        // удаляем черновик, чтобы в реестре не висел «не завершён»
+        await _autoSaveService.deleteDraft(_draftId);
+      }
       if (mounted) {
         setState(() => _isSaving = false);
         if (serverOk) {

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/assignment.dart';
 import '../models/equipment.dart';
+import '../data/technical_report_form_registry.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/recent_service.dart';
@@ -14,6 +15,7 @@ import '../theme/app_colors.dart';
 import '../widgets/assignments/assignment_dialogs.dart';
 import '../widgets/assignments/assignment_group.dart';
 import '../widgets/assignments/assignments_flat_list.dart';
+import '../widgets/assignments/assignments_grouped_list.dart';
 import 'custom_protocol_screen.dart';
 
 enum _AssignmentEntryChoice { template, inspection, cancel }
@@ -32,6 +34,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   static const String _prefsFilterAsc = 'assignments_filter_asc';
   static const String _prefsFilterAssignmentType = 'assignments_filter_assignment_type';
   static const String _prefsFilterSearch = 'assignments_filter_search';
+  static const String _prefsViewMode = 'assignments_view_mode_grouped';
 
   late final TabController _tabController;
 
@@ -59,6 +62,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   bool _sortAscending = false;
   String _searchQuery = '';
   bool _isSyncing = false;
+
+  /// Вид списка: false — обычный список, true — выпадающие группы по предприятиям
+  bool _groupByEnterprise = false;
+  final Map<String, bool> _expandedGroups = {};
 
   @override
   void initState() {
@@ -101,6 +108,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         _selectedAssignmentType =
             prefs.getString(_prefsFilterAssignmentType) ?? 'all';
         _searchQuery = prefs.getString(_prefsFilterSearch) ?? '';
+        _groupByEnterprise = prefs.getBool(_prefsViewMode) ?? false;
       });
       _searchController.text = _searchQuery;
       // Синхронизировать TabController с сохранённым статусом
@@ -118,6 +126,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       await prefs.setBool(_prefsFilterAsc, _sortAscending);
       await prefs.setString(_prefsFilterAssignmentType, _selectedAssignmentType);
       await prefs.setString(_prefsFilterSearch, _searchQuery);
+      await prefs.setBool(_prefsViewMode, _groupByEnterprise);
     } catch (_) {}
   }
 
@@ -147,6 +156,21 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
     required String assignmentType,
     String? initialReportFormId,
   }) async {
+    // Если форма ТО уже задана в задании — не спрашиваем повторно
+    if (initialReportFormId != null && initialReportFormId.trim().isNotEmpty) {
+      final inspectionType =
+          TechnicalReportFormRegistry.inspectionTypeFromAssignment(
+              assignmentType);
+      if (!mounted) return;
+      await context.push('/inspection', extra: {
+        'equipment': equipment,
+        'assignmentId': assignmentId,
+        'existingInspectionId': existingInspectionId,
+        'inspectionType': inspectionType,
+        'reportFormId': initialReportFormId.trim(),
+      });
+      return;
+    }
     final selection = await showTechnicalReportFormSelectDialog(
       context,
       equipment: equipment,
@@ -260,6 +284,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       assignmentId: assignment.id,
       existingInspectionId: existingInspectionId,
       assignmentType: assignment.assignmentType,
+      initialReportFormId: assignment.reportFormId,
     );
   }
 
@@ -470,26 +495,35 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
     } catch (_) {}
   }
 
+  /// Группировка заданий по предприятиям (для выпадающего списка).
+  /// Филиал/цех/ОПО выводятся в заголовке группы, только если они
+  /// одинаковы у всех заданий группы.
   List<AssignmentGroup> _groupAssignments(List<Assignment> assignments) {
     final Map<String, List<Assignment>> groups = {};
 
     for (final assignment in assignments) {
-      final key =
-          '${assignment.enterpriseName ?? 'Без предприятия'}_${assignment.branchName ?? ''}_${assignment.workshopName ?? ''}_${assignment.opoName ?? ''}';
-      if (!groups.containsKey(key)) {
-        groups[key] = [];
-      }
-      groups[key]!.add(assignment);
+      final key = (assignment.enterpriseName?.isNotEmpty ?? false)
+          ? assignment.enterpriseName!
+          : 'Без предприятия';
+      groups.putIfAbsent(key, () => []).add(assignment);
     }
 
     return groups.entries.map((entry) {
-      final firstAssignment = entry.value.first;
+      final list = entry.value;
+      final first = list.first;
+
+      String? uniform(String? Function(Assignment a) pick) {
+        final v = pick(first);
+        if (v == null || v.isEmpty) return null;
+        return list.every((a) => pick(a) == v) ? v : null;
+      }
+
       return AssignmentGroup(
-        enterpriseName: firstAssignment.enterpriseName,
-        branchName: firstAssignment.branchName,
-        workshopName: firstAssignment.workshopName,
-        opoName: firstAssignment.opoName,
-        assignments: entry.value,
+        enterpriseName: first.enterpriseName,
+        branchName: uniform((a) => a.branchName),
+        workshopName: uniform((a) => a.workshopName),
+        opoName: uniform((a) => a.opoName),
+        assignments: list,
       );
     }).toList()
       ..sort((a, b) => a.displayName.compareTo(b.displayName));
@@ -993,6 +1027,22 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           ),
         ),
         actions: [
+          // Переключатель вида: список / группы по предприятиям
+          IconButton(
+            icon: Icon(
+              _groupByEnterprise
+                  ? Icons.view_list_outlined
+                  : Icons.folder_copy_outlined,
+              size: 20,
+            ),
+            tooltip: _groupByEnterprise
+                ? 'Обычный список'
+                : 'Группировка по предприятиям',
+            onPressed: () {
+              setState(() => _groupByEnterprise = !_groupByEnterprise);
+              _saveFilterToPrefs();
+            },
+          ),
           // Быстрая сортировка
           PopupMenuButton<String>(
             icon: const Icon(Icons.sort, size: 20),
@@ -1040,16 +1090,43 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           ? const Center(child: CircularProgressIndicator())
           : _filteredAssignments.isEmpty && _recentItems.isEmpty
               ? _buildEmpty()
-              : AssignmentsFlatList(
-                  assignments: _filteredAssignments,
-                  recentItems: _recentItems,
-                  localInspectionState: _localInspectionState,
-                  opoHasData: _opoHasData,
-                  formatDate: _formatDate,
-                  onAssignmentTap: _startAssignment,
-                  onRecentItemTap: _openRecentItem,
-                  onAssignmentsReload: _loadAssignments,
-                ),
+              : _groupByEnterprise
+                  ? _buildGroupedList()
+                  : AssignmentsFlatList(
+                      assignments: _filteredAssignments,
+                      recentItems: _recentItems,
+                      localInspectionState: _localInspectionState,
+                      opoHasData: _opoHasData,
+                      formatDate: _formatDate,
+                      onAssignmentTap: _startAssignment,
+                      onRecentItemTap: _openRecentItem,
+                      onAssignmentsReload: _loadAssignments,
+                    ),
+    );
+  }
+
+  Widget _buildGroupedList() {
+    final groups = _groupAssignments(_filteredAssignments);
+    // По умолчанию группы свёрнуты — компактный выпадающий список предприятий
+    final expanded = <String, bool>{
+      for (final g in groups) g.key: _expandedGroups[g.key] ?? false,
+    };
+    return RefreshIndicator(
+      onRefresh: _loadAssignments,
+      child: AssignmentsGroupedList(
+        groups: groups,
+        recentItems: _recentItems,
+        expandedGroups: expanded,
+        localInspectionState: _localInspectionState,
+        opoHasData: _opoHasData,
+        formatDate: _formatDate,
+        onExpansionChanged: (key, isExpanded) {
+          _expandedGroups[key] = isExpanded;
+        },
+        onAssignmentTap: _startAssignment,
+        onRecentItemTap: _openRecentItem,
+        onAssignmentsReload: _loadAssignments,
+      ),
     );
   }
 

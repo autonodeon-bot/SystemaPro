@@ -538,6 +538,32 @@ class SyncService {
 
         // Сохраняем только неудачные попытки и черновики
         await DatabaseService.replacePendingInspections(remainingInspections);
+
+        // Удаляем автосохранённые черновики обследований, которые успешно
+        // ушли на сервер — иначе в «Реестре протоколов» они продолжают
+        // отображаться как «не завершён»
+        try {
+          final successfulEquipmentIds = successfulInspections
+              .map((s) => _nonEmptyString(s['equipment_id']))
+              .whereType<String>()
+              .toSet();
+          if (successfulEquipmentIds.isNotEmpty) {
+            final allDrafts = await DatabaseService.getAllDrafts();
+            for (final draft in allDrafts) {
+              final screenType = draft['screen_type']?.toString();
+              if (screenType != null && screenType != 'inspection') continue;
+              final draftEq = _nonEmptyString(draft['equipment_id']);
+              if (draftEq != null && successfulEquipmentIds.contains(draftEq)) {
+                final draftId = draft['id']?.toString();
+                if (draftId != null) {
+                  await DatabaseService.deleteDraft(draftId);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('Очистка черновиков после синхронизации: $e');
+        }
       }
 
       final standaloneFailed = await _syncPendingStandaloneProtocols(result);

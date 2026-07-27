@@ -354,6 +354,34 @@ class ApiService extends ApiServiceBase
   }
 
   // ============================================================
+  //  Схема контроля / техкарта задания (альтернатива библиотеке схем)
+  // ============================================================
+
+  /// Скачивает файл схемы контроля/техкарты, приложенный к заданию,
+  /// во временный каталог устройства. Возвращает локальный путь к файлу.
+  Future<String> downloadAssignmentTechCardFile(
+      String assignmentId, String fileName) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/assignments/$assignmentId/tech-card-file'),
+      headers: {
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ).timeout(requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Ошибка загрузки файла техкарты: ${response.statusCode}');
+    }
+    final dir = await getTemporaryDirectory();
+    final safeName = fileName.isNotEmpty ? fileName : 'tech_card_$assignmentId';
+    final filePath = '${dir.path}/$safeName';
+    final file = File(filePath);
+    await file.writeAsBytes(response.bodyBytes);
+    return filePath;
+  }
+
+  // ============================================================
   //  Реестр приборов (приборный парк) — П.4
   // ============================================================
 
@@ -451,6 +479,32 @@ class ApiService extends ApiServiceBase
     final response = await http
         .get(
           Uri.parse('$baseUrl/api/standalone-protocols'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode == 200) {
+      final d = json.decode(response.body);
+      if (d is Map && d['items'] is List) {
+        return (d['items'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  /// Список обследований (чек-листов) текущего пользователя с сервера —
+  /// для отображения истории в «Реестре протоколов».
+  Future<List<Map<String, dynamic>>> listServerInspections({int limit = 100}) async {
+    await ensureValidToken();
+    final authService = AuthService();
+    final token = await authService.getToken();
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/inspections?limit=$limit'),
           headers: {
             'Content-Type': 'application/json',
             if (token != null) 'Authorization': 'Bearer $token',

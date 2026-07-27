@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart' as intl;
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/equipment.dart';
+import '../models/assignment.dart';
 import '../data/technical_report_form_registry.dart';
 import '../models/vessel_checklist.dart';
 import '../models/compressor_checklist.dart';
@@ -21,6 +23,7 @@ import '../services/auto_save_service.dart';
 import '../services/photo_annotation_service.dart';
 import '../services/image_resize_service.dart';
 import '../services/checklist_pdf_service.dart';
+import '../services/inspection_validation_service.dart';
 import 'package:printing/printing.dart';
 import '../data/checklist_constants.dart';
 import '../widgets/inspection/inspection_form_fields.dart';
@@ -77,10 +80,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   Map<String, double>? _gpsCoordinates;
   DateTime? _lastAutoSaveTime;
   int _formSeed = 0;
+  Timer? _autoSaveTimer;
+  int? _restorePageIndex;
 
   List<String> get _pageLabels => _reportForm.navigationLabels;
 
-  late final VesselChecklist _checklist;
+  /// Не final: при восстановлении черновика подменяем целиком (все поля).
+  late VesselChecklist _checklist;
 
   bool get _isCompressor {
     final typeCode = widget.equipment.typeCode?.toUpperCase() ?? '';
@@ -191,6 +197,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         if (!hadLocal) {
           await _prefillFromPreviousInspections();
         }
+        await _applyAssignmentMeta();
         await _prefillFromOpo();
       });
     } catch (e) {
@@ -208,21 +215,31 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _pageController.dispose();
     if (_hasUnsavedChanges && !_isSubmitting) {
+      try {
+        _syncFormFieldsToChecklist();
+      } catch (_) {}
+      // fire-and-forget: данные уже в _checklist
       _autoSaveDraft();
     }
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    // paused — экран выкл / уход в фон; hidden — Flutter 3.13+
+    // inactive не используем: срабатывает на клавиатуру/диалоги
     if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      if (_hasUnsavedChanges && !_isSubmitting) {
-        _autoSaveDraft();
+        state == AppLifecycleState.hidden) {
+      if (!_isSubmitting) {
+        try {
+          _syncFormFieldsToChecklist();
+        } catch (_) {}
+        _autoSaveDraft(force: true);
       }
     }
   }
@@ -249,10 +266,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   }
 
   void _startAutoSaveTimer() {
-    Future.delayed(const Duration(seconds: 30), () {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted && _hasUnsavedChanges && !_isSubmitting) {
         _autoSaveDraft();
-        _startAutoSaveTimer();
       }
     });
   }
@@ -261,12 +278,318 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   //  Автосохранение
   // ====================================================================
 
-  Future<void> _autoSaveDraft() async {
+  /// Обновляет поле FormBuilder без сброса остальных значений.
+  void _patchFormField(String name, dynamic value) {
+    final field = _formKey.currentState?.fields[name];
+    if (field != null) {
+      field.didChange(value);
+    }
+  }
+
+  /// Подтягивает в FormBuilder актуальные значения из модели (после пикеров / возврата на стр.1).
+  void _patchFormFromChecklist() {
+    final form = _formKey.currentState;
+    if (form == null) return;
+
+    void patch(String name, dynamic value) {
+      if (!form.fields.containsKey(name)) return;
+      final current = form.fields[name]!.value;
+      if (current == value) return;
+      // Не затираем уже введённый текст пустым значением из модели
+      if (value == null || (value is String && value.trim().isEmpty)) {
+        if (current != null && current.toString().trim().isNotEmpty) return;
+      }
+      form.fields[name]!.didChange(value);
+    }
+
+    patch('executors', _checklist.executors);
+    patch('organization', _checklist.organization);
+    final org = (_checklist.organization ?? '').trim();
+    if (org.isNotEmpty) {
+      if (_organizationOptions.contains(org)) {
+        patch('organization_select', org);
+      } else {
+        patch('organization_custom', org);
+      }
+    }
+    patch('vessel_name', _checklist.vesselName);
+    patch('serial_number', _checklist.serialNumber);
+    patch('reg_number', _checklist.regNumber);
+    patch('manufacturer', _checklist.manufacturer);
+    patch('manufacture_year', _checklist.manufactureYear);
+    if (_selectedOpoId != null && _selectedOpoId!.isNotEmpty) {
+      patch('opo_id', _selectedOpoId);
+    }
+    if (_checklist.inspectionDate != null &&
+        _checklist.inspectionDate!.trim().isNotEmpty) {
+      try {
+        patch('inspection_date', DateTime.parse(_checklist.inspectionDate!));
+      } catch (_) {}
+    }
+  }
+
+  /// Переносит значения видимых/живых полей FormBuilder в модель чек-листа.
+  void _syncFormFieldsToChecklist() {
+    final form = _formKey.currentState;
+    if (form == null) return;
+    form.save();
+    final values = Map<String, dynamic>.from(form.value);
+
+    String? asStr(dynamic v) {
+      if (v == null) return null;
+      final s = v.toString();
+      return s;
+    }
+
+    bool? asYesNo(dynamic v) {
+      if (v == null) return null;
+      final s = v.toString().toLowerCase();
+      if (s == 'yes' || s == 'true' || s == 'да') return true;
+      if (s == 'no' || s == 'false' || s == 'нет') return false;
+      return null;
+    }
+
+    /// Не затираем уже заполненное в модели пустым значением из формы
+    /// (типичный кейс: пикер исполнителей пишет в checklist, а FormBuilder ещё пуст).
+    void setStrPreferNonEmpty(String? formVal, void Function(String?) assign, String? current) {
+      if (formVal == null) return;
+      if (formVal.trim().isEmpty) {
+        if (current == null || current.trim().isEmpty) {
+          assign(formVal);
+        }
+        return;
+      }
+      assign(formVal);
+    }
+
+    if (values.containsKey('executors')) {
+      setStrPreferNonEmpty(
+        asStr(values['executors']),
+        (v) => _checklist.executors = v,
+        _checklist.executors,
+      );
+    }
+    if (values.containsKey('organization')) {
+      setStrPreferNonEmpty(
+        asStr(values['organization']),
+        (v) => _checklist.organization = v,
+        _checklist.organization,
+      );
+    }
+    if (values.containsKey('organization_custom')) {
+      setStrPreferNonEmpty(
+        asStr(values['organization_custom']),
+        (v) => _checklist.organization = v,
+        _checklist.organization,
+      );
+    }
+    if (values.containsKey('organization_select')) {
+      setStrPreferNonEmpty(
+        asStr(values['organization_select']),
+        (v) => _checklist.organization = v,
+        _checklist.organization,
+      );
+    }
+    if (values.containsKey('vessel_name')) {
+      _checklist.vesselName = asStr(values['vessel_name']);
+    }
+    if (values.containsKey('serial_number')) {
+      _checklist.serialNumber = asStr(values['serial_number']);
+    }
+    if (values.containsKey('reg_number')) {
+      _checklist.regNumber = asStr(values['reg_number']);
+    }
+    if (values.containsKey('manufacturer')) {
+      _checklist.manufacturer = asStr(values['manufacturer']);
+    }
+    if (values.containsKey('manufacture_year')) {
+      _checklist.manufactureYear = asStr(values['manufacture_year']);
+    }
+    if (values.containsKey('conclusion')) {
+      _checklist.conclusion = asStr(values['conclusion']);
+    }
+
+    final dateVal = values['inspection_date'];
+    if (dateVal is DateTime) {
+      _checklist.inspectionDate = dateVal.toIso8601String();
+    } else if (dateVal != null) {
+      final parsed = DateTime.tryParse(dateVal.toString());
+      if (parsed != null) {
+        _checklist.inspectionDate = parsed.toIso8601String();
+      }
+    }
+
+    if (!_isCompressor) {
+      if (values.containsKey('diameter')) {
+        _checklist.diameter = asStr(values['diameter']);
+      }
+      if (values.containsKey('working_pressure')) {
+        _checklist.workingPressure = asStr(values['working_pressure']);
+      }
+      if (values.containsKey('wall_thickness')) {
+        _checklist.wallThickness = asStr(values['wall_thickness']);
+      }
+      if (values.containsKey('purpose')) {
+        _checklist.purpose = asStr(values['purpose']);
+      }
+      if (values.containsKey('commissioning_year')) {
+        _checklist.commissioningYear = asStr(values['commissioning_year']);
+      }
+      if (values.containsKey('design_pressure')) {
+        _checklist.designPressure = asStr(values['design_pressure']);
+      }
+      if (values.containsKey('test_pressure')) {
+        _checklist.testPressure = asStr(values['test_pressure']);
+      }
+      if (values.containsKey('working_temperature')) {
+        _checklist.workingTemperature = asStr(values['working_temperature']);
+      }
+      if (values.containsKey('design_temperature')) {
+        _checklist.designTemperature = asStr(values['design_temperature']);
+      }
+      if (values.containsKey('working_medium')) {
+        _checklist.workingMedium = asStr(values['working_medium']);
+      }
+      if (values.containsKey('medium_characteristics')) {
+        _checklist.mediumCharacteristics = asStr(values['medium_characteristics']);
+      }
+      if (values.containsKey('vessel_group')) {
+        _checklist.vesselGroup = asStr(values['vessel_group']);
+      }
+      if (values.containsKey('medium_group')) {
+        _checklist.mediumGroup = asStr(values['medium_group']);
+      }
+      if (values.containsKey('corrosion_allowance')) {
+        _checklist.corrosionAllowance = asStr(values['corrosion_allowance']);
+      }
+      if (values.containsKey('previous_inspection_result')) {
+        _checklist.previousInspectionResult =
+            asStr(values['previous_inspection_result']);
+      }
+      if (values.containsKey('designation')) {
+        _checklist.designation = asStr(values['designation']);
+      }
+      if (values.containsKey('hazard_class')) {
+        _checklist.hazardClass = asStr(values['hazard_class']);
+      }
+      if (values.containsKey('explosion_hazard')) {
+        _checklist.explosionHazard = asStr(values['explosion_hazard']);
+      }
+      if (values.containsKey('fire_hazard')) {
+        _checklist.fireHazard = asStr(values['fire_hazard']);
+      }
+      if (values.containsKey('connection_scheme')) {
+        _checklist.connectionScheme = asStr(values['connection_scheme']);
+      }
+      if (values.containsKey('climatic_version')) {
+        _checklist.climaticVersion = asStr(values['climatic_version']);
+      }
+      if (values.containsKey('empty_mass')) {
+        _checklist.emptyMass = asStr(values['empty_mass']);
+      }
+      if (values.containsKey('load_cycles')) {
+        _checklist.loadCycles = asStr(values['load_cycles']);
+      }
+      if (values.containsKey('service_life')) {
+        _checklist.serviceLife = asStr(values['service_life']);
+      }
+      if (values.containsKey('tech_card_number')) {
+        _checklist.techCardNumber = asStr(values['tech_card_number']);
+      }
+      if (values.containsKey('calculation_result')) {
+        _checklist.calculationResult = asStr(values['calculation_result']);
+      }
+      if (values.containsKey('technical_state')) {
+        _checklist.technicalState = asStr(values['technical_state']);
+      }
+      if (values.containsKey('documentation_conclusion')) {
+        _checklist.documentationConclusion =
+            asStr(values['documentation_conclusion']);
+      }
+      if (values.containsKey('operational_conclusion')) {
+        _checklist.operationalConclusion =
+            asStr(values['operational_conclusion']);
+      }
+      if (values.containsKey('matches_drawing')) {
+        _checklist.matchesDrawing = asYesNo(values['matches_drawing']);
+      }
+      if (values.containsKey('has_thermal_insulation')) {
+        _checklist.hasThermalInsulation =
+            asYesNo(values['has_thermal_insulation']);
+      }
+      if (values.containsKey('anticorrosion_coating')) {
+        _checklist.anticorrosionCoatingState =
+            asStr(values['anticorrosion_coating']);
+      }
+      if (values.containsKey('support_state')) {
+        _checklist.supportState = asStr(values['support_state']);
+      }
+      if (values.containsKey('fasteners_state')) {
+        _checklist.fastenersState = asStr(values['fasteners_state']);
+      }
+      if (values.containsKey('has_flange_misalignment')) {
+        _checklist.hasFlangeMisalignment =
+            asYesNo(values['has_flange_misalignment']);
+      }
+      if (values.containsKey('has_nozzle_misalignment')) {
+        _checklist.hasNozzleMisalignment =
+            asYesNo(values['has_nozzle_misalignment']);
+      }
+      if (values.containsKey('has_vessel_repairs')) {
+        _checklist.hasVesselRepairs = asYesNo(values['has_vessel_repairs']);
+      }
+      if (values.containsKey('has_tpa_repairs')) {
+        _checklist.hasTpaRepairs = asYesNo(values['has_tpa_repairs']);
+      }
+      if (values.containsKey('internal_devices_state')) {
+        _checklist.internalDevicesState = asStr(values['internal_devices_state']);
+      }
+      if (values.containsKey('has_local_deformations')) {
+        _checklist.hasLocalDeformations =
+            asYesNo(values['has_local_deformations']);
+      }
+      if (values.containsKey('has_external_defects')) {
+        _checklist.hasExternalDefects = asYesNo(values['has_external_defects']);
+      }
+      if (values.containsKey('has_internal_defects')) {
+        _checklist.hasInternalDefects = asYesNo(values['has_internal_defects']);
+      }
+      if (values.containsKey('has_armature_defects')) {
+        _checklist.hasArmatureDefects = asYesNo(values['has_armature_defects']);
+      }
+    } else if (_checklist is CompressorChecklist) {
+      final c = _checklist as CompressorChecklist;
+      if (values.containsKey('compressor_type')) {
+        c.compressorType = asStr(values['compressor_type']);
+      }
+      if (values.containsKey('power_rating')) {
+        c.powerRating = asStr(values['power_rating']) ?? c.powerRating;
+      }
+      if (values.containsKey('pressure_ratio')) {
+        c.pressureRatio = asStr(values['pressure_ratio']) ?? c.pressureRatio;
+      }
+      if (values.containsKey('flow_rate')) {
+        c.flowRate = asStr(values['flow_rate']) ?? c.flowRate;
+      }
+      if (values.containsKey('rotation_speed')) {
+        c.rotationSpeed = asStr(values['rotation_speed']) ?? c.rotationSpeed;
+      }
+      if (values.containsKey('number_of_stages')) {
+        c.numberOfStages = asStr(values['number_of_stages']) ?? c.numberOfStages;
+      }
+    }
+
+    _checklist.additionalData ??= <String, dynamic>{};
+    _checklist.additionalData!['current_page'] = _currentPage;
+  }
+
+  Future<void> _autoSaveDraft({bool force = false}) async {
     if (_isAutoSaving) return;
+    if (!force && !_hasUnsavedChanges) return;
     _isAutoSaving = true;
 
     try {
-      _formKey.currentState?.save();
+      _syncFormFieldsToChecklist();
 
       final inspectionDateStr = _resolveInspectionDateIso();
 
@@ -287,9 +610,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
       _syncManualEquipmentToChecklist();
       _syncObjectPhotosToChecklist();
+      _checklist.additionalData ??= <String, dynamic>{};
+      _checklist.additionalData!['current_page'] = _currentPage;
+
       final checklistData = _checklist.toJson();
       checklistData['gps_coordinates'] = _gpsCoordinates;
-      
+
       await _autoSaveService.saveDraft(
         equipmentId: widget.equipment.id,
         checklistData: checklistData,
@@ -308,10 +634,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         status: 'DRAFT',
       );
 
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _hasUnsavedChanges = false;
+          _lastAutoSaveTime = DateTime.now();
+        });
+      } else {
         _hasUnsavedChanges = false;
         _lastAutoSaveTime = DateTime.now();
-      });
+      }
       print('Черновик автоматически сохранен');
     } catch (e) {
       print('Ошибка автосохранения черновика: $e');
@@ -432,6 +763,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         }
       } catch (_) {}
       setState(() {
+        // Сохраняем уже выбранных инженеров по id — иначе при подгрузке списка
+        // с сервера выбор на 1-й странице «слетает».
+        final prevSelectedIds = <String, String>{};
+        for (final e in _selectedEngineerByMethod.entries) {
+          final id = e.value['id']?.toString();
+          if (id != null && id.isNotEmpty) {
+            prevSelectedIds[e.key] = id;
+          }
+        }
         _engineers = engineers;
         _loadingEngineers = false;
         _selectedEngineerByMethod.clear();
@@ -456,6 +796,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             _selectedEngineerByMethod[method] = match;
           }
         }
+        for (final entry in prevSelectedIds.entries) {
+          final method = entry.key;
+          final id = entry.value;
+          if (_selectedEngineerByMethod.containsKey(method)) continue;
+          final match = engineers.firstWhere(
+            (e) => e['id']?.toString() == id,
+            orElse: () => <String, dynamic>{},
+          );
+          if (match.isNotEmpty) {
+            _selectedEngineerByMethod[method] = match;
+          }
+        }
+        _updateInspectionEngineers();
       });
     } catch (_) {
       if (!mounted) return;
@@ -494,6 +847,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       if (!mounted) return;
       setState(() {
         _organizationOptions = options.toSet().toList()..sort();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          _patchFormFromChecklist();
+        } catch (_) {}
       });
     } catch (e) {
       print('Ошибка загрузки организаций: $e');
@@ -538,13 +897,41 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   Future<bool> _loadLocalPendingIfExists() async {
     try {
-      final pending = await _syncService.getLatestPendingInspection(
+      Map<String, dynamic>? pending = await _syncService.getLatestPendingInspection(
         equipmentId: widget.equipment.id,
         assignmentId: widget.assignmentId,
       );
-      if (pending == null) return false;
 
-      final data = (pending['data'] as Map?)?.cast<String, dynamic>();
+      Map<String, dynamic>? data =
+          (pending?['data'] as Map?)?.cast<String, dynamic>();
+
+      // Fallback: черновик из AutoSaveService (на случай, если pending ещё нет)
+      if (data == null) {
+        final draft = await _autoSaveService.getDraftForEquipment(
+          widget.equipment.id,
+        );
+        if (draft != null) {
+          final draftAssignment = draft['assignment_id']?.toString();
+          if (widget.assignmentId == null ||
+              draftAssignment == null ||
+              draftAssignment == widget.assignmentId) {
+            final cd = draft['checklist_data'];
+            if (cd is Map) {
+              data = Map<String, dynamic>.from(cd);
+              pending = {
+                'data': data,
+                'verification_equipment_ids':
+                    data['additional_data'] is Map
+                        ? (data['additional_data']
+                            as Map)['verification_equipment_ids']
+                        : null,
+                'document_files': data['document_files'],
+              };
+            }
+          }
+        }
+      }
+
       if (data == null) return false;
 
       final equipmentType = data['equipment_type']?.toString();
@@ -555,7 +942,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           ? CompressorChecklist.fromJson(data)
           : VesselChecklist.fromJson(data);
 
-      final ve = pending['verification_equipment_ids'];
+      final ve = pending?['verification_equipment_ids'];
       if (ve is List) {
         _selectedEquipmentIds =
             ve.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
@@ -591,7 +978,16 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             .toList();
       }
 
-      final docs = pending['document_files'];
+      final savedPage = data['additional_data'] is Map
+          ? (data['additional_data'] as Map)['current_page']
+          : null;
+      if (savedPage is int) {
+        _restorePageIndex = savedPage;
+      } else if (savedPage != null) {
+        _restorePageIndex = int.tryParse(savedPage.toString());
+      }
+
+      final docs = pending?['document_files'];
       if (docs is Map) {
         _documentFiles.clear();
         for (final entry in docs.entries) {
@@ -618,78 +1014,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
 
       setState(() {
+        // Полная подмена модели — иначе паспорт/таблицы/расчёт теряются
         final j = loadedChecklist.toJson();
-        final merged = isCompressor
+        _checklist = isCompressor
             ? CompressorChecklist.fromJson(j)
             : VesselChecklist.fromJson(j);
-
-        _checklist.inspectionDate = merged.inspectionDate;
-        _checklist.executors = merged.executors;
-        _checklist.organization = merged.organization;
-        _checklist.documents = merged.documents;
-        _checklist.documentsInfo = merged.documentsInfo.map(
-          (k, v) => MapEntry(k, Map<String, String>.from(v)),
-        );
-        _checklist.includeOpoData = merged.includeOpoData;
-        _checklist.uztSchemes = List.from(merged.uztSchemes);
-        _checklist.ndtMethods = List<String>.from(merged.ndtMethods);
-        _checklist.vesselName = merged.vesselName;
-        _checklist.serialNumber = merged.serialNumber;
-        _checklist.regNumber = merged.regNumber;
-        _checklist.manufacturer = merged.manufacturer;
-        _checklist.manufactureYear = merged.manufactureYear;
-        _checklist.diameter = merged.diameter;
-        _checklist.workingPressure = merged.workingPressure;
-        _checklist.wallThickness = merged.wallThickness;
-        _checklist.factoryPlatePhoto = merged.factoryPlatePhoto;
-        _checklist.controlSchemeImage = merged.controlSchemeImage;
-        _checklist.matchesDrawing = merged.matchesDrawing;
-        _checklist.hasThermalInsulation = merged.hasThermalInsulation;
-        _checklist.anticorrosionCoatingState = merged.anticorrosionCoatingState;
-        _checklist.supportState = merged.supportState;
-        _checklist.fastenersState = merged.fastenersState;
-        _checklist.hasFlangeMisalignment = merged.hasFlangeMisalignment;
-        _checklist.hasNozzleMisalignment = merged.hasNozzleMisalignment;
-        _checklist.hasVesselRepairs = merged.hasVesselRepairs;
-        _checklist.hasTpaRepairs = merged.hasTpaRepairs;
-        _checklist.internalDevicesState = merged.internalDevicesState;
-        _checklist.zraItems = merged.zraItems;
-        _checklist.sppkItems = merged.sppkItems;
-        _checklist.switchingDevice = merged.switchingDevice;
-        _checklist.gauge = merged.gauge;
-        _checklist.levelSensor = merged.levelSensor;
-        _checklist.levelAlarm = merged.levelAlarm;
-        _checklist.valveInspections = merged.valveInspections;
-        _checklist.ovalityMeasurements = merged.ovalityMeasurements;
-        _checklist.deflectionMeasurements = merged.deflectionMeasurements;
-        _checklist.hasLocalDeformations = merged.hasLocalDeformations;
-        _checklist.hasExternalDefects = merged.hasExternalDefects;
-        _checklist.hasInternalDefects = merged.hasInternalDefects;
-        _checklist.hasArmatureDefects = merged.hasArmatureDefects;
-        _checklist.hardnessTests = merged.hardnessTests;
-        _checklist.weldInspections = merged.weldInspections;
-        _checklist.thicknessMeasurements = merged.thicknessMeasurements;
-        _checklist.inspectionEngineers = merged.inspectionEngineers;
-        _checklist.visualDefects = merged.visualDefects;
-        _checklist.additionalData = merged.additionalData;
-        _checklist.conclusion = merged.conclusion;
-        if (merged is VesselChecklist) {
-          _checklist.purpose = merged.purpose;
-          _checklist.commissioningYear = merged.commissioningYear;
-          _checklist.designPressure = merged.designPressure;
-          _checklist.testPressure = merged.testPressure;
-          _checklist.workingTemperature = merged.workingTemperature;
-          _checklist.designTemperature = merged.designTemperature;
-          _checklist.workingMedium = merged.workingMedium;
-          _checklist.mediumCharacteristics = merged.mediumCharacteristics;
-          _checklist.vesselGroup = merged.vesselGroup;
-          _checklist.mediumGroup = merged.mediumGroup;
-          _checklist.corrosionAllowance = merged.corrosionAllowance;
-          _checklist.previousInspectionResult = merged.previousInspectionResult;
-        }
+        _checklist.inspectionType =
+            _checklist.inspectionType ?? widget.inspectionType;
+        _checklist.reportFormId = _checklist.reportFormId ?? _reportForm.id;
+        _checklist.reportFormTitle =
+            _checklist.reportFormTitle ?? _reportForm.displayTitle;
 
         _selectedEngineerByMethod.clear();
-        for (final ie in merged.inspectionEngineers) {
+        for (final ie in _checklist.inspectionEngineers) {
           final method = ie.method;
           final match = _engineers.firstWhere(
             (e) => e['id']?.toString() == ie.engineerId,
@@ -698,31 +1035,6 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           if (match.isNotEmpty) {
             _selectedEngineerByMethod[method] = match;
           }
-        }
-
-        if (_checklist is CompressorChecklist &&
-            merged is CompressorChecklist) {
-          final cur = _checklist as CompressorChecklist;
-          cur.compressorType = merged.compressorType;
-          cur.powerRating = merged.powerRating;
-          cur.pressureRatio = merged.pressureRatio;
-          cur.flowRate = merged.flowRate;
-          cur.rotationSpeed = merged.rotationSpeed;
-          cur.numberOfStages = merged.numberOfStages;
-          cur.coolingSystem = merged.coolingSystem;
-          cur.lubricationSystem = merged.lubricationSystem;
-          cur.cylinderState = merged.cylinderState;
-          cur.pistonState = merged.pistonState;
-          cur.valvesState = merged.valvesState;
-          cur.crankshaftState = merged.crankshaftState;
-          cur.bearingsState = merged.bearingsState;
-          cur.sealsState = merged.sealsState;
-          cur.vibrationMeasurements = merged.vibrationMeasurements;
-          cur.temperatureMeasurements = merged.temperatureMeasurements;
-          cur.oilLevel = merged.oilLevel;
-          cur.oilCondition = merged.oilCondition;
-          cur.oilFilterState = merged.oilFilterState;
-          cur.airFilterState = merged.airFilterState;
         }
 
         final fpPath = _checklist.factoryPlatePhoto?.trim() ?? '';
@@ -739,6 +1051,20 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         }
         _formSeed++;
       });
+
+      final pageToRestore = _restorePageIndex;
+      if (pageToRestore != null &&
+          pageToRestore >= 0 &&
+          pageToRestore < _pageLabels.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(pageToRestore);
+          }
+          setState(() => _currentPage = pageToRestore);
+        });
+      }
+
       await _refreshVerificationLabels();
       return true;
     } catch (e) {
@@ -826,6 +1152,51 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     } catch (e) {
       debugPrint('Шаблон обследования: $e');
     }
+  }
+
+  /// Подтянуть договор/сроки/техкарту из задания (веб → мобильное → отчёт).
+  Future<void> _applyAssignmentMeta() async {
+    if (widget.assignmentId == null || widget.assignmentId!.isEmpty) return;
+    try {
+      Assignment? assignment;
+      try {
+        for (final a in await _syncService.getOfflineAssignments()) {
+          if (a.id == widget.assignmentId) {
+            assignment = a;
+            break;
+          }
+        }
+      } catch (_) {}
+      if (assignment == null) {
+        for (final a in await _apiService.getAssignments()) {
+          if (a.id == widget.assignmentId) {
+            assignment = a;
+            break;
+          }
+        }
+      }
+      if (assignment == null || !mounted) return;
+      final a = assignment;
+      setState(() {
+        void put(String? cur, String? next, void Function(String) set) {
+          if ((cur == null || cur.isEmpty) && next != null && next.isNotEmpty) {
+            set(next);
+          }
+        }
+
+        put(_checklist.contractNumber, a.contractNumber,
+            (v) => _checklist.contractNumber = v);
+        put(_checklist.contractDate, a.contractDate,
+            (v) => _checklist.contractDate = v);
+        put(_checklist.workPeriodFrom, a.workPeriodFrom,
+            (v) => _checklist.workPeriodFrom = v);
+        put(_checklist.workPeriodTo, a.workPeriodTo,
+            (v) => _checklist.workPeriodTo = v);
+        put(_checklist.workBasis, a.workBasis, (v) => _checklist.workBasis = v);
+        put(_checklist.techCardNumber, a.techCardNumber,
+            (v) => _checklist.techCardNumber = v);
+      });
+    } catch (_) {}
   }
 
   void _prefillFromEquipment() {
@@ -973,7 +1344,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         if (prevData['has_armature_defects'] != null) v.hasArmatureDefects = prevData['has_armature_defects'] == true;
       }
       
-      if (mounted) setState(() => _formSeed++);
+      if (mounted) {
+        // Не пересоздаём FormBuilder, если пользователь уже начал ввод —
+        // иначе данные на 1-й странице слетают.
+        setState(() {
+          if (!_hasUnsavedChanges) {
+            _formSeed++;
+          }
+        });
+      }
     } catch (e) {
       print('Ошибка автозаполнения из предыдущих обследований: $e');
     }
@@ -1450,6 +1829,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   }
 
   Future<void> _saveDraft() async {
+    _syncFormFieldsToChecklist();
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Пожалуйста, заполните все обязательные поля'), backgroundColor: Colors.orange),
@@ -1462,6 +1842,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       final inspectionDateStr = _resolveInspectionDateIso();
       _syncManualEquipmentToChecklist();
       _syncObjectPhotosToChecklist();
+      _checklist.additionalData ??= <String, dynamic>{};
+      _checklist.additionalData!['current_page'] = _currentPage;
+
+      await _autoSaveService.saveDraft(
+        equipmentId: widget.equipment.id,
+        checklistData: _checklist.toJson(),
+        assignmentId: widget.assignmentId,
+        inspectionId: widget.existingInspectionId,
+      );
 
       await _syncService.saveInspectionOffline(
         equipmentId: widget.equipment.id,
@@ -1475,6 +1864,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       );
 
       if (mounted) {
+        setState(() {
+          _hasUnsavedChanges = false;
+          _lastAutoSaveTime = DateTime.now();
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Черновик сохранен локально. Отправка на сервер при синхронизации.'),
@@ -1496,6 +1889,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   }
 
   Future<void> _signAndFinish() async {
+    _syncFormFieldsToChecklist();
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Пожалуйста, заполните все обязательные поля'), backgroundColor: Colors.orange),
@@ -1510,20 +1904,53 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       return;
     }
 
-    if (_selectedEquipmentIds.isEmpty && _manualVerificationEquipment.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Перед завершением необходимо выбрать оборудование для поверок или добавить прибор вручную'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
+    _syncManualEquipmentToChecklist();
+    _syncObjectPhotosToChecklist();
+
+    final validation = validateInspectionForSign(
+      checklist: _checklist,
+      selectedEquipmentIds: _selectedEquipmentIds,
+      manualVerificationEquipment: _manualVerificationEquipment,
+      factoryPlatePhoto: _factoryPlatePhoto,
+      controlSchemeImage: _controlSchemeImage,
+    );
+    if (!validation.isComplete) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Данные обследования неполные'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Перед подписанием заполните:', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                ...validation.missingRequired.map((f) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text('• $f'),
+                    )),
+                if (validation.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('Предупреждения:', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  ...validation.warnings.map((f) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text('• $f', style: const TextStyle(fontSize: 13)),
+                      )),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Понятно')),
+          ],
         ),
       );
       return;
     }
 
     final inspectionDateStr = _resolveInspectionDateIso();
-    _syncManualEquipmentToChecklist();
-    _syncObjectPhotosToChecklist();
     final summary = [
       'Оборудование: ${widget.equipment.name}',
       'Дата: $inspectionDateStr',
@@ -1581,6 +2008,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         verificationEquipmentIds: _selectedEquipmentIds,
         status: 'SIGNED',
       );
+
+      // Обследование подписано и поставлено в очередь синхронизации —
+      // удаляем автосохранённый черновик, чтобы в «Реестре протоколов»
+      // оно не отображалось как «не завершён»
+      final draftKey =
+          widget.existingInspectionId ?? 'draft_${widget.equipment.id}';
+      await _autoSaveService.deleteDraft(draftKey);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1650,6 +2084,22 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         initialValues['inspection_date'] = DateTime.parse(_checklist.inspectionDate!);
       } catch (_) {}
     }
+
+    initialValues['conclusion'] = _checklist.conclusion;
+    initialValues['calculation_result'] = _checklist.calculationResult;
+    initialValues['technical_state'] = _checklist.technicalState;
+    initialValues['documentation_conclusion'] = _checklist.documentationConclusion;
+    initialValues['operational_conclusion'] = _checklist.operationalConclusion;
+    initialValues['designation'] = _checklist.designation;
+    initialValues['hazard_class'] = _checklist.hazardClass;
+    initialValues['explosion_hazard'] = _checklist.explosionHazard;
+    initialValues['fire_hazard'] = _checklist.fireHazard;
+    initialValues['connection_scheme'] = _checklist.connectionScheme;
+    initialValues['climatic_version'] = _checklist.climaticVersion;
+    initialValues['empty_mass'] = _checklist.emptyMass;
+    initialValues['load_cycles'] = _checklist.loadCycles;
+    initialValues['service_life'] = _checklist.serviceLife;
+    initialValues['tech_card_number'] = _checklist.techCardNumber;
 
     if (!_isCompressor) {
       final v = _checklist as VesselChecklist;
@@ -1778,7 +2228,17 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         equipmentOpoId: widget.equipment.opoId,
         organizationOptions: _organizationOptions,
         selectedVerificationLabels: _verificationEquipmentLabels,
-        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        onStateChanged: () {
+          setState(() => _hasUnsavedChanges = true);
+          // Пикеры (исполнители и т.п.) пишут в checklist, но не в FormBuilder —
+          // сразу синхронизируем поле формы, иначе при уходе со стр.1 sync затрёт данные.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            try {
+              _patchFormFromChecklist();
+            } catch (_) {}
+          });
+        },
         onEquipmentIdsChanged: (ids) {
           setState(() {
             _selectedEquipmentIds = ids;
@@ -1930,15 +2390,36 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     return PageView(
       controller: _pageController,
       onPageChanged: (idx) {
-        if (_hasUnsavedChanges && !_isSubmitting) {
-          _autoSaveDraft();
+        // Сначала синхронизируем поля в модель, затем автосейв.
+        // НЕ трогаем _formSeed — иначе FormBuilder пересоздаётся и данные сбрасываются.
+        try {
+          _syncFormFieldsToChecklist();
+        } catch (_) {}
+        if (!_isSubmitting) {
+          _autoSaveDraft(force: true);
         }
         setState(() {
           _currentPage = idx;
-          _formSeed++;
+        });
+        // После возврата на любую страницу (особенно 1-ю) подтягиваем в FormBuilder
+        // значения, которые могли быть записаны в модель вне полей формы (пикеры и т.п.).
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          try {
+            _patchFormFromChecklist();
+          } catch (_) {}
         });
       },
-      children: [page0, page1, page2, page3, page4, page5, page6, page7],
+      children: [
+        _KeepAlivePage(key: const PageStorageKey('insp_p0'), child: page0),
+        _KeepAlivePage(key: const PageStorageKey('insp_p1'), child: page1),
+        _KeepAlivePage(key: const PageStorageKey('insp_p2'), child: page2),
+        _KeepAlivePage(key: const PageStorageKey('insp_p3'), child: page3),
+        _KeepAlivePage(key: const PageStorageKey('insp_p4'), child: page4),
+        _KeepAlivePage(key: const PageStorageKey('insp_p5'), child: page5),
+        _KeepAlivePage(key: const PageStorageKey('insp_p6'), child: page6),
+        _KeepAlivePage(key: const PageStorageKey('insp_p7'), child: page7),
+      ],
     );
   }
 
@@ -1949,7 +2430,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     List<Widget>? children,
     Widget? progressWidget,
   }) {
-    final bottomPad = 88.0 + MediaQuery.viewPaddingOf(context).bottom;
+    final bottomPad = 88.0 +
+        MediaQuery.viewPaddingOf(context).bottom +
+        MediaQuery.viewInsetsOf(context).bottom;
     return ListView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPad),
       children: [
@@ -2177,5 +2660,27 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         );
       },
     );
+  }
+}
+
+/// Сохраняет состояние страницы PageView при уходе с неё (поля формы не dispose).
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAlivePage({super.key, required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

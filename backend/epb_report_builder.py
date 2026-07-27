@@ -338,7 +338,9 @@ def build_epb_main_body(doc: Document, ctx: EpbReportContext) -> None:
         tbl.rows[0].cells[0].text = "Наименование документа"
         tbl.rows[0].cells[1].text = "Шифр, индикация для идентификации"
         for i, num in enumerate(doc_keys, 1):
-            present, doc_number, doc_date = ctx.doc_meta_fn(num)
+            meta = ctx.doc_meta_fn(num)
+            # doc_meta_fn может возвращать 3 или 4 значения (present, number, date[, pages])
+            present, doc_number, doc_date = meta[0], meta[1], meta[2]
             if present is False:
                 continue
             name = EPB_DOCUMENT_NAMES.get(num, f"Документ №{num}")

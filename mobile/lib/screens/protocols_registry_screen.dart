@@ -70,6 +70,32 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
         }
       } catch (_) {}
 
+      // Обследования (чек-листы) с сервера — история ранее завершённых работ
+      try {
+        final inspections = await _apiService.listServerInspections();
+        for (final row in inspections) {
+          final status = (row['status'] ?? '').toString().toUpperCase();
+          final eqName = (row['equipment_name'] as String?)?.trim();
+          serverProtos.add({
+            'id': row['id']?.toString() ?? '',
+            'object': (eqName != null && eqName.isNotEmpty)
+                ? eqName
+                : 'Обследование',
+            'type': _mapInspectionType(
+                (row['inspection_type'] ?? 'NDT').toString()),
+            'date': (row['date_performed'] ?? row['created_at'] ?? '')
+                .toString(),
+            'status': status == 'DRAFT' ? 'черновик (сервер)' : 'завершён',
+            'source': 'server_inspection',
+          });
+        }
+      } catch (_) {}
+
+      // Свежие записи сверху
+      serverProtos.sort((a, b) => (b['date'] ?? '')
+          .toString()
+          .compareTo((a['date'] ?? '').toString()));
+
       if (mounted) {
         setState(() {
           _drafts = drafts;
@@ -388,6 +414,15 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
                 duration: Duration(seconds: 5),
               ),
             );
+          } else if (item['source'] == 'server_inspection') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Обследование на сервере. Отчёт можно сформировать в веб-версии → Генерация отчётов.',
+                ),
+                duration: Duration(seconds: 5),
+              ),
+            );
           }
         },
         onDelete: (item) {
@@ -468,9 +503,9 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
             ),
             itemBuilder: (ctx, idx) {
               final item = rows[idx];
-              final isCompleted = item['status'] == 'завершён';
+              final statusLabel = (item['status'] as String?) ?? 'не завершён';
+              final isCompleted = statusLabel == 'завершён';
               final statusColor = isCompleted ? AppColors.success : AppColors.warning;
-              final statusLabel = isCompleted ? 'завершён' : 'не завершён';
               final isDraft = item['source'] == 'draft';
               return InkWell(
                 onTap: () => onTap(item),

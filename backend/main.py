@@ -31,6 +31,7 @@ from access_management import router as access_router
 from hierarchy_management import router as hierarchy_router
 from assignments_api import router as assignments_router
 from report_templates_api import router as report_templates_router
+from report_forms_api import router as report_forms_router
 from equipment_history_api import router as equipment_history_router
 from inspection_archive_api import router as inspection_archive_router
 from equipment_crud_api import router as equipment_crud_router
@@ -60,7 +61,7 @@ from report_org_settings_api import router as report_org_settings_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.7.5",
+    version="3.7.12",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -78,7 +79,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.7.5")
+os.environ.setdefault("APP_VERSION", "3.7.13")
 init_observability(app)
 log = get_logger("main")
 
@@ -139,6 +140,7 @@ app.include_router(access_router)
 app.include_router(hierarchy_router)
 app.include_router(assignments_router)
 app.include_router(report_templates_router)
+app.include_router(report_forms_router)
 app.include_router(report_org_settings_router)
 app.include_router(equipment_history_router)
 app.include_router(inspection_archive_router)
@@ -169,6 +171,9 @@ app.include_router(report_verify_router)
 @app.on_event("startup")
 async def startup():
     """Initialize database on startup."""
+    from auth import assert_production_secrets
+
+    assert_production_secrets()
     try:
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
@@ -340,7 +345,17 @@ async def _run_migrations():
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id)",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS protocol_template_id VARCHAR(64)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS report_form_id VARCHAR(32)",
             "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS ndt_method_codes JSONB",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS contract_number VARCHAR(128)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS contract_date VARCHAR(32)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS work_period_from VARCHAR(32)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS work_period_to VARCHAR(32)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS work_basis TEXT",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS tech_card_number VARCHAR(128)",
+            # Файл схемы контроля / техкарты, приложенный к заданию (замена «библиотеки схем»)
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS tech_card_file_path VARCHAR(500)",
+            "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS tech_card_file_name VARCHAR(255)",
         ]),
         # projects — дедлайн и бюджет (иначе SELECT по ORM падает на старых БД без колонок)
         ("projects deadline budget", [
@@ -656,7 +671,7 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.7.5", "status": "running"}
+    return {"message": "ES TD NGO Platform API", "version": "3.7.9", "status": "running"}
 
 
 @app.get("/health")
@@ -691,7 +706,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.7.5")
+    checks["version"] = os.getenv("APP_VERSION", "3.7.13")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}
