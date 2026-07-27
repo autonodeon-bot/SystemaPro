@@ -490,7 +490,7 @@ class _ProtocolsRegistryScreenState extends State<ProtocolsRegistryScreen>
       onRefresh: _loadData,
       child: _buildRegistryTable(
         rows: filtered,
-        onTap: (item) {
+        onTap: (item) async {
           if (item['source'] == 'draft') {
             final draft = item['_draft'] as Map<String, dynamic>?;
             if (draft != null) _openDraft(draft);

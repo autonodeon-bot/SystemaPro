@@ -63,7 +63,7 @@ dependencies:
   archive: ^3.4.10
   device_info_plus: ^11.1.0
   flutter_secure_storage: ^9.2.2
-  speech_to_text: ^7.0.0
+  speech_to_text: ^6.6.2
 
   # Observability
   sentry_flutter: ^8.9.0

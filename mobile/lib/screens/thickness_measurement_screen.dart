@@ -430,6 +430,117 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     );
   }
 
+
+  Future<String?> _showLargeThicknessKeypad({String? initial}) async {
+    var buf = initial ?? '';
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0f172a),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            void tap(String s) {
+              setLocal(() {
+                if (s == 'DEL') {
+                  if (buf.isNotEmpty) buf = buf.substring(0, buf.length - 1);
+                } else if (s == '.' || s == ',') {
+                  if (!buf.contains('.') && !buf.contains(',')) {
+                    buf = buf.isEmpty ? '0.' : (buf + '.');
+                  }
+                } else {
+                  buf = buf + s;
+                }
+              });
+            }
+
+            Widget keyBtn(String label, {Color? color}) {
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SizedBox(
+                    height: 64,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color ?? const Color(0xFF1e293b),
+                        foregroundColor: Colors.white,
+                        textStyle: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w700),
+                      ),
+                      onPressed: () => tap(label == '<' ? 'DEL' : label),
+                      child: Text(label == '<' ? '⌫' : label),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Толщина, мм',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      buf.isEmpty ? '0' : buf,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 48,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(children: [keyBtn('1'), keyBtn('2'), keyBtn('3')]),
+                    Row(children: [keyBtn('4'), keyBtn('5'), keyBtn('6')]),
+                    Row(children: [keyBtn('7'), keyBtn('8'), keyBtn('9')]),
+                    Row(children: [
+                      keyBtn('.'),
+                      keyBtn('0'),
+                      keyBtn('<', color: const Color(0xFF334155)),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Отмена'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3b82f6),
+                              ),
+                              onPressed: () =>
+                                  Navigator.pop(ctx, buf.isEmpty ? null : buf),
+                              child: const Text('OK'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _editPoint(ThicknessMeasurement point) {
     setState(() {
       _activePointIndex = _measurements.indexOf(point);
