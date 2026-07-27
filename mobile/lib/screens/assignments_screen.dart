@@ -34,7 +34,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   static const String _prefsFilterAsc = 'assignments_filter_asc';
   static const String _prefsFilterAssignmentType = 'assignments_filter_assignment_type';
   static const String _prefsFilterSearch = 'assignments_filter_search';
-  static const String _prefsViewMode = 'assignments_view_mode_grouped';
+  static const String _prefsViewMode = 'assignments_view_mode_v2';
+  static const String _prefsShowOverdueOnly = 'assignments_filter_overdue';
 
   late final TabController _tabController;
 
@@ -63,8 +64,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   String _searchQuery = '';
   bool _isSyncing = false;
 
-  /// Вид списка: false — обычный список, true — выпадающие группы по предприятиям
-  bool _groupByEnterprise = false;
+  /// flat | enterprise | opo | week
+  String _viewMode = 'flat';
+  bool _showOverdueOnly = false;
   final Map<String, bool> _expandedGroups = {};
 
   @override
@@ -108,7 +110,18 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         _selectedAssignmentType =
             prefs.getString(_prefsFilterAssignmentType) ?? 'all';
         _searchQuery = prefs.getString(_prefsFilterSearch) ?? '';
-        _groupByEnterprise = prefs.getBool(_prefsViewMode) ?? false;
+        final savedMode = prefs.getString(_prefsViewMode);
+        if (savedMode == 'enterprise' ||
+            savedMode == 'opo' ||
+            savedMode == 'week' ||
+            savedMode == 'flat') {
+          _viewMode = savedMode!;
+        } else if (prefs.getBool('assignments_view_mode_grouped') == true) {
+          _viewMode = 'enterprise';
+        } else {
+          _viewMode = 'flat';
+        }
+        _showOverdueOnly = prefs.getBool(_prefsShowOverdueOnly) ?? false;
       });
       _searchController.text = _searchQuery;
       // Синхронизировать TabController с сохранённым статусом
@@ -126,7 +139,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       await prefs.setBool(_prefsFilterAsc, _sortAscending);
       await prefs.setString(_prefsFilterAssignmentType, _selectedAssignmentType);
       await prefs.setString(_prefsFilterSearch, _searchQuery);
-      await prefs.setBool(_prefsViewMode, _groupByEnterprise);
+      await prefs.setString(_prefsViewMode, _viewMode);
+      await prefs.setBool(_prefsShowOverdueOnly, _showOverdueOnly);
     } catch (_) {}
   }
 
@@ -495,17 +509,31 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
     } catch (_) {}
   }
 
-  /// Группировка заданий по предприятиям (для выпадающего списка).
-  /// Филиал/цех/ОПО выводятся в заголовке группы, только если они
-  /// одинаковы у всех заданий группы.
+  /// Группировка заданий: по предприятию / ОПО / неделе срока.
   List<AssignmentGroup> _groupAssignments(List<Assignment> assignments) {
     final Map<String, List<Assignment>> groups = {};
 
+    String keyFor(Assignment a) {
+      switch (_viewMode) {
+        case 'opo':
+          return (a.opoName?.isNotEmpty ?? false) ? a.opoName! : 'Без ОПО';
+        case 'week':
+          final due = a.dueDate;
+          if (due == null) return 'Без срока';
+          final start = due.subtract(Duration(days: due.weekday - 1));
+          final end = start.add(const Duration(days: 6));
+          String fmt(DateTime d) =>
+              '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}';
+          return 'Неделя ${fmt(start)}–${fmt(end)}';
+        default:
+          return (a.enterpriseName?.isNotEmpty ?? false)
+              ? a.enterpriseName!
+              : 'Без предприятия';
+      }
+    }
+
     for (final assignment in assignments) {
-      final key = (assignment.enterpriseName?.isNotEmpty ?? false)
-          ? assignment.enterpriseName!
-          : 'Без предприятия';
-      groups.putIfAbsent(key, () => []).add(assignment);
+      groups.putIfAbsent(keyFor(assignment), () => []).add(assignment);
     }
 
     return groups.entries.map((entry) {
@@ -516,6 +544,25 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         final v = pick(first);
         if (v == null || v.isEmpty) return null;
         return list.every((a) => pick(a) == v) ? v : null;
+      }
+
+      if (_viewMode == 'opo') {
+        return AssignmentGroup(
+          enterpriseName: entry.key,
+          branchName: uniform((a) => a.branchName),
+          workshopName: uniform((a) => a.workshopName),
+          opoName: entry.key == 'Без ОПО' ? null : entry.key,
+          assignments: list,
+        );
+      }
+      if (_viewMode == 'week') {
+        return AssignmentGroup(
+          enterpriseName: entry.key,
+          branchName: null,
+          workshopName: null,
+          opoName: null,
+          assignments: list,
+        );
       }
 
       return AssignmentGroup(
@@ -548,6 +595,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
             (a.branchName?.toLowerCase().contains(query) ?? false) ||
             (a.workshopName?.toLowerCase().contains(query) ?? false) ||
             (a.opoName?.toLowerCase().contains(query) ?? false);
+      }).toList();
+    }
+
+    if (_showOverdueOnly) {
+      final now = DateTime.now();
+      filtered = filtered.where((a) {
+        final due = a.dueDate;
+        return due != null &&
+            due.isBefore(now) &&
+            a.status != 'COMPLETED' &&
+            a.status != 'CANCELLED';
       }).toList();
     }
 
@@ -892,6 +950,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
     final inProgress = _assignments.where((a) => a.status == 'IN_PROGRESS').length;
     final completed = _assignments.where((a) => a.status == 'COMPLETED').length;
     final counts = [_assignments.length, pending, inProgress, completed];
+    final overdueCount = _assignments.where((a) {
+      final due = a.dueDate;
+      return due != null &&
+          due.isBefore(DateTime.now()) &&
+          a.status != 'COMPLETED' &&
+          a.status != 'CANCELLED';
+    }).length;
 
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
@@ -1027,21 +1092,28 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           ),
         ),
         actions: [
-          // Переключатель вида: список / группы по предприятиям
-          IconButton(
+          // Переключатель вида списка
+          PopupMenuButton<String>(
             icon: Icon(
-              _groupByEnterprise
+              _viewMode == 'flat'
                   ? Icons.view_list_outlined
                   : Icons.folder_copy_outlined,
               size: 20,
             ),
-            tooltip: _groupByEnterprise
-                ? 'Обычный список'
-                : 'Группировка по предприятиям',
-            onPressed: () {
-              setState(() => _groupByEnterprise = !_groupByEnterprise);
+            tooltip: 'Вид списка',
+            color: AppColors.darkSurface,
+            onSelected: (v) {
+              setState(() => _viewMode = v);
               _saveFilterToPrefs();
             },
+            itemBuilder: (_) => [
+              _viewModeItem('flat', 'Обычный список', Icons.view_list_outlined),
+              _viewModeItem(
+                  'enterprise', 'По предприятиям', Icons.business_outlined),
+              _viewModeItem('opo', 'По ОПО', Icons.dangerous_outlined),
+              _viewModeItem(
+                  'week', 'По неделям срока', Icons.calendar_view_week_outlined),
+            ],
           ),
           // Быстрая сортировка
           PopupMenuButton<String>(
@@ -1088,26 +1160,159 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _filteredAssignments.isEmpty && _recentItems.isEmpty
-              ? _buildEmpty()
-              : _groupByEnterprise
-                  ? _buildGroupedList()
-                  : AssignmentsFlatList(
-                      assignments: _filteredAssignments,
-                      recentItems: _recentItems,
-                      localInspectionState: _localInspectionState,
-                      opoHasData: _opoHasData,
-                      formatDate: _formatDate,
-                      onAssignmentTap: _startAssignment,
-                      onRecentItemTap: _openRecentItem,
-                      onAssignmentsReload: _loadAssignments,
+          : Column(
+              children: [
+                if (overdueCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilterChip(
+                        selected: _showOverdueOnly,
+                        showCheckmark: false,
+                        avatar: Icon(
+                          Icons.warning_amber_rounded,
+                          size: 18,
+                          color: _showOverdueOnly
+                              ? Colors.white
+                              : AppColors.danger,
+                        ),
+                        label: Text(
+                          'Просроченные: $overdueCount',
+                          style: TextStyle(
+                            color: _showOverdueOnly
+                                ? Colors.white
+                                : AppColors.danger,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                        selectedColor: AppColors.danger,
+                        backgroundColor: AppColors.danger.withOpacity(0.12),
+                        side: BorderSide(
+                          color: AppColors.danger.withOpacity(0.45),
+                        ),
+                        materialTapTargetSize: MaterialTapTargetSize.padded,
+                        onSelected: (v) {
+                          setState(() {
+                            _showOverdueOnly = v;
+                            _filterAssignments();
+                          });
+                          _saveFilterToPrefs();
+                        },
+                      ),
                     ),
+                  ),
+                Expanded(
+                  child: _filteredAssignments.isEmpty && _recentItems.isEmpty
+                      ? _buildEmpty()
+                      : _viewMode == 'flat'
+                          ? AssignmentsFlatList(
+                              assignments: _filteredAssignments,
+                              recentItems: _recentItems,
+                              localInspectionState: _localInspectionState,
+                              opoHasData: _opoHasData,
+                              formatDate: _formatDate,
+                              onAssignmentTap: _startAssignment,
+                              onAssignmentDetails: _showAssignmentDetails,
+                              onRecentItemTap: _openRecentItem,
+                              onAssignmentsReload: _loadAssignments,
+                            )
+                          : _buildGroupedList(),
+                ),
+              ],
+            ),
+    );
+  }
+
+  PopupMenuItem<String> _viewModeItem(
+      String value, String label, IconData icon) {
+    final selected = _viewMode == value;
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon,
+              size: 16,
+              color: selected ? AppColors.accent : AppColors.textSecondary),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.accent : Colors.white,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAssignmentDetails(Assignment assignment) async {
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(assignment.equipmentName,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text('Код: ${assignment.equipmentCode}',
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            if (assignment.enterpriseName != null)
+              Text('Предприятие: ${assignment.enterpriseName}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            if (assignment.opoName != null)
+              Text('ОПО: ${assignment.opoName}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            Text('Статус: ${assignment.statusLabel}',
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            if (assignment.dueDate != null)
+              Text('Срок: ${_formatDate(assignment.dueDate!)}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _startAssignment(assignment);
+                },
+                child: const Text('Начать'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildGroupedList() {
     final groups = _groupAssignments(_filteredAssignments);
-    // По умолчанию группы свёрнуты — компактный выпадающий список предприятий
+    // По умолчанию группы свёрнуты — компактный выпадающий список
     final expanded = <String, bool>{
       for (final g in groups) g.key: _expandedGroups[g.key] ?? false,
     };
@@ -1124,6 +1329,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           _expandedGroups[key] = isExpanded;
         },
         onAssignmentTap: _startAssignment,
+        onAssignmentDetails: _showAssignmentDetails,
         onRecentItemTap: _openRecentItem,
         onAssignmentsReload: _loadAssignments,
       ),

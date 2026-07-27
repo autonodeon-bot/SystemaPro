@@ -22,6 +22,7 @@ import '../services/location_service.dart';
 import '../services/auto_save_service.dart';
 import '../services/photo_annotation_service.dart';
 import '../services/image_resize_service.dart';
+import '../services/last_values_service.dart';
 import '../services/checklist_pdf_service.dart';
 import '../services/inspection_validation_service.dart';
 import 'package:printing/printing.dart';
@@ -36,6 +37,7 @@ import '../widgets/inspection/inspection_measurements_section.dart';
 import '../widgets/inspection/inspection_defects_section.dart';
 import '../widgets/inspection/inspection_passport_section.dart';
 import '../widgets/inspection/inspection_conclusion_section.dart';
+import 'image_annotation_screen.dart';
 
 class VesselInspectionScreen extends StatefulWidget {
   final Equipment equipment;
@@ -74,6 +76,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   final LocationService _locationService = LocationService();
   final AutoSaveService _autoSaveService = AutoSaveService();
   final PhotoAnnotationService _photoAnnotationService = PhotoAnnotationService();
+  final LastValuesService _lastValuesService = LastValuesService();
   bool _isSubmitting = false;
   bool _hasUnsavedChanges = false;
   bool _isAutoSaving = false;
@@ -760,6 +763,19 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               }
             }
           }
+        }
+      } catch (_) {}
+      try {
+        final last = await _lastValuesService.load();
+        if ((_checklist.organization == null ||
+                _checklist.organization!.trim().isEmpty) &&
+            (last['organization']?.isNotEmpty ?? false)) {
+          _checklist.organization = last['organization'];
+        }
+        if ((_checklist.executors == null ||
+                _checklist.executors!.trim().isEmpty) &&
+            (last['executors']?.isNotEmpty ?? false)) {
+          _checklist.executors = last['executors'];
         }
       } catch (_) {}
       setState(() {
@@ -1491,54 +1507,39 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       if (image != null) {
         String finalImagePath = await _maybeAddDateTimeGpsToPhoto(image.path, force: isFactoryPlate);
 
-        final shouldAnnotate = await showDialog<bool>(
+        final shouldAnnotate = await showDialog<String>(
           context: context,
           builder: (context) => AlertDialog(
             backgroundColor: const Color(0xFF1e293b),
-            title: const Text('Добавить текст на фото?', style: TextStyle(color: Colors.white)),
-            content: const Text('Хотите добавить текст или пометки на фото?', style: TextStyle(color: Colors.white70)),
+            title: const Text('Разметка фото', style: TextStyle(color: Colors.white)),
+            content: const Text(
+              'Добавить стрелки/окружности поверх фото прямо сейчас?',
+              style: TextStyle(color: Colors.white70),
+            ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(context, 'skip'),
                 child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
               ),
               TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Добавить', style: TextStyle(color: Color(0xFF3b82f6))),
+                onPressed: () => Navigator.pop(context, 'draw'),
+                child: const Text('Разметить', style: TextStyle(color: Color(0xFF3b82f6))),
               ),
             ],
           ),
         );
 
-        if (shouldAnnotate == true) {
-          final annotationText = await showDialog<String>(
-            context: context,
-            builder: (context) {
-              final controller = TextEditingController();
-              return AlertDialog(
-                title: const Text('Текст аннотации'),
-                content: TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    hintText: 'Введите текст для фото',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-                  TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Добавить')),
-                ],
-              );
-            },
+        if (shouldAnnotate == 'draw' && mounted) {
+          final annotated = await Navigator.of(context).push<File>(
+            MaterialPageRoute(
+              builder: (_) => ImageAnnotationScreen(
+                initialImage: File(finalImagePath),
+                title: isFactoryPlate ? 'Табличка' : 'Схема контроля',
+              ),
+            ),
           );
-
-          if (annotationText != null && annotationText.isNotEmpty) {
-            final annotatedPath = await _photoAnnotationService.annotatePhoto(
-              imagePath: finalImagePath,
-              annotationText: annotationText,
-            );
-            if (annotatedPath != null) finalImagePath = annotatedPath;
+          if (annotated != null) {
+            finalImagePath = annotated.path;
           }
         }
 
@@ -2009,6 +2010,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         status: 'SIGNED',
       );
 
+      await _lastValuesService.save(
+        organization: _checklist.organization,
+        executors: _checklist.executors,
+      );
+
       // Обследование подписано и поставлено в очередь синхронизации —
       // удаляем автосохранённый черновик, чтобы в «Реестре протоколов»
       // оно не отображалось как «не завершён»
@@ -2387,38 +2393,84 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       child: conclusionSection,
     );
 
-    return PageView(
-      controller: _pageController,
-      onPageChanged: (idx) {
-        // Сначала синхронизируем поля в модель, затем автосейв.
-        // НЕ трогаем _formSeed — иначе FormBuilder пересоздаётся и данные сбрасываются.
-        try {
-          _syncFormFieldsToChecklist();
-        } catch (_) {}
-        if (!_isSubmitting) {
-          _autoSaveDraft(force: true);
-        }
-        setState(() {
-          _currentPage = idx;
-        });
-        // После возврата на любую страницу (особенно 1-ю) подтягиваем в FormBuilder
-        // значения, которые могли быть записаны в модель вне полей формы (пикеры и т.п.).
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          try {
-            _patchFormFromChecklist();
-          } catch (_) {}
-        });
-      },
+    return Column(
       children: [
-        _KeepAlivePage(key: const PageStorageKey('insp_p0'), child: page0),
-        _KeepAlivePage(key: const PageStorageKey('insp_p1'), child: page1),
-        _KeepAlivePage(key: const PageStorageKey('insp_p2'), child: page2),
-        _KeepAlivePage(key: const PageStorageKey('insp_p3'), child: page3),
-        _KeepAlivePage(key: const PageStorageKey('insp_p4'), child: page4),
-        _KeepAlivePage(key: const PageStorageKey('insp_p5'), child: page5),
-        _KeepAlivePage(key: const PageStorageKey('insp_p6'), child: page6),
-        _KeepAlivePage(key: const PageStorageKey('insp_p7'), child: page7),
+        // Липкая панель навигации по разделам
+        Material(
+          color: const Color(0xFF1e293b),
+          child: SizedBox(
+            height: 44,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              itemCount: _pageLabels.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (ctx, idx) {
+                final selected = idx == _currentPage;
+                return ChoiceChip(
+                  selected: selected,
+                  label: Text(
+                    '${idx + 1}. ${_pageLabels[idx]}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: selected ? Colors.white : Colors.white70,
+                      fontWeight:
+                          selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                  selectedColor: const Color(0xFF3b82f6),
+                  backgroundColor: Colors.white10,
+                  side: BorderSide(
+                    color: selected
+                        ? const Color(0xFF3b82f6)
+                        : Colors.white24,
+                  ),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) {
+                    _pageController.animateToPage(
+                      idx,
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+        Expanded(
+          child: PageView(
+            controller: _pageController,
+            onPageChanged: (idx) {
+              try {
+                _syncFormFieldsToChecklist();
+              } catch (_) {}
+              if (!_isSubmitting) {
+                _autoSaveDraft(force: true);
+              }
+              setState(() {
+                _currentPage = idx;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                try {
+                  _patchFormFromChecklist();
+                } catch (_) {}
+              });
+            },
+            children: [
+              _KeepAlivePage(key: const PageStorageKey('insp_p0'), child: page0),
+              _KeepAlivePage(key: const PageStorageKey('insp_p1'), child: page1),
+              _KeepAlivePage(key: const PageStorageKey('insp_p2'), child: page2),
+              _KeepAlivePage(key: const PageStorageKey('insp_p3'), child: page3),
+              _KeepAlivePage(key: const PageStorageKey('insp_p4'), child: page4),
+              _KeepAlivePage(key: const PageStorageKey('insp_p5'), child: page5),
+              _KeepAlivePage(key: const PageStorageKey('insp_p6'), child: page6),
+              _KeepAlivePage(key: const PageStorageKey('insp_p7'), child: page7),
+            ],
+          ),
+        ),
       ],
     );
   }

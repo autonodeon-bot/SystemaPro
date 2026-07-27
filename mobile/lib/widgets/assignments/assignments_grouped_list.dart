@@ -19,6 +19,7 @@ class AssignmentsGroupedList extends StatelessWidget {
     required this.formatDate,
     required this.onExpansionChanged,
     required this.onAssignmentTap,
+    this.onAssignmentDetails,
     required this.onRecentItemTap,
     required this.onAssignmentsReload,
   });
@@ -31,6 +32,7 @@ class AssignmentsGroupedList extends StatelessWidget {
   final String Function(DateTime date) formatDate;
   final void Function(String groupKey, bool expanded) onExpansionChanged;
   final void Function(Assignment assignment) onAssignmentTap;
+  final void Function(Assignment assignment)? onAssignmentDetails;
   final void Function(RecentItem item) onRecentItemTap;
   final Future<void> Function() onAssignmentsReload;
 
@@ -163,17 +165,55 @@ class AssignmentsGroupedList extends StatelessWidget {
                   opoId.isNotEmpty &&
                   (opoHasData[opoId] == true);
 
+              final card = AssignmentCard(
+                assignment: assignment,
+                localInspectionState:
+                    localInspectionState[assignment.id] ?? LocalAssignmentInspectionState.none(),
+                opoSurveyFilled: opoFilled,
+                formatDate: formatDate,
+                onTap: assignment.status == 'CANCELLED'
+                    ? null
+                    : () => onAssignmentTap(assignment),
+              );
+
               return Padding(
                 padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                child: AssignmentCard(
-                  assignment: assignment,
-                  localInspectionState:
-                      localInspectionState[assignment.id] ?? LocalAssignmentInspectionState.none(),
-                  opoSurveyFilled: opoFilled,
-                  formatDate: formatDate,
-                  onTap: assignment.status == 'CANCELLED'
-                      ? null
-                      : () => onAssignmentTap(assignment),
+                child: Dismissible(
+                  key: ValueKey('gasg_${assignment.id}'),
+                  confirmDismiss: (direction) async {
+                    if (assignment.status == 'CANCELLED') return false;
+                    if (direction == DismissDirection.startToEnd) {
+                      onAssignmentTap(assignment);
+                    } else {
+                      onAssignmentDetails?.call(assignment);
+                    }
+                    return false;
+                  },
+                  background: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text('Начать',
+                        style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                  secondaryBackground: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text('Детали',
+                        style: TextStyle(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                  child: card,
                 ),
               );
             }).toList(),

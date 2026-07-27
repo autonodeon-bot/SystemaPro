@@ -4,6 +4,8 @@ import 'dart:io';
 import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../widgets/checklist_progress_indicator.dart';
+import '../../widgets/phrase_chips.dart';
+import '../../widgets/voice_input_button.dart';
 import 'inspection_form_fields.dart';
 
 /// Стандартные тексты заключения по оценке пригодности.
@@ -125,6 +127,20 @@ Widget buildInspectionProgressIndicator({
       (checklist.factoryPlatePhoto == null ||
           checklist.factoryPlatePhoto!.isEmpty)) {
     missingRequired.add('Фото заводской таблички');
+  }
+  if (checklist.controlSchemeImage == null ||
+      checklist.controlSchemeImage!.trim().isEmpty) {
+    final hasUztScheme = checklist.uztSchemes.any(
+      (s) => (s.schemeImagePath ?? '').trim().isNotEmpty,
+    );
+    if (!hasUztScheme) {
+      missingRequired.add('Схема контроля');
+    }
+  }
+  final hasThickness = checklist.thicknessMeasurements.isNotEmpty ||
+      checklist.uztSchemes.any((s) => s.measurements.isNotEmpty);
+  if (!hasThickness) {
+    missingRequired.add('Точки УЗТ');
   }
   if (checklist.conclusion == null || checklist.conclusion!.isEmpty) {
     missingRequired.add('Заключение');
@@ -266,9 +282,39 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
           ),
         ],
         const SizedBox(height: 16),
-        buildMultilineField('conclusion', 'Заключение (можно отредактировать)', (value) {
-          checklist.conclusion = value;
-        }),
+        const Text(
+          'Быстрые формулировки',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        PhraseChips(
+          onSelected: (phrase) {
+            final cur = checklist.conclusion?.trim() ?? '';
+            final next = cur.isEmpty ? phrase : '$cur. $phrase';
+            checklist.conclusion = next;
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: buildMultilineField(
+                  'conclusion', 'Заключение (можно отредактировать)', (value) {
+                checklist.conclusion = value;
+              }, initialValue: checklist.conclusion),
+            ),
+            VoiceInputButton(
+              onResult: (text) {
+                final cur = checklist.conclusion?.trim() ?? '';
+                checklist.conclusion =
+                    cur.isEmpty ? text : '$cur $text';
+                setState(() {});
+              },
+            ),
+          ],
+        ),
         const SizedBox(height: 32),
         if (widget.lastAutoSaveTime != null)
           Padding(

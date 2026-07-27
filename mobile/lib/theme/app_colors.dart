@@ -16,7 +16,7 @@ class AppColors {
   static const Color darkOnSurface = Colors.white;
   static const Color darkBorder = Color(0xFF334155);
 
-  // Text
+  // Text (legacy dark defaults — prefer theme helpers below)
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFF94A3B8);
 
@@ -29,4 +29,31 @@ class AppColors {
   static const Color error = Color(0xFFEF4444);
   static const Color danger = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
+
+  /// Минимальный размер зоны нажатия (для работы в перчатках).
+  static const double minTouchTarget = 44;
+
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color scaffold(BuildContext context) =>
+      isDark(context) ? darkBackground : lightBackground;
+
+  static Color scaffoldDeep(BuildContext context) =>
+      isDark(context) ? darkBackgroundDeep : lightSurface;
+
+  static Color surface(BuildContext context) =>
+      isDark(context) ? darkSurface : Colors.white;
+
+  static Color border(BuildContext context) =>
+      isDark(context) ? darkBorder : lightBorder;
+
+  static Color onSurface(BuildContext context) =>
+      isDark(context) ? darkOnSurface : lightOnSurface;
+
+  static Color mutedText(BuildContext context) =>
+      isDark(context) ? textSecondary : const Color(0xFF64748B);
+
+  static Color primary(BuildContext context) =>
+      isDark(context) ? darkPrimary : lightPrimary;
 }

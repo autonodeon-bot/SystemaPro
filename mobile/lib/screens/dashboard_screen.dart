@@ -13,6 +13,12 @@ import 'opo_list_screen.dart';
 import 'protocols_registry_screen.dart';
 import 'diagnostic_create_menu_screen.dart';
 import '../services/sync_service.dart';
+import '../services/auto_save_service.dart';
+import '../models/equipment.dart';
+import 'custom_protocol_screen.dart';
+import 'quick_control_screen.dart';
+import 'new_ndk_protocol_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -27,11 +33,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _updateUrl;
   final _apiService = ApiService();
   final _syncService = SyncService();
+  final _autoSaveService = AutoSaveService();
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   BuildContext? _progressDialogContext;
   int _pendingCount = 0;
   bool _isOffline = false;
+  Map<String, dynamic>? _continueDraft;
 
   @override
   void initState() {
@@ -39,6 +47,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadAppVersion();
     _checkForUpdate();
     _loadStatus();
+    _loadContinueDraft();
+  }
+
+  Future<void> _loadContinueDraft() async {
+    try {
+      final drafts = await _autoSaveService.getDrafts();
+      if (drafts.isEmpty) {
+        if (mounted) setState(() => _continueDraft = null);
+        return;
+      }
+      final list = drafts.values.toList()
+        ..sort((a, b) {
+          final ad = a['saved_at']?.toString() ?? '';
+          final bd = b['saved_at']?.toString() ?? '';
+          return bd.compareTo(ad);
+        });
+      if (mounted) setState(() => _continueDraft = list.first);
+    } catch (_) {
+      if (mounted) setState(() => _continueDraft = null);
+    }
+  }
+
+  Future<void> _openContinueDraft() async {
+    final draft = _continueDraft;
+    if (draft == null) return;
+    final screenType = (draft['screen_type'] as String?) ?? 'inspection';
+    switch (screenType) {
+      case AutoSaveService.screenTypeQuickControl:
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => QuickControlScreen(savedDraft: draft),
+        ));
+        break;
+      case AutoSaveService.screenTypeNdkProtocol:
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => NewNdkProtocolScreen(savedDraft: draft),
+        ));
+        break;
+      case AutoSaveService.screenTypeCustomProtocol:
+        final checklist =
+            draft['checklist_data'] as Map<String, dynamic>? ?? {};
+        final fakeTemplate = {
+          'id': checklist['template_id'] ?? 'unknown',
+          'name': checklist['template_name'] ?? 'Протокол',
+          'structure': const [],
+        };
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => CustomProtocolScreen(template: fakeTemplate),
+        ));
+        break;
+      default:
+        // Обследование: открываем через recent / equipment
+        final equipmentId = draft['equipment_id']?.toString();
+        final assignmentId = draft['assignment_id']?.toString();
+        if (equipmentId == null || equipmentId.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Откройте черновик из «Реестра протоколов» или «Заданий».',
+              ),
+            ),
+          );
+          setState(() => _currentIndex = 3);
+          return;
+        }
+        try {
+          Equipment? equipment;
+          final offline = await _syncService.getOfflineEquipment();
+          try {
+            equipment = offline.firstWhere((e) => e.id == equipmentId);
+          } catch (_) {
+            try {
+              equipment = await _apiService.getEquipmentById(equipmentId);
+            } catch (_) {
+              equipment = null;
+            }
+          }
+          if (!mounted || equipment == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Оборудование не найдено. Откройте из «Заданий» или «Реестра».',
+                  ),
+                ),
+              );
+              setState(() => _currentIndex = 0);
+            }
+            return;
+          }
+          await context.push('/inspection', extra: {
+            'equipment': equipment,
+            'assignmentId': assignmentId,
+            'existingInspectionId': draft['id'],
+            'inspectionType': 'NDT',
+          });
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Не удалось открыть: $e')),
+            );
+          }
+        }
+    }
+    await _loadContinueDraft();
+    await _loadStatus();
   }
 
   Future<void> _loadStatus() async {
@@ -310,13 +423,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final continueLabel = () {
+      final d = _continueDraft;
+      if (d == null) return null;
+      final checklist = d['checklist_data'];
+      if (checklist is Map) {
+        final name = checklist['vessel_name'] ??
+            checklist['object_name'] ??
+            checklist['objectName'];
+        if (name != null && name.toString().trim().isNotEmpty) {
+          return name.toString();
+        }
+      }
+      final meta = d['meta'];
+      if (meta is Map && meta['objectName'] != null) {
+        return meta['objectName'].toString();
+      }
+      return 'Незавершённое обследование';
+    }();
+
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: AppColors.scaffold(context),
       body: Column(
         children: [
-          // Top status strip — 2026 refined: точечный цветовой индикатор + чип "Ожидают отправки".
+          // Top status strip
           Material(
-            color: AppColors.darkBackgroundDeep,
+            color: AppColors.scaffoldDeep(context),
             child: SafeArea(
               bottom: false,
               child: Semantics(
@@ -348,8 +480,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(width: 10),
                         Text(
                           _isOffline ? 'Режим офлайн' : 'Онлайн',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppColors.onSurface(context),
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.1,
@@ -381,7 +513,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           )
                         else
-                          const Icon(Icons.chevron_right, size: 18, color: Colors.white38),
+                          Icon(Icons.chevron_right, size: 18, color: AppColors.mutedText(context)),
                       ],
                     ),
                   ),
@@ -389,6 +521,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
+          if (continueLabel != null)
+            Material(
+              color: AppColors.surface(context),
+              child: InkWell(
+                onTap: _openContinueDraft,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.play_circle_outline,
+                          color: AppColors.accent, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Продолжить последнее',
+                              style: TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              continueLabel,
+                              style: TextStyle(
+                                color: AppColors.onSurface(context),
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right,
+                          color: AppColors.mutedText(context)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
@@ -408,7 +584,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       floatingActionButton: _currentIndex == 3
           ? FloatingActionButton.extended(
               onPressed: () => _showCreateProtocolSheet(context),
-              backgroundColor: AppColors.darkPrimary,
+              backgroundColor: AppColors.primary(context),
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add),
               label: const Text('Создать'),
@@ -421,11 +597,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (_appVersion.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              color: AppColors.darkBackground,
+              color: AppColors.scaffold(context),
               child: Text(
                 'Версия: $_appVersion',
-                style: const TextStyle(
-                  color: Colors.white70,
+                style: TextStyle(
+                  color: AppColors.mutedText(context),
                   fontSize: 10,
                 ),
                 textAlign: TextAlign.center,
@@ -435,36 +611,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
             currentIndex: _currentIndex,
             onTap: (index) async {
               await _loadStatus();
+              await _loadContinueDraft();
               setState(() {
                 _currentIndex = index;
               });
             },
-            backgroundColor: AppColors.darkSurface,
-            selectedItemColor: AppColors.darkPrimary,
-            unselectedItemColor: Colors.white70,
+            backgroundColor: AppColors.surface(context),
+            selectedItemColor: AppColors.primary(context),
+            unselectedItemColor: AppColors.mutedText(context),
             type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
+            items: [
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.assignment, semanticLabel: 'Задания'),
                 label: 'Задания',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.list, semanticLabel: 'Оборудование'),
                 label: 'Оборудование',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.dangerous, semanticLabel: 'ОПО'),
                 label: 'ОПО',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.folder_copy_outlined, semanticLabel: 'Протоколы'),
                 label: 'Протоколы',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.sync, semanticLabel: 'Синхронизация'),
+                icon: Badge(
+                  isLabelVisible: _pendingCount > 0,
+                  label: Text(
+                    _pendingCount > 99 ? '99+' : '$_pendingCount',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  child: const Icon(Icons.sync, semanticLabel: 'Синхронизация'),
+                ),
                 label: 'Синхронизация',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.person, semanticLabel: 'Профиль'),
                 label: 'Профиль',
               ),

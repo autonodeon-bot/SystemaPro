@@ -279,9 +279,21 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
               const SizedBox(height: 8),
               TextField(
                 controller: thicknessController,
+                readOnly: true,
+                onTap: () async {
+                  final v = await _showLargeThicknessKeypad(
+                    initial: thicknessController.text,
+                  );
+                  if (v != null) {
+                    thicknessController.text = v;
+                    point.thickness = double.tryParse(v.replaceAll(',', '.'));
+                    setState(() {});
+                  }
+                },
                 decoration: const InputDecoration(
-                  labelText: 'Фактическая толщина, мм',
+                  labelText: 'Фактическая толщина, мм (крупный ввод)',
                   labelStyle: TextStyle(color: Colors.white70),
+                  suffixIcon: Icon(Icons.dialpad, color: Colors.white54),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: Colors.white24),
                   ),
@@ -289,10 +301,10 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                     borderSide: BorderSide(color: Color(0xFF3b82f6)),
                   ),
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontSize: 22),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
-                  point.thickness = double.tryParse(value);
+                  point.thickness = double.tryParse(value.replaceAll(',', '.'));
                 },
               ),
               const SizedBox(height: 8),

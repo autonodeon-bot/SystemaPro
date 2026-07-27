@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/sync_service.dart';
 import '../services/api_service.dart';
+import '../services/auto_save_service.dart';
 import '../screens/equipment_list_screen.dart';
 import '../theme/app_colors.dart';
+import '../widgets/day_summary_dialog.dart';
 import 'package:intl/intl.dart';
 
 class SyncScreen extends ConsumerStatefulWidget {
@@ -110,12 +112,30 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final hasFactoryPlate = (payload['factory_plate_photo']?.toString().trim().isNotEmpty ?? false) ||
         docsMap.containsKey('factory_plate_photo');
     final hasControlScheme = (payload['control_scheme_image']?.toString().trim().isNotEmpty ?? false) ||
-        docsMap.containsKey('control_scheme_image');
+        docsMap.containsKey('control_scheme_image') ||
+        ((payload['uzt_schemes'] is List) &&
+            (payload['uzt_schemes'] as List).any((s) =>
+                s is Map &&
+                (s['scheme_image_path']?.toString().trim().isNotEmpty ?? false)));
     if (!hasFactoryPlate) {
       missing.add('Фото заводской таблички');
     }
     if (!hasControlScheme) {
       missing.add('Схема контроля');
+    }
+    final conclusion = payload['conclusion']?.toString().trim() ?? '';
+    if (conclusion.isEmpty) {
+      missing.add('Заключение');
+    }
+    final tm = payload['thickness_measurements'];
+    final uztSchemes = payload['uzt_schemes'];
+    var hasThickness = tm is List && tm.isNotEmpty;
+    if (!hasThickness && uztSchemes is List) {
+      hasThickness = uztSchemes.any((s) =>
+          s is Map && s['measurements'] is List && (s['measurements'] as List).isNotEmpty);
+    }
+    if (!hasThickness) {
+      missing.add('Точки УЗТ');
     }
 
     return missing;
@@ -123,18 +143,22 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _syncNow() async {
     if (_signedNeedsAttentionCount > 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Есть подписанные обследования с неполными данными: $_signedNeedsAttentionCount. '
-              'Рекомендуется дозаполнить их перед синхронизацией для корректного отчета.',
-            ),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 6),
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Неполные данные'),
+          content: Text(
+            'Есть подписанные обследования с неполными данными: $_signedNeedsAttentionCount.\n\n'
+            'Без схемы контроля, фото таблички и замеров УЗТ отчёт будет пустым. '
+            'Рекомендуется дозаполнить перед отправкой.',
           ),
-        );
-      }
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Всё равно синхронизировать')),
+          ],
+        ),
+      );
+      if (proceed != true) return;
     }
 
     // Проверка доступности сети перед синхронизацией (не тратим попытки при отсутствии интернета)
@@ -206,6 +230,34 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         // Обновляем список оборудования в экране оборудования
         // Инвалидируем провайдер для перезагрузки данных
         ref.invalidate(equipmentListProvider);
+
+        // Итоги дня — сводка после синхронизации
+        try {
+          final draftsLeft = (await AutoSaveService().getDrafts()).length;
+          final pendingLeft = (await _syncService.getPendingInspections()).length +
+              (await _syncService.getPendingStandaloneProtocols()).length +
+              (await _syncService.getPendingQuestionnaires()).length +
+              (await _syncService.getPendingQuestionnaireNdt()).length;
+          final completedTitles = <String>[];
+          try {
+            final asgs = await _syncService.getOfflineAssignments();
+            for (final a in asgs) {
+              if (a.status == 'COMPLETED') {
+                completedTitles.add(a.equipmentName);
+              }
+            }
+          } catch (_) {}
+          if (mounted && (result.syncedCount > 0 || result.failedCount > 0)) {
+            await showDaySummaryDialog(
+              context,
+              syncedCount: result.syncedCount,
+              failedCount: result.failedCount,
+              draftsLeft: draftsLeft,
+              pendingLeft: pendingLeft,
+              completedAssignmentTitles: completedTitles,
+            );
+          }
+        } catch (_) {}
       }
       
       await _loadData();

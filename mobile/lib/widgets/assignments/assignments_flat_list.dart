@@ -18,6 +18,7 @@ class AssignmentsFlatList extends StatelessWidget {
     required this.opoHasData,
     required this.formatDate,
     required this.onAssignmentTap,
+    this.onAssignmentDetails,
     required this.onRecentItemTap,
     required this.onAssignmentsReload,
   });
@@ -28,6 +29,7 @@ class AssignmentsFlatList extends StatelessWidget {
   final Map<String, bool> opoHasData;
   final String Function(DateTime date) formatDate;
   final void Function(Assignment assignment) onAssignmentTap;
+  final void Function(Assignment assignment)? onAssignmentDetails;
   final void Function(RecentItem item) onRecentItemTap;
   final Future<void> Function() onAssignmentsReload;
 
@@ -69,6 +71,10 @@ class AssignmentsFlatList extends StatelessWidget {
         opoFilled: a.opoId != null && (opoHasData[a.opoId!] == true),
         formatDate: formatDate,
         onTap: a.status == 'CANCELLED' ? null : () => onAssignmentTap(a),
+        onDetails: onAssignmentDetails == null
+            ? null
+            : () => onAssignmentDetails!(a),
+        onStart: a.status == 'CANCELLED' ? null : () => onAssignmentTap(a),
       ));
     }
 
@@ -221,10 +227,10 @@ class _GroupHeader extends _ListItem {
                 if (ok == true) await onAssignmentsReload();
               },
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(10),
                 child: Icon(
                   Icons.assignment_turned_in_outlined,
-                  size: 18,
+                  size: 22,
                   color: opoFilled ? Colors.teal : AppColors.textSecondary,
                 ),
               ),
@@ -243,6 +249,8 @@ class _AssignmentItem extends _ListItem {
     required this.opoFilled,
     required this.formatDate,
     required this.onTap,
+    this.onDetails,
+    this.onStart,
   });
 
   final Assignment assignment;
@@ -250,17 +258,72 @@ class _AssignmentItem extends _ListItem {
   final bool opoFilled;
   final String Function(DateTime) formatDate;
   final VoidCallback? onTap;
+  final VoidCallback? onDetails;
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) {
+    final card = AssignmentCard(
+      assignment: assignment,
+      localInspectionState: localState,
+      opoSurveyFilled: opoFilled,
+      formatDate: formatDate,
+      onTap: onTap,
+    );
+    if (onStart == null && onDetails == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: card,
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: AssignmentCard(
-        assignment: assignment,
-        localInspectionState: localState,
-        opoSurveyFilled: opoFilled,
-        formatDate: formatDate,
-        onTap: onTap,
+      child: Dismissible(
+        key: ValueKey('asg_${assignment.id}'),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            onStart?.call();
+          } else {
+            onDetails?.call();
+          }
+          return false; // не удаляем карточку
+        },
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 20),
+          decoration: BoxDecoration(
+            color: AppColors.success.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.play_arrow, color: AppColors.success, size: 28),
+              SizedBox(width: 8),
+              Text('Начать',
+                  style: TextStyle(
+                      color: AppColors.success, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+        secondaryBackground: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text('Детали',
+                  style: TextStyle(
+                      color: AppColors.accent, fontWeight: FontWeight.w700)),
+              SizedBox(width: 8),
+              Icon(Icons.info_outline, color: AppColors.accent, size: 28),
+            ],
+          ),
+        ),
+        child: card,
       ),
     );
   }

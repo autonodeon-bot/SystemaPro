@@ -20,7 +20,7 @@ from shared import cert_areas_list
 
 router = APIRouter(tags=["mobile"])
 
-MOBILE_APP_VERSION = os.getenv("MOBILE_APP_VERSION", "3.7.13")
+MOBILE_APP_VERSION = os.getenv("MOBILE_APP_VERSION", "3.7.14")
 MOBILE_APP_BUILD = os.getenv("MOBILE_APP_BUILD", "49")
 MOBILE_APP_DOWNLOAD_URL = os.getenv(
     "MOBILE_APP_DOWNLOAD_URL",

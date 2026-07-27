@@ -9,8 +9,11 @@ import '../services/image_resize_service.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import '../services/auto_save_service.dart';
+import '../services/last_values_service.dart';
 import '../models/vessel_checklist.dart';
 import '../theme/app_colors.dart';
+import '../widgets/phrase_chips.dart';
+import '../widgets/voice_input_button.dart';
 import 'defect_statement_screen.dart';
 
 /// Дефект ВИК для быстрого контроля
@@ -317,7 +320,29 @@ class _QuickControlScreenState extends State<QuickControlScreen>
                 TextField(
                   controller: descCtrl,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Описание'),
+                  decoration: const InputDecoration(
+                    labelText: 'Описание',
+                    suffixIcon: SizedBox(width: 44),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: VoiceInputButton(
+                    onResult: (text) {
+                      final cur = descCtrl.text.trim();
+                      descCtrl.text = cur.isEmpty ? text : '$cur $text';
+                      descCtrl.selection = TextSelection.collapsed(
+                          offset: descCtrl.text.length);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 6),
+                PhraseChips(
+                  phrases: PhraseChips.kDefectPhrases,
+                  onSelected: (p) {
+                    final cur = descCtrl.text.trim();
+                    descCtrl.text = cur.isEmpty ? p : '$cur. $p';
+                  },
                 ),
               ],
             ),
@@ -1112,6 +1137,20 @@ class _QuickControlScreenState extends State<QuickControlScreen>
                         await _submitStandaloneToServer();
                         ok = true;
                       }
+                      try {
+                        await LastValuesService().save(
+                          organization: _customerCtrl.text,
+                          executors: _executorCtrl.text,
+                          devices: _devicesCtrl.text,
+                        );
+                        await LastValuesService().saveProtocolTemplateSnapshot({
+                          'customer': _customerCtrl.text,
+                          'executor': _executorCtrl.text,
+                          'devices': _devicesCtrl.text,
+                          'location': _locationCtrl.text,
+                          'object_name': _objectCtrl.text,
+                        });
+                      } catch (_) {}
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
