@@ -147,9 +147,10 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
           className="w-full px-4 py-2 bg-app-panel border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
         >
           <option value="all">Все типы обследования</option>
-          <option value="VISUAL">VISUAL</option>
-          <option value="NDT">NDT</option>
-          <option value="QUESTIONNAIRE">QUESTIONNAIRE</option>
+          <option value="VISUAL">Визуальный контроль</option>
+          <option value="NDT">Неразрушающий контроль</option>
+          <option value="QUESTIONNAIRE">Опросный лист</option>
+          <option value="EXPERTISE">Экспертиза</option>
           <option value="EXPERTISE">EXPERTISE</option>
         </select>
       </div>

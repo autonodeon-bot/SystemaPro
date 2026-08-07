@@ -33,7 +33,7 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
       aria-modal="true"
     >
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-white">Назначить инженеров: {modal.name}</h2>
+        <h2 className="text-xl font-bold text-app-text">Назначить инженеров: {modal.name}</h2>
         <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
           <X size={24} />
         </button>

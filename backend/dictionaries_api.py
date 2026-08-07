@@ -1,13 +1,16 @@
 """Справочники: типы оборудования, трубопроводы, ресурсы, нормативные документы, клиенты, проекты."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, Form, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date as date_cls
 
 from sqlalchemy import case, distinct, func, or_, select
 from typing import Optional
 from datetime import datetime
+from pathlib import Path as FsPath
 import uuid as uuid_lib
+import os
 
 from database import get_db
 from auth import verify_token
@@ -1235,6 +1238,8 @@ async def get_regulatory_documents(
                     "requirements": d.requirements if isinstance(d.requirements, dict) else {},
                     "effective_date": str(d.effective_date) if d.effective_date else None,
                     "expiry_date": str(d.expiry_date) if d.expiry_date else None,
+                    "has_file": bool(d.file_path),
+                    "file_name": FsPath(d.file_path).name if d.file_path else None,
                 }
                 for d in docs
             ],
@@ -1247,7 +1252,11 @@ async def get_regulatory_documents(
 
 
 @router.post("/api/regulatory-documents")
-async def create_regulatory_document(doc_data: dict, db: AsyncSession = Depends(get_db)):
+async def create_regulatory_document(
+    doc_data: dict,
+    db: AsyncSession = Depends(get_db),
+    username: str = Depends(verify_token),
+):
     try:
         new_doc = RegulatoryDocument(
             document_type=doc_data.get("document_type"),
@@ -1268,3 +1277,87 @@ async def create_regulatory_document(doc_data: dict, db: AsyncSession = Depends(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/regulatory-documents/upload")
+async def upload_regulatory_document(
+    file: UploadFile = File(...),
+    document_type: str = Form("OTHER"),
+    number: str = Form(""),
+    name: str = Form(""),
+    description: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+    username: str = Depends(verify_token),
+):
+    """Загрузка нормативного документа (PDF или DOCX) с метаданными."""
+    filename = (file.filename or "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="Не указано имя файла")
+    ext = FsPath(filename).suffix.lower()
+    if ext not in (".pdf", ".docx", ".doc"):
+        raise HTTPException(
+            status_code=400,
+            detail="Допустимы только файлы PDF, DOC или DOCX",
+        )
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+    if len(content) > 40 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Файл больше 40 МБ")
+
+    upload_dir = FsPath("/app/uploads/regulatory_documents")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    safe_stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in FsPath(filename).stem)[:80]
+    stored_name = f"{uuid_lib.uuid4().hex}_{safe_stem}{ext}"
+    dest = upload_dir / stored_name
+    dest.write_bytes(content)
+
+    display_name = (name or "").strip() or FsPath(filename).stem
+    new_doc = RegulatoryDocument(
+        document_type=(document_type or "OTHER").strip().upper() or "OTHER",
+        number=(number or "").strip() or None,
+        name=display_name,
+        description=(description or "").strip() or None,
+        file_path=str(dest),
+        equipment_types=[],
+        requirements={},
+    )
+    db.add(new_doc)
+    await db.commit()
+    await db.refresh(new_doc)
+    return {
+        "id": str(new_doc.id),
+        "status": "created",
+        "name": new_doc.name,
+        "file_name": filename,
+        "has_file": True,
+    }
+
+
+@router.get("/api/regulatory-documents/{doc_id}/download")
+async def download_regulatory_document(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    username: str = Depends(verify_token),
+):
+    result = await db.execute(
+        select(RegulatoryDocument).where(RegulatoryDocument.id == doc_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Документ не найден")
+    if not doc.file_path:
+        raise HTTPException(status_code=404, detail="Файл не прикреплён")
+    path = FsPath(doc.file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Файл отсутствует на сервере")
+    media = "application/pdf" if path.suffix.lower() == ".pdf" else (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        if path.suffix.lower() == ".docx"
+        else "application/msword"
+    )
+    return FileResponse(
+        path,
+        media_type=media,
+        filename=f"{doc.number or doc.name}{path.suffix}",
+    )

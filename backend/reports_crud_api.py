@@ -25,13 +25,14 @@ from models import (
     Workshop, Branch, Enterprise, Opo, EquipmentResource,
     NDTMethod, Questionnaire, QuestionnaireDocumentFile,
     InspectionEquipment, VerificationEquipment, Certification,
-    Engineer, Client,
+    Engineer, Client, Assignment,
 )
 from report_generator import ReportGenerator
 from shared import resolve_report_file_path, metrics
 from report_attachments import enrich_document_files_from_inspection
 from client_access import get_client_accessible_equipment_ids, client_user_can_access_equipment
 from report_org_settings import load_report_org_settings, merge_client_into_settings
+from report_forms_registry import suggest_form_id, get_form
 
 _resolve_report_file_path = resolve_report_file_path
 _metrics = metrics
@@ -438,6 +439,8 @@ async def generate_report(
                         "name": opo.name,
                         "code": opo.code,
                         "description": opo.description,
+                        "hazard_class": getattr(opo, "hazard_class", None),
+                        "registration_number": getattr(opo, "registration_number", None),
                         "survey_data": opo.survey_data or {},
                         "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
                         "workshop_name": workshop.name if workshop else None,
@@ -783,12 +786,71 @@ async def generate_report(
                 })
 
             # Приложения: документы специалистов (удостоверения/сертификаты НК) по ФИО из методов НК
+            # + по специалистам, реально выбранным в мобильном приложении для этого обследования
+            # (checklist.data.inspection_engineers) — иначе в отчёт может подтянуться
+            # посторонний специалист без реального отношения к данному обследованию.
             specialist_docs = []
             try:
-                inspector_names = sorted(
-                    {str(m.get("inspector_name")).strip() for m in ndt_methods_data if m.get("inspector_name")},
-                    key=lambda s: s.lower(),
-                )
+                inspector_names_set = {
+                    str(m.get("inspector_name")).strip() for m in ndt_methods_data if m.get("inspector_name")
+                }
+                engineer_ids_set = set()
+                raw_insp_data = inspection.data if isinstance(inspection.data, dict) else {}
+                for eng in (raw_insp_data.get("inspection_engineers") or []):
+                    if isinstance(eng, dict):
+                        nm = str(eng.get("full_name") or eng.get("name") or "").strip()
+                        if nm:
+                            inspector_names_set.add(nm)
+                        eid = eng.get("engineer_id")
+                        if eid:
+                            engineer_ids_set.add(str(eid))
+                # Прямой lookup аттестаций по engineer_id из чек-листа —
+                # надёжнее, чем только по совпадению ФИО пользователя.
+                for eid in sorted(engineer_ids_set):
+                    try:
+                        eid_uuid = uuid_lib.UUID(str(eid))
+                        certs_res = await db.execute(
+                            select(Certification).where(
+                                Certification.engineer_id == eid_uuid,
+                            )
+                        )
+                        certs = certs_res.scalars().all()
+                    except Exception:
+                        certs = []
+                    if not certs:
+                        continue
+                    # имя — из inspection_engineers
+                    name = next(
+                        (
+                            str(e.get("full_name") or e.get("name") or "").strip()
+                            for e in (raw_insp_data.get("inspection_engineers") or [])
+                            if isinstance(e, dict) and str(e.get("engineer_id") or "") == eid
+                        ),
+                        "",
+                    )
+                    if not name:
+                        continue
+                    items = []
+                    for c in certs:
+                        sp = getattr(c, "scan_file_path", None)
+                        sp_resolved = (_resolve_report_file_path(sp) or sp) if sp else None
+                        items.append(
+                            {
+                                "certification_type": getattr(c, "certification_type", None),
+                                "certificate_number": getattr(c, "certificate_number", None),
+                                "method_code": getattr(c, "method_code", None),
+                                "issuing_organization": getattr(c, "issuing_organization", None),
+                                "issue_date": str(getattr(c, "issue_date", None)) if getattr(c, "issue_date", None) else None,
+                                "expiry_date": str(getattr(c, "expiry_date", None)) if getattr(c, "expiry_date", None) else None,
+                                "scan_file_path": sp_resolved,
+                                "scan_file_name": getattr(c, "scan_file_name", None),
+                                "scan_mime_type": getattr(c, "scan_mime_type", None),
+                            }
+                        )
+                    if items:
+                        specialist_docs.append({"inspector_name": name, "certifications": items})
+                        inspector_names_set.discard(name)
+                inspector_names = sorted(inspector_names_set, key=lambda s: s.lower())
                 for name in inspector_names:
                     # ищем пользователя по full_name или username (берём первого при совпадении нескольких)
                     ures = await db.execute(
@@ -800,16 +862,15 @@ async def generate_report(
                     certs_res = await db.execute(
                         select(Certification).where(
                             Certification.engineer_id == u.engineer_id,
-                            Certification.scan_file_path.is_not(None),
                         )
                     )
                     certs = certs_res.scalars().all()
                     items = []
                     for c in certs:
                         sp = getattr(c, "scan_file_path", None)
-                        if not sp:
-                            continue
-                        sp_resolved = _resolve_report_file_path(sp) or sp
+                        sp_resolved = (_resolve_report_file_path(sp) or sp) if sp else None
+                        # Сертификат включаем даже без скана — номер/срок действия
+                        # нужны для таблицы специалистов и подписей протоколов.
                         items.append(
                             {
                                 "certification_type": getattr(c, "certification_type", None),
@@ -841,6 +902,84 @@ async def generate_report(
                 "conclusion": inspection.conclusion,
                 "status": inspection.status,
             }
+            # Форма ТО: из данных обследования → из задания → автоподбор по типу оборудования
+            try:
+                dp0 = inspection_payload.get("data")
+                if not isinstance(dp0, dict):
+                    dp0 = {}
+                else:
+                    dp0 = dict(dp0)
+                form_id = (dp0.get("report_form_id") or "").strip()
+                if not form_id and getattr(inspection, "assignment_id", None):
+                    a_res = await db.execute(
+                        select(Assignment).where(Assignment.id == inspection.assignment_id)
+                    )
+                    asn = a_res.scalar_one_or_none()
+                    if asn and getattr(asn, "report_form_id", None):
+                        form_id = str(asn.report_form_id).strip()
+                if not form_id:
+                    form_id = suggest_form_id(
+                        equipment_type_code=equipment_type_code,
+                        equipment_name=equipment.name,
+                        equipment_type_name=equipment_type_name,
+                    )
+                if form_id:
+                    dp0["report_form_id"] = form_id
+                    meta = get_form(form_id)
+                    if meta and meta.get("title"):
+                        dp0.setdefault("report_form_title", meta["title"])
+                    inspection_payload["data"] = dp0
+                    inspection_payload["report_form_id"] = form_id
+            except Exception as e:
+                print(f"Warning: could not resolve report_form_id: {e}")
+
+            # Подмешать договор/сроки/техкарту (и файл схемы/техкарты) из задания,
+            # если в inspection.data они не заполнены. Работает независимо от того,
+            # удалось ли выше определить report_form_id.
+            try:
+                asn = None
+                if getattr(inspection, "assignment_id", None):
+                    a_res = await db.execute(
+                        select(Assignment).where(Assignment.id == inspection.assignment_id)
+                    )
+                    asn = a_res.scalar_one_or_none()
+                if asn is not None:
+                    dp0 = inspection_payload.get("data")
+                    if not isinstance(dp0, dict):
+                        dp0 = {}
+                        inspection_payload["data"] = dp0
+                    for _k in (
+                        "contract_number",
+                        "contract_date",
+                        "work_period_from",
+                        "work_period_to",
+                        "work_basis",
+                        "tech_card_number",
+                        "tech_card_file_name",
+                    ):
+                        if not dp0.get(_k):
+                            _av = getattr(asn, _k, None)
+                            if _av:
+                                dp0[_k] = str(_av)
+                    if not dp0.get("tech_card_file_available"):
+                        dp0["tech_card_file_available"] = bool(getattr(asn, "tech_card_file_path", None))
+                    # Путь файла техкарты/схемы — для вставки в отчёт как схема контроля
+                    tcp = getattr(asn, "tech_card_file_path", None)
+                    if tcp and not dp0.get("tech_card_file_path"):
+                        resolved = _resolve_report_file_path(tcp) or tcp
+                        dp0["tech_card_file_path"] = resolved
+                        if isinstance(document_files, list):
+                            document_files.append(
+                                {
+                                    "document_number": "tech_card_file_path",
+                                    "file_path": resolved,
+                                    "file_name": getattr(asn, "tech_card_file_name", None)
+                                    or "tech_card",
+                                }
+                            )
+            except Exception as _e:
+                print(f"Warning: merge assignment contract fields: {_e}")
+
             # Подставляем пути из загруженных document_files в data (фото таблички, схема, фото дефектов ВИК)
             try:
                 dp = inspection_payload.get("data")
@@ -957,18 +1096,26 @@ async def generate_report(
                     data_payload.setdefault("opo", opo_info)
                     if opo_info.get("id"):
                         data_payload.setdefault("opo_id", opo_info["id"])
-                    if opo_info.get("name"):
-                        data_payload.setdefault("opo_name", opo_info["name"])
-                    if opo_info.get("code"):
-                        data_payload.setdefault("opo_code", opo_info["code"])
-                    if opo_info.get("description"):
-                        data_payload.setdefault("opo_description", opo_info["description"])
-                    if opo_info.get("enterprise_name"):
-                        data_payload.setdefault("opo_enterprise", opo_info["enterprise_name"])
-                    if opo_info.get("branch_name"):
-                        data_payload.setdefault("opo_branch", opo_info["branch_name"])
-                    if opo_info.get("workshop_name"):
-                        data_payload.setdefault("opo_workshop", opo_info["workshop_name"])
+                    # ОПО-поля: всегда подтягиваем из карточки ОПО, если в обследовании пусто
+                    def _blank(v):
+                        return v in (None, "", "—", "-", "–")
+
+                    if opo_info.get("name") and _blank(data_payload.get("opo_name")):
+                        data_payload["opo_name"] = opo_info["name"]
+                    if opo_info.get("code") and _blank(data_payload.get("opo_code")):
+                        data_payload["opo_code"] = opo_info["code"]
+                    if opo_info.get("hazard_class") and _blank(data_payload.get("opo_hazard_class")):
+                        data_payload["opo_hazard_class"] = opo_info["hazard_class"]
+                    if opo_info.get("registration_number") and _blank(data_payload.get("opo_reg_number")):
+                        data_payload["opo_reg_number"] = opo_info["registration_number"]
+                    if opo_info.get("description") and _blank(data_payload.get("opo_description")):
+                        data_payload["opo_description"] = opo_info["description"]
+                    if opo_info.get("enterprise_name") and _blank(data_payload.get("opo_enterprise")):
+                        data_payload["opo_enterprise"] = opo_info["enterprise_name"]
+                    if opo_info.get("branch_name") and _blank(data_payload.get("opo_branch")):
+                        data_payload["opo_branch"] = opo_info["branch_name"]
+                    if opo_info.get("workshop_name") and _blank(data_payload.get("opo_workshop")):
+                        data_payload["opo_workshop"] = opo_info["workshop_name"]
 
                     inspection_payload["data"] = data_payload
             except Exception as e:
@@ -1017,42 +1164,97 @@ async def generate_report(
                             pass
                     raise
             else:
-                # Генерация PDF
-                if report_type == "EXPERTISE":
-                    generator.generate_expertise_report(
-                        inspection_payload,
-                        {
-                            "id": str(equipment.id),
-                            "name": equipment.name,
-                            "serial_number": equipment.serial_number,
-                            "location": equipment.location,
-                            "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                            "attributes": equipment.attributes or {},
-                        },
-                        resource_data,
-                        str(file_path),
-                        ndt_methods_data,
-                        document_files=document_files,
-                        specialist_docs=specialist_docs,
-                        verification_equipment=verification_equipment_list,
-                    )
-                else:
-                    generator.generate_technical_report(
-                        inspection_payload,
-                        {
-                            "id": str(equipment.id),
-                            "name": equipment.name,
-                            "serial_number": equipment.serial_number,
-                            "location": equipment.location,
-                            "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                            "attributes": equipment.attributes or {},
-                        },
-                        str(file_path),
-                        ndt_methods_data,
-                        document_files=document_files,
-                        specialist_docs=specialist_docs,
-                        verification_equipment=verification_equipment_list,
-                    )
+                # PDF: сначала официальная Word-форма → LibreOffice PDF; иначе ReportLab
+                from docx_to_pdf import convert_docx_to_pdf, libreoffice_available
+
+                used_official_pdf = False
+                if report_type not in ("EXPERTISE", "EPB", "ЭПБ") and libreoffice_available():
+                    import tempfile as _tf
+                    _fd, _tmp_docx = _tf.mkstemp(suffix=".docx", prefix="report_", dir=str(reports_dir))
+                    try:
+                        os.close(_fd)
+                        from word_generator import WordGenerator
+                        _wg = WordGenerator()
+                        _wg.generate_report_word(
+                            inspection_payload,
+                            {
+                                "id": str(equipment.id),
+                                "name": equipment.name,
+                                "serial_number": equipment.serial_number,
+                                "location": equipment.location,
+                                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
+                                "attributes": equipment.attributes or {},
+                                "type_code": equipment_type_code,
+                                "type_name": equipment_type_name,
+                            },
+                            ndt_methods_data,
+                            _tmp_docx,
+                            report_type,
+                            document_files=document_files,
+                            specialist_docs=specialist_docs,
+                            verification_equipment=verification_equipment_list,
+                            template_definition=template_definition,
+                            org_settings=org_settings,
+                        )
+                        pdf_ok = convert_docx_to_pdf(_tmp_docx, str(file_path))
+                        if pdf_ok:
+                            used_official_pdf = True
+                            # Сохраняем также docx рядом
+                            try:
+                                docx_side = Path(str(file_path)).with_suffix(".docx")
+                                os.replace(_tmp_docx, str(docx_side))
+                                # word_file_path проставим ниже при создании Report
+                                inspection_payload["_generated_docx_path"] = str(docx_side)
+                            except Exception:
+                                if os.path.exists(_tmp_docx):
+                                    os.unlink(_tmp_docx)
+                        else:
+                            if os.path.exists(_tmp_docx):
+                                os.unlink(_tmp_docx)
+                    except Exception as _pdf_exc:
+                        print(f"Warning: official form PDF failed, fallback ReportLab: {_pdf_exc}")
+                        if os.path.exists(_tmp_docx):
+                            try:
+                                os.unlink(_tmp_docx)
+                            except OSError:
+                                pass
+
+                if not used_official_pdf:
+                    if report_type == "EXPERTISE":
+                        generator.generate_expertise_report(
+                            inspection_payload,
+                            {
+                                "id": str(equipment.id),
+                                "name": equipment.name,
+                                "serial_number": equipment.serial_number,
+                                "location": equipment.location,
+                                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
+                                "attributes": equipment.attributes or {},
+                            },
+                            resource_data,
+                            str(file_path),
+                            ndt_methods_data,
+                            document_files=document_files,
+                            specialist_docs=specialist_docs,
+                            verification_equipment=verification_equipment_list,
+                        )
+                    else:
+                        generator.generate_technical_report(
+                            inspection_payload,
+                            {
+                                "id": str(equipment.id),
+                                "name": equipment.name,
+                                "serial_number": equipment.serial_number,
+                                "location": equipment.location,
+                                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
+                                "attributes": equipment.attributes or {},
+                            },
+                            str(file_path),
+                            ndt_methods_data,
+                            document_files=document_files,
+                            specialist_docs=specialist_docs,
+                            verification_equipment=verification_equipment_list,
+                        )
             _metrics["report_generation_seconds_sum"] = _metrics.get("report_generation_seconds_sum", 0) + (time.time() - _report_gen_t0)
             _metrics["report_generation_count"] = _metrics.get("report_generation_count", 0) + 1
             
@@ -1076,6 +1278,11 @@ async def generate_report(
             if is_docx:
                 new_report.word_file_path = str(file_path)
                 new_report.word_file_size = new_report.file_size
+            elif inspection_payload.get("_generated_docx_path"):
+                docx_side = Path(str(inspection_payload["_generated_docx_path"]))
+                if docx_side.exists():
+                    new_report.word_file_path = str(docx_side)
+                    new_report.word_file_size = docx_side.stat().st_size
             db.add(new_report)
             await db.commit()
             await db.refresh(new_report)

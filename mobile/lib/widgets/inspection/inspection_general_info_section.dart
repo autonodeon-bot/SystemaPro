@@ -315,6 +315,8 @@ class InspectionGeneralInfoSection extends StatelessWidget {
       }
     }
     checklist.executors = names.join(', ');
+    // Сразу пишем в FormBuilder, иначе sync при смене страницы затрёт выбор пустым полем
+    FormBuilder.of(context)?.fields['executors']?.didChange(names.join(', '));
     onStateChanged();
   }
 
@@ -654,6 +656,7 @@ class InspectionGeneralInfoSection extends StatelessWidget {
     final engineersToShow =
         showAllEngineersList ? engineers : filteredEngineers;
     final selected = selectedEngineerByMethod[methodKey];
+    final selectedId = selected?['id']?.toString();
 
     if (engineersToShow.isEmpty) {
       return Padding(
@@ -673,6 +676,14 @@ class InspectionGeneralInfoSection extends StatelessWidget {
       );
     }
 
+    // value по id — иначе DropdownButton «теряет» выбор при пересборке списка Map
+    final ids = engineersToShow
+        .map((e) => e['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final valueId =
+        (selectedId != null && ids.contains(selectedId)) ? selectedId : null;
+
     return InputDecorator(
       decoration: InputDecoration(
         labelText: showAllEngineersList ? 'весь список' : null,
@@ -688,9 +699,13 @@ class InspectionGeneralInfoSection extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<Map<String, dynamic>>(
-          value: selected,
+        child: DropdownButton<String>(
+          value: valueId,
           isExpanded: true,
+          hint: const Text(
+            'Выберите специалиста',
+            style: TextStyle(color: Colors.white54, fontSize: 14),
+          ),
           dropdownColor: kInspectionDarkBg,
           selectedItemBuilder: (context) {
             return engineersToShow.map((e) {
@@ -704,6 +719,7 @@ class InspectionGeneralInfoSection extends StatelessWidget {
             }).toList();
           },
           items: engineersToShow.map((e) {
+            final id = e['id']?.toString() ?? '';
             final name = (e['full_name'] ?? '').toString();
             final position = (e['position'] ?? '').toString();
             final qualifications = e['qualifications'];
@@ -718,8 +734,8 @@ class InspectionGeneralInfoSection extends StatelessWidget {
                 certInfo += ', до $validUntil';
               }
             }
-            return DropdownMenuItem<Map<String, dynamic>>(
-              value: e,
+            return DropdownMenuItem<String>(
+              value: id,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Column(
@@ -748,9 +764,14 @@ class InspectionGeneralInfoSection extends StatelessWidget {
               ),
             );
           }).toList(),
-          onChanged: (value) {
-            if (value == null) return;
-            onEngineerSelected(methodKey, value);
+          onChanged: (id) {
+            if (id == null || id.isEmpty) return;
+            final match = engineersToShow.firstWhere(
+              (e) => e['id']?.toString() == id,
+              orElse: () => <String, dynamic>{},
+            );
+            if (match.isEmpty) return;
+            onEngineerSelected(methodKey, match);
           },
         ),
       ),

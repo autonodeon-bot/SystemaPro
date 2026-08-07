@@ -49,7 +49,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <Icon size={24} className={variant === 'danger' ? 'text-red-400' : variant === 'warning' ? 'text-yellow-400' : 'text-accent'} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">{title}</h3>
+            <h3 className="text-lg font-semibold text-app-text">{title}</h3>
             <p className="text-app-text3 mt-1">{message}</p>
           </div>
         </div>

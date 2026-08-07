@@ -49,6 +49,7 @@ const InspectionObjectTemplatesManager = lazy(() => import('./pages/InspectionOb
 const DefectStatement = lazy(() => import('./pages/DefectStatement'));
 const InspectionsTrash = lazy(() => import('./pages/InspectionsTrash'));
 const InstrumentRegistry = lazy(() => import('./pages/InstrumentRegistry'));
+const OpoRegistry = lazy(() => import('./pages/OpoRegistry'));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-64">
@@ -178,6 +179,10 @@ const Layout: React.FC = () => {
 
           {user?.role !== 'client' && (
             <SidebarItem to="/instrument-registry" icon={Gauge} label={isSidebarOpen ? "Реестр приборов" : ""} />
+          )}
+
+          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (
+            <SidebarItem to="/opo-registry" icon={AlertTriangle} label={isSidebarOpen ? "Реестр ОПО" : ""} />
           )}
 
           {user?.role === 'admin' && (<>
@@ -442,6 +447,7 @@ const App = () => {
             <Route path="/verifications" element={<VerificationsManagement />} />
             <Route path="/verifications-calendar" element={<VerificationsCalendar />} />
             <Route path="/instrument-registry" element={<InstrumentRegistry />} />
+            <Route path="/opo-registry" element={<OpoRegistry />} />
             <Route path="/regulatory" element={<RegulatoryDocuments />} />
             <Route path="/competencies" element={<CompetenciesManagement />} />
             <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />

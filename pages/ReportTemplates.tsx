@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, Eye } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface ReportTemplate {
@@ -14,11 +14,24 @@ interface ReportTemplate {
   is_active: number;
 }
 
+
+  const SECTION_LABELS: Record<string, string> = {
+    equipment_info: 'Информация об оборудовании',
+    opo_info: 'Информация об ОПО',
+    ndt_methods: 'Методы НК',
+    specialists: 'Специалисты',
+    verification_equipment: 'Поверенное оборудование',
+    documents: 'Документы',
+    photos: 'Фотографии',
+    control_scheme: 'Схема контроля',
+  };
+
 const ReportTemplates = () => {
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ReportTemplate | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<ReportTemplate | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -150,7 +163,7 @@ const ReportTemplates = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Шаблоны отчетов</h1>
+        <h1 className="text-2xl font-bold text-app-text">Шаблоны отчетов</h1>
         <button
           onClick={() => {
             setEditingTemplate(null);
@@ -190,7 +203,7 @@ const ReportTemplates = () => {
       {showForm && (
         <div className="bg-app-panel rounded-xl p-6 border border-app-line">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-app-text">
               {editingTemplate ? 'Редактировать шаблон' : 'Создать шаблон'}
             </h2>
             <button
@@ -261,15 +274,8 @@ const ReportTemplates = () => {
                       }}
                       className="accent-blue-500"
                     />
-                    <span className="text-white text-sm">
-                      {key === 'equipment_info' ? 'Информация об оборудовании' :
-                       key === 'opo_info' ? 'Информация об ОПО' :
-                       key === 'ndt_methods' ? 'Методы НК' :
-                       key === 'specialists' ? 'Специалисты' :
-                       key === 'verification_equipment' ? 'Поверенное оборудование' :
-                       key === 'documents' ? 'Документы' :
-                       key === 'photos' ? 'Фотографии' :
-                       key === 'control_scheme' ? 'Схема контроля' : key}
+                    <span className="text-app-text text-sm">
+                      {SECTION_LABELS[key] || key}
                     </span>
                   </label>
                 ))}
@@ -325,6 +331,14 @@ const ReportTemplates = () => {
               </div>
               <div className="flex gap-2">
                 <button
+                  type="button"
+                  title="Просмотр шаблона"
+                  onClick={() => setPreviewTemplate(template)}
+                  className="text-emerald-400 hover:text-emerald-300"
+                >
+                  <Eye size={18} />
+                </button>
+                <button
                   onClick={() => {
                     setEditingTemplate(template);
                     setFormData({
@@ -358,6 +372,43 @@ const ReportTemplates = () => {
           </div>
         ))}
       </div>
+
+
+      {previewTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPreviewTemplate(null)}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-app-line" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start gap-4 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-app-text">{previewTemplate.name}</h2>
+                <p className="text-sm text-app-text3 mt-1">
+                  Тип: {previewTemplate.template_type === 'TECHNICAL' ? 'Технический отчёт' : previewTemplate.template_type === 'EXPERTISE' ? 'Экспертиза' : previewTemplate.template_type}
+                  {previewTemplate.is_default ? ' · по умолчанию' : ''}
+                </p>
+              </div>
+              <button type="button" onClick={() => setPreviewTemplate(null)} className="text-app-text3 hover:text-app-text" aria-label="Закрыть">✕</button>
+            </div>
+            {previewTemplate.description && (
+              <p className="text-app-text2 mb-4 whitespace-pre-wrap">{previewTemplate.description}</p>
+            )}
+            <p className="text-sm font-semibold text-app-text mb-2">Разделы шаблона</p>
+            <ul className="space-y-2 mb-4">
+              {Object.entries(previewTemplate.template_config?.include_sections || {}).map(([key, enabled]) => (
+                <li key={key} className="flex items-center justify-between text-sm border border-app-line rounded-lg px-3 py-2 bg-app-deep/40">
+                  <span className="text-app-text">{SECTION_LABELS[key] || key}</span>
+                  <span className={enabled ? 'text-emerald-400' : 'text-app-text3'}>{enabled ? 'Включён' : 'Выключен'}</span>
+                </li>
+              ))}
+            </ul>
+            {previewTemplate.template_config?.styles && (
+              <div className="text-sm text-app-text3">
+                Шрифт: {previewTemplate.template_config.styles.font_family || '—'},
+                размер: {previewTemplate.template_config.styles.font_size || '—'},
+                цвет заголовка: {previewTemplate.template_config.styles.header_color || '—'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {templates.length === 0 && (
         <div className="text-center text-app-text3 py-20">

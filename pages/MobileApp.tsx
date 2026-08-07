@@ -8,7 +8,7 @@ const MobileApp = () => {
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-6">
         <Smartphone className="text-accent" size={32} />
-        <h1 className="text-3xl font-bold text-white">Мобильное приложение</h1>
+        <h1 className="text-3xl font-bold text-app-text">Мобильное приложение</h1>
       </div>
 
       {/* Ссылка на скачивание вверху */}
@@ -46,7 +46,7 @@ const MobileApp = () => {
             <Smartphone className="text-accent" size={32} />
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-white mb-2">Монитор — мобильное приложение</h2>
+            <h2 className="text-xl font-bold text-app-text mb-2">Монитор — мобильное приложение</h2>
             <p className="text-app-text3 mb-1">Версия: {MOBILE_APP_VERSION} (build {MOBILE_APP_BUILD}) — последняя версия</p>
             <p className="text-sm text-green-400 mb-2">✓ Доступна новая версия для скачивания</p>
             <p className="text-app-text2">

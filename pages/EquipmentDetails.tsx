@@ -376,7 +376,7 @@ const EquipmentDetails = () => {
           >
             <ArrowLeft size={18} /> Назад
           </button>
-          <h1 className="text-2xl font-bold text-white">{eqName}</h1>
+          <h1 className="text-2xl font-bold text-app-text">{eqName}</h1>
           {eqCode && <span className="text-xs text-app-text3">({eqCode})</span>}
         </div>
       </div>
@@ -404,7 +404,7 @@ const EquipmentDetails = () => {
       {/* === Вкладка: Информация === */}
       {activeTab === 'info' && (<div className="space-y-6">
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-app-text mb-4 flex items-center gap-2">
           <Info className="text-accent" size={20} />
           Общая информация
         </h2>
@@ -477,7 +477,7 @@ const EquipmentDetails = () => {
 
       {equipment && (
         <div className="bg-app-panel rounded-xl border border-app-line p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Шаблон ЭПБ (профиль оборудования)</h2>
+          <h2 className="text-lg font-semibold text-app-text mb-4">Шаблон ЭПБ (профиль оборудования)</h2>
           <EquipmentProfilePassportPanel
             displayName={equipmentProfile?.profile.display_name || equipment.type_name || eqName}
             defaultData={equipmentProfile?.default_data || {}}
@@ -518,7 +518,7 @@ const EquipmentDetails = () => {
       <div className="space-y-4">
       {/* История обследований */}
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-app-text mb-4 flex items-center gap-2">
           <Calendar className="text-accent" size={20} />
           История обследований ({inspectionHistory.length})
         </h2>
@@ -571,7 +571,7 @@ const EquipmentDetails = () => {
       {/* Чек-листы инженеров */}
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
             <Sparkles className="text-accent" size={20} />
             Чек-листы обследований ({filteredInspections.length})
           </h2>
@@ -660,7 +660,7 @@ const EquipmentDetails = () => {
       {/* === Вкладка: Задания === */}
       {activeTab === 'assignments' && (
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-app-text mb-4 flex items-center gap-2">
           <Users className="text-accent" size={20} />
           Задания по оборудованию ({assignments.length})
         </h2>
@@ -689,7 +689,7 @@ const EquipmentDetails = () => {
       {/* === Вкладка: Ремонты === */}
       {activeTab === 'repairs' && (
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-app-text mb-4 flex items-center gap-2">
           <Wrench className="text-accent" size={20} />
           Журнал ремонтов ({repairJournal.length})
         </h2>
@@ -720,7 +720,7 @@ const EquipmentDetails = () => {
       {/* === Вкладка: Документы === */}
       {activeTab === 'reports' && (<div className="space-y-4">
       <div className="bg-app-panel rounded-xl border border-app-line p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-app-text mb-4 flex items-center gap-2">
           <FileText className="text-accent" size={20} />
           Документы по диагностике ({reports.length})
         </h2>
@@ -992,7 +992,7 @@ const EquipmentDrawingTemplatesSection: React.FC<{
   return (
     <div className="bg-app-panel rounded-xl border border-app-line p-6">
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
           <ImageIcon className="text-accent" size={20} />
           Чертежи и схемы ({items.length})
         </h2>

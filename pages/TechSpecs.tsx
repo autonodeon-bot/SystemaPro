@@ -5,7 +5,7 @@ const TechSpecs = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Техническая документация платформы</h1>
+        <h1 className="text-3xl font-bold text-app-text mb-2">Техническая документация платформы</h1>
         <p className="text-app-text3">
           Версия системы: {APP_VERSION} ({RELEASE_NOTES_DATE})
         </p>
@@ -38,7 +38,7 @@ const TechSpecs = () => {
       {ARCHITECTURE_SPECS.map((spec) => (
         <section key={spec.id} className="bg-secondary rounded-xl overflow-hidden border border-app-line shadow-lg">
           <div className="px-6 py-4 border-b border-app-line bg-app-panel/50">
-            <h2 className="text-xl font-bold text-white">{spec.title}</h2>
+            <h2 className="text-xl font-bold text-app-text">{spec.title}</h2>
           </div>
           <div className="p-6">
             <p className="text-app-text2 mb-4 whitespace-pre-line leading-relaxed">

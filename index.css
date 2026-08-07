@@ -474,6 +474,20 @@ html.light body {
   background: rgba(59,100,200,0.1);
 }
 
+/* Заголовки и текст на светлых панелях: не оставлять text-white */
+.light h1.text-white,
+.light h2.text-white,
+.light h3.text-white,
+.light .bg-app-panel > .text-white,
+.light .bg-app-panel .font-bold.text-white,
+.light .bg-app-soft.text-white {
+  color: var(--text-primary) !important;
+}
+.light p.text-white,
+.light span.text-white:not([class*="bg-"]):not(.sp-badge):not(button span) {
+  color: var(--text-primary);
+}
+
 /* Бейджи и опасная кнопка — читаемый контраст на светлом фоне */
 .light .sp-badge-success { color: var(--success); }
 .light .sp-badge-warning { color: var(--warning); }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../../models/assignment.dart';
+import '../../services/api_service.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_colors.dart';
 import 'assignment_sync_badges.dart';
@@ -195,6 +197,16 @@ class AssignmentCard extends StatelessWidget {
                                   color: overdue ? AppColors.danger : AppColors.textSecondary,
                                   filled: overdue,
                                 ),
+                              if (assignment.hasTechCardFile)
+                                GestureDetector(
+                                  onTap: () => _openTechCardFile(context),
+                                  child: _pill(
+                                    icon: Icons.picture_as_pdf_outlined,
+                                    text: 'Схема/техкарта',
+                                    color: AppColors.success,
+                                    filled: true,
+                                  ),
+                                ),
                             ],
                           ),
                           AssignmentSyncBadges(
@@ -213,6 +225,29 @@ class AssignmentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openTechCardFile(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Загрузка файла схемы/техкарты...'), duration: Duration(seconds: 2)),
+    );
+    try {
+      final path = await ApiService().downloadAssignmentTechCardFile(
+        assignment.id,
+        assignment.techCardFileName ?? 'tech_card_${assignment.id}',
+      );
+      final result = await OpenFilex.open(path);
+      if (result.type != ResultType.done) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Не удалось открыть файл: ${result.message}')),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Ошибка загрузки файла: $e')),
+      );
+    }
   }
 
   Widget _statusChip(String text, Color color) {

@@ -394,7 +394,7 @@ class _DrawingAnnotationScreenState extends State<DrawingAnnotationScreen> {
         padding: const EdgeInsets.all(12),
         color: isDark ? AppColors.darkSurface : Colors.white,
         child: Text(
-          'Long-press по чертежу — добавить свою точку.\nТап по точке — ввести значение.',
+          'Удерживайте палец на чертеже — добавить свою точку.\nНажмите на точку — ввести значение.',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           textAlign: TextAlign.center,
         ),

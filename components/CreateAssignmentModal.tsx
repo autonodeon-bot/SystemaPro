@@ -26,7 +26,14 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
     due_date: '',
     description: '',
     protocol_template_id: '',
+    report_form_id: '',
     ndt_method_codes: [] as string[],
+    contract_number: '',
+    contract_date: '',
+    work_period_from: '',
+    work_period_to: '',
+    work_basis: '',
+    tech_card_number: '',
   });
   const [engineerFilter, setEngineerFilter] = useState('');
   const [saving, setSaving] = useState(false);
@@ -38,6 +45,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
   const [equipmentByWorkshop, setEquipmentByWorkshop] = useState<Record<string, any[]>>({});
   const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   const [protocolTemplates, setProtocolTemplates] = useState<Array<{ id: string; name: string; category?: string }>>([]);
+  const [reportForms, setReportForms] = useState<Array<{ id: string; title: string }>>([]);
 
   useEffect(() => {
     loadHierarchy();
@@ -65,6 +73,31 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
       }
     };
     loadTemplates();
+  }, []);
+
+  useEffect(() => {
+    const loadForms = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/report-forms`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        setReportForms(
+          data
+            .map((row: { id?: string; title?: string; name?: string }) => ({
+              id: String(row.id ?? ''),
+              title: String(row.title ?? row.name ?? row.id ?? ''),
+            }))
+            .filter((t: { id: string }) => t.id.length > 0),
+        );
+      } catch {
+        /* каталог форм необязателен */
+      }
+    };
+    loadForms();
   }, []);
 
   const loadHierarchy = async () => {
@@ -314,9 +347,18 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
           due_date: formData.due_date ? `${formData.due_date}T23:59:59` : null,
           description: formData.description || null,
           ndt_method_codes: formData.ndt_method_codes,
+          contract_number: formData.contract_number.trim() || null,
+          contract_date: formData.contract_date || null,
+          work_period_from: formData.work_period_from || null,
+          work_period_to: formData.work_period_to || null,
+          work_basis: formData.work_basis.trim() || null,
+          tech_card_number: formData.tech_card_number.trim() || null,
         };
         if (formData.protocol_template_id.trim()) {
           payload.protocol_template_id = formData.protocol_template_id.trim();
+        }
+        if (formData.report_form_id.trim()) {
+          payload.report_form_id = formData.report_form_id.trim();
         }
 
         return fetch(`${API_BASE}/api/assignments`, {
@@ -622,6 +664,87 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
             <p className="text-xs text-app-text3 mt-1.5">
               Если выбран, инженер в «Мониторе» увидит обязательный шаблон при открытии задания.
             </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app-text2 mb-1">
+              Форма ТО (официальный шаблон отчёта)
+            </label>
+            <select
+              value={formData.report_form_id}
+              onChange={(e) => setFormData({ ...formData, report_form_id: e.target.value })}
+              className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text focus:outline-none focus:border-accent"
+            >
+              <option value="">Автоподбор по типу оборудования</option>
+              {reportForms.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.id} — {f.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="rounded-lg border border-app-line bg-app-deep/40 p-3 space-y-3">
+            <p className="text-sm font-medium text-app-text">Данные для титула отчёта ТО</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">№ договора</label>
+                <input
+                  type="text"
+                  value={formData.contract_number}
+                  onChange={(e) => setFormData({ ...formData, contract_number: e.target.value })}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+                  placeholder="например, 12/26"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">Дата договора</label>
+                <input
+                  type="date"
+                  value={formData.contract_date}
+                  onChange={(e) => setFormData({ ...formData, contract_date: e.target.value })}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">Период работ с</label>
+                <input
+                  type="date"
+                  value={formData.work_period_from}
+                  onChange={(e) => setFormData({ ...formData, work_period_from: e.target.value })}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">Период работ по</label>
+                <input
+                  type="date"
+                  value={formData.work_period_to}
+                  onChange={(e) => setFormData({ ...formData, work_period_to: e.target.value })}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-app-text3 mb-1">Основание для проведения работ</label>
+                <input
+                  type="text"
+                  value={formData.work_basis}
+                  onChange={(e) => setFormData({ ...formData, work_basis: e.target.value })}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+                  placeholder="договор / программа / письмо…"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-app-text3 mb-1">№ технологической карты</label>
+                <input
+                  type="text"
+                  value={formData.tech_card_number}
+                  onChange={(e) => setFormData({ ...formData, tech_card_number: e.target.value })}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent"
+                  placeholder="ТК-УЗТ-01"
+                />
+              </div>
+            </div>
           </div>
 
           <div>

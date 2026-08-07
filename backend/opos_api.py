@@ -64,6 +64,8 @@ async def list_opos(
                     "name": o.name,
                     "code": o.code,
                     "description": o.description,
+                    "hazard_class": o.hazard_class,
+                    "registration_number": o.registration_number,
                     "survey_data": o.survey_data or None,
                     "is_active": o.is_active,
                     "created_at": str(o.created_at) if o.created_at else None,
@@ -107,6 +109,8 @@ async def create_opo(
             name=name,
             code=payload.get("code"),
             description=payload.get("description"),
+            hazard_class=payload.get("hazard_class"),
+            registration_number=payload.get("registration_number"),
             workshop_id=workshop_id,
             survey_data=payload.get("survey_data"),
             is_active=1,
@@ -152,6 +156,10 @@ async def update_opo(
             opo.code = payload.get("code")
         if "description" in payload:
             opo.description = payload.get("description")
+        if "hazard_class" in payload:
+            opo.hazard_class = payload.get("hazard_class")
+        if "registration_number" in payload:
+            opo.registration_number = payload.get("registration_number")
         if "survey_data" in payload:
             opo.survey_data = payload.get("survey_data")
         if "is_active" in payload and payload["is_active"] is not None:
@@ -258,6 +266,8 @@ async def get_opo(
         "name": opo.name,
         "code": opo.code,
         "description": opo.description,
+        "hazard_class": opo.hazard_class,
+        "registration_number": opo.registration_number,
         "survey_data": opo.survey_data or None,
         "is_active": opo.is_active,
         "created_at": str(opo.created_at) if opo.created_at else None,

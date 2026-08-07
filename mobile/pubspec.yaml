@@ -1,7 +1,7 @@
 name: es_td_ngo_mobile
 description: Монитор (SystemaPro) — мобильное приложение инженера диагностики
 publish_to: 'none'
-version: 3.7.14+51
+version: 3.7.15+52
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -62,8 +62,8 @@ dependencies:
   local_auth: ^2.3.0
   archive: ^3.4.10
   device_info_plus: ^11.1.0
-  flutter_secure_storage: ^9.2.2
-  speech_to_text: ^6.6.2
+  flutter_secure_storage: ^10.0.0
+  speech_to_text: ^7.0.0
 
   # Observability
   sentry_flutter: ^8.9.0

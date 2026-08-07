@@ -75,11 +75,13 @@ Widget buildInspectionTextField(
 }
 
 Widget buildMultilineField(
-    String name, String label, Function(String?) onChanged) {
+    String name, String label, Function(String?) onChanged,
+    {String? initialValue}) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: FormBuilderTextField(
       name: name,
+      initialValue: initialValue,
       maxLines: 5,
       decoration: _fieldDecoration(label),
       style: const TextStyle(color: Colors.white),
@@ -126,13 +128,22 @@ Widget buildYesNoField(
 }
 
 Widget buildDropdownField(String name, String label, List<String> items,
-    Function(String?) onChanged) {
+    Function(String?) onChanged, {String? initialValue}) {
+  final opts = List<String>.from(items);
+  if (initialValue != null &&
+      initialValue.isNotEmpty &&
+      !opts.contains(initialValue)) {
+    opts.insert(0, initialValue);
+  }
   return Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: FormBuilderDropdown<String>(
       name: name,
+      initialValue: (initialValue != null && opts.contains(initialValue))
+          ? initialValue
+          : null,
       decoration: _fieldDecoration(label),
-      items: items
+      items: opts
           .map((item) => DropdownMenuItem(
                 value: item,
                 child:

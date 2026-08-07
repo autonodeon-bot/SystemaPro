@@ -281,7 +281,7 @@ const EngineerPanel = () => {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <AlertTriangle className="mx-auto text-yellow-400 mb-4" size={48} />
-          <h2 className="text-2xl font-bold text-white mb-2">Профиль инженера не найден</h2>
+          <h2 className="text-2xl font-bold text-app-text mb-2">Профиль инженера не найден</h2>
           <p className="text-app-text3">Обратитесь к администратору для привязки профиля инженера</p>
         </div>
       </div>
@@ -303,7 +303,7 @@ const EngineerPanel = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-app-text flex items-center gap-2">
           <Wrench className="text-accent" size={28} />
           Моя панель
         </h1>
@@ -335,7 +335,7 @@ const EngineerPanel = () => {
         <>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
             <Award className="text-accent" size={22} />
             Мои сертификаты НК
           </h2>
@@ -490,7 +490,7 @@ const EngineerPanel = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 bg-secondary border-b border-app-line p-6 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <h2 className="text-xl font-bold text-app-text flex items-center gap-2">
                 <Award className="text-accent" size={24} />
                 Добавить сертификат
               </h2>
@@ -655,7 +655,7 @@ const EngineerPanel = () => {
       {/* Мои задания */}
       {activeTab === 'assignments' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
             <ClipboardList className="text-accent" size={22} />
             Мои задания
           </h2>
@@ -694,7 +694,7 @@ const EngineerPanel = () => {
       {/* Мои отчёты */}
       {activeTab === 'reports' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
             <FileText className="text-accent" size={22} />
             Мои отчёты
           </h2>
@@ -737,7 +737,7 @@ const EngineerPanel = () => {
       {/* Моё оборудование (из заданий) */}
       {activeTab === 'equipment' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
             <Package className="text-accent" size={22} />
             Оборудование по моим заданиям
           </h2>
@@ -769,7 +769,7 @@ const EngineerPanel = () => {
       {/* Приборы поверки */}
       {activeTab === 'instruments' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-app-text flex items-center gap-2">
             <Gauge className="text-accent" size={22} />
             Приборы поверки (справочник)
           </h2>

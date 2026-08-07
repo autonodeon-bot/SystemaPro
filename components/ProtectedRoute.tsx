@@ -35,7 +35,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return (
       <div className="flex items-center justify-center min-h-screen bg-primary">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
+          <h2 className="text-2xl font-bold text-app-text mb-2">Доступ запрещен</h2>
           <p className="text-app-text3">Требуется роль: {requiredRole}</p>
         </div>
       </div>
@@ -46,7 +46,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return (
       <div className="flex items-center justify-center min-h-screen bg-primary">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
+          <h2 className="text-2xl font-bold text-app-text mb-2">Доступ запрещен</h2>
           <p className="text-app-text3">Недостаточно прав доступа</p>
         </div>
       </div>

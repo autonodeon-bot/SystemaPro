@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     # Шрифты с поддержкой кириллицы для PDF (ReportLab)
     fonts-dejavu-core \
     fonts-liberation \
+    # LibreOffice для конвертации официальных Word-форм ТО → PDF
+    libreoffice-writer \
     && rm -rf /var/lib/apt/lists/*
 
 # Копирование requirements и установка зависимостей

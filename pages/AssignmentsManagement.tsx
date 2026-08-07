@@ -836,7 +836,7 @@ const AssignmentsManagement = () => {
                     {groupBy === 'branch' && <MapPin size={18} className="text-green-400" />}
                     {groupBy === 'workshop' && <Settings size={18} className="text-purple-400" />}
                     {groupBy === 'engineer' && <User size={18} className="text-yellow-400" />}
-                    <span className="text-lg font-semibold text-white">{groupKey}</span>
+                    <span className="text-lg font-semibold text-app-text">{groupKey}</span>
                     <span className="px-2 py-1 bg-app-soft rounded text-xs text-app-text2">
                       {groupAssignments.length}
                     </span>

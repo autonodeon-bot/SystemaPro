@@ -61,7 +61,7 @@ from report_org_settings_api import router as report_org_settings_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.7.14",
+    version="3.7.15",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -79,7 +79,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.7.14")
+os.environ.setdefault("APP_VERSION", "3.7.15")
 init_observability(app)
 log = get_logger("main")
 
@@ -706,7 +706,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.7.14")
+    checks["version"] = os.getenv("APP_VERSION", "3.7.15")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}

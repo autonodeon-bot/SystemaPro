@@ -623,7 +623,7 @@ const CompetenciesManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Управление компетенциями</h1>
+        <h1 className="text-2xl font-bold text-app-text">Управление компетенциями</h1>
         <button
           onClick={() => setShowAddForm(true)}
           className="bg-accent/10 text-accent border border-accent/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-accent/20"
@@ -730,7 +730,7 @@ const CompetenciesManagement = () => {
       {/* Форма добавления */}
       {showAddForm && (
         <div className="bg-app-panel p-6 rounded-xl border border-app-line">
-          <h2 className="text-xl font-bold text-white mb-4">Добавить инженера</h2>
+          <h2 className="text-xl font-bold text-app-text mb-4">Добавить инженера</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -874,7 +874,7 @@ const CompetenciesManagement = () => {
           <div className="bg-app-panel rounded-xl p-6 max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-xl font-bold text-white">{selectedEngineer.full_name}</h2>
+                <h2 className="text-xl font-bold text-app-text">{selectedEngineer.full_name}</h2>
                 {selectedEngineer.position && (
                   <p className="text-app-text3">{selectedEngineer.position}</p>
                 )}
@@ -1039,7 +1039,7 @@ const CompetenciesManagement = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCertForm(false)}>
           <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-app-text">
                 {editingCert ? 'Редактировать сертификат' : 'Добавить сертификат'}
               </h2>
               <button onClick={() => setShowCertForm(false)} className="text-app-text3 hover:text-app-text">

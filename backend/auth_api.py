@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import (
     ROLE_PERMISSIONS,
-    USERS_DB,
     create_access_token,
     hash_password,
     verify_password,
@@ -111,17 +110,12 @@ async def login(
         password_hash = db_user.password_hash
         await db.commit()
     else:
-        user = USERS_DB.get(form_data.username)
-        if not user or user["password"] != form_data.password:
-            record_login("fail")
-            raise HTTPException(
-                status_code=401,
-                detail="Неверный логин или пароль",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        user_role = user["role"]
-        token_subject = form_data.username
-        password_hash = hash_password(form_data.password)
+        record_login("fail")
+        raise HTTPException(
+            status_code=401,
+            detail="Неверный логин или пароль",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     access_token = create_access_token(
         data={"sub": token_subject, "role": user_role, "amr": ["pwd"]},
@@ -161,13 +155,4 @@ async def get_current_user(
             "totp_enabled": bool(db_user.totp_enabled),
         }
 
-    user = USERS_DB.get(username)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "id": None,
-        "username": username,
-        "role": user["role"],
-        "permissions": user["permissions"],
-        "totp_enabled": False,
-    }
+    raise HTTPException(status_code=404, detail="User not found")

@@ -271,7 +271,7 @@ const ResourceManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Управление ресурсом оборудования</h1>
+        <h1 className="text-2xl font-bold text-app-text">Управление ресурсом оборудования</h1>
         <button
           type="button"
           onClick={() => setShowAddForm(true)}
@@ -420,7 +420,7 @@ const ResourceManagement = () => {
 
       {showAddForm && (
         <div className="bg-app-panel p-6 rounded-xl border border-app-line">
-          <h2 className="text-xl font-bold text-white mb-4">Добавить ресурс оборудования</h2>
+          <h2 className="text-xl font-bold text-app-text mb-4">Добавить ресурс оборудования</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -611,7 +611,7 @@ const ResourceManagement = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">{selectedEquipment.name}</h2>
+              <h2 className="text-xl font-bold text-app-text">{selectedEquipment.name}</h2>
               <button
                 type="button"
                 onClick={() => setSelectedEquipment(null)}

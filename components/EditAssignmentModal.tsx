@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
-import { X, Save, Loader2 } from 'lucide-react';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { X, Save, Loader2, Upload, FileText, Trash2 } from 'lucide-react';
 import { API_BASE } from '../constants';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,7 +38,17 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
   const [description, setDescription] = useState(assignment.description || '');
   const [protocolTemplateId, setProtocolTemplateId] = useState(assignment.protocol_template_id || '');
   const [protocolTemplates, setProtocolTemplates] = useState<Array<{ id: string; name: string; category?: string }>>([]);
+  const [contractNumber, setContractNumber] = useState(assignment.contract_number || '');
+  const [contractDate, setContractDate] = useState(assignment.contract_date || '');
+  const [workPeriodFrom, setWorkPeriodFrom] = useState(assignment.work_period_from || '');
+  const [workPeriodTo, setWorkPeriodTo] = useState(assignment.work_period_to || '');
+  const [workBasis, setWorkBasis] = useState(assignment.work_basis || '');
+  const [techCardNumber, setTechCardNumber] = useState(assignment.tech_card_number || '');
   const [saving, setSaving] = useState(false);
+  const [hasTechCardFile, setHasTechCardFile] = useState(!!assignment.has_tech_card_file);
+  const [techCardFileName, setTechCardFileName] = useState(assignment.tech_card_file_name || '');
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -47,7 +57,68 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
     setDueDate(assignment.due_date ? assignment.due_date.slice(0, 10) : '');
     setDescription(assignment.description || '');
     setProtocolTemplateId(assignment.protocol_template_id || '');
-  }, [isOpen, assignment.id, assignment.status, assignment.priority, assignment.due_date, assignment.description, assignment.protocol_template_id]);
+    setContractNumber(assignment.contract_number || '');
+    setContractDate(assignment.contract_date || '');
+    setWorkPeriodFrom(assignment.work_period_from || '');
+    setWorkPeriodTo(assignment.work_period_to || '');
+    setWorkBasis(assignment.work_basis || '');
+    setTechCardNumber(assignment.tech_card_number || '');
+    setHasTechCardFile(!!assignment.has_tech_card_file);
+    setTechCardFileName(assignment.tech_card_file_name || '');
+  }, [isOpen, assignment]);
+
+  const handleUploadTechCardFile = async (file: File) => {
+    setUploadingFile(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}/tech-card-file`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHasTechCardFile(!!data.has_tech_card_file);
+        setTechCardFileName(data.tech_card_file_name || file.name);
+        toast.success('Файл схемы/техкарты загружен');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Ошибка загрузки файла');
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки файла техкарты:', e);
+      toast.error('Ошибка сети при загрузке файла');
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteTechCardFile = async () => {
+    setUploadingFile(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/assignments/${assignment.id}/tech-card-file`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setHasTechCardFile(false);
+        setTechCardFileName('');
+        toast.success('Файл схемы/техкарты удалён');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Ошибка удаления файла');
+      }
+    } catch (e) {
+      console.error('Ошибка удаления файла техкарты:', e);
+      toast.error('Ошибка сети при удалении файла');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -96,6 +167,18 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
       if (canEditTemplate && protocolTemplateId.trim() !== origTemplate) {
         body.protocol_template_id = protocolTemplateId.trim() ? protocolTemplateId.trim() : null;
       }
+
+      const setIfChanged = (key: string, next: string, prev?: string | null) => {
+        const n = next.trim();
+        const p = (prev || '').trim();
+        if (n !== p) body[key] = n || null;
+      };
+      setIfChanged('contract_number', contractNumber, assignment.contract_number);
+      setIfChanged('contract_date', contractDate, assignment.contract_date);
+      setIfChanged('work_period_from', workPeriodFrom, assignment.work_period_from);
+      setIfChanged('work_period_to', workPeriodTo, assignment.work_period_to);
+      setIfChanged('work_basis', workBasis, assignment.work_basis);
+      setIfChanged('tech_card_number', techCardNumber, assignment.tech_card_number);
 
       if (Object.keys(body).length === 0) {
         toast.info('Нет изменений для сохранения');
@@ -192,6 +275,93 @@ const EditAssignmentModal: React.FC<EditAssignmentModalProps> = ({ assignment, i
               placeholder="Описание задания..."
               className="w-full px-3 py-2.5 bg-app-deep border border-app-line rounded-lg text-app-text text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none placeholder-app-text3"
             />
+          </div>
+
+          <div className="rounded-lg border border-app-line bg-app-deep/40 p-3 space-y-3">
+            <p className="text-sm font-medium text-app-text">Данные для титула отчёта ТО</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">№ договора</label>
+                <input type="text" value={contractNumber} onChange={(e) => setContractNumber(e.target.value)}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">Дата договора</label>
+                <input type="date" value={contractDate} onChange={(e) => setContractDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">Период работ с</label>
+                <input type="date" value={workPeriodFrom} onChange={(e) => setWorkPeriodFrom(e.target.value)}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-app-text3 mb-1">Период работ по</label>
+                <input type="date" value={workPeriodTo} onChange={(e) => setWorkPeriodTo(e.target.value)}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-app-text3 mb-1">Основание</label>
+                <input type="text" value={workBasis} onChange={(e) => setWorkBasis(e.target.value)}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-app-text3 mb-1">№ техкарты</label>
+                <input type="text" value={techCardNumber} onChange={(e) => setTechCardNumber(e.target.value)}
+                  className="w-full px-3 py-2 bg-app-deep border border-app-line rounded-lg text-app-text text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-app-text3 mb-1">
+                  Файл схемы контроля / техкарты
+                </label>
+                {hasTechCardFile ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-app-deep border border-app-line rounded-lg text-sm">
+                    <FileText size={14} className="text-accent shrink-0" />
+                    <a
+                      href={`${API_BASE}/api/assignments/${assignment.id}/tech-card-file?inline=true`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-app-text truncate flex-1 hover:underline"
+                      title={techCardFileName}
+                    >
+                      {techCardFileName || 'Файл'}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleDeleteTechCardFile}
+                      disabled={uploadingFile}
+                      className="p-1 text-app-text3 hover:text-red-400 transition disabled:opacity-50"
+                      title="Удалить файл"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingFile}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-app-deep border border-dashed border-app-line rounded-lg text-app-text3 text-sm hover:border-accent hover:text-app-text transition disabled:opacity-50"
+                  >
+                    {uploadingFile ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    Приложить схему/техкарту (PDF, изображение, DOCX)
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadTechCardFile(f);
+                  }}
+                />
+                <p className="text-xs text-app-text3 mt-1">
+                  Готовая схема контроля/техкарта прикладывается к заданию и передаётся инженеру вместе с заданием.
+                </p>
+              </div>
+            </div>
           </div>
 
           {canEditTemplate ? (

@@ -159,7 +159,7 @@ const ReportViewer: React.FC = () => {
           <ArrowLeft size={16} className="inline mr-2" />
           Назад
         </button>
-        <h1 className="text-xl md:text-2xl font-bold text-white">Полный просмотр отчета</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-app-text">Полный просмотр отчета</h1>
         {reportId && (
           <a
             className="ml-auto px-3 py-2 rounded-lg bg-accent text-white text-sm"

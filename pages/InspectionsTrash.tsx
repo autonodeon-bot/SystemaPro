@@ -95,7 +95,7 @@ const InspectionsTrash: React.FC = () => {
       {/* Заголовок */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-app-text flex items-center gap-2">
             <Trash2 size={26} className="text-red-400" />
             Корзина обследований
           </h1>

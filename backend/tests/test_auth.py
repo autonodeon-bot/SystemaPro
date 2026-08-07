@@ -110,27 +110,19 @@ class TestPasswordHashing:
 
 
 class TestPermissions:
-    def test_get_user_permissions_should_return_list_for_known_user(self):
-        perms = get_user_permissions("admin")
+    def test_get_user_permissions_should_return_list_for_known_role(self):
+        perms = get_user_permissions("admin", role="admin")
         assert "admin" in perms
 
-    def test_get_user_permissions_should_return_empty_for_unknown(self):
-        assert get_user_permissions("nonexistent_user_xyz") == []
+    def test_get_user_permissions_should_return_empty_for_unknown_role(self):
+        assert get_user_permissions("user", role="unknown_role_xyz") == []
 
     def test_require_permission_should_allow_when_granted(self):
-        checker = require_permission("read")
-        assert checker(username="engineer") == "engineer"
-
-    def test_require_permission_should_raise_for_unknown_user(self):
-        checker = require_permission("read")
-        with pytest.raises(HTTPException) as exc:
-            checker(username="unknown_user_zzz")
-        assert exc.value.status_code == 403
+        assert require_permission("read", "engineer") == "engineer"
 
     def test_require_permission_should_raise_when_permission_missing(self):
-        checker = require_permission("delete")
         with pytest.raises(HTTPException) as exc:
-            checker(username="client")
+            require_permission("delete", "client")
         assert exc.value.status_code == 403
 
 
@@ -154,7 +146,7 @@ def _make_request() -> "Request":
 
 @pytest.mark.asyncio
 class TestLogin:
-    async def test_login_should_succeed_for_fallback_admin(self):
+    async def test_login_should_reject_unknown_user(self):
         form = MagicMock()
         form.username = "admin"
         form.password = "admin123"
@@ -163,14 +155,11 @@ class TestLogin:
         mock_db = MagicMock()
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        out = await login(_make_request(), form, mock_db)
-        assert out["token_type"] == "bearer"
-        assert out["role"] == "admin"
-        assert "access_token" in out
-        payload = jwt.decode(out["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
-        assert payload["sub"] == "admin"
+        with pytest.raises(HTTPException) as exc:
+            await login(_make_request(), form, mock_db)
+        assert exc.value.status_code == 401
 
-    async def test_login_should_reject_invalid_fallback_credentials(self):
+    async def test_login_should_reject_invalid_credentials(self):
         form = MagicMock()
         form.username = "admin"
         form.password = "wrong"
@@ -246,16 +235,6 @@ class TestGetCurrentUser:
         assert out["username"] == "u1"
         assert out["role"] == "engineer"
         assert out["id"] == str(uid)
-
-    async def test_get_current_user_should_fallback_to_users_db(self):
-        mock_db = MagicMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
-        out = await get_current_user(username="admin", db=mock_db)
-        assert out["username"] == "admin"
-        assert out["role"] == "admin"
 
     async def test_get_current_user_should_404_when_unknown(self):
         mock_db = MagicMock()

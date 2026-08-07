@@ -902,7 +902,7 @@ const DynamicInspection = () => {
                     <NodeIcon type={selectedNode.type} isOpen={true} />
                  </div>
                  <div>
-                    <h2 className="text-2xl font-bold text-white">{selectedNode.name}</h2>
+                    <h2 className="text-2xl font-bold text-app-text">{selectedNode.name}</h2>
                     <p className="text-sm text-app-text3">Уровень иерархии: {selectedNode.type}</p>
                  </div>
               </div>
@@ -949,7 +949,7 @@ const DynamicInspection = () => {
                           {selectedNode.status === 'OK' ? 'В работе' : 'Требует внимания'}
                        </span>
                     </div>
-                    <h2 className="text-2xl font-bold text-white leading-tight">{selectedNode.name}</h2>
+                    <h2 className="text-2xl font-bold text-app-text leading-tight">{selectedNode.name}</h2>
                  </div>
                  
                  {/* Next Inspection Alert */}

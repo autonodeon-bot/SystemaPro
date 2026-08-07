@@ -163,7 +163,7 @@ const ClientPortal = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-start">
         <div>
-          <h1 className="text-2xl font-bold text-white">Клиентский портал</h1>
+          <h1 className="text-2xl font-bold text-app-text">Клиентский портал</h1>
           <p className="text-sm text-app-text3 mt-1">
             {user?.username ? `Вы вошли как ${user.username}` : 'Просмотр оборудования и отчётов'}
             {user?.role === 'client' ? ' · роль «Клиент»' : ''}
@@ -298,7 +298,7 @@ const ClientPortal = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">{selectedEquipment.name}</h2>
+              <h2 className="text-xl font-bold text-app-text">{selectedEquipment.name}</h2>
               <button
                 type="button"
                 onClick={() => setSelectedEquipment(null)}

@@ -734,7 +734,7 @@ const BillingOverview = () => {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-app-text flex items-center gap-2">
             <Wallet className="text-accent shrink-0" size={28} />
             Финансы и биллинг
           </h1>
@@ -860,7 +860,7 @@ const BillingOverview = () => {
 
       {showInvoiceForm && (
         <div className="bg-app-panel rounded-xl border border-app-line p-6">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
             <Receipt className="text-accent" size={20} />
             Новый счёт по проекту
           </h2>
@@ -963,7 +963,7 @@ const BillingOverview = () => {
       )}
 
       <div>
-        <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-app-text mb-3 flex items-center gap-2">
           <Receipt size={20} className="text-accent" />
           Счета по проектам
         </h2>
@@ -1064,7 +1064,7 @@ const BillingOverview = () => {
 
       {showContractForm && (
         <div className="bg-app-panel rounded-xl border border-app-line p-6">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-app-text mb-4 flex items-center gap-2">
             <FileText className="text-accent" size={20} />
             Новый договор по проекту
           </h2>
@@ -1174,7 +1174,7 @@ const BillingOverview = () => {
       )}
 
       <div>
-        <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-app-text mb-3 flex items-center gap-2">
           <FileText size={20} className="text-accent" />
           Договоры по проектам
         </h2>
@@ -1322,7 +1322,7 @@ const BillingOverview = () => {
             aria-modal="true"
           >
             <div className="flex justify-between items-start gap-2 mb-4">
-              <h3 className="text-lg font-bold text-white">Платежи по счёту</h3>
+              <h3 className="text-lg font-bold text-app-text">Платежи по счёту</h3>
               <button
                 type="button"
                 className="text-app-text3 hover:text-app-text text-xl leading-none"

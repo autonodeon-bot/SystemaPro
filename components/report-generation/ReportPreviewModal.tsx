@@ -60,7 +60,7 @@ const ReportPreviewModal = ({
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-2 md:p-4">
       <div className="sp-card-soft rounded-xl w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-app-line">
-          <h2 className="text-xl font-bold text-white">
+          <h2 className="text-xl font-bold text-app-text">
             Предпросмотр {previewType === 'TECHNICAL_REPORT' ? 'технического отчета' : 'экспертизы ПБ'}
           </h2>
           <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">

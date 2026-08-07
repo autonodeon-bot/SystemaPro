@@ -26,7 +26,7 @@ const Glossary = () => {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-6">
+      <h1 className="text-2xl font-bold text-app-text flex items-center gap-2 mb-6">
         <BookOpen className="text-accent" size={28} />
         Глоссарий терминов
       </h1>

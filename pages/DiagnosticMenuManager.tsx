@@ -137,7 +137,7 @@ export default function DiagnosticMenuManager() {
         {loading ? (
           <p className="text-app-text3 mt-4">Загрузка…</p>
         ) : (
-          <pre className="mt-4 p-4 rounded-lg bg-app-surface2 text-xs overflow-auto max-h-[70vh] text-app-text2">
+          <pre className="mt-4 p-4 rounded-lg bg-app-panel border border-app-line text-xs overflow-auto max-h-[70vh] text-app-text2">
             {jsonText}
           </pre>
         )}
@@ -194,7 +194,7 @@ export default function DiagnosticMenuManager() {
         <p className="text-app-text3">Загрузка…</p>
       ) : (
         <textarea
-          className="w-full min-h-[480px] font-mono text-xs p-4 rounded-lg border border-app-border bg-app-surface2 text-app-text focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          className="w-full min-h-[480px] font-mono text-xs p-4 rounded-lg border border-app-line bg-app-panel text-app-text caret-app-text placeholder:text-app-text3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
           spellCheck={false}

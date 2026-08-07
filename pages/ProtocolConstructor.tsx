@@ -948,7 +948,7 @@ const ProtocolConstructor: React.FC = () => {
               <button
                 onClick={compareTemplateVersions}
                 disabled={diffFromVersion === '' || diffToVersion === ''}
-                className="w-full bg-app-soft hover:bg-app-softer disabled:opacity-50 text-white text-xs rounded p-2"
+                className="w-full bg-app-soft hover:bg-app-softer disabled:opacity-50 text-app-text text-xs rounded p-2"
               >
                 Сравнить версии
               </button>

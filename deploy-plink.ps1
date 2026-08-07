@@ -138,4 +138,4 @@ Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Site:   https://neftcontrol.ru/" -ForegroundColor White
 Write-Host "Mobile: https://neftcontrol.ru/mobile/app.apk" -ForegroundColor White
-Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.12-49.apk" -ForegroundColor White
+Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.15-52.apk" -ForegroundColor White

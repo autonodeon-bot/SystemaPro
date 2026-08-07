@@ -6,6 +6,25 @@ import 'package:intl/intl.dart' as intl;
 import '../services/location_service.dart';
 import '../services/photo_annotation_service.dart';
 
+const List<Map<String, String>> kWeldDefectTypes = [
+  {'code': 'POROSITY', 'name': 'Пористость'},
+  {'code': 'CRACK', 'name': 'Трещина'},
+  {'code': 'INCLUSION', 'name': 'Включение'},
+  {'code': 'UNDERCUT', 'name': 'Подрез'},
+  {'code': 'LACK_OF_FUSION', 'name': 'Непровар'},
+  {'code': 'LACK_OF_PENETRATION', 'name': 'Непроплав'},
+  {'code': 'OVERLAP', 'name': 'Наплыв'},
+  {'code': 'BURN_THROUGH', 'name': 'Прожог'},
+  {'code': 'OTHER', 'name': 'Прочее'},
+];
+
+String weldDefectTypeName(String code) {
+  return kWeldDefectTypes.firstWhere(
+    (type) => type['code'] == code,
+    orElse: () => {'name': code},
+  )['name']!;
+}
+
 class WeldDefect {
   Offset position;
   String defectType;
@@ -45,17 +64,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
   File? _imageFile;
   final List<WeldDefect> _defects = [];
 
-  static const List<Map<String, String>> DEFECT_TYPES = [
-    {'code': 'POROSITY', 'name': 'Пористость'},
-    {'code': 'CRACK', 'name': 'Трещина'},
-    {'code': 'INCLUSION', 'name': 'Включение'},
-    {'code': 'UNDERCUT', 'name': 'Подрез'},
-    {'code': 'LACK_OF_FUSION', 'name': 'Непровар'},
-    {'code': 'LACK_OF_PENETRATION', 'name': 'Непроплав'},
-    {'code': 'OVERLAP', 'name': 'Наплыв'},
-    {'code': 'BURN_THROUGH', 'name': 'Прожог'},
-    {'code': 'OTHER', 'name': 'Прочее'},
-  ];
+  static const List<Map<String, String>> DEFECT_TYPES = kWeldDefectTypes;
 
   @override
   void initState() {
@@ -346,12 +355,7 @@ class _WeldDefectAnnotationScreenState extends State<WeldDefectAnnotationScreen>
     );
   }
 
-  String _getDefectTypeName(String code) {
-    return DEFECT_TYPES.firstWhere(
-      (type) => type['code'] == code,
-      orElse: () => {'name': code},
-    )['name']!;
-  }
+  String _getDefectTypeName(String code) => weldDefectTypeName(code);
 
   @override
   Widget build(BuildContext context) {
@@ -622,7 +626,7 @@ class WeldDefectPainter extends CustomPainter {
       // Рисуем текст с типом дефекта
       final textPainter = TextPainter(
         text: TextSpan(
-          text: defect.defectType,
+          text: weldDefectTypeName(defect.defectType),
           style: TextStyle(
             color: defect.color,
             fontSize: 12,

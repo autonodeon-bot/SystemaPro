@@ -30,6 +30,7 @@ __pycache__/
 # Secrets
 .env
 !.env.example
+scripts/deploy-credentials.local.ps1
 
 # Backend data
 backend/uploads/

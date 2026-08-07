@@ -35,13 +35,40 @@ class VesselChecklist {
   String? commissioningYear; // Год ввода в эксплуатацию
   String? designPressure; // Расчётное давление, МПа
   String? testPressure; // Пробное давление, МПа
-  String? workingTemperature; // Допустимая рабочая температура, ℃
-  String? designTemperature; // Расчётная температура, ℃
+  String? workingTemperature; // Температура рабочей среды, ℃
+  String? designTemperature; // Расчётная температура стенки, ℃
   String? workingMedium; // Наименование рабочей среды
-  String? mediumCharacteristics; // Характеристика рабочей среды
+  String? mediumCharacteristics; // устар.: единая характеристика среды
+  String? hazardClass; // Класс опасности по ГОСТ 12.1.007
+  String? explosionHazard; // Категория взрывоопасности
+  String? fireHazard; // Категория пожароопасности
+  String? designation; // Условное обозначение
+  String? connectionScheme; // Схема подключения сосуда
+  String? climaticVersion; // Климатическое исполнение
+  String? emptyMass; // Масса порожнего сосуда, кг
+  String? loadCycles; // Число циклов нагружения
+  String? serviceLife; // Расчётный срок службы, лет
   String? vesselGroup; // Группа сосуда
+
+  // Дополнительные данные о сосуде (раздел «9. Дополнительные данные о сосуде»)
+  String? vesselInstalled; // Сосуд установлен (дата/место/примечание)
+  String? supervisoryRemarks; // Наличие замечаний надзорных органов
+  String? accidentsInfo; // Сведения об авариях, инцидентах и отказах
+  String? repairInfo; // Данные о ремонте и реконструкции
   String? mediumGroup; // Группа рабочей среды
   String? corrosionAllowance; // Прибавка для компенсации коррозии, мм
+  String? calculationResult; // Формулировка разд. 14
+  String? technicalState; // Формулировка техн. состояния (разд. 15)
+  String? contractNumber;
+  String? contractDate;
+  String? workPeriodFrom;
+  String? workPeriodTo;
+  String? workBasis;
+  String? techCardNumber;
+  String? documentationConclusion;
+  String? operationalConclusion;
+  /// Оперативная диагностика: params_ok, vibration, foundation, supports, kip (+ *_note)
+  Map<String, String> operationalDiagnostics = {};
   // Анализ результатов предыдущих обследований
   String? previousInspectionResult;
   List<PreviousInspectionRecord> previousInspections = [];
@@ -240,12 +267,37 @@ class VesselChecklist {
       'design_pressure': designPressure,
       'test_pressure': testPressure,
       'working_temperature': workingTemperature,
+      'working_medium_temperature': workingTemperature,
       'design_temperature': designTemperature,
       'working_medium': workingMedium,
       'medium_characteristics': mediumCharacteristics,
+      'hazard_class': hazardClass,
+      'explosion_hazard': explosionHazard,
+      'fire_hazard': fireHazard,
+      'designation': designation,
+      'connection_scheme': connectionScheme,
+      'climatic_version': climaticVersion,
+      'empty_mass': emptyMass,
+      'load_cycles': loadCycles,
+      'service_life': serviceLife,
       'vessel_group': vesselGroup,
+      'vessel_installed': vesselInstalled,
+      'supervisory_remarks': supervisoryRemarks,
+      'accidents_info': accidentsInfo,
+      'repair_info': repairInfo,
       'medium_group': mediumGroup,
       'corrosion_allowance': corrosionAllowance,
+      'calculation_result': calculationResult,
+      'technical_state': technicalState,
+      'contract_number': contractNumber,
+      'contract_date': contractDate,
+      'work_period_from': workPeriodFrom,
+      'work_period_to': workPeriodTo,
+      'work_basis': workBasis,
+      'tech_card_number': techCardNumber,
+      'documentation_conclusion': documentationConclusion,
+      'operational_conclusion': operationalConclusion,
+      'operational_diagnostics': operationalDiagnostics,
       'previous_inspection_result': previousInspectionResult,
       'previous_inspections': previousInspections.map((e) => e.toJson()).toList(),
       'construction_type': constructionType,
@@ -362,13 +414,43 @@ class VesselChecklist {
     checklist.commissioningYear = json['commissioning_year'] as String?;
     checklist.designPressure = json['design_pressure'] as String?;
     checklist.testPressure = json['test_pressure'] as String?;
-    checklist.workingTemperature = json['working_temperature'] as String?;
+    checklist.workingTemperature =
+        (json['working_medium_temperature'] ?? json['working_temperature']) as String?;
     checklist.designTemperature = json['design_temperature'] as String?;
     checklist.workingMedium = json['working_medium'] as String?;
     checklist.mediumCharacteristics = json['medium_characteristics'] as String?;
+    checklist.hazardClass = json['hazard_class'] as String?;
+    checklist.explosionHazard = json['explosion_hazard'] as String?;
+    checklist.fireHazard = json['fire_hazard'] as String?;
+    checklist.designation = json['designation'] as String?;
+    checklist.connectionScheme = json['connection_scheme'] as String?;
+    checklist.climaticVersion = json['climatic_version'] as String?;
+    checklist.emptyMass = json['empty_mass'] as String?;
+    checklist.loadCycles = json['load_cycles'] as String?;
+    checklist.serviceLife = json['service_life'] as String?;
     checklist.vesselGroup = json['vessel_group'] as String?;
+    checklist.vesselInstalled = json['vessel_installed'] as String?;
+    checklist.supervisoryRemarks = json['supervisory_remarks'] as String?;
+    checklist.accidentsInfo = json['accidents_info'] as String?;
+    checklist.repairInfo = json['repair_info'] as String?;
     checklist.mediumGroup = json['medium_group'] as String?;
     checklist.corrosionAllowance = json['corrosion_allowance'] as String?;
+    checklist.calculationResult = json['calculation_result'] as String?;
+    checklist.technicalState = json['technical_state'] as String?;
+    checklist.contractNumber = json['contract_number'] as String?;
+    checklist.contractDate = json['contract_date'] as String?;
+    checklist.workPeriodFrom = json['work_period_from'] as String?;
+    checklist.workPeriodTo = json['work_period_to'] as String?;
+    checklist.workBasis = json['work_basis'] as String?;
+    checklist.techCardNumber = json['tech_card_number'] as String?;
+    checklist.documentationConclusion = json['documentation_conclusion'] as String?;
+    checklist.operationalConclusion = json['operational_conclusion'] as String?;
+    final op = json['operational_diagnostics'] ?? json['functional_diagnostics'];
+    if (op is Map) {
+      checklist.operationalDiagnostics = op.map(
+        (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+      );
+    }
     checklist.previousInspectionResult = json['previous_inspection_result'] as String?;
     checklist.previousInspections = _parseList(
       json['previous_inspections'],
@@ -983,9 +1065,16 @@ class UztScheme {
 
 class VisualDefect {
   String? defectType; // коррозия, вмятина, трещина, и т.д.
-  String? location;
+  String? location; // одновременно — «объект контроля» (фундаменты, сварные соединения и т.д.)
   String? size;
   String? description;
+  // Зона осмотра — «external» (наружный) / «internal» (внутренний) —
+  // нужна, чтобы объект попал в нужный раздел таблицы результатов ВИК.
+  String? zone;
+  // Итоговая оценка качества по объекту контроля (Годен / Не годен).
+  String? assessment;
+  // Объём контроля по объекту (напр. «100%»).
+  String? scope;
   List<String> photos = [];
 
   VisualDefect();
@@ -993,17 +1082,24 @@ class VisualDefect {
   Map<String, dynamic> toJson() => {
     'defect_type': defectType,
     'location': location,
+    'object': location,
     'size': size,
     'description': description,
+    'zone': zone,
+    'assessment': assessment,
+    'scope': scope,
     'photos': photos,
   };
 
   factory VisualDefect.fromJson(Map<String, dynamic> json) {
     final d = VisualDefect();
     d.defectType = json['defect_type']?.toString();
-    d.location = json['location']?.toString();
+    d.location = json['location']?.toString() ?? json['object']?.toString();
     d.size = json['size']?.toString();
     d.description = json['description']?.toString();
+    d.zone = json['zone']?.toString();
+    d.assessment = json['assessment']?.toString();
+    d.scope = json['scope']?.toString();
     final ph = json['photos'];
     if (ph is List) {
       d.photos = ph.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
@@ -1017,9 +1113,20 @@ class VesselElement {
   String? diameterMm;
   String? lengthMm;
   String? wallThicknessMm;
+  String? calcThickness; // расчётная толщина до прибавки на коррозию
   String? material;
   String? gost;
   String? weldData;
+  String? electrodes;
+  String? ndtMethod;
+  // Механические испытания материала (табл. материалов в отчёте)
+  String? yieldStrength;
+  String? tensileStrength;
+  String? elongation;
+  String? reduction;
+  String? impact;
+  String? testTemperature;
+  String? specimenType;
 
   VesselElement();
 
@@ -1028,9 +1135,19 @@ class VesselElement {
         'diameter_mm': diameterMm,
         'length_mm': lengthMm,
         'wall_thickness_mm': wallThicknessMm,
+        'calc_thickness': calcThickness,
         'material': material,
         'gost': gost,
         'weld_data': weldData,
+        'electrodes': electrodes,
+        'ndt_method': ndtMethod,
+        'yield_strength': yieldStrength,
+        'tensile_strength': tensileStrength,
+        'elongation': elongation,
+        'reduction': reduction,
+        'impact': impact,
+        'temperature': testTemperature,
+        'specimen_type': specimenType,
       };
 
   factory VesselElement.fromJson(Map<String, dynamic> json) {
@@ -1039,9 +1156,20 @@ class VesselElement {
     e.diameterMm = json['diameter_mm']?.toString();
     e.lengthMm = json['length_mm']?.toString();
     e.wallThicknessMm = json['wall_thickness_mm']?.toString();
+    e.calcThickness =
+        (json['calc_thickness'] ?? json['calculated_thickness'])?.toString();
     e.material = json['material']?.toString();
     e.gost = json['gost']?.toString();
     e.weldData = json['weld_data']?.toString();
+    e.electrodes = json['electrodes']?.toString();
+    e.ndtMethod = json['ndt_method']?.toString();
+    e.yieldStrength = json['yield_strength']?.toString();
+    e.tensileStrength = json['tensile_strength']?.toString();
+    e.elongation = json['elongation']?.toString();
+    e.reduction = json['reduction']?.toString();
+    e.impact = json['impact']?.toString();
+    e.testTemperature = json['temperature']?.toString();
+    e.specimenType = json['specimen_type']?.toString();
     return e;
   }
 }
@@ -1051,20 +1179,28 @@ class PreviousInspectionRecord {
   String? date;
   String? reportNumber;
   String? result;
+  String? scope;
+  String? organization;
 
   Map<String, dynamic> toJson() => {
         'kind': kind,
+        'type': kind,
         'date': date,
         'report_number': reportNumber,
         'result': result,
+        'scope': scope,
+        'volume': scope,
+        'organization': organization,
       };
 
   static PreviousInspectionRecord fromJson(Map<String, dynamic> json) {
     final r = PreviousInspectionRecord();
-    r.kind = json['kind']?.toString();
+    r.kind = (json['kind'] ?? json['type'])?.toString();
     r.date = json['date']?.toString();
     r.reportNumber = json['report_number']?.toString();
     r.result = json['result']?.toString();
+    r.scope = (json['scope'] ?? json['volume'])?.toString();
+    r.organization = (json['organization'] ?? json['executor'])?.toString();
     return r;
   }
 }
@@ -1102,6 +1238,7 @@ class HydraulicTestRecord {
   String? testType;
   String? pressure;
   String? medium;
+  String? temperature;
   String? note;
 
   HydraulicTestRecord();
@@ -1109,17 +1246,20 @@ class HydraulicTestRecord {
   Map<String, dynamic> toJson() => {
         'date': date,
         'test_type': testType,
+        'type': testType,
         'pressure': pressure,
         'medium': medium,
+        'temperature': temperature,
         'note': note,
       };
 
   factory HydraulicTestRecord.fromJson(Map<String, dynamic> json) {
     final r = HydraulicTestRecord();
     r.date = json['date']?.toString();
-    r.testType = json['test_type']?.toString();
+    r.testType = (json['test_type'] ?? json['type'])?.toString();
     r.pressure = json['pressure']?.toString();
     r.medium = json['medium']?.toString();
+    r.temperature = json['temperature']?.toString();
     r.note = json['note']?.toString();
     return r;
   }
@@ -1127,6 +1267,7 @@ class HydraulicTestRecord {
 
 class NdtControlRecord {
   String? date;
+  String? kind;
   String? scope;
   String? result;
   String? organization;
@@ -1135,7 +1276,11 @@ class NdtControlRecord {
 
   Map<String, dynamic> toJson() => {
         'date': date,
+        'kind': kind,
+        'type': kind,
+        'control_type': kind,
         'scope': scope,
+        'volume': scope,
         'result': result,
         'organization': organization,
       };
@@ -1143,9 +1288,10 @@ class NdtControlRecord {
   factory NdtControlRecord.fromJson(Map<String, dynamic> json) {
     final r = NdtControlRecord();
     r.date = json['date']?.toString();
-    r.scope = json['scope']?.toString();
+    r.kind = (json['kind'] ?? json['type'] ?? json['control_type'])?.toString();
+    r.scope = (json['scope'] ?? json['volume'])?.toString();
     r.result = json['result']?.toString();
-    r.organization = json['organization']?.toString();
+    r.organization = (json['organization'] ?? json['executor'])?.toString();
     return r;
   }
 }

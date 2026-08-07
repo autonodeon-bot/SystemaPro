@@ -110,7 +110,8 @@ class InspectionPassportSection extends StatelessWidget {
           onAdd: () => _editHydro(context),
           children: _simpleRows(
             checklist.hydraulicTestHistory,
-            (r) => '${r.date ?? "—"} · ${r.pressure ?? "—"}',
+            (r) =>
+                '${r.date ?? "—"} · ${r.testType ?? "гидравл."} · ${r.pressure ?? "—"}',
             (i) => _editHydro(context, index: i),
           ),
         ),
@@ -120,7 +121,8 @@ class InspectionPassportSection extends StatelessWidget {
           onAdd: () => _editNdt(context),
           children: _simpleRows(
             checklist.ndtControlHistory,
-            (r) => '${r.date ?? "—"} · ${r.scope ?? "—"}',
+            (r) =>
+                '${r.date ?? "—"} · ${r.kind ?? r.scope ?? "—"} · ${r.organization ?? ""}',
             (i) => _editNdt(context, index: i),
           ),
         ),
@@ -198,16 +200,46 @@ class InspectionPassportSection extends StatelessWidget {
     final dia = TextEditingController(text: existing.diameterMm);
     final len = TextEditingController(text: existing.lengthMm);
     final wt = TextEditingController(text: existing.wallThicknessMm);
+    final calc = TextEditingController(text: existing.calcThickness);
     final mat = TextEditingController(text: existing.material);
+    final gost = TextEditingController(text: existing.gost);
+    final weld = TextEditingController(text: existing.weldData);
+    final elctr = TextEditingController(text: existing.electrodes);
+    final ndt = TextEditingController(text: existing.ndtMethod);
+    final ys = TextEditingController(text: existing.yieldStrength);
+    final ts = TextEditingController(text: existing.tensileStrength);
+    final elon = TextEditingController(text: existing.elongation);
+    final red = TextEditingController(text: existing.reduction);
+    final imp = TextEditingController(text: existing.impact);
+    final tTemp = TextEditingController(text: existing.testTemperature);
+    final spec = TextEditingController(text: existing.specimenType);
     final ok = await _dialog(
       context,
       'Элемент корпуса',
       [
         buildDialogTextField(name, 'Наименование'),
-        buildDialogTextField(dia, 'Диаметр, мм'),
-        buildDialogTextField(len, 'Длина, мм'),
-        buildDialogTextField(wt, 'Толщина стенки, мм'),
-        buildDialogTextField(mat, 'Марка материала'),
+        buildDialogTextField(dia, 'Диаметр внутренний, мм'),
+        buildDialogTextField(len, 'Длина или высота, мм'),
+        buildDialogTextField(wt, 'Толщина стенки номинальная, мм'),
+        buildDialogTextField(
+            calc, 'Расчётная толщина стенки (до прибавки на коррозию), мм'),
+        buildDialogTextField(mat, 'Марка стали'),
+        buildDialogTextField(gost, 'ГОСТ / ТУ материала'),
+        buildDialogTextField(weld, 'Вид сварки'),
+        buildDialogTextField(elctr, 'Электроды / сварочная проволока'),
+        buildDialogTextField(ndt, 'Метод неразрушающего контроля'),
+        const SizedBox(height: 8),
+        const Text(
+          'Механические испытания (по сертификату / протоколу)',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        buildDialogTextField(ys, 'Предел текучести σт, МПа'),
+        buildDialogTextField(ts, 'Временное сопротивление σв, МПа'),
+        buildDialogTextField(elon, 'Относительное удлинение δ, %'),
+        buildDialogTextField(red, 'Относительное сужение ψ, %'),
+        buildDialogTextField(imp, 'Ударная вязкость KCU/KCV'),
+        buildDialogTextField(tTemp, 'Температура испытания, °C'),
+        buildDialogTextField(spec, 'Тип образца'),
       ],
     );
     if (ok == true) {
@@ -216,7 +248,19 @@ class InspectionPassportSection extends StatelessWidget {
         ..diameterMm = dia.text.trim()
         ..lengthMm = len.text.trim()
         ..wallThicknessMm = wt.text.trim()
-        ..material = mat.text.trim();
+        ..calcThickness = calc.text.trim()
+        ..material = mat.text.trim()
+        ..gost = gost.text.trim()
+        ..weldData = weld.text.trim()
+        ..electrodes = elctr.text.trim()
+        ..ndtMethod = ndt.text.trim()
+        ..yieldStrength = ys.text.trim()
+        ..tensileStrength = ts.text.trim()
+        ..elongation = elon.text.trim()
+        ..reduction = red.text.trim()
+        ..impact = imp.text.trim()
+        ..testTemperature = tTemp.text.trim()
+        ..specimenType = spec.text.trim();
       if (index != null) {
         checklist.vesselElements[index] = el;
       } else {
@@ -230,12 +274,23 @@ class InspectionPassportSection extends StatelessWidget {
     final e = index != null ? checklist.heatTreatmentRecords[index] : HeatTreatmentRecord();
     final el = TextEditingController(text: e.element);
     final tp = TextEditingController(text: e.type);
+    final temp = TextEditingController(text: e.temperature);
+    final dur = TextEditingController(text: e.duration);
+    final cool = TextEditingController(text: e.cooling);
     final ok = await _dialog(context, 'Термообработка', [
-      buildDialogTextField(el, 'Элемент'),
-      buildDialogTextField(tp, 'Вид'),
+      buildDialogTextField(el, 'Элемент / соединение'),
+      buildDialogTextField(tp, 'Вид термообработки'),
+      buildDialogTextField(temp, 'Температура, °C'),
+      buildDialogTextField(dur, 'Продолжительность выдержки, ч'),
+      buildDialogTextField(cool, 'Способ охлаждения'),
     ]);
     if (ok == true) {
-      final r = HeatTreatmentRecord()..element = el.text..type = tp.text;
+      final r = HeatTreatmentRecord()
+        ..element = el.text.trim()
+        ..type = tp.text.trim()
+        ..temperature = temp.text.trim()
+        ..duration = dur.text.trim()
+        ..cooling = cool.text.trim();
       if (index != null) {
         checklist.heatTreatmentRecords[index] = r;
       } else {
@@ -248,13 +303,27 @@ class InspectionPassportSection extends StatelessWidget {
   Future<void> _editHydro(BuildContext context, {int? index}) async {
     final e = index != null ? checklist.hydraulicTestHistory[index] : HydraulicTestRecord();
     final dt = TextEditingController(text: e.date);
+    final tp = TextEditingController(text: e.testType ?? 'гидравлическое');
     final pr = TextEditingController(text: e.pressure);
+    final md = TextEditingController(text: e.medium);
+    final tm = TextEditingController(text: e.temperature);
+    final nt = TextEditingController(text: e.note);
     final ok = await _dialog(context, 'Гидроиспытание', [
       buildDialogTextField(dt, 'Дата'),
-      buildDialogTextField(pr, 'Пробное давление'),
+      buildDialogTextField(tp, 'Вид испытания (гидравлическое / пневматическое)'),
+      buildDialogTextField(pr, 'Пробное давление, кгс/см²'),
+      buildDialogTextField(md, 'Испытательная среда'),
+      buildDialogTextField(tm, 'Температура испытательной среды, °C'),
+      buildDialogTextField(nt, 'Примечание'),
     ]);
     if (ok == true) {
-      final r = HydraulicTestRecord()..date = dt.text..pressure = pr.text;
+      final r = HydraulicTestRecord()
+        ..date = dt.text.trim()
+        ..testType = tp.text.trim()
+        ..pressure = pr.text.trim()
+        ..medium = md.text.trim()
+        ..temperature = tm.text.trim()
+        ..note = nt.text.trim();
       if (index != null) {
         checklist.hydraulicTestHistory[index] = r;
       } else {
@@ -267,13 +336,24 @@ class InspectionPassportSection extends StatelessWidget {
   Future<void> _editNdt(BuildContext context, {int? index}) async {
     final e = index != null ? checklist.ndtControlHistory[index] : NdtControlRecord();
     final dt = TextEditingController(text: e.date);
+    final kd = TextEditingController(text: e.kind);
     final sc = TextEditingController(text: e.scope);
+    final rs = TextEditingController(text: e.result);
+    final org = TextEditingController(text: e.organization);
     final ok = await _dialog(context, 'История НК', [
       buildDialogTextField(dt, 'Дата'),
-      buildDialogTextField(sc, 'Вид и объём'),
+      buildDialogTextField(kd, 'Вид контроля'),
+      buildDialogTextField(sc, 'Объём контроля'),
+      buildDialogTextField(rs, 'Основные результаты контроля'),
+      buildDialogTextField(org, 'Организация-исполнитель'),
     ]);
     if (ok == true) {
-      final r = NdtControlRecord()..date = dt.text..scope = sc.text;
+      final r = NdtControlRecord()
+        ..date = dt.text.trim()
+        ..kind = kd.text.trim()
+        ..scope = sc.text.trim()
+        ..result = rs.text.trim()
+        ..organization = org.text.trim();
       if (index != null) {
         checklist.ndtControlHistory[index] = r;
       } else {

@@ -26,6 +26,17 @@ class Assignment {
   /// Обязательный шаблон протокола (id в конструкторе веба).
   final String? protocolTemplateId;
   final String? protocolTemplateName;
+  /// Форма ТО из каталога (to-1, to-13, …).
+  final String? reportFormId;
+  final String? reportFormTitle;
+  final String? contractNumber;
+  final String? contractDate;
+  final String? workPeriodFrom;
+  final String? workPeriodTo;
+  final String? workBasis;
+  final String? techCardNumber;
+  final String? techCardFileName;
+  final bool hasTechCardFile;
 
   Assignment({
     required this.id,
@@ -54,6 +65,16 @@ class Assignment {
     this.opoCode,
     this.protocolTemplateId,
     this.protocolTemplateName,
+    this.reportFormId,
+    this.reportFormTitle,
+    this.contractNumber,
+    this.contractDate,
+    this.workPeriodFrom,
+    this.workPeriodTo,
+    this.workBasis,
+    this.techCardNumber,
+    this.techCardFileName,
+    this.hasTechCardFile = false,
   });
 
   static DateTime? _parseDateTimeSafe(dynamic value, {DateTime? fallback}) {
@@ -103,6 +124,16 @@ class Assignment {
       opoCode: json['opo_code'] as String?,
       protocolTemplateId: json['protocol_template_id'] as String?,
       protocolTemplateName: json['protocol_template_name'] as String?,
+      reportFormId: json['report_form_id'] as String?,
+      reportFormTitle: json['report_form_title'] as String?,
+      contractNumber: json['contract_number'] as String?,
+      contractDate: json['contract_date'] as String?,
+      workPeriodFrom: json['work_period_from'] as String?,
+      workPeriodTo: json['work_period_to'] as String?,
+      workBasis: json['work_basis'] as String?,
+      techCardNumber: json['tech_card_number'] as String?,
+      techCardFileName: json['tech_card_file_name'] as String?,
+      hasTechCardFile: json['has_tech_card_file'] as bool? ?? false,
     );
   }
 
@@ -134,6 +165,16 @@ class Assignment {
       'opo_code': opoCode,
       'protocol_template_id': protocolTemplateId,
       'protocol_template_name': protocolTemplateName,
+      'report_form_id': reportFormId,
+      'report_form_title': reportFormTitle,
+      'contract_number': contractNumber,
+      'contract_date': contractDate,
+      'work_period_from': workPeriodFrom,
+      'work_period_to': workPeriodTo,
+      'work_basis': workBasis,
+      'tech_card_number': techCardNumber,
+      'tech_card_file_name': techCardFileName,
+      'has_tech_card_file': hasTechCardFile,
     };
   }
 
@@ -154,7 +195,7 @@ class Assignment {
       case 'NVO_GI':
         return 'НВО и ГИ';
       default:
-        return assignmentType;
+        return 'Прочее';
     }
   }
 
@@ -169,7 +210,7 @@ class Assignment {
       case 'CANCELLED':
         return 'Отменено';
       default:
-        return status;
+        return 'Неизвестно';
     }
   }
 }

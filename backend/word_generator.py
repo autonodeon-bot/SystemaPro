@@ -41,6 +41,10 @@ from report_attachments import build_attachments_index
 from suitability_conclusions import conclusion_from_inspection_data
 from technical_report_builder import TechnicalReportContext, append_technical_protocol_doc_analysis, TO_DOCUMENT_NAMES
 from report_org_settings import load_report_org_settings, merge_client_into_settings
+from report_forms_registry import get_form, resolve_form_path, suggest_form_id, FILLABLE_FORM_IDS
+from form_template_filler import fill_vessel_form_to1
+from form_template_filler_pipeline import fill_pipeline_form_to13
+from form_template_filler_tank import fill_tank_form_to25
 from report_format_helpers import (
     add_inspector_signature_block,
     add_protocol_header_from_settings,
@@ -523,7 +527,22 @@ class WordGenerator:
                 org_settings=org_settings,
             )
         
-        # Сосуд / газосепаратор / ресивер — единый шаблон отчёта СРпД
+        # Технический отчёт по форме ТО (Word-шаблон из каталога «Приложение_форма ТО»)
+        if rt in ("TECHNICAL_REPORT", "TECHNICAL", "TO", "ТД", ""):
+            filled = self._try_fill_official_form(
+                inspection_data=inspection_data,
+                equipment_data=equipment_data,
+                output_path=output_path,
+                verification_equipment=verification_equipment,
+                org_settings=org_settings,
+                specialist_docs=specialist_docs,
+                document_files=document_files,
+                ndt_methods=ndt_methods,
+            )
+            if filled:
+                return filled
+
+        # Сосуд / газосепаратор / ресивер — программный шаблон (ЭПБ и fallback)
         if is_pressure_device(equipment_data):
             return self._generate_vessel_report_word(
                 inspection_data=inspection_data,
@@ -2827,6 +2846,75 @@ class WordGenerator:
         apply_device_terminology_to_document(doc, detect_pressure_device_kind(equipment_data))
         doc.save(output_path)
         return
+
+    def _try_fill_official_form(
+        self,
+        inspection_data: Dict[str, Any],
+        equipment_data: Dict[str, Any],
+        output_path: str,
+        verification_equipment: Optional[List[Dict[str, Any]]] = None,
+        org_settings: Optional[Dict[str, Any]] = None,
+        specialist_docs: Optional[List[Dict[str, Any]]] = None,
+        document_files: Optional[List[Dict[str, Any]]] = None,
+        ndt_methods: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[str]:
+        """
+        Заполнить официальную Word-форму ТО из каталога report_forms.
+        Возвращает путь при успехе, иначе None (fallback на программный генератор).
+        """
+        data = inspection_data.get("data") or {}
+        if not isinstance(data, dict):
+            data = {}
+        form_id = (
+            data.get("report_form_id")
+            or inspection_data.get("report_form_id")
+            or ""
+        )
+        form_id = str(form_id).strip().lower()
+        if not form_id:
+            form_id = suggest_form_id(
+                equipment_type_code=equipment_data.get("type_code"),
+                equipment_name=equipment_data.get("name"),
+                equipment_type_name=equipment_data.get("type_name"),
+            )
+        if form_id not in FILLABLE_FORM_IDS:
+            return None
+        path = resolve_form_path(form_id)
+        if path is None or not path.exists():
+            # Не уходим в старый программный ТО молча — форма обязана быть в образе.
+            raise FileNotFoundError(
+                f"Официальная форма {form_id} не найдена в report_forms "
+                f"(ожидается {form_id}.docx). Проверьте деплой каталога форм."
+            )
+        fillers = {
+            "to-1": fill_vessel_form_to1,
+            "to-13": fill_pipeline_form_to13,
+            "to-25": fill_tank_form_to25,
+        }
+        filler = fillers.get(form_id)
+        if not filler:
+            return None
+        try:
+            kwargs = dict(
+                inspection_data=inspection_data,
+                equipment_data=equipment_data,
+                output_path=output_path,
+                verification_equipment=verification_equipment,
+                org_settings=org_settings,
+                specialist_docs=specialist_docs,
+                document_files=document_files,
+                find_image=self._find_image_path,
+            )
+            # ndt_methods поддерживает to-1; остальные fillers пока игнорируют лишний kw через отсутствие параметра
+            import inspect as _inspect
+            if "ndt_methods" in _inspect.signature(filler).parameters:
+                kwargs["ndt_methods"] = ndt_methods
+            filled = filler(**kwargs)
+            print(f"ТО сгенерирован по официальной форме {form_id}: {filled}")
+            return filled
+        except Exception as exc:
+            # Для fillable-форм не подменяем «чужим» макетом — иначе отчёт выглядит не по форме.
+            raise RuntimeError(f"Ошибка заполнения официальной формы {form_id}: {exc}") from exc
     
     def _generate_vessel_report_word(
         self,

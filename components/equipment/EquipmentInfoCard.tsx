@@ -127,7 +127,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
           aria-modal="true"
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-app-text">
               {modal.type === 'enterprise'
                 ? 'Предприятие'
                 : modal.type === 'branch'
@@ -142,7 +142,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
 
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
                 <Users className="text-accent" size={20} />
                 Назначенные инженеры ({assignedEngineers.length})
               </h3>
@@ -211,7 +211,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
         aria-modal="true"
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-app-text flex items-center gap-2">
             <Settings className="text-accent" size={24} />
             {modal.name}
           </h2>
@@ -226,7 +226,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
           <div className="space-y-6">
             {equipmentData && (
               <div className="bg-app-deep rounded-lg p-4 border border-app-line">
-                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
                   <Settings className="text-accent" size={20} />
                   Характеристики
                 </h3>
@@ -273,7 +273,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
             )}
 
             <div className="bg-app-deep rounded-lg p-4 border border-app-line">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
                 <FileText className="text-accent" size={20} />
                 История обследований ({inspectionHistory.length})
               </h3>
@@ -320,7 +320,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
             </div>
 
             <div className="bg-app-deep rounded-lg p-4 border border-app-line">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
                 <Wrench className="text-accent" size={20} />
                 Журнал ремонтов ({repairJournal.length})
               </h3>
@@ -353,7 +353,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
             </div>
 
             <div className="bg-app-deep rounded-lg p-4 border border-app-line">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
                 <FileText className="text-accent" size={20} />
                 Документы по диагностике ({reports.length})
               </h3>
@@ -400,7 +400,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
             </div>
 
             <div className="bg-app-deep rounded-lg p-4 border border-app-line">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
                 <Users className="text-accent" size={20} />
                 Назначенные инженеры ({assignedEngineers.length})
               </h3>

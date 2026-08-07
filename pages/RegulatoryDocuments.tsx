@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { Search, BookOpen, Filter, RefreshCw } from 'lucide-react';
+import { Search, BookOpen, Filter, RefreshCw, Upload, Download } from 'lucide-react';
 import { API_BASE } from '../constants';
 
 interface RegulatoryDocument {
@@ -12,6 +12,8 @@ interface RegulatoryDocument {
   requirements?: Record<string, unknown>;
   effective_date?: string;
   expiry_date?: string;
+  has_file?: boolean;
+  file_name?: string;
 }
 
 interface EquipmentTypeRow {
@@ -40,6 +42,16 @@ const RegulatoryDocuments = () => {
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [equipmentTypeFilter, setEquipmentTypeFilter] = useState<string>('');
   const [selectedDoc, setSelectedDoc] = useState<RegulatoryDocument | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    document_type: 'GOST',
+    number: '',
+    name: '',
+    description: '',
+    file: null as File | null,
+  });
+  const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(searchInput), 360);
@@ -65,8 +77,12 @@ const RegulatoryDocuments = () => {
       if (equipmentTypeFilter.trim()) params.set('equipment_type', equipmentTypeFilter.trim());
       params.set('limit', '500');
       const qs = params.toString();
+      const headers: HeadersInit = {};
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(
         `${API_BASE}/api/regulatory-documents${qs ? `?${qs}` : ''}`,
+        { headers },
       );
       const data = await response.json();
       setDocuments(data.items || []);
@@ -96,6 +112,63 @@ const RegulatoryDocuments = () => {
     return hit?.label ?? type;
   };
 
+
+  const handleUpload = async () => {
+    if (!uploadForm.file) {
+      setUploadError('Выберите файл PDF или DOCX');
+      return;
+    }
+    setUploading(true);
+    setUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', uploadForm.file);
+      fd.append('document_type', uploadForm.document_type);
+      fd.append('number', uploadForm.number);
+      fd.append('name', uploadForm.name || uploadForm.file.name);
+      fd.append('description', uploadForm.description);
+      const headers: HeadersInit = {};
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/regulatory-documents/upload`, {
+        method: 'POST',
+        headers,
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Ошибка загрузки');
+      }
+      setShowUpload(false);
+      setUploadForm({ document_type: 'GOST', number: '', name: '', description: '', file: null });
+      await loadDocuments();
+    } catch (e: any) {
+      setUploadError(e?.message || 'Ошибка загрузки');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc: RegulatoryDocument) => {
+    try {
+      const headers: HeadersInit = {};
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/regulatory-documents/${doc.id}/download`, { headers });
+      if (!res.ok) throw new Error('Не удалось скачать файл');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name || `${doc.number || doc.name}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось скачать файл документа');
+    }
+  };
+
   const hasRequirements = (doc: RegulatoryDocument) =>
     doc.requirements && Object.keys(doc.requirements).length > 0;
 
@@ -107,7 +180,7 @@ const RegulatoryDocuments = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Нормативные документы</h1>
+          <h1 className="text-2xl font-bold text-app-text">Нормативные документы</h1>
           {listMeta && (
             <p className="text-sm text-app-text3 mt-1">
               В выборке: {listMeta.total_returned}
@@ -115,15 +188,25 @@ const RegulatoryDocuments = () => {
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => loadDocuments()}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-app-line bg-app-panel text-app-text text-sm hover:border-accent/40 disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Обновить
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowUpload(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-blue-600 text-white text-sm font-medium"
+          >
+            <Upload size={16} />
+            Загрузить PDF/DOCX
+          </button>
+          <button
+            type="button"
+            onClick={() => loadDocuments()}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-app-line bg-app-panel text-app-text text-sm hover:border-accent/40 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Обновить
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4">
@@ -219,6 +302,9 @@ const RegulatoryDocuments = () => {
               </div>
             )}
 
+            {doc.has_file && (
+              <p className="text-[11px] text-emerald-400 mb-1">Прикреплён файл {doc.file_name || ''}</p>
+            )}
             {hasRequirements(doc) && (
               <p className="text-[11px] text-accent/90 mb-1">Есть структурированные требования</p>
             )}
@@ -234,6 +320,72 @@ const RegulatoryDocuments = () => {
 
       {documents.length === 0 && !loading && (
         <div className="text-center text-app-text3 py-20">Документы не найдены — измените фильтры или поиск</div>
+      )}
+
+
+      {showUpload && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !uploading && setShowUpload(false)}>
+          <div className="bg-app-panel rounded-xl p-6 max-w-lg w-full border border-app-line shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-app-text mb-4">Загрузка нормативного документа</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Тип</label>
+                <select
+                  value={uploadForm.document_type}
+                  onChange={(e) => setUploadForm({ ...uploadForm, document_type: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded-lg px-3 py-2 text-app-text"
+                >
+                  {DOC_TYPE_OPTIONS.filter((o) => o.value !== 'ALL').map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Номер</label>
+                <input
+                  value={uploadForm.number}
+                  onChange={(e) => setUploadForm({ ...uploadForm, number: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded-lg px-3 py-2 text-app-text"
+                  placeholder="ГОСТ 14249-89"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Название</label>
+                <input
+                  value={uploadForm.name}
+                  onChange={(e) => setUploadForm({ ...uploadForm, name: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded-lg px-3 py-2 text-app-text"
+                  placeholder="Если пусто — из имени файла"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Описание</label>
+                <textarea
+                  value={uploadForm.description}
+                  onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded-lg px-3 py-2 text-app-text"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Файл (PDF, DOC, DOCX)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => setUploadForm({ ...uploadForm, file: e.target.files?.[0] || null })}
+                  className="w-full text-sm text-app-text"
+                />
+              </div>
+              {uploadError && <p className="text-sm text-red-400">{uploadError}</p>}
+              <div className="flex gap-2 pt-2">
+                <button type="button" disabled={uploading} onClick={handleUpload} className="flex-1 px-4 py-2 bg-accent hover:bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50">
+                  {uploading ? 'Загрузка…' : 'Загрузить'}
+                </button>
+                <button type="button" disabled={uploading} onClick={() => setShowUpload(false)} className="px-4 py-2 bg-app-soft text-app-text rounded-lg">Отмена</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {selectedDoc && (
@@ -253,16 +405,28 @@ const RegulatoryDocuments = () => {
                   </span>
                   <span className="text-sm text-app-text3 font-mono">{selectedDoc.number}</span>
                 </div>
-                <h2 className="text-xl font-bold text-white leading-snug">{selectedDoc.name}</h2>
+                <h2 className="text-xl font-bold text-app-text leading-snug">{selectedDoc.name}</h2>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedDoc(null)}
-                className="text-app-text3 hover:text-app-text shrink-0 text-xl leading-none"
-                aria-label="Закрыть"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {selectedDoc.has_file && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(selectedDoc)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-app-line text-sm text-app-text hover:border-accent/40"
+                  >
+                    <Download size={16} />
+                    Скачать файл
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDoc(null)}
+                  className="text-app-text3 hover:text-app-text text-xl leading-none"
+                  aria-label="Закрыть"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {selectedDoc.description && (
@@ -276,7 +440,7 @@ const RegulatoryDocuments = () => {
               {selectedDoc.effective_date && (
                 <div>
                   <p className="text-sm text-app-text3 mb-1">Дата вступления в силу</p>
-                  <p className="text-white">
+                  <p className="text-app-text">
                     {new Date(selectedDoc.effective_date).toLocaleDateString('ru-RU')}
                   </p>
                 </div>
@@ -284,7 +448,7 @@ const RegulatoryDocuments = () => {
               {selectedDoc.expiry_date && (
                 <div>
                   <p className="text-sm text-app-text3 mb-1">Дата окончания действия</p>
-                  <p className="text-white">
+                  <p className="text-app-text">
                     {new Date(selectedDoc.expiry_date).toLocaleDateString('ru-RU')}
                   </p>
                 </div>
@@ -306,7 +470,7 @@ const RegulatoryDocuments = () => {
 
             {hasRequirements(selectedDoc) && (
               <div>
-                <p className="text-sm text-app-text3 mb-2">Требования / extracted JSON</p>
+                <p className="text-sm text-app-text3 mb-2">Требования / структурированные требования</p>
                 <pre className="text-xs text-app-text2 bg-app-deep rounded-lg p-3 border border-app-line overflow-x-auto whitespace-pre-wrap max-h-64">
                   {JSON.stringify(selectedDoc.requirements, null, 2)}
                 </pre>

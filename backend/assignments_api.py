@@ -2,15 +2,18 @@
 API для работы с заданиями на диагностику/экспертизу оборудования (версия 3.4.0)
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, update, text
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timezone
+from pathlib import Path
 import uuid as uuid_lib
 import logging
+import os
 
 from database import get_db
 from models import (
@@ -30,6 +33,7 @@ from models import (
 )
 from auth import verify_token
 from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
+from report_forms_registry import get_form, suggest_form_id
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +97,41 @@ async def _fetch_template_names(db: AsyncSession, template_ids: set) -> dict:
         return {}
 
 
+
+def _assignment_contract_payload(assignment: Assignment) -> dict:
+    """Поля договора/сроков/техкарты для ответа API и мобильного."""
+    def _s(name: str):
+        v = getattr(assignment, name, None)
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+    return {
+        "contract_number": _s("contract_number"),
+        "contract_date": _s("contract_date"),
+        "work_period_from": _s("work_period_from"),
+        "work_period_to": _s("work_period_to"),
+        "work_basis": _s("work_basis"),
+        "tech_card_number": _s("tech_card_number"),
+        "tech_card_file_name": _s("tech_card_file_name"),
+        "has_tech_card_file": bool(_s("tech_card_file_path")),
+    }
+
+def _report_form_payload(assignment: Assignment) -> dict:
+    """Поля формы ТО для ответа API."""
+    fid = getattr(assignment, "report_form_id", None)
+    fid_s = str(fid).strip() if fid else None
+    title = None
+    if fid_s:
+        meta = get_form(fid_s)
+        if meta:
+            title = meta.get("title")
+    return {
+        "report_form_id": fid_s,
+        "report_form_title": title,
+    }
+
+
 # Pydantic модели
 class AssignmentCreate(BaseModel):
     equipment_id: str
@@ -102,7 +141,14 @@ class AssignmentCreate(BaseModel):
     due_date: Optional[str] = None
     description: Optional[str] = None
     protocol_template_id: Optional[str] = None
+    report_form_id: Optional[str] = None
     ndt_method_codes: Optional[List[str]] = None
+    contract_number: Optional[str] = None
+    contract_date: Optional[str] = None
+    work_period_from: Optional[str] = None
+    work_period_to: Optional[str] = None
+    work_basis: Optional[str] = None
+    tech_card_number: Optional[str] = None
 
 class AssignmentUpdate(BaseModel):
     status: Optional[str] = None
@@ -110,6 +156,13 @@ class AssignmentUpdate(BaseModel):
     due_date: Optional[str] = None
     description: Optional[str] = None
     protocol_template_id: Optional[str] = None
+    report_form_id: Optional[str] = None
+    contract_number: Optional[str] = None
+    contract_date: Optional[str] = None
+    work_period_from: Optional[str] = None
+    work_period_to: Optional[str] = None
+    work_basis: Optional[str] = None
+    tech_card_number: Optional[str] = None
 
 class AssignmentsStatusSummaryRequest(BaseModel):
     assignment_ids: List[str]
@@ -141,7 +194,17 @@ class AssignmentResponse(BaseModel):
     opo_code: Optional[str] = None
     protocol_template_id: Optional[str] = None
     protocol_template_name: Optional[str] = None
+    report_form_id: Optional[str] = None
+    report_form_title: Optional[str] = None
     ndt_method_codes: Optional[List[str]] = None
+    contract_number: Optional[str] = None
+    contract_date: Optional[str] = None
+    work_period_from: Optional[str] = None
+    work_period_to: Optional[str] = None
+    work_basis: Optional[str] = None
+    tech_card_number: Optional[str] = None
+    tech_card_file_name: Optional[str] = None
+    has_tech_card_file: Optional[bool] = False
 
 class ObjectEngineerProgress(BaseModel):
     user_id: str
@@ -236,6 +299,28 @@ async def create_assignment(
         else:
             tpl_id_raw = None
 
+        # Форма ТО: явный выбор или автоподбор по типу оборудования
+        form_id_raw = (assignment_data.report_form_id or "").strip().lower() or None
+        if form_id_raw:
+            if not get_form(form_id_raw):
+                raise HTTPException(status_code=400, detail="Форма ТО не найдена в каталоге")
+        else:
+            eq_type_code = None
+            eq_type_name = None
+            if getattr(equipment, "type_id", None):
+                et_res = await db.execute(
+                    select(EquipmentType).where(EquipmentType.id == equipment.type_id)
+                )
+                et = et_res.scalar_one_or_none()
+                if et:
+                    eq_type_code = et.code
+                    eq_type_name = et.name
+            form_id_raw = suggest_form_id(
+                equipment_type_code=eq_type_code,
+                equipment_name=equipment.name,
+                equipment_type_name=eq_type_name,
+            )
+
         # Парсим дату
         due_date = None
         if assignment_data.due_date:
@@ -255,7 +340,14 @@ async def create_assignment(
             description=assignment_data.description,
             status='PENDING',
             protocol_template_id=tpl_id_raw,
+            report_form_id=form_id_raw,
             ndt_method_codes=assignment_data.ndt_method_codes or [],
+            contract_number=(assignment_data.contract_number or None),
+            contract_date=(assignment_data.contract_date or None),
+            work_period_from=(assignment_data.work_period_from or None),
+            work_period_to=(assignment_data.work_period_to or None),
+            work_basis=(assignment_data.work_basis or None),
+            tech_card_number=(assignment_data.tech_card_number or None),
         )
 
         db.add(new_assignment)
@@ -277,7 +369,8 @@ async def create_assignment(
         return {
             "id": str(new_assignment.id),
             "status": "created",
-            "message": "Задание успешно создано"
+            "message": "Задание успешно создано",
+            "report_form_id": getattr(new_assignment, "report_form_id", None),
         }
 
     except HTTPException:
@@ -454,6 +547,8 @@ async def get_assignments(
                 )
                 if getattr(assignment, "protocol_template_id", None)
                 else None,
+                **_report_form_payload(assignment),
+                **_assignment_contract_payload(assignment),
                 "ndt_method_codes": list(getattr(assignment, "ndt_method_codes", None) or []),
             })
 
@@ -601,6 +696,8 @@ async def get_assignments_sync(
                 )
                 if getattr(assignment, "protocol_template_id", None)
                 else None,
+                **_report_form_payload(assignment),
+                **_assignment_contract_payload(assignment),
                 "ndt_method_codes": list(getattr(assignment, "ndt_method_codes", None) or []),
             })
 
@@ -669,6 +766,8 @@ async def get_assignment(
             "completed_at": (lambda t: t.isoformat() if t else None)(getattr(assignment, "completed_at", None)),
             "protocol_template_id": str(ptid) if ptid else None,
             "protocol_template_name": tpl_name,
+            **_report_form_payload(assignment),
+                **_assignment_contract_payload(assignment),
             "ndt_method_codes": list(getattr(assignment, "ndt_method_codes", None) or []),
         }
 
@@ -676,6 +775,134 @@ async def get_assignment(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении задания: {str(e)}")
+
+@router.post("/{assignment_id}/tech-card-file", response_model=dict)
+async def upload_tech_card_file(
+    assignment_id: str,
+    file: UploadFile = File(...),
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Загрузить файл схемы контроля / техкарты к заданию.
+
+    Альтернатива редактируемой «библиотеке схем» — оператор может приложить
+    готовую схему/техкарту (PDF, изображение, DOCX) прямо к заданию.
+    """
+    try:
+        user = await _get_current_user(username, db)
+        result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
+        assignment = result.scalar_one_or_none()
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        await _check_assignment_access(user, assignment)
+        if user.role not in OPERATOR_ROLES:
+            raise HTTPException(status_code=403, detail="Загружать техкарту может только оператор/администратор")
+
+        upload_dir = Path("/app/uploads/assignment_tech_cards") / str(assignment.id)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Удаляем предыдущий файл, если был
+        old_path = getattr(assignment, "tech_card_file_path", None)
+        if old_path and os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+        file_ext = Path(file.filename or "").suffix
+        stored_name = f"{uuid_lib.uuid4()}{file_ext}"
+        file_path = upload_dir / stored_name
+
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        assignment.tech_card_file_path = str(file_path)
+        assignment.tech_card_file_name = file.filename
+        assignment.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        return {
+            "success": True,
+            "tech_card_file_name": assignment.tech_card_file_name,
+            "has_tech_card_file": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка загрузки файла техкарты: {str(e)}")
+
+
+@router.get("/{assignment_id}/tech-card-file")
+async def download_tech_card_file(
+    assignment_id: str,
+    inline: bool = False,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Скачать/просмотреть файл схемы контроля / техкарты задания."""
+    try:
+        user = await _get_current_user(username, db)
+        result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
+        assignment = result.scalar_one_or_none()
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        await _check_assignment_access(user, assignment)
+
+        path = getattr(assignment, "tech_card_file_path", None)
+        if not path or not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="Файл техкарты не найден")
+
+        file_name = assignment.tech_card_file_name or "tech_card"
+
+        def iterfile():
+            with open(path, mode="rb") as file_like:
+                yield from file_like
+
+        disposition = "inline" if inline else "attachment"
+        headers = {"Content-Disposition": f'{disposition}; filename="{file_name}"'}
+        return StreamingResponse(iterfile(), headers=headers)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении файла техкарты: {str(e)}")
+
+
+@router.delete("/{assignment_id}/tech-card-file", response_model=dict)
+async def delete_tech_card_file(
+    assignment_id: str,
+    username: str = Depends(verify_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удалить файл схемы контроля / техкарты задания."""
+    try:
+        user = await _get_current_user(username, db)
+        result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
+        assignment = result.scalar_one_or_none()
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        await _check_assignment_access(user, assignment)
+        if user.role not in OPERATOR_ROLES:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+
+        old_path = getattr(assignment, "tech_card_file_path", None)
+        if old_path and os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+        assignment.tech_card_file_path = None
+        assignment.tech_card_file_name = None
+        assignment.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка удаления файла техкарты: {str(e)}")
+
 
 @router.put("/{assignment_id}", response_model=dict)
 async def update_assignment(
@@ -750,7 +977,36 @@ async def update_assignment(
             else:
                 assignment.protocol_template_id = None
 
+        if "report_form_id" in assignment_data.model_fields_set:
+            if user.role not in OPERATOR_ROLES:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Менять форму ТО могут только администратор, старший оператор или оператор",
+                )
+            fid = (assignment_data.report_form_id or "").strip().lower()
+            if fid:
+                if not get_form(fid):
+                    raise HTTPException(status_code=400, detail="Форма ТО не найдена в каталоге")
+                assignment.report_form_id = fid
+            else:
+                assignment.report_form_id = None
+
         assignment.updated_at = datetime.now(timezone.utc)
+
+        
+        for _fname in (
+            "contract_number",
+            "contract_date",
+            "work_period_from",
+            "work_period_to",
+            "work_basis",
+            "tech_card_number",
+        ):
+            if _fname in assignment_data.model_fields_set:
+                _val = getattr(assignment_data, _fname, None)
+                if _val is not None:
+                    _val = str(_val).strip() or None
+                setattr(assignment, _fname, _val)
 
         await db.commit()
         await db.refresh(assignment)

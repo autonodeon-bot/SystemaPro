@@ -551,7 +551,7 @@ const AdminPanel = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddEngineer(false)}>
           <div className="bg-app-panel rounded-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">Добавить инженера</h2>
+              <h2 className="text-xl font-bold text-app-text">Добавить инженера</h2>
               <button onClick={() => setShowAddEngineer(false)} className="text-app-text3 hover:text-app-text">✕</button>
             </div>
             <AddEngineerForm onClose={() => setShowAddEngineer(false)} onSuccess={() => {

@@ -36,7 +36,7 @@ const ReportGenerationToolbar = ({
 }: ReportGenerationToolbarProps) => (
   <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
     <div className="flex items-center gap-3">
-      <h1 className="text-xl md:text-2xl font-bold text-white">Генерация отчетов и экспертиз</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-app-text">Генерация отчетов и экспертиз</h1>
       <button
         type="button"
         onClick={() => navigate('/report-templates')}

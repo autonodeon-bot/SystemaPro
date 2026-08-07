@@ -11,9 +11,33 @@ from passlib.context import CryptContext
 import bcrypt
 
 # Конфигурация JWT
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+_SECRET_DEFAULT = "your-secret-key-change-in-production"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", _SECRET_DEFAULT)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 часа
+
+_INSECURE_JWT_SECRETS = frozenset({
+    "",
+    _SECRET_DEFAULT,
+    "your-jwt-secret-key",
+    "change-me",
+    "changeme",
+    "secret",
+    "test-secret-key",
+    "test-secret-key-for-pytest",
+})
+
+
+def assert_production_secrets() -> None:
+    """Запрет слабого JWT в production (вызывается из main.startup)."""
+    env = os.getenv("APP_ENV", os.getenv("SENTRY_ENVIRONMENT", "production")).lower()
+    if env in ("local", "development", "dev", "test"):
+        return
+    key = os.getenv("JWT_SECRET_KEY", "")
+    if key in _INSECURE_JWT_SECRETS or len(key) < 24:
+        raise RuntimeError(
+            "JWT_SECRET_KEY должен быть задан и содержать не менее 24 символов в production"
+        )
 
 security = HTTPBearer()
 
@@ -48,24 +72,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         except:
             return False
 
-# Простая база пользователей (для обратной совместимости, если БД недоступна)
-USERS_DB = {
-    "admin": {
-        "password": "admin123",  # В продакшене использовать хеширование
-        "role": "admin",
-        "permissions": ["read", "write", "delete", "admin"]
-    },
-    "engineer": {
-        "password": "engineer123",
-        "role": "engineer",
-        "permissions": ["read", "write"]
-    },
-    "client": {
-        "password": "client123",
-        "role": "client",
-        "permissions": ["read"]
-    }
+# Роли и их права (источник прав — только БД + ROLE_PERMISSIONS, без fallback-паролей)
+ROLE_PERMISSIONS = {
+    "admin": ["read", "write", "delete", "admin"],
+    "chief_operator": ["read", "write", "delete", "admin"],
+    "engineer": ["read", "write"],
+    "operator": ["read", "write"],
+    "client": ["read"],
 }
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Создание JWT токена"""
@@ -118,37 +133,18 @@ def verify_token_optional(credentials: Optional[HTTPAuthorizationCredentials] = 
     except (JWTError, Exception):
         return None
 
-def get_user_permissions(username: str) -> list:
-    """Получить права пользователя"""
-    user = USERS_DB.get(username)
-    if user:
-        return user.get("permissions", [])
+def get_user_permissions(username: str, role: Optional[str] = None) -> list:
+    """Получить права пользователя по роли (legacy helper для тестов)."""
+    if role:
+        return ROLE_PERMISSIONS.get(role, [])
     return []
 
-def require_permission(permission: str):
-    """Декоратор для проверки прав доступа"""
-    def permission_checker(username: str = Depends(verify_token)):
-        user = USERS_DB.get(username)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User not found"
-            )
-        permissions = user.get("permissions", [])
-        if permission not in permissions and "admin" not in permissions:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission '{permission}' required"
-            )
-        return username
-    return permission_checker
-
-# Роли и их права
-ROLE_PERMISSIONS = {
-    "admin": ["read", "write", "delete", "admin"],
-    "engineer": ["read", "write"],
-    "client": ["read"]
-}
-
-
-
+def require_permission(permission: str, role: str):
+    """Проверка права по роли (legacy helper для тестов)."""
+    permissions = ROLE_PERMISSIONS.get(role, [])
+    if permission not in permissions and "admin" not in permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission '{permission}' required",
+        )
+    return role

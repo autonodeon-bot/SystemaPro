@@ -89,6 +89,8 @@ class InspectionDefectsSection extends StatelessWidget {
                   ),
                   subtitle: Text(
                     [
+                      if (d.zone != null && d.zone!.isNotEmpty)
+                        d.zone == 'internal' ? 'Внутренний осмотр' : 'Наружный осмотр',
                       if (d.location != null && d.location!.isNotEmpty)
                         'Место: ${d.location}',
                       if (d.size != null && d.size!.isNotEmpty)
@@ -96,6 +98,8 @@ class InspectionDefectsSection extends StatelessWidget {
                       if (d.description != null &&
                           d.description!.isNotEmpty)
                         d.description,
+                      if (d.assessment != null && d.assessment!.isNotEmpty)
+                        'Оценка: ${d.assessment}',
                     ].join(' | '),
                     style: const TextStyle(
                         color: Colors.white70, fontSize: 12),
@@ -141,6 +145,9 @@ class InspectionDefectsSection extends StatelessWidget {
     String? size;
     String? description;
     String? photoPath;
+    String zone = 'external';
+    String assessment = 'Годен';
+    final locationController = TextEditingController();
 
     final defectTypes = [
       'Коррозия',
@@ -152,19 +159,63 @@ class InspectionDefectsSection extends StatelessWidget {
       'Другое',
     ];
 
+    // Часто встречающиеся объекты контроля ВИК — для быстрого выбора,
+    // чтобы техник мог добавлять произвольные объекты, а не только
+    // 2 предустановленные в отчёте категории («фундаменты», «сварные соединения»).
+    const commonObjects = [
+      'фундаментов',
+      'сварных соединений',
+      'опор сосуда',
+      'запорной арматуры',
+      'трубопроводов обвязки',
+      'штуцеров',
+      'предохранительных клапанов',
+      'КИП',
+    ];
+
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocalState) => AlertDialog(
-          title: const Text('Дефект ВИК'),
+          title: const Text('Объект контроля / дефект ВИК'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                DropdownButtonFormField<String>(
+                  value: zone,
+                  decoration: const InputDecoration(labelText: 'Зона осмотра'),
+                  items: const [
+                    DropdownMenuItem(value: 'external', child: Text('Наружный осмотр')),
+                    DropdownMenuItem(value: 'internal', child: Text('Внутренний осмотр')),
+                  ],
+                  onChanged: (v) => setLocalState(() => zone = v ?? 'external'),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: -8,
+                  children: commonObjects
+                      .map((o) => ActionChip(
+                            label: Text(o, style: const TextStyle(fontSize: 12)),
+                            onPressed: () {
+                              locationController.text = o;
+                              setLocalState(() => location = o);
+                            },
+                          ))
+                      .toList(),
+                ),
+                TextFormField(
+                  controller: locationController,
+                  decoration: const InputDecoration(
+                      labelText: 'Объект контроля / место'),
+                  onChanged: (v) => location = v,
+                ),
                 DropdownButtonFormField<String>(
                   value: defectType,
                   decoration:
-                      const InputDecoration(labelText: 'Тип дефекта'),
+                      const InputDecoration(labelText: 'Тип дефекта (если есть)'),
                   items: defectTypes
                       .map(
                           (t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -173,18 +224,22 @@ class InspectionDefectsSection extends StatelessWidget {
                 ),
                 TextFormField(
                   decoration:
-                      const InputDecoration(labelText: 'Место/узел'),
-                  onChanged: (v) => location = v,
-                ),
-                TextFormField(
-                  decoration:
                       const InputDecoration(labelText: 'Размер (мм)'),
                   onChanged: (v) => size = v,
                 ),
                 TextFormField(
-                  decoration:
-                      const InputDecoration(labelText: 'Описание'),
+                  decoration: const InputDecoration(
+                      labelText: 'Описание дефектов (пусто — «Дефектов не обнаружено»)'),
                   onChanged: (v) => description = v,
+                ),
+                DropdownButtonFormField<String>(
+                  value: assessment,
+                  decoration: const InputDecoration(labelText: 'Оценка качества'),
+                  items: const [
+                    DropdownMenuItem(value: 'Годен', child: Text('Годен')),
+                    DropdownMenuItem(value: 'Не годен', child: Text('Не годен')),
+                  ],
+                  onChanged: (v) => setLocalState(() => assessment = v ?? 'Годен'),
                 ),
                 const SizedBox(height: 8),
                 if (photoPath != null)
@@ -234,6 +289,9 @@ class InspectionDefectsSection extends StatelessWidget {
                 d.location = location;
                 d.size = size;
                 d.description = description;
+                d.zone = zone;
+                d.assessment = assessment;
+                d.scope = '100%';
                 if (photoPath != null) {
                   d.photos = [photoPath!];
                 }

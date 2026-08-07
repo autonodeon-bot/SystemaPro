@@ -35,6 +35,16 @@ export interface Assignment {
   /** Обязательный шаблон из конструктора протоколов (мобильное приложение) */
   protocol_template_id?: string | null;
   protocol_template_name?: string | null;
+  report_form_id?: string | null;
+  report_form_title?: string | null;
+  contract_number?: string | null;
+  contract_date?: string | null;
+  work_period_from?: string | null;
+  work_period_to?: string | null;
+  work_basis?: string | null;
+  tech_card_number?: string | null;
+  tech_card_file_name?: string | null;
+  has_tech_card_file?: boolean;
 }
 
 export interface AssignmentCardProps {

@@ -152,7 +152,7 @@ const VerificationsCalendar: React.FC = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-white">Календарь поверок</h1>
+          <h1 className="text-2xl font-bold text-app-text">Календарь поверок</h1>
         </div>
         <div className="flex items-center gap-4">
           <button
@@ -240,7 +240,7 @@ const VerificationsCalendar: React.FC = () => {
       {/* Детали выбранной даты */}
       {selectedDate && (
         <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
-          <h3 className="text-lg font-semibold text-white mb-4">
+          <h3 className="text-lg font-semibold text-app-text mb-4">
             Оборудование с поверкой {selectedDate.toLocaleDateString('ru-RU')}
           </h3>
           <div className="space-y-2">
@@ -286,11 +286,11 @@ const VerificationsCalendar: React.FC = () => {
 
       {/* Статистика месяца */}
       <div className="bg-secondary/50 rounded-lg p-4 border border-app-line">
-        <h3 className="text-lg font-semibold text-white mb-4">Статистика за месяц</h3>
+        <h3 className="text-lg font-semibold text-app-text mb-4">Статистика за месяц</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <div className="text-app-text3 text-sm">Всего поверок</div>
-            <div className="text-2xl font-bold text-white mt-1">{monthEquipment.length}</div>
+            <div className="text-2xl font-bold text-app-text mt-1">{monthEquipment.length}</div>
           </div>
           <div>
             <div className="text-app-text3 text-sm">Просрочено</div>

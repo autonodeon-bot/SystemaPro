@@ -324,7 +324,20 @@ class Assignment(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     # Обязательный шаблон протокола из конструктора (TEXT id в protocol_templates)
     protocol_template_id = Column(String(64), nullable=True, index=True)
+    # Форма ТО из каталога «Приложение_форма ТО» (to-1, to-13, …)
+    report_form_id = Column(String(32), nullable=True, index=True)
     ndt_method_codes = Column(JSONB, nullable=True)  # ['UZT','VIK','UZK',...]
+    # Данные для титула/разд.1–2 официальной формы ТО (при выдаче задания)
+    contract_number = Column(String(128), nullable=True)
+    contract_date = Column(String(32), nullable=True)
+    work_period_from = Column(String(32), nullable=True)
+    work_period_to = Column(String(32), nullable=True)
+    work_basis = Column(Text, nullable=True)
+    tech_card_number = Column(String(128), nullable=True)
+    # Файл схемы контроля / техкарты, приложенный к заданию (альтернатива
+    # редактируемой библиотеке схем — оператор прикладывает готовую схему/техкарту)
+    tech_card_file_path = Column(String(500), nullable=True)
+    tech_card_file_name = Column(String(255), nullable=True)
 
 class Inspection(Base):
     """Обследования/инспекции оборудования"""

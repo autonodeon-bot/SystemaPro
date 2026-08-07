@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import '../../constants/report_formulation_options.dart';
 import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../models/compressor_checklist.dart';
@@ -52,66 +53,156 @@ class InspectionSurveyCardSection extends StatelessWidget {
               ? 'Наименование компрессора'
               : 'Наименование сосуда',
           (value) => checklist.vesselName = value,
+          initialValue: checklist.vesselName,
         ),
         buildInspectionTextField('serial_number', 'Заводской номер',
-            (value) => checklist.serialNumber = value),
+            (value) => checklist.serialNumber = value,
+            initialValue: checklist.serialNumber),
         buildInspectionTextField('reg_number', 'Регистрационный номер',
-            (value) => checklist.regNumber = value),
+            (value) => checklist.regNumber = value,
+            initialValue: checklist.regNumber),
         buildInspectionTextField('manufacturer', 'Изготовитель',
-            (value) => checklist.manufacturer = value),
+            (value) => checklist.manufacturer = value,
+            initialValue: checklist.manufacturer),
         buildInspectionTextField('manufacture_year', 'Год изготовления',
-            (value) => checklist.manufactureYear = value),
+            (value) => checklist.manufactureYear = value,
+            initialValue: checklist.manufactureYear),
         if (!isCompressor) ..._buildVesselFields(form, context),
         if (isCompressor) _buildCompressorFields(),
         const SizedBox(height: 16),
         _buildPhotoSection(context, 'Фото заводской таблички',
             factoryPlatePhoto, true),
+        const SizedBox(height: 8),
+        _buildPhotoSection(context, 'Схема контроля',
+            controlSchemeImage, false),
         _buildAdditionalObjectPhotosSection(context),
       ],
     );
   }
 
   List<Widget> _buildVesselFields(TechnicalReportForm form, BuildContext context) {
+    String? s(dynamic v) => v?.toString();
     return [
       buildInspectionTextField('diameter', 'Диаметр сосуда',
-          (value) => checklist.diameter = value),
+          (value) => checklist.diameter = value,
+          initialValue: checklist.diameter),
       buildInspectionTextField('working_pressure', 'Рабочее давление',
-          (value) => checklist.workingPressure = value),
+          (value) => checklist.workingPressure = value,
+          initialValue: checklist.workingPressure),
       buildInspectionTextField(
           'wall_thickness', 'Толщина стенки (обечайка / днище)',
-          (value) => checklist.wallThickness = value),
+          (value) => checklist.wallThickness = value,
+          initialValue: checklist.wallThickness),
       buildSectionHeader(
         form.sectionHeader('survey', fallback: 'Краткая техническая характеристика'),
       ),
       buildInspectionTextField(
-          'purpose', 'Назначение', (v) => checklist.purpose = v),
+          'purpose', 'Назначение', (v) => checklist.purpose = v,
+          initialValue: checklist.purpose),
       buildInspectionTextField('commissioning_year',
-          'Год ввода в эксплуатацию', (v) => checklist.commissioningYear = v),
+          'Год ввода в эксплуатацию', (v) => checklist.commissioningYear = v,
+          initialValue: s(checklist.commissioningYear)),
       buildInspectionTextField('design_pressure',
-          'Расчётное давление, МПа', (v) => checklist.designPressure = v),
+          'Расчётное давление, МПа', (v) => checklist.designPressure = v,
+          initialValue: s(checklist.designPressure)),
       buildInspectionTextField(
           'test_pressure',
           'Пробное давление гидравлического испытания, МПа',
-          (v) => checklist.testPressure = v),
+          (v) => checklist.testPressure = v,
+          initialValue: s(checklist.testPressure)),
+      buildInspectionTextField('designation', 'Условное обозначение',
+          (v) => checklist.designation = v,
+          initialValue: checklist.designation),
       buildInspectionTextField(
           'working_temperature',
-          'Допустимая рабочая температура стенки, ℃',
-          (v) => checklist.workingTemperature = v),
+          'Температура рабочей среды, ℃',
+          (v) => checklist.workingTemperature = v,
+          initialValue: checklist.workingTemperature),
       buildInspectionTextField('design_temperature',
           'Расчётная температура стенки, ℃',
-          (v) => checklist.designTemperature = v),
+          (v) => checklist.designTemperature = v,
+          initialValue: checklist.designTemperature),
       buildInspectionTextField('working_medium',
-          'Наименование рабочей среды', (v) => checklist.workingMedium = v),
-      buildInspectionTextField('medium_characteristics',
-          'Характеристика рабочей среды',
-          (v) => checklist.mediumCharacteristics = v),
+          'Наименование рабочей среды (состав)', (v) => checklist.workingMedium = v,
+          initialValue: checklist.workingMedium),
+      buildInspectionTextField('hazard_class',
+          'Класс опасности по ГОСТ 12.1.007', (v) => checklist.hazardClass = v,
+          initialValue: checklist.hazardClass),
+      buildInspectionTextField('explosion_hazard',
+          'Категория взрывоопасности', (v) => checklist.explosionHazard = v,
+          initialValue: checklist.explosionHazard),
+      buildInspectionTextField('fire_hazard',
+          'Категория пожароопасности', (v) => checklist.fireHazard = v,
+          initialValue: checklist.fireHazard),
+      buildInspectionTextField('connection_scheme',
+          'Схема подключения сосуда в установку',
+          (v) => checklist.connectionScheme = v,
+          initialValue: checklist.connectionScheme),
+      buildInspectionTextField('climatic_version',
+          'Климатическое исполнение', (v) => checklist.climaticVersion = v,
+          initialValue: checklist.climaticVersion),
       buildInspectionTextField(
-          'vessel_group', 'Группа сосуда', (v) => checklist.vesselGroup = v),
+          'empty_mass', 'Масса порожнего сосуда, кг', (v) => checklist.emptyMass = v,
+          initialValue: checklist.emptyMass),
+      buildInspectionTextField('load_cycles', 'Число циклов нагружения',
+          (v) => checklist.loadCycles = v,
+          initialValue: checklist.loadCycles),
+      buildInspectionTextField(
+          'service_life', 'Расчётный срок службы, лет', (v) => checklist.serviceLife = v,
+          initialValue: checklist.serviceLife),
+      buildInspectionTextField(
+          'vessel_group', 'Группа сосуда', (v) => checklist.vesselGroup = v,
+          initialValue: checklist.vesselGroup),
+      buildInspectionTextField(
+          'vessel_installed', 'Сосуд установлен (дата/место)',
+          (v) => checklist.vesselInstalled = v,
+          initialValue: checklist.vesselInstalled),
+      buildInspectionTextField(
+          'supervisory_remarks', 'Наличие замечаний надзорных органов',
+          (v) => checklist.supervisoryRemarks = v,
+          initialValue: checklist.supervisoryRemarks),
+      buildInspectionTextField(
+          'accidents_info', 'Сведения об авариях, инцидентах и отказах',
+          (v) => checklist.accidentsInfo = v,
+          initialValue: checklist.accidentsInfo),
+      buildInspectionTextField(
+          'repair_info', 'Данные о ремонте и реконструкции',
+          (v) => checklist.repairInfo = v,
+          initialValue: checklist.repairInfo),
       buildInspectionTextField('medium_group', 'Группа рабочей среды',
-          (v) => checklist.mediumGroup = v),
+          (v) => checklist.mediumGroup = v,
+          initialValue: checklist.mediumGroup),
       buildInspectionTextField('corrosion_allowance',
           'Прибавка для компенсации коррозии, мм',
-          (v) => checklist.corrosionAllowance = v),
+          (v) => checklist.corrosionAllowance = v,
+          initialValue: s(checklist.corrosionAllowance)),
+      buildDropdownField(
+        'calculation_result',
+        'Оценка работоспособности (разд. 14)',
+        ReportFormulationOptions.calculationResult,
+        (v) => checklist.calculationResult = v,
+        initialValue: checklist.calculationResult ??
+            ReportFormulationOptions.calculationResult.first,
+      ),
+      buildDropdownField(
+        'technical_state',
+        'Техническое состояние объекта (разд. 15)',
+        ReportFormulationOptions.technicalState,
+        (v) => checklist.technicalState = v,
+        initialValue: checklist.technicalState ??
+            ReportFormulationOptions.technicalState.first,
+      ),
+      buildDropdownField(
+        'documentation_conclusion',
+        'Результат анализа документации',
+        ReportFormulationOptions.docAnalysis,
+        (v) => checklist.documentationConclusion = v,
+        initialValue: checklist.documentationConclusion ??
+            ReportFormulationOptions.docAnalysis.first,
+      ),
+      buildInspectionTextField('tech_card_number', '№ технологической карты',
+          (v) => checklist.techCardNumber = v,
+          initialValue: checklist.techCardNumber),
       buildSectionHeader(
         form.sectionHeader('survey_prev', fallback: '12. Анализ результатов предыдущих обследований'),
       ),
@@ -119,7 +210,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
       buildMultilineField(
           'previous_inspection_result',
           'Дополнительные замечания по предыдущим обследованиям',
-          (v) => checklist.previousInspectionResult = v),
+          (v) => checklist.previousInspectionResult = v,
+          initialValue: checklist.previousInspectionResult),
     ];
   }
 
@@ -179,6 +271,18 @@ class InspectionSurveyCardSection extends StatelessWidget {
                     'Результаты контроля',
                     (v) => row.result = v,
                     initialValue: row.result,
+                  ),
+                  buildInspectionTextField(
+                    'prev_scope_$index',
+                    'Объём контроля',
+                    (v) => row.scope = v,
+                    initialValue: row.scope,
+                  ),
+                  buildInspectionTextField(
+                    'prev_org_$index',
+                    'Организация-исполнитель',
+                    (v) => row.organization = v,
+                    initialValue: row.organization,
                   ),
                 ],
               ),

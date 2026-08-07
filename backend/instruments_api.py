@@ -52,6 +52,11 @@ async def _ensure_table(db: AsyncSession):
         ADD COLUMN IF NOT EXISTS verification_equipment_id UUID
             REFERENCES verification_equipment(id) ON DELETE SET NULL
     """))
+    # Перечень реагентов — актуально для комплектов капиллярного контроля
+    await db.execute(text("""
+        ALTER TABLE instrument_registry
+        ADD COLUMN IF NOT EXISTS reagents TEXT
+    """))
     await db.commit()
 
 
@@ -158,6 +163,7 @@ def _row_to_dict(row) -> dict:
         "verification_status": verification_status,
         "condition": row.condition or "ok",
         "condition_notes": row.condition_notes or "",
+        "reagents": getattr(row, 'reagents', None) or "",
         "specialist_id": str(row.specialist_id) if row.specialist_id else None,
         "specialist_name": getattr(row, 'specialist_name', '') or "",
         "verification_equipment_id": str(row.verification_equipment_id) if row.verification_equipment_id else None,
@@ -405,11 +411,11 @@ async def create_instrument(
     await db.execute(text("""
         INSERT INTO instrument_registry
             (id, name, type, serial_number, verification_until,
-             condition, condition_notes, specialist_id, created_by,
+             condition, condition_notes, reagents, specialist_id, created_by,
              verification_equipment_id)
         VALUES
             (:id, :name, :type, :serial_number, :verification_until,
-             :condition, :condition_notes, :specialist_id, :created_by,
+             :condition, :condition_notes, :reagents, :specialist_id, :created_by,
              :verification_equipment_id)
     """), {
         "id": inst_id,
@@ -419,6 +425,7 @@ async def create_instrument(
         "verification_until": payload.get("verification_until", ""),
         "condition": payload.get("condition", "ok"),
         "condition_notes": payload.get("condition_notes", ""),
+        "reagents": payload.get("reagents", ""),
         "specialist_id": specialist_id,
         "created_by": user_id,
         "verification_equipment_id": verification_equipment_id,
@@ -492,6 +499,7 @@ async def update_instrument(
                 verification_until = :verification_until,
                 condition = :condition,
                 condition_notes = :condition_notes,
+                reagents = :reagents,
                 specialist_id = :specialist_id,
                 verification_equipment_id = :verification_equipment_id,
                 updated_at = NOW()
@@ -504,6 +512,7 @@ async def update_instrument(
             "verification_until": payload.get("verification_until", row.verification_until),
             "condition": payload.get("condition", row.condition),
             "condition_notes": payload.get("condition_notes", row.condition_notes),
+            "reagents": payload.get("reagents", getattr(row, "reagents", "")),
             "specialist_id": specialist_id,
             "verification_equipment_id": verification_equipment_id,
         })

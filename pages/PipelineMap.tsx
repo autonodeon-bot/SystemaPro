@@ -294,7 +294,7 @@ const PipelineMap = () => {
                  <span className="absolute text-[8px] top-1 text-app-text3">N</span>
               </div>
               <div>
-                 <p className="text-2xl font-bold text-white">{weather.windSpeed.toFixed(1)} <span className="text-xs text-app-text3">м/с</span></p>
+                 <p className="text-2xl font-bold text-app-text">{weather.windSpeed.toFixed(1)} <span className="text-xs text-app-text3">м/с</span></p>
                  <p className="text-xs text-app-text2">{weather.temp}°C, {weather.condition}</p>
               </div>
            </div>

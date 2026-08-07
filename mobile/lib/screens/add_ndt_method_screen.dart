@@ -8,6 +8,45 @@ import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import '../models/questionnaire.dart';
 
+/// Стандартные формулировки заключения по видам НК — техник выбирает из
+/// выпадающего списка вместо ввода произвольного текста; при необходимости
+/// текст можно отредактировать вручную после выбора.
+/// TODO: формулировки предварительные — уточнить у экспертов ЮТАР.
+const Map<String, List<String>> NDT_STANDARD_CONCLUSIONS = {
+  'ВИК': [
+    'По результатам визуального и измерительного контроля недопустимых дефектов не обнаружено, объект контроля соответствует требованиям нормативно-технической документации.',
+    'По результатам визуального и измерительного контроля выявлены дефекты, требующие устранения до дальнейшей эксплуатации.',
+  ],
+  'УЗК': [
+    'По результатам ультразвукового контроля сварных соединений недопустимых дефектов не обнаружено, объект контроля соответствует требованиям НТД.',
+    'По результатам ультразвукового контроля выявлены недопустимые дефекты, требуется дополнительная оценка/ремонт.',
+  ],
+  'УЗК_СС': [
+    'По результатам ультразвукового контроля сварных соединений недопустимых дефектов не обнаружено, объект контроля соответствует требованиям НТД.',
+    'По результатам ультразвукового контроля выявлены недопустимые дефекты, требуется дополнительная оценка/ремонт.',
+  ],
+  'МПД': [
+    'По результатам магнитопорошкового контроля дефектов не обнаружено, объект контроля соответствует требованиям НТД.',
+    'По результатам магнитопорошкового контроля выявлены поверхностные дефекты, требуется дополнительная оценка.',
+  ],
+  'МК': [
+    'По результатам магнитного контроля дефектов не обнаружено, объект контроля соответствует требованиям НТД.',
+    'По результатам магнитного контроля выявлены поверхностные дефекты, требуется дополнительная оценка.',
+  ],
+  'ТВЕРД': [
+    'Измеренные значения твёрдости металла находятся в допустимых пределах и соответствуют прочностным характеристикам используемой марки стали.',
+    'Измеренные значения твёрдости металла выходят за допустимые пределы, требуется дополнительный контроль.',
+  ],
+  'УЗТ': [
+    'Измеренная толщина стенок элементов не превышает минимально допустимые значения и удовлетворяет требованиям НТД.',
+    'Измеренная толщина стенок в отдельных точках ниже минимально допустимой — требуется дополнительная оценка/расчёт остаточного ресурса.',
+  ],
+  'КПД': [
+    'По результатам капиллярной дефектоскопии дефектов не обнаружено, объект контроля соответствует требованиям НТД.',
+    'По результатам капиллярной дефектоскопии выявлены поверхностные дефекты, требуется дополнительная оценка.',
+  ],
+};
+
 const List<Map<String, String>> NDT_METHODS = [
   {'code': 'ВИК', 'name': 'Визуальный и измерительный контроль'},
   {'code': 'УЗК', 'name': 'Ультразвуковой контроль'},
@@ -57,6 +96,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
   final List<Map<String, TextEditingController>> _defectsList = [];
   final List<Map<String, TextEditingController>> _indicationsList = [];
   final List<Map<String, TextEditingController>> _uzkResults = [];
+  final List<Map<String, TextEditingController>> _hardnessPoints = [];
 
   @override
   void initState() {
@@ -69,7 +109,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
 
   @override
   void dispose() {
-    for (final list in [_measurementPoints, _defectsList, _indicationsList, _uzkResults]) {
+    for (final list in [_measurementPoints, _defectsList, _indicationsList, _uzkResults, _hardnessPoints]) {
       for (final item in list) {
         for (final ctrl in item.values) {
           ctrl.dispose();
@@ -132,6 +172,23 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
             'coordinate': TextEditingController(text: r['coordinate']?.toString() ?? ''),
             'amplitude': TextEditingController(text: r['amplitude']?.toString() ?? ''),
             'equivalent_size': TextEditingController(text: r['equivalent_size']?.toString() ?? ''),
+            'depth': TextEditingController(text: r['depth']?.toString() ?? ''),
+            'length': TextEditingController(text: r['length']?.toString() ?? ''),
+            'form': TextEditingController(text: r['form']?.toString() ?? ''),
+          });
+        }
+      }
+    }
+
+    final hardness = ad['hardness_tests'] as List?;
+    if (hardness != null) {
+      for (final h in hardness) {
+        if (h is Map) {
+          _hardnessPoints.add({
+            'location': TextEditingController(text: h['location']?.toString() ?? ''),
+            'hardness_base': TextEditingController(text: h['hardness_base']?.toString() ?? ''),
+            'hardness_weld': TextEditingController(text: h['hardness_weld']?.toString() ?? ''),
+            'allowed_hardness_base': TextEditingController(text: h['allowed_hardness_base']?.toString() ?? ''),
           });
         }
       }
@@ -139,7 +196,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
   }
 
   void _clearMethodSpecificData() {
-    for (final list in [_measurementPoints, _defectsList, _indicationsList, _uzkResults]) {
+    for (final list in [_measurementPoints, _defectsList, _indicationsList, _uzkResults, _hardnessPoints]) {
       for (final item in list) {
         for (final ctrl in item.values) {
           ctrl.dispose();
@@ -176,6 +233,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
       case 'ВИК':
         ad['control_zone'] = formData['method_control_zone'];
         ad['illumination'] = formData['method_illumination'];
+        ad['additional_lighting'] = formData['method_additional_lighting'] == true;
         ad['surface_temp'] = formData['method_surface_temp'];
         ad['defects_list'] = _defectsList
             .map<Map<String, String>>((d) => {
@@ -202,6 +260,9 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
                     'coordinate': r['coordinate']?.text ?? '',
                     'amplitude': r['amplitude']?.text ?? '',
                     'equivalent_size': r['equivalent_size']?.text ?? '',
+                    'depth': r['depth']?.text ?? '',
+                    'length': r['length']?.text ?? '',
+                    'form': r['form']?.text ?? '',
                   })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
@@ -261,6 +322,20 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['exposure'] = formData['method_exposure'];
         ad['film_detector'] = formData['method_film_detector'];
         ad['sensitivity'] = formData['method_sensitivity'];
+        break;
+
+      case 'ТВЕРД':
+        ad['device_type'] = formData['method_device_type'];
+        ad['test_method'] = formData['method_hardness_test_method'];
+        ad['hardness_tests'] = _hardnessPoints
+            .map<Map<String, String>>((p) => {
+                    'location': p['location']?.text ?? '',
+                    'hardness_base': p['hardness_base']?.text ?? '',
+                    'hardness_weld': p['hardness_weld']?.text ?? '',
+                    'allowed_hardness_base': p['allowed_hardness_base']?.text ?? '',
+                  })
+            .where((m) => m.values.any((v) => v.isNotEmpty))
+            .toList();
         break;
     }
 
@@ -440,9 +515,43 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         return _buildPVKFields();
       case 'РК':
         return _buildRKFields();
+      case 'ТВЕРД':
+        return _buildTVERDFields();
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  // ── Стандартные формулировки заключения ─────────────────────
+  Widget _buildConclusionPresetDropdown() {
+    final code = (_selectedMethodCode ?? '').toUpperCase();
+    final presets = NDT_STANDARD_CONCLUSIONS[code] ?? const [];
+    if (presets.isEmpty) return const SizedBox.shrink();
+    return DropdownButtonFormField<String>(
+      decoration: _inputDeco('Стандартная формулировка заключения'),
+      dropdownColor: const Color(0xFF1e293b),
+      items: [
+        ...presets.map(
+          (t) => DropdownMenuItem(
+            value: t,
+            child: Text(
+              t,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ),
+        const DropdownMenuItem(
+          value: '__custom__',
+          child: Text('Другое (ввести вручную)', style: TextStyle(color: Colors.white70)),
+        ),
+      ],
+      onChanged: (value) {
+        if (value == null || value == '__custom__') return;
+        _formKey.currentState?.fields['conclusion']?.didChange(value);
+      },
+    );
   }
 
   Widget _sectionHeader(String title) {
@@ -477,6 +586,16 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           decoration: _inputDeco('Освещённость, лк'),
           keyboardType: TextInputType.number,
           style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        FormBuilderSwitch(
+          name: 'method_additional_lighting',
+          title: const Text(
+            'Использовалось дополнительное освещение',
+            style: TextStyle(color: Colors.white, fontSize: 14),
+          ),
+          initialValue: false,
+          activeColor: Colors.blue,
         ),
         const SizedBox(height: 12),
         FormBuilderTextField(
@@ -555,8 +674,24 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         _buildDynamicList(
           title: 'Результаты сканирования',
           items: _uzkResults,
-          fieldLabels: const ['Зона', 'Координата', 'Амплитуда, дБ', 'Эквив. размер, мм'],
-          fieldKeys: const ['zone', 'coordinate', 'amplitude', 'equivalent_size'],
+          fieldLabels: const [
+            'Зона',
+            'Координата',
+            'Амплитуда, дБ',
+            'Эквив. размер, мм',
+            'Глубина, мм',
+            'Протяженность, мм',
+            'Форма/характер',
+          ],
+          fieldKeys: const [
+            'zone',
+            'coordinate',
+            'amplitude',
+            'equivalent_size',
+            'depth',
+            'length',
+            'form',
+          ],
         ),
       ],
     );
@@ -732,6 +867,39 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           name: 'method_sensitivity',
           decoration: _inputDeco('Чувствительность контроля'),
           style: const TextStyle(color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  // ── Твердометрия (ТВЕРД) ────────────────────────────────────
+
+  Widget _buildTVERDFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Параметры контроля твёрдости'),
+        FormBuilderTextField(
+          name: 'method_device_type',
+          decoration: _inputDeco('Тип твердомера'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        FormBuilderDropdown<String>(
+          name: 'method_hardness_test_method',
+          decoration: _inputDeco('Метод измерения'),
+          items: const [
+            DropdownMenuItem(value: 'Динамический (Либа)', child: Text('Динамический (Либа)', style: TextStyle(color: Colors.white))),
+            DropdownMenuItem(value: 'Статический (Бринелль)', child: Text('Статический (Бринелль)', style: TextStyle(color: Colors.white))),
+            DropdownMenuItem(value: 'Статический (Роквелл)', child: Text('Статический (Роквелл)', style: TextStyle(color: Colors.white))),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildDynamicList(
+          title: 'Точки замера твёрдости',
+          items: _hardnessPoints,
+          fieldLabels: const ['Место замера', 'Твёрдость осн. металла, HB', 'Твёрдость шва, HB', 'Допустимая твёрдость, HB'],
+          fieldKeys: const ['location', 'hardness_base', 'hardness_weld', 'allowed_hardness_base'],
         ),
       ],
     );
@@ -974,6 +1142,8 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),
+            _buildConclusionPresetDropdown(),
+            const SizedBox(height: 8),
             FormBuilderTextField(
               name: 'conclusion',
               decoration: _inputDeco('Заключение'),

@@ -27,7 +27,7 @@ const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
       <div className="bg-app-panel rounded-xl border border-app-line w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-app-line">
-          <h2 className="text-xl font-bold text-white">
+          <h2 className="text-xl font-bold text-app-text">
             Файлы документов: {questionnaire.equipment_name}
           </h2>
           <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">

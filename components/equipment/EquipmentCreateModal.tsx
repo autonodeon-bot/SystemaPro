@@ -44,7 +44,7 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
         aria-modal="true"
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">
+          <h2 className="text-xl font-bold text-app-text">
             {isEdit ? 'Редактировать' : 'Создать'} {entityLabel}
           </h2>
           <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">

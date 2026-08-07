@@ -7,6 +7,15 @@ import {
 import { API_BASE } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 
+// ─── Справочник типов приборов ────────────────────────────────────────────────
+// Подсказки для поля «Тип» — включая категории, ранее отсутствовавшие в реестре
+const INSTRUMENT_TYPE_OPTIONS = [
+  'ВИК', 'УЗК', 'УЗТ', 'МПК', 'ПВК (капиллярный)',
+  'Образец шероховатости', 'Люксметр',
+  'Комплект капиллярного контроля (с реагентами)',
+  'Твердомер',
+];
+
 // ─── Типы ────────────────────────────────────────────────────────────────────
 
 interface Instrument {
@@ -20,6 +29,7 @@ interface Instrument {
   verification_status: 'ok' | 'warning' | 'expiring_soon' | 'expired' | 'unknown';
   condition: 'ok' | 'damaged' | 'broken';
   condition_notes: string;
+  reagents?: string;
   specialist_id: string | null;
   specialist_name: string;
   verification_equipment_id: string | null;
@@ -117,6 +127,7 @@ const FormModal: React.FC<FormModalProps> = ({
     condition_notes: instrument?.condition_notes ?? '',
     specialist_id: instrument?.specialist_id ?? '',
     verification_equipment_id: instrument?.verification_equipment_id ?? '',
+    reagents: instrument?.reagents ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -231,13 +242,37 @@ const FormModal: React.FC<FormModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Тип (УЗТ, УЗК, ВИК...)</label>
-              <input className={inp} style={inpStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} placeholder="УЗТ" />
+              <input
+                list="instrument-type-options"
+                className={inp}
+                style={inpStyle}
+                value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                placeholder="УЗТ"
+              />
+              <datalist id="instrument-type-options">
+                {INSTRUMENT_TYPE_OPTIONS.map(opt => <option key={opt} value={opt} />)}
+              </datalist>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Заводской номер</label>
               <input className={inp} style={inpStyle} value={form.serial_number} onChange={e => setForm(f => ({ ...f, serial_number: e.target.value }))} placeholder="A-12345" />
             </div>
           </div>
+
+          {/(капилляр|пвк)/i.test(form.type) && (
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Реагенты (очиститель, индикаторный пенетрант, проявитель — партии/сроки годности)</label>
+              <textarea
+                className={inp}
+                style={inpStyle}
+                rows={2}
+                value={form.reagents}
+                onChange={e => setForm(f => ({ ...f, reagents: e.target.value }))}
+                placeholder="Очиститель СО-50 парт. 12, годен до 2027-01; Пенетрант К, проявитель П..."
+              />
+            </div>
+          )}
 
           {!form.verification_equipment_id && (
             <div>
