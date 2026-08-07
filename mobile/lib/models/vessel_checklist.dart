@@ -75,8 +75,14 @@ class VesselChecklist {
 
   // ЭПБ: паспортные данные (приложение Б)
   String? constructionType;
+  /// Единый параметр ориентации: horizontal | vertical (п.6 встречи 03.08).
+  String? orientation;
   String? volume;
   String? schemeIndex;
+  /// Файл схемы подключения (путь).
+  String? connectionSchemeFile;
+  /// Базовая схема сосуда (создаётся на ВИК, используется всеми НК).
+  BaseVesselScheme? baseVesselScheme;
   List<VesselElement> vesselElements = [];
   List<HeatTreatmentRecord> heatTreatmentRecords = [];
   List<HydraulicTestRecord> hydraulicTestHistory = [];
@@ -85,6 +91,10 @@ class VesselChecklist {
   List<FittingInstrument> fittingsAndInstruments = [];
   Map<String, dynamic>? calculationData;
   String? residualLifeText;
+  /// Сведения о заказчике (override поверх report-org-settings).
+  Map<String, String> customerInfo = {};
+  /// Сведения об организации, проводившей ТД.
+  Map<String, String> contractorInfo = {};
   
   // Фото заводской таблички
   String? factoryPlatePhoto;
@@ -233,8 +243,74 @@ class VesselChecklist {
     final s = v.toString().replaceAll(',', '.').trim();
     return double.tryParse(s);
   }
+
+  static String? _orientationFromConstruction(String? construction) {
+    if (construction == null || construction.isEmpty) return null;
+    final s = construction.toLowerCase();
+    if (s.contains('горизонт') || s.contains('horizontal')) return 'horizontal';
+    if (s.contains('вертикал') || s.contains('vertical')) return 'vertical';
+    return null;
+  }
   
   Map<String, dynamic> toJson() {
+    // Базовая схема: если есть controlSchemeImage — фиксируем как base_vessel_scheme.
+    if (baseVesselScheme == null &&
+        controlSchemeImage != null &&
+        controlSchemeImage!.trim().isNotEmpty) {
+      baseVesselScheme = BaseVesselScheme()
+        ..imagePath = controlSchemeImage
+        ..source = 'vik'
+        ..orientation = orientation;
+    } else if (baseVesselScheme != null) {
+      baseVesselScheme!.orientation ??= orientation;
+      if ((baseVesselScheme!.imagePath == null ||
+              baseVesselScheme!.imagePath!.isEmpty) &&
+          controlSchemeImage != null) {
+        baseVesselScheme!.imagePath = controlSchemeImage;
+      }
+    }
+    // Синхронизация точек УЗТ → слой схемы
+    if (baseVesselScheme != null && thicknessMeasurements.isNotEmpty) {
+      for (final m in thicknessMeasurements) {
+        final num = m.sectionNumber.trim();
+        if (num.isEmpty) continue;
+        final exists = baseVesselScheme!.points.any(
+          (p) => p.number == num && p.controlType == 'uzt',
+        );
+        if (!exists) {
+          baseVesselScheme!.points.add(SchemeControlPoint(
+            id: m.schemePointId ?? 'uzt_$num',
+            number: num,
+            controlType: 'uzt',
+          )
+            ..elementName = m.location
+            ..xPercent = m.xPercent
+            ..yPercent = m.yPercent
+            ..value = m.thickness?.toString());
+        }
+      }
+    }
+    if (baseVesselScheme != null && hardnessTests.isNotEmpty) {
+      for (final h in hardnessTests) {
+        final num = (h.pointNumber ?? h.areaNumber ?? h.weldNumber).trim();
+        if (num.isEmpty) continue;
+        final exists = baseVesselScheme!.points.any(
+          (p) => p.number == num && p.controlType == 'hardness',
+        );
+        if (!exists) {
+          baseVesselScheme!.points.add(SchemeControlPoint(
+            id: 'hard_$num',
+            number: num,
+            controlType: 'hardness',
+          )
+            ..elementName = h.elementName ?? h.location
+            ..xPercent = h.xPercent
+            ..yPercent = h.yPercent
+            ..value = h.hardnessBase ?? h.hardnessWeld);
+        }
+      }
+    }
+
     return {
       'equipment_type': equipmentTypeCode ?? 'VESSEL',
       'inspection_date': inspectionDate,
@@ -301,8 +377,13 @@ class VesselChecklist {
       'previous_inspection_result': previousInspectionResult,
       'previous_inspections': previousInspections.map((e) => e.toJson()).toList(),
       'construction_type': constructionType,
+      'orientation': orientation,
       'volume': volume,
       'scheme_index': schemeIndex,
+      'connection_scheme_file': connectionSchemeFile,
+      'base_vessel_scheme': baseVesselScheme?.toJson(),
+      'customer_info': customerInfo,
+      'contractor_info': contractorInfo,
       'vessel_elements': vesselElements.map((e) => e.toJson()).toList(),
       'heat_treatment_records': heatTreatmentRecords.map((e) => e.toJson()).toList(),
       'hydraulic_test_history': hydraulicTestHistory.map((e) => e.toJson()).toList(),
@@ -457,9 +538,29 @@ class VesselChecklist {
       PreviousInspectionRecord.fromJson,
     );
     checklist.constructionType = json['construction_type']?.toString();
+    checklist.orientation = json['orientation']?.toString() ??
+        _orientationFromConstruction(checklist.constructionType);
     checklist.volume = json['volume']?.toString();
     checklist.schemeIndex = json['scheme_index']?.toString();
+    checklist.connectionSchemeFile = json['connection_scheme_file']?.toString();
     checklist.residualLifeText = json['residual_life_text']?.toString();
+    final baseRaw = json['base_vessel_scheme'];
+    if (baseRaw is Map) {
+      checklist.baseVesselScheme =
+          BaseVesselScheme.fromJson(Map<String, dynamic>.from(baseRaw));
+    }
+    final custRaw = json['customer_info'];
+    if (custRaw is Map) {
+      checklist.customerInfo = custRaw.map(
+        (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+      );
+    }
+    final contrRaw = json['contractor_info'];
+    if (contrRaw is Map) {
+      checklist.contractorInfo = contrRaw.map(
+        (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+      );
+    }
 
     checklist.vesselElements = _parseList(json['vessel_elements'], VesselElement.fromJson);
     checklist.heatTreatmentRecords =
@@ -877,6 +978,12 @@ class HardnessTest {
   String weldNumber;
   String? areaNumber;
   String? location;
+  /// Наименование элемента сосуда (обечайка, днище…) — не путать с № точки.
+  String? elementName;
+  /// Номер точки на схеме (T1, T2…).
+  String? pointNumber;
+  /// Марка стали (авто из элементов / паспорта).
+  String? steelGrade;
   String? allowedHardnessBase;
   String? allowedHardnessWeld;
   String? hardnessBase;
@@ -886,13 +993,20 @@ class HardnessTest {
   String? hardnessBaseT5;
   String? hardnessHazT2;
   String? hardnessHazT4;
+  double? xPercent;
+  double? yPercent;
   
   HardnessTest({required this.weldNumber});
   
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
     'location': location ?? weldNumber,
-    'area_number': areaNumber,
+    'element': elementName ?? location,
+    'element_name': elementName ?? location,
+    'point_number': pointNumber ?? areaNumber,
+    'area_number': areaNumber ?? pointNumber,
+    'steel_grade': steelGrade,
+    'material': steelGrade,
     'allowed_hardness_base': allowedHardnessBase,
     'allowed_hardness_weld': allowedHardnessWeld,
     'hardness_base': hardnessBase ?? hardnessBaseT1,
@@ -902,12 +1016,17 @@ class HardnessTest {
     'hardness_base_t5': hardnessBaseT5 ?? hardnessBase,
     'hardness_haz_t2': hardnessHazT2 ?? hardnessHaz,
     'hardness_haz_t4': hardnessHazT4 ?? hardnessHaz,
+    'x_percent': xPercent,
+    'y_percent': yPercent,
   };
 
   factory HardnessTest.fromJson(Map<String, dynamic> json) {
     final t = HardnessTest(weldNumber: (json['weld_number'] ?? json['location'] ?? '').toString());
     t.areaNumber = json['area_number']?.toString();
     t.location = json['location']?.toString();
+    t.elementName = (json['element_name'] ?? json['element'] ?? json['location'])?.toString();
+    t.pointNumber = (json['point_number'] ?? json['area_number'])?.toString();
+    t.steelGrade = (json['steel_grade'] ?? json['material'] ?? json['grade'])?.toString();
     t.allowedHardnessBase = json['allowed_hardness_base']?.toString();
     t.allowedHardnessWeld = json['allowed_hardness_weld']?.toString();
     t.hardnessBase = json['hardness_base']?.toString();
@@ -917,6 +1036,8 @@ class HardnessTest {
     t.hardnessBaseT5 = json['hardness_base_t5']?.toString();
     t.hardnessHazT2 = json['hardness_haz_t2']?.toString();
     t.hardnessHazT4 = json['hardness_haz_t4']?.toString();
+    t.xPercent = VesselChecklist._asDouble(json['x_percent']);
+    t.yPercent = VesselChecklist._asDouble(json['y_percent']);
     return t;
   }
 }
@@ -929,6 +1050,12 @@ class WeldInspection {
   String? uzkDefect;
   String? defectDescription;
   String? conclusion;
+  /// Характер дефекта: объёмный | плоскостной
+  String? character;
+  String? defectNumber;
+  String? equivalentArea;
+  String? depth;
+  String? length;
   double? xPercent;
   double? yPercent;
   
@@ -936,6 +1063,7 @@ class WeldInspection {
   
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
+    'joint': weldNumber,
     'location_on_control_map': locationOnControlMap,
     'control_method': controlMethod,
     'pvk_defect': pvkDefect,
@@ -943,18 +1071,31 @@ class WeldInspection {
     'defect_description': defectDescription ??
         (controlMethod?.toUpperCase() == 'UZK' ? uzkDefect : pvkDefect),
     'conclusion': conclusion,
+    'character': character,
+    'form': character,
+    'defect_character': character,
+    'defect_number': defectNumber,
+    'equivalent_area': equivalentArea,
+    'area': equivalentArea,
+    'depth': depth,
+    'length': length,
     'x_percent': xPercent,
     'y_percent': yPercent,
   };
 
   factory WeldInspection.fromJson(Map<String, dynamic> json) {
-    final w = WeldInspection(weldNumber: (json['weld_number'] ?? '').toString());
+    final w = WeldInspection(weldNumber: (json['weld_number'] ?? json['joint'] ?? '').toString());
     w.locationOnControlMap = json['location_on_control_map']?.toString();
     w.controlMethod = json['control_method']?.toString() ?? json['method']?.toString();
     w.pvkDefect = json['pvk_defect']?.toString();
     w.uzkDefect = json['uzk_defect']?.toString();
     w.defectDescription = json['defect_description']?.toString();
     w.conclusion = json['conclusion']?.toString();
+    w.character = (json['character'] ?? json['form'] ?? json['defect_character'])?.toString();
+    w.defectNumber = json['defect_number']?.toString();
+    w.equivalentArea = (json['equivalent_area'] ?? json['area'])?.toString();
+    w.depth = json['depth']?.toString();
+    w.length = json['length']?.toString();
     w.xPercent = VesselChecklist._asDouble(json['x_percent']);
     w.yPercent = VesselChecklist._asDouble(json['y_percent']);
     return w;
@@ -963,7 +1104,7 @@ class WeldInspection {
 
 class ThicknessMeasurement {
   String location; // Наименование элемента (обечайка, днище, патрубок)
-  String sectionNumber; // № точки
+  String sectionNumber; // № точки (T1, T2…)
   double? nominalThickness; // Номинальная толщина, мм
   double? thickness; // Фактическая толщина, мм
   double? minAllowedThickness; // Отбраковочная толщина, мм
@@ -971,6 +1112,8 @@ class ThicknessMeasurement {
   double? xPercent; // Позиция на схеме X
   double? yPercent; // Позиция на схеме Y
   List<String> photos = []; // Фото замеров для отчёта
+  /// id точки на базовой схеме (если есть)
+  String? schemePointId;
 
   ThicknessMeasurement({
     required this.location,
@@ -979,7 +1122,10 @@ class ThicknessMeasurement {
 
   Map<String, dynamic> toJson() => {
     'location': location,
+    'element': location,
+    'element_name': location,
     'section_number': sectionNumber,
+    'point_number': sectionNumber,
     'nominal_thickness': nominalThickness,
     'thickness': thickness,
     'min_allowed_thickness': minAllowedThickness,
@@ -987,12 +1133,13 @@ class ThicknessMeasurement {
     'x_percent': xPercent,
     'y_percent': yPercent,
     'photos': photos,
+    'scheme_point_id': schemePointId,
   };
 
   factory ThicknessMeasurement.fromJson(Map<String, dynamic> json) {
     final t = ThicknessMeasurement(
-      location: (json['location'] ?? '').toString(),
-      sectionNumber: (json['section_number'] ?? '').toString(),
+      location: (json['location'] ?? json['element_name'] ?? json['element'] ?? '').toString(),
+      sectionNumber: (json['section_number'] ?? json['point_number'] ?? '').toString(),
     );
     t.nominalThickness = VesselChecklist._asDouble(json['nominal_thickness']);
     t.thickness = VesselChecklist._asDouble(json['thickness']);
@@ -1000,6 +1147,7 @@ class ThicknessMeasurement {
     t.comment = json['comment']?.toString();
     t.xPercent = VesselChecklist._asDouble(json['x_percent']);
     t.yPercent = VesselChecklist._asDouble(json['y_percent']);
+    t.schemePointId = json['scheme_point_id']?.toString();
     final ph = json['photos'];
     if (ph is List) {
       t.photos = ph.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
@@ -1208,6 +1356,8 @@ class PreviousInspectionRecord {
 class HeatTreatmentRecord {
   String? element;
   String? type;
+  /// Режим термообработки (отдельное поле, п.14).
+  String? mode;
   String? temperature;
   String? duration;
   String? cooling;
@@ -1217,6 +1367,8 @@ class HeatTreatmentRecord {
   Map<String, dynamic> toJson() => {
         'element': element,
         'type': type,
+        'mode': mode,
+        'regime': mode,
         'temperature': temperature,
         'duration': duration,
         'cooling': cooling,
@@ -1226,6 +1378,7 @@ class HeatTreatmentRecord {
     final r = HeatTreatmentRecord();
     r.element = json['element']?.toString();
     r.type = json['type']?.toString();
+    r.mode = (json['mode'] ?? json['regime'] ?? json['heat_mode'])?.toString();
     r.temperature = json['temperature']?.toString();
     r.duration = json['duration']?.toString();
     r.cooling = json['cooling']?.toString();
@@ -1340,6 +1493,87 @@ class FittingInstrument {
     f.dn = json['dn']?.toString();
     f.pressure = json['pressure']?.toString();
     return f;
+  }
+}
+
+/// Точка/зона контроля на базовой схеме сосуда (общая для всех методов НК).
+class SchemeControlPoint {
+  String id;
+  String number; // T1, Зона-1…
+  String? elementName;
+  String controlType; // uzt | hardness | uzk | mpk | vik | custom
+  double? xPercent;
+  double? yPercent;
+  String? value;
+  String? comment;
+
+  SchemeControlPoint({
+    required this.id,
+    required this.number,
+    this.controlType = 'custom',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'number': number,
+        'point_number': number,
+        'element': elementName,
+        'element_name': elementName,
+        'element_id': elementName,
+        'control_type': controlType,
+        'x_percent': xPercent,
+        'y_percent': yPercent,
+        'value': value,
+        'comment': comment,
+      };
+
+  factory SchemeControlPoint.fromJson(Map<String, dynamic> json) {
+    final p = SchemeControlPoint(
+      id: (json['id'] ?? '').toString(),
+      number: (json['number'] ?? json['point_number'] ?? '').toString(),
+      controlType: (json['control_type'] ?? 'custom').toString(),
+    );
+    p.elementName =
+        (json['element_name'] ?? json['element'] ?? json['element_id'])?.toString();
+    p.xPercent = VesselChecklist._asDouble(json['x_percent']);
+    p.yPercent = VesselChecklist._asDouble(json['y_percent']);
+    p.value = json['value']?.toString();
+    p.comment = json['comment']?.toString();
+    return p;
+  }
+}
+
+/// Базовая схема сосуда: создаётся на ВИК, переиспользуется УЗТ/твёрдость/УЗК/МПК.
+class BaseVesselScheme {
+  String? imagePath;
+  String? source; // vik | drawing_template | upload
+  String? orientation; // horizontal | vertical
+  List<SchemeControlPoint> points = [];
+
+  BaseVesselScheme();
+
+  Map<String, dynamic> toJson() => {
+        'image_path': imagePath,
+        'scheme_image_path': imagePath,
+        'source': source,
+        'orientation': orientation,
+        'points': points.map((e) => e.toJson()).toList(),
+      };
+
+  factory BaseVesselScheme.fromJson(Map<String, dynamic> json) {
+    final s = BaseVesselScheme();
+    s.imagePath =
+        (json['image_path'] ?? json['scheme_image_path'] ?? json['path'])?.toString();
+    s.source = json['source']?.toString();
+    s.orientation = json['orientation']?.toString();
+    final raw = json['points'];
+    if (raw is List) {
+      s.points = raw
+          .whereType<Map>()
+          .map((e) => SchemeControlPoint.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    return s;
   }
 }
 

@@ -168,13 +168,13 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
       for (final r in uzk) {
         if (r is Map) {
           _uzkResults.add({
-            'zone': TextEditingController(text: r['zone']?.toString() ?? ''),
-            'coordinate': TextEditingController(text: r['coordinate']?.toString() ?? ''),
-            'amplitude': TextEditingController(text: r['amplitude']?.toString() ?? ''),
-            'equivalent_size': TextEditingController(text: r['equivalent_size']?.toString() ?? ''),
+            'joint': TextEditingController(text: r['joint']?.toString() ?? r['zone']?.toString() ?? ''),
+            'defect_number': TextEditingController(text: r['defect_number']?.toString() ?? ''),
+            'equivalent_size': TextEditingController(text: r['equivalent_size']?.toString() ?? r['equivalent_area']?.toString() ?? ''),
             'depth': TextEditingController(text: r['depth']?.toString() ?? ''),
             'length': TextEditingController(text: r['length']?.toString() ?? ''),
-            'form': TextEditingController(text: r['form']?.toString() ?? ''),
+            'form': TextEditingController(text: r['form']?.toString() ?? r['character']?.toString() ?? ''),
+            'coordinate': TextEditingController(text: r['coordinate']?.toString() ?? ''),
           });
         }
       }
@@ -185,7 +185,9 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
       for (final h in hardness) {
         if (h is Map) {
           _hardnessPoints.add({
-            'location': TextEditingController(text: h['location']?.toString() ?? ''),
+            'element': TextEditingController(text: h['element']?.toString() ?? h['element_name']?.toString() ?? h['location']?.toString() ?? ''),
+            'point_number': TextEditingController(text: h['point_number']?.toString() ?? ''),
+            'steel_grade': TextEditingController(text: h['steel_grade']?.toString() ?? h['material']?.toString() ?? ''),
             'hardness_base': TextEditingController(text: h['hardness_base']?.toString() ?? ''),
             'hardness_weld': TextEditingController(text: h['hardness_weld']?.toString() ?? ''),
             'allowed_hardness_base': TextEditingController(text: h['allowed_hardness_base']?.toString() ?? ''),
@@ -254,15 +256,21 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['angle_deg'] = formData['method_angle'];
         ad['reference_sample'] = formData['method_reference_sample'];
         ad['control_zone'] = formData['method_control_zone'];
+        ad['joint_type'] = formData['method_joint_type'];
+        ad['element_thickness'] = formData['method_element_thickness'];
+        ad['max_equivalent_area'] = formData['method_max_equiv_area'];
         ad['results_list'] = _uzkResults
             .map<Map<String, String>>((r) => {
-                    'zone': r['zone']?.text ?? '',
+                    'joint': r['joint']?.text ?? '',
+                    'zone': r['joint']?.text ?? '',
+                    'defect_number': r['defect_number']?.text ?? '',
                     'coordinate': r['coordinate']?.text ?? '',
-                    'amplitude': r['amplitude']?.text ?? '',
                     'equivalent_size': r['equivalent_size']?.text ?? '',
+                    'equivalent_area': r['equivalent_size']?.text ?? '',
                     'depth': r['depth']?.text ?? '',
                     'length': r['length']?.text ?? '',
                     'form': r['form']?.text ?? '',
+                    'character': r['form']?.text ?? '',
                   })
             .where((m) => m.values.any((v) => v.isNotEmpty))
             .toList();
@@ -329,7 +337,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['test_method'] = formData['method_hardness_test_method'];
         ad['hardness_tests'] = _hardnessPoints
             .map<Map<String, String>>((p) => {
-                    'location': p['location']?.text ?? '',
+                    'element': p['element']?.text ?? '',
+                    'element_name': p['element']?.text ?? '',
+                    'location': p['element']?.text ?? '',
+                    'point_number': p['point_number']?.text ?? '',
+                    'steel_grade': p['steel_grade']?.text ?? '',
+                    'material': p['steel_grade']?.text ?? '',
                     'hardness_base': p['hardness_base']?.text ?? '',
                     'hardness_weld': p['hardness_weld']?.text ?? '',
                     'allowed_hardness_base': p['allowed_hardness_base']?.text ?? '',
@@ -671,28 +684,149 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           style: const TextStyle(color: Colors.white),
         ),
         const SizedBox(height: 12),
-        _buildDynamicList(
-          title: 'Результаты сканирования',
-          items: _uzkResults,
-          fieldLabels: const [
-            'Зона',
-            'Координата',
-            'Амплитуда, дБ',
-            'Эквив. размер, мм',
-            'Глубина, мм',
-            'Протяженность, мм',
-            'Форма/характер',
-          ],
-          fieldKeys: const [
-            'zone',
-            'coordinate',
-            'amplitude',
-            'equivalent_size',
-            'depth',
-            'length',
-            'form',
+        FormBuilderTextField(
+          name: 'method_joint_type',
+          decoration: _inputDeco('Тип соединения'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        FormBuilderTextField(
+          name: 'method_element_thickness',
+          decoration: _inputDeco('Толщина элементов, мм'),
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        FormBuilderTextField(
+          name: 'method_max_equiv_area',
+          decoration: _inputDeco('Макс. допустимая эквивалентная площадь, мм²'),
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        _buildUzkResultsList(),
+      ],
+    );
+  }
+
+  Widget _buildUzkResultsList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Результаты УЗК',
+              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle, color: Colors.blue),
+              onPressed: () {
+                setState(() {
+                  _uzkResults.add({
+                    'joint': TextEditingController(),
+                    'defect_number': TextEditingController(),
+                    'equivalent_size': TextEditingController(),
+                    'depth': TextEditingController(),
+                    'length': TextEditingController(),
+                    'form': TextEditingController(text: 'объёмный'),
+                    'coordinate': TextEditingController(),
+                  });
+                });
+              },
+            ),
           ],
         ),
+        if (_uzkResults.isEmpty)
+          const Text('Нет записей. Нажмите + для добавления.',
+              style: TextStyle(color: Colors.white38, fontSize: 12)),
+        ..._uzkResults.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final c = entry.value;
+          final formVal = c['form']!.text;
+          return Card(
+            color: const Color(0xFF1e293b),
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('Дефект ${idx + 1}',
+                            style: const TextStyle(color: Colors.white70)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            for (final ctrl in c.values) {
+                              ctrl.dispose();
+                            }
+                            _uzkResults.removeAt(idx);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: c['joint'],
+                    decoration: _inputDeco('Номер стыка'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: c['defect_number'],
+                    decoration: _inputDeco('Условный номер дефекта'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: c['length'],
+                    decoration: _inputDeco('Протяжённость, мм'),
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: c['depth'],
+                    decoration: _inputDeco('Глубина залегания, мм'),
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: c['equivalent_size'],
+                    decoration: _inputDeco('Эквивалентная площадь, мм²'),
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: (formVal == 'объёмный' ||
+                            formVal == 'объемный' ||
+                            formVal == 'плоскостной')
+                        ? (formVal == 'объемный' ? 'объёмный' : formVal)
+                        : 'объёмный',
+                    decoration: _inputDeco('Характер дефекта'),
+                    dropdownColor: const Color(0xFF0f172a),
+                    style: const TextStyle(color: Colors.white),
+                    items: const [
+                      DropdownMenuItem(value: 'объёмный', child: Text('Объёмный')),
+                      DropdownMenuItem(value: 'плоскостной', child: Text('Плоскостной')),
+                    ],
+                    onChanged: (v) {
+                      c['form']!.text = v ?? 'объёмный';
+                      setState(() {});
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -898,8 +1032,22 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         _buildDynamicList(
           title: 'Точки замера твёрдости',
           items: _hardnessPoints,
-          fieldLabels: const ['Место замера', 'Твёрдость осн. металла, HB', 'Твёрдость шва, HB', 'Допустимая твёрдость, HB'],
-          fieldKeys: const ['location', 'hardness_base', 'hardness_weld', 'allowed_hardness_base'],
+          fieldLabels: const [
+            'Элемент сосуда',
+            '№ точки',
+            'Марка стали',
+            'Твёрдость осн. металла, HB',
+            'Твёрдость шва, HB',
+            'Допустимая твёрдость, HB',
+          ],
+          fieldKeys: const [
+            'element',
+            'point_number',
+            'steel_grade',
+            'hardness_base',
+            'hardness_weld',
+            'allowed_hardness_base',
+          ],
         ),
       ],
     );

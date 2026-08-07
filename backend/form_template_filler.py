@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from docx import Document
+from docx.enum.section import WD_ORIENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt
@@ -170,6 +171,7 @@ def fill_vessel_form_to1(
         )
     if len(tables) > 21:
         _fill_uzt_results(tables[21], ctx)
+        _strip_empty_rows(tables[21], 1, ignore_cols=(0,))
 
     # Прил. 5 — твердость
     if len(tables) > 24:
@@ -181,8 +183,10 @@ def fill_vessel_form_to1(
         )
     if len(tables) > 25:
         _fill_hardness_matrix(tables[25], ctx)
+        _strip_empty_rows(tables[25], 3, ignore_cols=(0,))
     if len(tables) > 26:
         _fill_hardness_list(tables[26], ctx)
+        _strip_empty_rows(tables[26], 1, ignore_cols=(0,))
 
     # Прил. 6 — УЗК
     if len(tables) > 29:
@@ -194,6 +198,7 @@ def fill_vessel_form_to1(
         )
     if len(tables) > 31:
         _fill_uzk_results(tables[31], ctx)
+        _strip_empty_rows(tables[31], 1, ignore_cols=(0,))
 
     # Прил. 7 — МПК
     if len(tables) > 34:
@@ -205,23 +210,19 @@ def fill_vessel_form_to1(
         )
     if len(tables) > 36:
         _fill_mpk_results(tables[36], ctx)
+        _strip_empty_rows(tables[36], 1, ignore_cols=(0,))
 
     _fill_paragraph_blanks(doc, ctx)
     _fill_appendix_8_calculation(doc, ctx)
     _fill_appendix_9_hydraulic_act(doc, ctx)
     _insert_schemes_and_photos(doc, ctx)
 
-    # Унифицируем размер шрифта во всех таблицах данных (кроме титульного
-    # листа), чтобы избежать посимвольного переноса и разнобоя в размере
-    # текста между таблицами разных Приложений.
+    # Читаемая типографика таблиц: ~12 pt, без экстремального сжатия.
+    # Широкие таблицы приложений — landscape, затем возврат к portrait.
     try:
-        main_tables_for_font = _main_sdt_tables(doc)
-        for t in main_tables_for_font[1:]:
-            _shrink_table_font(t)
-        for t in doc.tables:
-            _shrink_table_font(t)
+        _finalize_table_typography(doc)
     except Exception:
-        logger.exception("to-1: не удалось унифицировать шрифт таблиц")
+        logger.exception("to-1: не удалось унифицировать шрифт/ориентацию таблиц")
 
     doc.save(str(out))
     logger.info("Форма to-1 заполнена: %s", out)
@@ -437,14 +438,25 @@ def _enrich_inspection_data(
                     desc = ", ".join(parts)
                     mapped.append(
                         {
-                            "weld_number": r.get("zone") or ad.get("control_zone") or "",
+                            "weld_number": r.get("joint")
+                            or r.get("zone")
+                            or ad.get("control_zone")
+                            or "",
+                            "joint": r.get("joint") or r.get("zone") or "",
+                            "defect_number": r.get("defect_number") or "",
                             "defect_description": desc,
                             "uzk_defect": desc,
-                            "area": r.get("equivalent_size") or r.get("area") or "",
-                            "equivalent_area": r.get("equivalent_size") or "",
+                            "area": r.get("equivalent_size")
+                            or r.get("equivalent_area")
+                            or r.get("area")
+                            or "",
+                            "equivalent_area": r.get("equivalent_size")
+                            or r.get("equivalent_area")
+                            or "",
                             "depth": r.get("depth") or "",
                             "length": r.get("length") or r.get("extent") or "",
                             "form": r.get("form") or r.get("character") or "",
+                            "character": r.get("character") or r.get("form") or "",
                             "location": r.get("coordinate") or r.get("location") or "",
                             "conclusion": method_conclusion,
                             "control_method": "UZK",
@@ -565,6 +577,27 @@ def _build_context(
     customer = (org_settings.get("customer") or {}) if isinstance(org_settings, dict) else {}
     lab = (org_settings.get("ndt_lab") or {}) if isinstance(org_settings, dict) else {}
 
+    # Override из обследования (mobile customer_info / contractor_info)
+    cust_ov = data.get("customer_info") if isinstance(data.get("customer_info"), dict) else {}
+    contr_ov = data.get("contractor_info") if isinstance(data.get("contractor_info"), dict) else {}
+    if cust_ov:
+        customer = {**customer, **{k: v for k, v in cust_ov.items() if v not in (None, "")}}
+    if contr_ov:
+        contractor = {**contractor, **{k: v for k, v in contr_ov.items() if v not in (None, "")}}
+
+    # Единый параметр ориентации сосуда
+    orientation = str(g("orientation", default="") or "").strip().lower()
+    if orientation not in ("horizontal", "vertical"):
+        ct = str(g("construction_type", default="") or "").lower()
+        if "горизонт" in ct or "horizontal" in ct:
+            orientation = "horizontal"
+        elif "вертикал" in ct or "vertical" in ct:
+            orientation = "vertical"
+        else:
+            orientation = ""
+    if orientation:
+        data["orientation"] = orientation
+
     device_name = str(
         g("equipment_device_name", "vessel_name", default=equipment_data.get("name") or MISSING)
     )
@@ -631,6 +664,8 @@ def _build_context(
         "customer_address": customer.get("address") or customer.get("legal_address") or "",
         "customer_phone": customer.get("phone") or "",
         "customer_email": customer.get("email") or "",
+        "customer_legal_name": customer.get("legal_name") or customer.get("name") or "",
+        "orientation": orientation,
         "lab_name": lab.get("name") or contractor.get("legal_name") or "",
         "lab_cert": lab.get("certificate") or lab.get("attestation_number") or "",
         "docs_dict": docs_dict,
@@ -1020,22 +1055,146 @@ def _insert_page_break_before_paragraph(paragraph: Paragraph) -> None:
     parent.insert(list(parent).index(p), new_p)
 
 
-_APPENDIX_TABLE_FONT_PT = 8.5
+# Минимальный нормальный размер шрифта таблиц (встреча 03.08.2026).
+_TABLE_FONT_PT = 12.0
+# Умеренное уменьшение — только после landscape / переноса (не ниже этого).
+_TABLE_FONT_MIN_PT = 10.0
+# Таблицы с таким числом колонок считаются «широкими» → landscape.
+_WIDE_TABLE_MIN_COLS = 7
 
 
-def _shrink_table_font(table: Table, pt: float = _APPENDIX_TABLE_FONT_PT) -> None:
-    """Уменьшить и унифицировать размер шрифта во всех ячейках таблицы.
+def _shrink_table_font(table: Table, pt: float = _TABLE_FONT_PT) -> None:
+    """Унифицировать размер шрифта ячеек (читаемый минимум ~12 pt)."""
+    _apply_table_font(table, pt=pt)
 
-    Данные в таблицах Приложений должны отображаться одинаково и легко
-    читаться; также уменьшение шрифта снижает риск посимвольного переноса
-    длинных «слов» без пробелов (марка стали, ГОСТ, «Автоматическая» и т.п.)
-    в узких колонках при конвертации docx → pdf.
-    """
+
+def _apply_table_font(table: Table, pt: float = _TABLE_FONT_PT) -> None:
     for row in table.rows:
         for cell in row.cells:
             for p in cell.paragraphs:
+                pf = p.paragraph_format
+                try:
+                    pf.space_before = Pt(1)
+                    pf.space_after = Pt(1)
+                except Exception:
+                    pass
                 for r in p.runs:
                     r.font.size = Pt(pt)
+
+
+def _style_table_header_row(table: Table, header_rows: int = 1, pt: float = _TABLE_FONT_PT) -> None:
+    """Единый стиль заголовков таблиц приложений."""
+    for ri in range(min(header_rows, len(table.rows))):
+        for cell in table.rows[ri].cells:
+            for p in cell.paragraphs:
+                try:
+                    p.paragraph_format.space_before = Pt(2)
+                    p.paragraph_format.space_after = Pt(2)
+                except Exception:
+                    pass
+                for r in p.runs:
+                    r.font.size = Pt(pt)
+                    r.font.bold = True
+
+
+def _table_col_count(table: Table) -> int:
+    if not table.rows:
+        return 0
+    return len(table.rows[0].cells)
+
+
+def _set_section_orientation(section, landscape: bool) -> None:
+    """Portrait/landscape с корректным обменом page_width/page_height."""
+    section.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+    w, h = section.page_width, section.page_height
+    if landscape and w < h:
+        section.page_width, section.page_height = h, w
+    elif not landscape and w > h:
+        section.page_width, section.page_height = h, w
+
+
+def _insert_section_break_before(element, landscape: bool) -> None:
+    """Вставить разрыв раздела (новая страница) перед элементом с заданной ориентацией."""
+    p = OxmlElement("w:p")
+    pPr = OxmlElement("w:pPr")
+    sectPr = OxmlElement("w:sectPr")
+    pgSz = OxmlElement("w:pgSz")
+    # A4: 11906 x 16838 twips
+    if landscape:
+        pgSz.set(qn("w:w"), "16838")
+        pgSz.set(qn("w:h"), "11906")
+        pgSz.set(qn("w:orient"), "landscape")
+    else:
+        pgSz.set(qn("w:w"), "11906")
+        pgSz.set(qn("w:h"), "16838")
+        pgSz.set(qn("w:orient"), "portrait")
+    sectPr.append(pgSz)
+    pgMar = OxmlElement("w:pgMar")
+    for attr, val in (
+        ("w:top", "720"),
+        ("w:right", "720"),
+        ("w:bottom", "720"),
+        ("w:left", "720"),
+        ("w:header", "360"),
+        ("w:footer", "360"),
+        ("w:gutter", "0"),
+    ):
+        pgMar.set(qn(attr), val)
+    sectPr.append(pgMar)
+    pPr.append(sectPr)
+    p.append(pPr)
+    element.addprevious(p)
+
+
+def _finalize_table_typography(doc: Document) -> None:
+    """12 pt по умолчанию; широкие таблицы → landscape; умеренный shrink только в крайнем случае."""
+    seen: set = set()
+    tables: List[Table] = []
+    try:
+        for t in _main_sdt_tables(doc)[1:]:
+            tid = id(t._tbl)
+            if tid not in seen:
+                seen.add(tid)
+                tables.append(t)
+    except Exception:
+        pass
+    for t in doc.tables:
+        tid = id(t._tbl)
+        if tid not in seen:
+            seen.add(tid)
+            tables.append(t)
+
+    wide_done = False
+    for t in tables:
+        cols = _table_col_count(t)
+        header_rows = 2 if cols >= 6 else 1
+        if cols >= _WIDE_TABLE_MIN_COLS and not wide_done:
+            try:
+                _insert_section_break_before(t._tbl, landscape=True)
+                # После таблицы — возврат к portrait (sectPr на следующем пустом абзаце).
+                after = OxmlElement("w:p")
+                t._tbl.addnext(after)
+                _insert_section_break_before(after, landscape=False)
+                parent = after.getparent()
+                if parent is not None:
+                    parent.remove(after)
+                wide_done = True
+            except Exception:
+                logger.exception("to-1: landscape для широкой таблицы")
+        pt = _TABLE_FONT_PT
+        if cols >= 10:
+            pt = _TABLE_FONT_MIN_PT  # умеренно, только для очень широких
+        _apply_table_font(t, pt=pt)
+        _style_table_header_row(t, header_rows=header_rows, pt=pt)
+
+    # Финальная секция документа — portrait
+    try:
+        for section in doc.sections:
+            if section.orientation == WD_ORIENT.LANDSCAPE:
+                continue
+            _set_section_orientation(section, landscape=False)
+    except Exception:
+        pass
 
 
 def _add_table_row(table: Table) -> None:
@@ -1816,10 +1975,18 @@ def _fill_heat_treatment(table: Table, ctx: Dict[str, Any]) -> None:
         vals = [
             rec.get("element") or rec.get("name") or "",
             rec.get("type") or rec.get("kind") or "",
+            rec.get("mode") or rec.get("regime") or rec.get("heat_mode") or "",
             rec.get("temperature") or "",
             rec.get("duration") or "",
             rec.get("cooling") or "",
         ]
+        # Если в шаблоне 5 колонок (без отдельного «режима») — склеиваем вид+режим.
+        ncols = len(table.rows[r].cells) if r < len(table.rows) else 5
+        if ncols <= 5:
+            kind = vals[1]
+            mode = vals[2]
+            merged = kind if not mode else (f"{kind}; режим: {mode}" if kind else mode)
+            vals = [vals[0], merged, vals[3], vals[4], vals[5]]
         for c, v in enumerate(vals):
             if c < len(table.rows[r].cells):
                 _set(table, r, c, v)
@@ -2284,17 +2451,30 @@ def _fill_hardness_list(table: Table, ctx: Dict[str, Any]) -> None:
     tests = g("hardness_tests", "hardnessTests", default=[])
     if not isinstance(tests, list) or not tests:
         return
+    # Автоподстановка марки стали из элементов корпуса / паспорта
+    default_steel = ""
+    elements = g("vessel_elements", "elements", default=[])
+    if isinstance(elements, list):
+        for el in elements:
+            if isinstance(el, dict) and (el.get("material") or el.get("steel_grade")):
+                default_steel = str(el.get("material") or el.get("steel_grade"))
+                break
+    if not default_steel:
+        default_steel = str(g("shell_material", "material", default="") or "")
     start = 1
     _ensure_rows(table, start + len(tests))
     for i, t in enumerate(tests):
         if not isinstance(t, dict):
             continue
+        if not (t.get("steel_grade") or t.get("material") or t.get("grade")):
+            t = {**t, "steel_grade": default_steel}
         r = start + i
         _set(
             table,
             r,
             0,
-            t.get("weld_number")
+            t.get("element")
+            or t.get("element_name")
             or t.get("location")
             or t.get("zone")
             or t.get("section")
@@ -2304,26 +2484,48 @@ def _fill_hardness_list(table: Table, ctx: Dict[str, Any]) -> None:
             table,
             r,
             1,
-            t.get("area_number") or t.get("point_number") or t.get("point") or (i + 1),
+            t.get("point_number")
+            or t.get("area_number")
+            or t.get("point")
+            or t.get("weld_number")
+            or (i + 1),
         )
-        _set(
-            table,
-            r,
-            2,
+        steel = (
+            t.get("steel_grade")
+            or t.get("material")
+            or t.get("grade")
+            or default_steel
+            or ""
+        )
+        hardness_val = (
             t.get("hardness_base")
             or t.get("hardness_weld")
             or t.get("value")
-            or "",
+            or ""
         )
-        _set(
-            table,
-            r,
-            3,
-            t.get("allowed_hardness_base")
-            or t.get("allowed_hardness_weld")
-            or t.get("allowed")
-            or "",
-        )
+        if steel and 4 < len(table.rows[r].cells):
+            _set(table, r, 2, hardness_val)
+            _set(table, r, 3, steel)
+            _set(
+                table,
+                r,
+                4 if len(table.rows[r].cells) > 4 else 3,
+                t.get("allowed_hardness_base")
+                or t.get("allowed_hardness_weld")
+                or t.get("allowed")
+                or "",
+            )
+        else:
+            _set(table, r, 2, hardness_val)
+            _set(
+                table,
+                r,
+                3,
+                t.get("allowed_hardness_base")
+                or t.get("allowed_hardness_weld")
+                or t.get("allowed")
+                or "",
+            )
 
 
 def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
@@ -2352,7 +2554,20 @@ def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
             or ""
         )
         location = w.get("location") or w.get("location_on_control_map") or ""
-        form_char = w.get("form") or w.get("character") or defect_text
+        form_char = (
+            w.get("character")
+            or w.get("form")
+            or w.get("defect_character")
+            or w.get("defect_form")
+            or ""
+        )
+        # Не подставлять весь текст дефекта в колонку «характер» (объёмный/плоскостной).
+        if form_char and form_char == defect_text and form_char not in (
+            "объёмный",
+            "объемный",
+            "плоскостной",
+        ):
+            form_char = ""
         conclusion = (
             w.get("conclusion")
             or w.get("assessment")

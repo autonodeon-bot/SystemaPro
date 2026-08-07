@@ -36,11 +36,54 @@ class InspectionPassportSection extends StatelessWidget {
           style: TextStyle(color: Colors.white54, fontSize: 13),
         ),
         const SizedBox(height: 16),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: checklist.orientation == 'horizontal' || checklist.orientation == 'vertical'
+              ? checklist.orientation
+              : null,
+          decoration: const InputDecoration(
+            labelText: 'Ориентация сосуда',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+          ),
+          dropdownColor: const Color(0xFF1e293b),
+          style: const TextStyle(color: Colors.white),
+          items: const [
+            DropdownMenuItem(value: 'horizontal', child: Text('Горизонтальный')),
+            DropdownMenuItem(value: 'vertical', child: Text('Вертикальный')),
+          ],
+          onChanged: (v) {
+            checklist.orientation = v;
+            if (v == 'horizontal' &&
+                (checklist.constructionType == null ||
+                    !checklist.constructionType!.toLowerCase().contains('горизонт'))) {
+              checklist.constructionType = 'горизонтальный';
+            } else if (v == 'vertical' &&
+                (checklist.constructionType == null ||
+                    !checklist.constructionType!.toLowerCase().contains('вертикал'))) {
+              checklist.constructionType = 'вертикальный';
+            }
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 12),
         _simpleField(
           label: 'Конструктивное исполнение',
           value: checklist.constructionType,
           onChanged: (v) {
             checklist.constructionType = v;
+            final s = (v ?? '').toLowerCase();
+            if (s.contains('горизонт')) checklist.orientation = 'horizontal';
+            if (s.contains('вертикал')) checklist.orientation = 'vertical';
+            onStateChanged();
+          },
+        ),
+        _simpleField(
+          label: 'Схема подключения (текст)',
+          value: checklist.connectionScheme,
+          onChanged: (v) {
+            checklist.connectionScheme = v;
             onStateChanged();
           },
         ),
@@ -274,12 +317,14 @@ class InspectionPassportSection extends StatelessWidget {
     final e = index != null ? checklist.heatTreatmentRecords[index] : HeatTreatmentRecord();
     final el = TextEditingController(text: e.element);
     final tp = TextEditingController(text: e.type);
+    final mode = TextEditingController(text: e.mode);
     final temp = TextEditingController(text: e.temperature);
     final dur = TextEditingController(text: e.duration);
     final cool = TextEditingController(text: e.cooling);
     final ok = await _dialog(context, 'Термообработка', [
       buildDialogTextField(el, 'Элемент / соединение'),
       buildDialogTextField(tp, 'Вид термообработки'),
+      buildDialogTextField(mode, 'Режим термообработки'),
       buildDialogTextField(temp, 'Температура, °C'),
       buildDialogTextField(dur, 'Продолжительность выдержки, ч'),
       buildDialogTextField(cool, 'Способ охлаждения'),
@@ -288,6 +333,7 @@ class InspectionPassportSection extends StatelessWidget {
       final r = HeatTreatmentRecord()
         ..element = el.text.trim()
         ..type = tp.text.trim()
+        ..mode = mode.text.trim()
         ..temperature = temp.text.trim()
         ..duration = dur.text.trim()
         ..cooling = cool.text.trim();
@@ -303,25 +349,80 @@ class InspectionPassportSection extends StatelessWidget {
   Future<void> _editHydro(BuildContext context, {int? index}) async {
     final e = index != null ? checklist.hydraulicTestHistory[index] : HydraulicTestRecord();
     final dt = TextEditingController(text: e.date);
-    final tp = TextEditingController(text: e.testType ?? 'гидравлическое');
+    String testType = e.testType ?? 'гидравлическое';
+    String medium = e.medium ?? 'вода';
     final pr = TextEditingController(text: e.pressure);
-    final md = TextEditingController(text: e.medium);
     final tm = TextEditingController(text: e.temperature);
     final nt = TextEditingController(text: e.note);
-    final ok = await _dialog(context, 'Гидроиспытание', [
-      buildDialogTextField(dt, 'Дата'),
-      buildDialogTextField(tp, 'Вид испытания (гидравлическое / пневматическое)'),
-      buildDialogTextField(pr, 'Пробное давление, кгс/см²'),
-      buildDialogTextField(md, 'Испытательная среда'),
-      buildDialogTextField(tm, 'Температура испытательной среды, °C'),
-      buildDialogTextField(nt, 'Примечание'),
-    ]);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1e293b),
+              title: const Text('Испытание на прочность', style: TextStyle(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    buildDialogTextField(dt, 'Дата'),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: testType,
+                      decoration: const InputDecoration(
+                        labelText: 'Вид испытания',
+                        labelStyle: TextStyle(color: Colors.white70),
+                      ),
+                      dropdownColor: const Color(0xFF0f172a),
+                      style: const TextStyle(color: Colors.white),
+                      items: const [
+                        DropdownMenuItem(value: 'гидравлическое', child: Text('Гидравлическое')),
+                        DropdownMenuItem(value: 'пневматическое', child: Text('Пневматическое')),
+                      ],
+                      onChanged: (v) => setLocal(() => testType = v ?? testType),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: ['вода', 'воздух', 'незамерзающая жидкость', 'другое'].contains(medium)
+                          ? medium
+                          : 'другое',
+                      decoration: const InputDecoration(
+                        labelText: 'Испытательная среда',
+                        labelStyle: TextStyle(color: Colors.white70),
+                      ),
+                      dropdownColor: const Color(0xFF0f172a),
+                      style: const TextStyle(color: Colors.white),
+                      items: const [
+                        DropdownMenuItem(value: 'вода', child: Text('Вода')),
+                        DropdownMenuItem(value: 'воздух', child: Text('Воздух')),
+                        DropdownMenuItem(
+                            value: 'незамерзающая жидкость', child: Text('Незамерзающая жидкость')),
+                        DropdownMenuItem(value: 'другое', child: Text('Другое')),
+                      ],
+                      onChanged: (v) => setLocal(() => medium = v ?? medium),
+                    ),
+                    buildDialogTextField(pr, 'Пробное давление, кгс/см²'),
+                    buildDialogTextField(tm, 'Температура испытательной среды, °C'),
+                    buildDialogTextField(nt, 'Примечание'),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Сохранить')),
+              ],
+            );
+          },
+        );
+      },
+    );
     if (ok == true) {
       final r = HydraulicTestRecord()
         ..date = dt.text.trim()
-        ..testType = tp.text.trim()
+        ..testType = testType
         ..pressure = pr.text.trim()
-        ..medium = md.text.trim()
+        ..medium = medium
         ..temperature = tm.text.trim()
         ..note = nt.text.trim();
       if (index != null) {

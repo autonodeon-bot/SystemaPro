@@ -401,6 +401,12 @@ const PassportTab: React.FC<PassportTabProps> = ({ node, onUpdate }) => {
             {renderField('tempWork', 'Рабочая температура', '°C')}
             {renderField('medium', 'Рабочая среда')}
             {renderField('material', 'Марка стали')}
+            {renderField('materialGost', 'ГОСТ / ТУ материала')}
+            {renderField('yieldStrength', 'Предел текучести σт', 'МПа')}
+            {renderField('tensileStrength', 'Временное сопротивление σв', 'МПа')}
+            {renderField('elongation', 'Относительное удлинение δ', '%')}
+            {renderField('orientation', 'Ориентация сосуда (horizontal/vertical)')}
+            {renderField('constructionType', 'Конструктивное исполнение')}
          </div>
       </div>
     </div>

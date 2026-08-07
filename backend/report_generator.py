@@ -1028,6 +1028,7 @@ class ReportGenerator:
                 present = None
                 doc_number = ""
                 doc_date = ""
+                pages = ""
                 if isinstance(docs, dict) and num_key in docs:
                     val = docs.get(num_key)
                     if isinstance(val, dict):
@@ -1036,6 +1037,7 @@ class ReportGenerator:
                             present = val.get("has") if val.get("has") is not None else val.get("value")
                         doc_number = str(val.get("number") or val.get("doc_number") or "")
                         doc_date = str(val.get("date") or val.get("doc_date") or "")
+                        pages = str(val.get("pages") or val.get("page_count") or val.get("volume") or "")
                     else:
                         if isinstance(val, str):
                             present = val.strip().lower() in ("true", "1", "yes", "да")
@@ -1052,7 +1054,9 @@ class ReportGenerator:
                             doc_number = str(info.get("number") or info.get("doc_number") or "")
                         if not doc_date:
                             doc_date = str(info.get("date") or info.get("doc_date") or "")
-                return present, doc_number, doc_date
+                        if not pages:
+                            pages = str(info.get("pages") or info.get("page_count") or info.get("volume") or "")
+                return present, doc_number, doc_date, pages
 
             doc_keys: set = set()
             if isinstance(docs, dict):
@@ -1066,21 +1070,23 @@ class ReportGenerator:
                 self._cell_header("Наименование документа"),
                 self._cell_header("Номер"),
                 self._cell_header("Дата"),
+                self._cell_header("Объём, листов"),
                 self._cell_header("Наличие"),
             ]
             doc_data = [doc_header]
             for num in doc_keys_sorted:
                 doc_name = document_names.get(str(num), f"Документ {num}")
-                present, doc_number, doc_date = _doc_meta(str(num))
+                present, doc_number, doc_date, pages = _doc_meta(str(num))
                 doc_data.append([
                     self._cell_text(num),
                     self._cell_text(doc_name),
                     self._cell_text(doc_number or "\u2014"),
                     self._cell_text(doc_date or "\u2014"),
+                    self._cell_text(pages or "\u2014"),
                     self._cell_text("Да" if present else "\u2014"),
                 ])
 
-            t = Table(doc_data, colWidths=[0.8*cm, 8.2*cm, 2.5*cm, 2.5*cm, 3.0*cm])
+            t = Table(doc_data, colWidths=[0.7*cm, 6.5*cm, 2.2*cm, 2.2*cm, 2.2*cm, 2.2*cm])
             t.setStyle(self._gost_table_style())
             story.append(t)
             story.append(Spacer(1, 0.3 * cm))

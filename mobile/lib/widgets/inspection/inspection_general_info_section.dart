@@ -3,9 +3,11 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
 import 'inspection_form_fields.dart';
 
 class InspectionGeneralInfoSection extends StatelessWidget {
@@ -69,12 +71,150 @@ class InspectionGeneralInfoSection extends StatelessWidget {
         }),
         _buildExecutorsField(context),
         _buildOrganizationField(context),
+        _buildCustomerContractorSection(context),
         if (equipmentOpoId == null || equipmentOpoId!.isEmpty)
           _buildOpoSelectionField(),
         const SizedBox(height: 16),
         _buildEngineerSelectionSection(),
       ],
     );
+  }
+
+  Widget _buildCustomerContractorSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          'Сведения о заказчике / организации ТД',
+          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Подтягиваются из веб-настроек отчёта; при необходимости уточните ниже.',
+          style: TextStyle(color: Colors.white38, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'customer_legal_name',
+          initialValue: checklist.customerInfo['legal_name'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Заказчик (юр. наименование)',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.customerInfo['legal_name'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'customer_address',
+          initialValue: checklist.customerInfo['address'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Адрес заказчика',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.customerInfo['address'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'contractor_name',
+          initialValue: checklist.contractorInfo['name'] ?? checklist.contractorInfo['legal_name'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Организация, проводившая ТД',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.contractorInfo['name'] = v ?? '';
+            checklist.contractorInfo['legal_name'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'contractor_address',
+          initialValue: checklist.contractorInfo['address'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Адрес организации ТД',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.contractorInfo['address'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => _loadReportOrgSettings(context),
+            icon: const Icon(Icons.cloud_download, size: 18),
+            label: const Text('Загрузить из настроек отчёта'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _loadReportOrgSettings(BuildContext context) async {
+    try {
+      final auth = await AuthService().getToken();
+      final uri = Uri.parse('${ApiService.baseUrl}/api/report-org-settings');
+      final response = await http.get(
+        uri,
+        headers: {
+          if (auth != null && auth.isNotEmpty) 'Authorization': 'Bearer $auth',
+          'Accept': 'application/json',
+        },
+      ).timeout(ApiService.requestTimeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data is! Map) return;
+      final customer = data['customer'];
+      final contractor = data['contractor'];
+      if (customer is Map) {
+        checklist.customerInfo = {
+          'legal_name': customer['legal_name']?.toString() ?? customer['name']?.toString() ?? '',
+          'address': customer['address']?.toString() ?? customer['legal_address']?.toString() ?? '',
+          'phone': customer['phone']?.toString() ?? '',
+          'director': customer['director']?.toString() ?? customer['director_name']?.toString() ?? '',
+        };
+      }
+      if (contractor is Map) {
+        checklist.contractorInfo = {
+          'name': contractor['name']?.toString() ?? contractor['legal_name']?.toString() ?? '',
+          'legal_name': contractor['legal_name']?.toString() ?? contractor['name']?.toString() ?? '',
+          'address': contractor['address']?.toString() ?? contractor['postal_address']?.toString() ?? '',
+          'phone': contractor['phone']?.toString() ?? '',
+          'director_name': contractor['director_name']?.toString() ?? '',
+        };
+      }
+      onStateChanged();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Сведения заказчика/организации загружены')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось загрузить настройки: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildVerificationEquipmentButton(BuildContext context) {

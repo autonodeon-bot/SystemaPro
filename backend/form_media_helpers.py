@@ -136,11 +136,27 @@ def collect_scheme_paths(
 ) -> List[Dict[str, str]]:
     """Схемы контроля: ВИК + УЗТ."""
     items: List[Dict[str, str]] = []
-    for key in ("control_scheme_image", "control_scheme"):
+    for key in ("control_scheme_image", "control_scheme", "base_vessel_scheme_image"):
         path = attachments.get(key) or data.get(key)
         if isinstance(path, str) and path.strip():
-            items.append({"label": "Схема визуального и измерительного контроля", "path": path})
+            items.append({"label": "Базовая схема сосуда (ВИК)", "path": path})
             break
+    # Базовая схема из структурированного объекта
+    base = data.get("base_vessel_scheme")
+    if isinstance(base, dict):
+        bp = base.get("image_path") or base.get("scheme_image_path") or base.get("path")
+        if isinstance(bp, str) and bp.strip():
+            if not any(it["path"] == bp for it in items):
+                items.append({"label": "Базовая схема сосуда (ВИК)", "path": bp})
+    # Схема подключения (файл)
+    for key, label in (
+        ("connection_scheme_file", "Схема подключения сосуда"),
+        ("connection_scheme_image", "Схема подключения сосуда"),
+    ):
+        path = attachments.get(key) or data.get(key)
+        if isinstance(path, str) and path.strip():
+            if not any(it["path"] == path for it in items):
+                items.append({"label": label, "path": path})
     schemes = data.get("uzt_schemes") or []
     if isinstance(schemes, list):
         for i, s in enumerate(schemes):

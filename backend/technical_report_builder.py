@@ -279,14 +279,15 @@ def append_technical_protocol_doc_analysis(doc: Document, ctx: TechnicalReportCo
     doc.add_paragraph()
     heat = g("heat_treatment_records", "vessel_heat_treatment", default=[])
     if not isinstance(heat, list) or not heat:
-        heat = [{"element": MISSING, "type": MISSING, "temperature": MISSING, "duration": MISSING, "cooling": MISSING}]
-    t6 = doc.add_table(rows=len(heat) + 1, cols=5)
+        heat = [{"element": MISSING, "type": MISSING, "mode": MISSING, "temperature": MISSING, "duration": MISSING, "cooling": MISSING}]
+    t6 = doc.add_table(rows=len(heat) + 1, cols=6)
     t6.style = "Table Grid"
     _header_row(
         t6,
         [
             "Наименование элемента или соединения",
             "Вид термообработки",
+            "Режим термообработки",
             "Температура, °С",
             "Продолжительность выдержки, ч.",
             "Способ охлаждения",
@@ -298,15 +299,16 @@ def append_technical_protocol_doc_analysis(doc: Document, ctx: TechnicalReportCo
         row = t6.rows[i]
         row.cells[0].text = str(rec.get("element") or rec.get("name") or MISSING)
         row.cells[1].text = str(rec.get("type") or rec.get("treatment_type") or MISSING)
-        row.cells[2].text = str(rec.get("temperature") or MISSING)
-        row.cells[3].text = str(rec.get("duration") or MISSING)
-        row.cells[4].text = str(rec.get("cooling") or MISSING)
+        row.cells[2].text = str(rec.get("mode") or rec.get("regime") or MISSING)
+        row.cells[3].text = str(rec.get("temperature") or MISSING)
+        row.cells[4].text = str(rec.get("duration") or MISSING)
+        row.cells[5].text = str(rec.get("cooling") or MISSING)
     doc.add_paragraph()
 
     doc.add_paragraph("7. Испытание на прочность.")
     doc.add_paragraph("Таблица № 7")
     doc.add_paragraph()
-    tests = g("strength_test_records", "hydraulic_tests", default=[])
+    tests = g("hydraulic_test_history", "strength_test_records", "hydraulic_tests", default=[])
     if not isinstance(tests, list) or not tests:
         tests = [
             {
@@ -314,33 +316,38 @@ def append_technical_protocol_doc_analysis(doc: Document, ctx: TechnicalReportCo
                 "pressure": g("hydraulic_test_pressure", default=MISSING),
                 "duration": MISSING,
                 "medium": "вода",
+                "temperature": MISSING,
                 "result": g("hydraulic_test_result", default="испытание выдержано"),
                 "date": g("hydraulic_test_date", default=MISSING),
             }
         ]
-    t7 = doc.add_table(rows=len(tests) + 1, cols=6)
+    t7 = doc.add_table(rows=len(tests) + 1, cols=7)
     t7.style = "Table Grid"
     _header_row(
         t7,
         [
+            "Дата",
             "Вид испытания",
             "Давление, МПа (кгс/см²)",
-            "Продолжительность, ч",
             "Среда",
-            "Результат",
-            "Дата",
+            "Температура, °С",
+            "Продолжительность, ч",
+            "Результат / примечание",
         ],
     )
     for i, rec in enumerate(tests, 1):
         if not isinstance(rec, dict):
             continue
         row = t7.rows[i]
-        row.cells[0].text = str(rec.get("test_type") or "Гидравлическое")
-        row.cells[1].text = str(rec.get("pressure") or MISSING)
-        row.cells[2].text = str(rec.get("duration") or MISSING)
+        row.cells[0].text = str(rec.get("date") or MISSING)
+        row.cells[1].text = str(
+            rec.get("test_type") or rec.get("type") or rec.get("kind") or "Гидравлическое"
+        )
+        row.cells[2].text = str(rec.get("pressure") or MISSING)
         row.cells[3].text = str(rec.get("medium") or MISSING)
-        row.cells[4].text = str(rec.get("result") or MISSING)
-        row.cells[5].text = str(rec.get("date") or MISSING)
+        row.cells[4].text = str(rec.get("temperature") or MISSING)
+        row.cells[5].text = str(rec.get("duration") or MISSING)
+        row.cells[6].text = str(rec.get("note") or rec.get("result") or MISSING)
     doc.add_paragraph()
 
     doc.add_paragraph("8. Сведения о предыдущих обследованиях")
