@@ -1148,11 +1148,40 @@ def _build_context(
         data["orientation"] = orientation
 
     device_name = str(
-        g("equipment_device_name", "vessel_name", default=equipment_data.get("name") or MISSING)
+        g(
+            "equipment_device_name",
+            "vessel_name",
+            "device_name",
+            default=equipment_data.get("name") or MISSING,
+        )
     )
-    serial = str(g("serial_number", default=equipment_data.get("serial_number") or MISSING))
-    reg_no = str(g("reg_number", "regNumber", default=MISSING))
-    inv_no = str(g("inventory_number", "inv_number", default=MISSING))
+    serial = str(
+        g(
+            "serial_number",
+            "factory_number",
+            "equipment_serial",
+            default=equipment_data.get("serial_number")
+            or equipment_data.get("factory_number")
+            or MISSING,
+        )
+    )
+    # Карточка оборудования часто хранит рег.№ как registration_number
+    reg_no = str(
+        g(
+            "reg_number",
+            "regNumber",
+            "registration_number",
+            default=equipment_data.get("registration_number") or MISSING,
+        )
+    )
+    inv_no = str(
+        g(
+            "inventory_number",
+            "inv_number",
+            "equipment_inventory_number",
+            default=equipment_data.get("inventory_number") or MISSING,
+        )
+    )
     location = str(g("location", "equipment_location", default=equipment_data.get("location") or ""))
     org_name = str(
         g(
@@ -1752,6 +1781,56 @@ def _insert_section_break_after(element, landscape: bool) -> None:
     element.addnext(_make_section_break_paragraph(landscape))
 
 
+def _element_plain_text(el) -> str:
+    """Текст XML-элемента абзаца без лишних пробелов."""
+    try:
+        return _norm_ws("".join(t.text or "" for t in el.iter(qn("w:t"))))
+    except Exception:
+        return ""
+
+
+def _landscape_block_start(tbl) -> Any:
+    """
+    Начало блока «заголовок раздела + Таблица № N + таблица».
+
+    Раньше section break ставился прямо перед таблицей — подпись «Таблица №»
+    оставалась на portrait, а сама таблица уезжала на landscape.
+    """
+    start = tbl
+    el = tbl.getprevious()
+    hops = 0
+    while el is not None and hops < 12:
+        hops += 1
+        if el.tag == qn("w:tbl"):
+            break
+        # Уже есть разрыв раздела — дальше не заходим
+        if el.tag == qn("w:p"):
+            pPr = el.find(qn("w:pPr"))
+            if pPr is not None and pPr.find(qn("w:sectPr")) is not None:
+                break
+            text = _element_plain_text(el).strip()
+            if not text:
+                el = el.getprevious()
+                continue
+            if _is_table_caption(text):
+                start = el
+                el = el.getprevious()
+                continue
+            # Короткий заголовок раздела/блока над подписью таблицы
+            if len(text) < 160 and (
+                text.startswith("Результаты")
+                or text.startswith("Параметры")
+                or "Материалы элементов" in text
+                or bool(re.match(r"^\d{1,2}\.\s+\S", text))
+            ):
+                start = el
+                el = el.getprevious()
+                continue
+            break
+        el = el.getprevious()
+    return start
+
+
 def _finalize_table_typography(doc: Document) -> None:
     """12 pt; landscape только для широких таблиц приложений; титул — portrait."""
     main_ids: set = set()
@@ -1784,9 +1863,10 @@ def _finalize_table_typography(doc: Document) -> None:
         # три колонки титула выглядели как несколько одинаковых листов.
         if not in_main and cols >= _WIDE_TABLE_MIN_COLS and len(t.rows) >= 2:
             try:
-                # 1) закрыть предыдущую секцию как portrait (титул остаётся портретным)
-                _insert_section_break_before(t._tbl, landscape=False)
-                # 2) закрыть секцию с таблицей как landscape
+                # Заголовок «Таблица № N» (и при необходимости название раздела)
+                # должны оказаться в той же landscape-секции, что и таблица.
+                block_start = _landscape_block_start(t._tbl)
+                _insert_section_break_before(block_start, landscape=False)
                 _insert_section_break_after(t._tbl, landscape=True)
             except Exception:
                 logger.exception("to-1: landscape для широкой таблицы")
@@ -2542,8 +2622,17 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
                 p,
                 f"По результатам работ произведена оценка работоспособности {calc_txt}.{extra} (Приложение № 8)",
             )
-        elif "Фактическое значение параметров, определяющих состояние эксплуатации" in norm or (
-            "состояние эксплуатации" in norm and "зав" in norm and "инв" in norm
+        elif (
+            "фактическое значение параметров" in norm.lower()
+            or (
+                "состояние эксплуатации" in norm.lower()
+                and ("зав" in norm.lower() or "инв" in norm.lower())
+            )
+            or (
+                "работающего под давлением" in norm.lower()
+                and "____" in text
+                and "удовлетвор" in norm.lower()
+            )
         ):
             satisfy = (
                 "не удовлетворяют требованиям нормативных документов без выполнения ремонта"
@@ -2556,7 +2645,7 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
                 f"работающего под давлением – {device}, зав.№ {serial}, рег.№ {reg_no}, "
                 f"инв.№ {inv_no}, {satisfy}.",
             )
-        elif "Техническое состояние объекта диагностирования" in norm:
+        elif "техническое состояние объекта диагностирования" in norm.lower():
             vik_s = _ndt_result_summary(
                 ctx,
                 data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
@@ -3982,6 +4071,31 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
                     rf"\1 {card_val}",
                     text,
                 )
+        elif (
+            "фактическое значение параметров" in text.lower()
+            or (
+                "состояние эксплуатации" in text.lower()
+                and ("зав" in text.lower() or "____" in text)
+            )
+        ):
+            needs_repair = _conclusion_needs_repair(ctx)
+            satisfy = (
+                "не удовлетворяют требованиям нормативных документов без выполнения ремонта"
+                if needs_repair
+                else "удовлетворяют требованиям нормативных документов"
+            )
+            new_text = (
+                f"Фактическое значение параметров, определяющих состояние эксплуатации сосуда "
+                f"работающего под давлением – {device}, зав.№ {serial}, рег.№ {reg_no}, "
+                f"инв.№ {inv_no}, {satisfy}."
+            )
+        elif "техническое состояние объекта диагностирования" in text.lower() and (
+            "____" in text or len(stripped) < 80
+        ):
+            tech_state = ctx.get("tech_state") or "работоспособное"
+            new_text = (
+                f"Техническое состояние объекта диагностирования: {tech_state}. {conclusion}."
+            )
         elif "недопустимых дефектов не обнаружено" in text.lower() or (
             "объект контроля соответствует" in text.lower() and "сварн" in text.lower()
         ) or ("магнитопорошкового контроля" in text.lower() and "заключен" not in stripped.lower()[:20]):
@@ -3999,13 +4113,29 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
             _set_paragraph_text(p, new_text)
 
 
-def _set_paragraph_text(paragraph: Paragraph, text: str) -> None:
+def _set_paragraph_text(paragraph: Paragraph, text: str, *, pt: float = 12.0) -> None:
+    """Заменить текст абзаца, сохранив единый шрифт отчёта (12 pt)."""
     if paragraph.runs:
         paragraph.runs[0].text = text
         for run in paragraph.runs[1:]:
             run.text = ""
+        try:
+            _set_run_font(paragraph.runs[0], pt=pt)
+        except Exception:
+            pass
     else:
         paragraph.text = text
+        if paragraph.runs:
+            try:
+                _set_run_font(paragraph.runs[0], pt=pt)
+            except Exception:
+                pass
+
+
+def _set_paragraph_font_size(paragraph: Paragraph, pt: float = 12.0) -> None:
+    """Выставить размер шрифта всем runs абзаца."""
+    for run in paragraph.runs:
+        _set_run_font(run, pt=pt)
 
 
 def _fill_appendix_8_calculation(doc: Document, ctx: Dict[str, Any]) -> None:
@@ -4063,20 +4193,54 @@ def _fill_appendix_8_calculation(doc: Document, ctx: Dict[str, Any]) -> None:
             "Расчёт на прочность выполнен по результатам УЗТ. "
             "Значения толщин стенок удовлетворяют требованиям прочности.",
         )
+        _set_paragraph_font_size(last, 12.0)
+        _normalize_appendix_font(doc, "ПРИЛОЖЕНИЕ № 8", stop_markers=("ПРИЛОЖЕНИЕ № 9", "ПРИЛОЖЕНИЕ №9"))
         return
 
     for line in lines:
         last = insert_paragraph_after(last, line)
+        _set_paragraph_font_size(last, 12.0)
 
     if isinstance(rows, list) and rows:
         last = insert_paragraph_after(last, "Результаты расчёта:")
+        _set_paragraph_font_size(last, 12.0)
         for row in rows:
             if isinstance(row, dict):
                 parts = [f"{k}: {v}" for k, v in row.items() if v not in (None, "")]
                 last = insert_paragraph_after(last, "; ".join(parts))
             else:
                 last = insert_paragraph_after(last, str(row))
+            _set_paragraph_font_size(last, 12.0)
 
+    _normalize_appendix_font(doc, "ПРИЛОЖЕНИЕ № 8", stop_markers=("ПРИЛОЖЕНИЕ № 9", "ПРИЛОЖЕНИЕ №9"))
+
+
+def _normalize_appendix_font(
+    doc: Document,
+    start_marker: str,
+    stop_markers: Sequence[str] = (),
+    pt: float = 12.0,
+) -> None:
+    """Все абзацы приложения — 12 pt (как в остальном отчёте)."""
+    started = False
+    for p in _iter_all_paragraphs(doc):
+        t = (p.text or "").strip()
+        if not started:
+            if start_marker.lower() in t.lower() or (
+                "расчет на прочность" in t.lower() and "приложение" in t.lower()
+            ):
+                started = True
+            elif t.upper().startswith("ПРИЛОЖЕНИЕ") and "8" in t:
+                started = True
+            else:
+                continue
+        else:
+            up = t.upper()
+            if any(m.upper() in up for m in stop_markers) or (
+                up.startswith("ПРИЛОЖЕНИЕ") and "8" not in up[:20]
+            ):
+                break
+        _set_paragraph_font_size(p, pt)
 
 def _fill_appendix_9_hydraulic_act(doc: Document, ctx: Dict[str, Any]) -> None:
     """Приложение № 9 — копия акта гидравлического испытания (скан)."""
@@ -4214,6 +4378,8 @@ def insert_ndt_layer_schemes(
         ordered.append(p)
 
     n_schemes = 0
+    # На ландшафте схема занимает почти всю ширину листа A4 (≈297 мм − поля).
+    scheme_width = 9.5
     if generated:
         for i, item in enumerate(generated):
             title = item.get("title") or layer_title(item.get("layer") or LAYER_ORDER[i], equipment_kind=kind)
@@ -4229,26 +4395,35 @@ def insert_ndt_layer_schemes(
                 tmp_files.append(ep)
                 extra_paths.append((cap, ep))
             if i < len(ordered):
+                try:
+                    # Заголовок схемы + картинка на landscape — иначе мелкие на portrait
+                    _insert_section_break_before(ordered[i]._p, landscape=False)
+                except Exception:
+                    logger.debug("section break before scheme failed", exc_info=True)
                 _set_paragraph_text(ordered[i], title)
                 _keep_para(ordered[i])
                 clear_pictures_after_paragraph(ordered[i])
                 last = ordered[i]
-                pic = add_picture_after_paragraph(last, path, width_inches=6.2, caption=title)
+                pic = add_picture_after_paragraph(last, path, width_inches=scheme_width, caption=None)
                 if pic is not None:
                     last = pic
                     n_schemes += 1
                 for cap, ep in extra_paths:
-                    pic = add_picture_after_paragraph(last, ep, width_inches=5.6, caption=cap)
+                    pic = add_picture_after_paragraph(last, ep, width_inches=scheme_width - 0.4, caption=cap)
                     if pic is not None:
                         last = pic
                         n_schemes += 1
+                try:
+                    _insert_section_break_after(last._p, landscape=True)
+                except Exception:
+                    logger.debug("section break after scheme failed", exc_info=True)
             else:
                 n_schemes += insert_media_block(
                     doc,
                     title,
                     [{"path": path, "label": title}],
                     find_image=find_image,
-                    width_inches=6.2,
+                    width_inches=scheme_width,
                     max_items=1,
                 )
         return n_schemes
@@ -4260,14 +4435,23 @@ def insert_ndt_layer_schemes(
     for i, s in enumerate(schemes[:5]):
         if i < len(ordered):
             title = layer_title(LAYER_ORDER[i] if i < len(LAYER_ORDER) else "vik", equipment_kind=kind)
+            try:
+                _insert_section_break_before(ordered[i]._p, landscape=False)
+            except Exception:
+                pass
             _set_paragraph_text(ordered[i], title)
             clear_pictures_after_paragraph(ordered[i])
             path = resolve_image_path(s.get("path"), find_image)
             if path and is_image_file(path):
-                if add_picture_after_paragraph(ordered[i], path, width_inches=6.2, caption=title):
+                pic = add_picture_after_paragraph(ordered[i], path, width_inches=scheme_width, caption=None)
+                if pic is not None:
                     n_schemes += 1
+                    try:
+                        _insert_section_break_after(pic._p, landscape=True)
+                    except Exception:
+                        pass
         else:
             n_schemes += insert_media_block(
-                doc, "Схема контроля", [s], find_image=find_image, width_inches=6.2, max_items=1
+                doc, "Схема контроля", [s], find_image=find_image, width_inches=scheme_width, max_items=1
             )
     return n_schemes

@@ -1246,8 +1246,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     _checklist.vesselName = getAttr('vessel_name') ?? widget.equipment.name;
     _checklist.equipmentTypeCode = _pressureEquipmentTypeCode;
     _checklist.serialNumber =
-        getAttr('serial_number') ?? widget.equipment.serialNumber;
-    _checklist.regNumber = getAttr('reg_number');
+        getAttr('serial_number') ??
+        getAttr('factory_number') ??
+        widget.equipment.serialNumber;
+    _checklist.regNumber =
+        getAttr('reg_number') ?? getAttr('registration_number');
     _checklist.inventoryNumber = getAttr('inventory_number') ??
         getAttr('inv_number') ??
         getAttr('equipment_inventory_number');
