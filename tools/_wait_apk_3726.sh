@@ -1,5 +1,5 @@
 #!/bin/bash
-APK_VER=es-td-ngo-3.7.25-62.apk
+APK_VER=es-td-ngo-3.7.26-63.apk
 for i in $(seq 1 120); do
   if grep -q "${APK_VER}" /tmp/build-apk.log 2>/dev/null; then
     if test -f "/opt/es-td-ngo/mobile-apk/${APK_VER}"; then
