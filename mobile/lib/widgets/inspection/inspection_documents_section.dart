@@ -202,6 +202,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                                 updated[setIndex] = {
                                   'number': value ?? '',
                                   'date': updated[setIndex]['date'] ?? '',
+                                  'pages': updated[setIndex]['pages'] ?? '',
                                 };
                                 checklist.setDocumentSets(
                                     documentNumber, updated);
@@ -226,6 +227,30 @@ class InspectionDocumentsSection extends StatelessWidget {
                                   'date': value != null
                                       ? value.toIso8601String().split('T')[0]
                                       : '',
+                                  'pages': updated[setIndex]['pages'] ?? '',
+                                };
+                                checklist.setDocumentSets(
+                                    documentNumber, updated);
+                                onStateChanged();
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            FormBuilderTextField(
+                              name: 'doc_pages_${documentNumber}_$setIndex',
+                              initialValue: info['pages'],
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Количество страниц (листов)',
+                                labelStyle: TextStyle(color: Colors.white70),
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                              onChanged: (value) {
+                                final updated =
+                                    List<Map<String, String>>.from(sets);
+                                updated[setIndex] = {
+                                  'number': updated[setIndex]['number'] ?? '',
+                                  'date': updated[setIndex]['date'] ?? '',
+                                  'pages': value ?? '',
                                 };
                                 checklist.setDocumentSets(
                                     documentNumber, updated);
@@ -272,7 +297,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                         onPressed: () {
                           final updated =
                               List<Map<String, String>>.from(sets);
-                          updated.add({'number': '', 'date': ''});
+                          updated.add({'number': '', 'date': '', 'pages': ''});
                           checklist.setDocumentSets(documentNumber, updated);
                           onStateChanged();
                         },

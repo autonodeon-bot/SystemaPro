@@ -7,6 +7,7 @@ import '../../widgets/checklist_progress_indicator.dart';
 import '../../widgets/phrase_chips.dart';
 import '../../widgets/voice_input_button.dart';
 import 'inspection_form_fields.dart';
+import '../../constants/report_formulation_options.dart';
 
 /// Стандартные тексты заключения по оценке пригодности.
 String suitabilityConclusionText(
@@ -294,6 +295,31 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
             checklist.conclusion = next;
             setState(() {});
           },
+        ),
+        const SizedBox(height: 12),
+        buildDropdownField(
+          'vik_conclusion_text',
+          'Формулировка заключения ВИК',
+          ReportFormulationOptions.ndtAppendixConclusion,
+          (v) => checklist.vikConclusionText = v,
+          initialValue: checklist.vikConclusionText ??
+              ReportFormulationOptions.ndtAppendixConclusion.first,
+        ),
+        buildDropdownField(
+          'uzk_conclusion_text',
+          'Формулировка заключения УЗК',
+          ReportFormulationOptions.ndtAppendixConclusion,
+          (v) => checklist.uzkConclusionText = v,
+          initialValue: checklist.uzkConclusionText ??
+              ReportFormulationOptions.ndtAppendixConclusion.first,
+        ),
+        buildDropdownField(
+          'mpk_conclusion_text',
+          'Формулировка заключения МПК',
+          ReportFormulationOptions.ndtAppendixConclusion,
+          (v) => checklist.mpkConclusionText = v,
+          initialValue: checklist.mpkConclusionText ??
+              ReportFormulationOptions.ndtAppendixConclusion.first,
         ),
         const SizedBox(height: 12),
         Row(

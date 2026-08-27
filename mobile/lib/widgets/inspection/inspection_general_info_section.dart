@@ -69,11 +69,36 @@ class InspectionGeneralInfoSection extends StatelessWidget {
         buildDateField('inspection_date', 'Дата обследования', (date) {
           checklist.inspectionDate = date?.toIso8601String();
         }),
+        buildInspectionTextField(
+          'contract_number',
+          'Договор № (основание работ)',
+          (v) => checklist.contractNumber = v,
+          initialValue: checklist.contractNumber,
+        ),
+        buildInspectionTextField(
+          'contract_date',
+          'Дата договора (ДД.ММ.ГГГГ)',
+          (v) => checklist.contractDate = v,
+          initialValue: checklist.contractDate,
+        ),
+        buildInspectionTextField(
+          'work_period_from',
+          'Срок работ с (ДД.ММ.ГГГГ)',
+          (v) => checklist.workPeriodFrom = v,
+          initialValue: checklist.workPeriodFrom,
+        ),
+        buildInspectionTextField(
+          'work_period_to',
+          'Срок работ по (ДД.ММ.ГГГГ)',
+          (v) => checklist.workPeriodTo = v,
+          initialValue: checklist.workPeriodTo,
+        ),
         _buildExecutorsField(context),
         _buildOrganizationField(context),
         _buildCustomerContractorSection(context),
         if (equipmentOpoId == null || equipmentOpoId!.isEmpty)
           _buildOpoSelectionField(),
+        _buildOpoClassFields(),
         const SizedBox(height: 16),
         _buildEngineerSelectionSection(),
       ],
@@ -155,6 +180,111 @@ class InspectionGeneralInfoSection extends StatelessWidget {
             onStateChanged();
           },
         ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'customer_director',
+          initialValue: checklist.customerInfo['director'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Руководитель заказчика',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.customerInfo['director'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'customer_phone',
+          initialValue: checklist.customerInfo['phone'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Телефон заказчика',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.customerInfo['phone'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'customer_email',
+          initialValue: checklist.customerInfo['email'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'E-mail заказчика',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.customerInfo['email'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'contractor_director',
+          initialValue: checklist.contractorInfo['director_name'] ?? checklist.contractorInfo['director'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Руководитель организации ТД',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.contractorInfo['director_name'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'contractor_phone',
+          initialValue: checklist.contractorInfo['phone'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Телефон организации ТД',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.contractorInfo['phone'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'contractor_email',
+          initialValue: checklist.contractorInfo['email'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'E-mail организации ТД',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.contractorInfo['email'] = v ?? '';
+            onStateChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        FormBuilderTextField(
+          name: 'contractor_certificate',
+          initialValue: checklist.contractorInfo['certificate'] ?? '',
+          decoration: const InputDecoration(
+            labelText: 'Свидетельство об аттестации ЛНК',
+            labelStyle: TextStyle(color: Colors.white70),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (v) {
+            checklist.contractorInfo['certificate'] = v ?? '';
+            onStateChanged();
+          },
+        ),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -190,6 +320,7 @@ class InspectionGeneralInfoSection extends StatelessWidget {
           'legal_name': customer['legal_name']?.toString() ?? customer['name']?.toString() ?? '',
           'address': customer['address']?.toString() ?? customer['legal_address']?.toString() ?? '',
           'phone': customer['phone']?.toString() ?? '',
+          'email': customer['email']?.toString() ?? '',
           'director': customer['director']?.toString() ?? customer['director_name']?.toString() ?? '',
         };
       }
@@ -199,7 +330,9 @@ class InspectionGeneralInfoSection extends StatelessWidget {
           'legal_name': contractor['legal_name']?.toString() ?? contractor['name']?.toString() ?? '',
           'address': contractor['address']?.toString() ?? contractor['postal_address']?.toString() ?? '',
           'phone': contractor['phone']?.toString() ?? '',
+          'email': contractor['email']?.toString() ?? '',
           'director_name': contractor['director_name']?.toString() ?? '',
+          'certificate': contractor['certificate']?.toString() ?? '',
         };
       }
       onStateChanged();
@@ -237,8 +370,8 @@ class InspectionGeneralInfoSection extends StatelessWidget {
         ),
         label: Text(
           isEmpty
-              ? 'Выбрать оборудование для поверок *'
-              : 'Оборудование для поверок: ${selectedEquipmentIds.length + manualVerificationEquipment.length}',
+              ? 'Выбрать приборы для отчёта (разд. 7) *'
+              : 'Приборы для отчёта: ${selectedEquipmentIds.length + manualVerificationEquipment.length}',
           style: TextStyle(
             color: isEmpty ? Colors.orange : Colors.green,
             fontWeight: FontWeight.bold,
@@ -475,7 +608,7 @@ class InspectionGeneralInfoSection extends StatelessWidget {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Внимание! Необходимо выбрать поверенное оборудование или добавить прибор вручную.',
+              'Внимание! Выберите приборы из реестра или добавьте вручную — иначе в отчёте (раздел 7) таблица приборов будет пустой.',
               style: TextStyle(color: Colors.red),
             ),
           ),
@@ -696,6 +829,40 @@ class InspectionGeneralInfoSection extends StatelessWidget {
     );
   }
 
+  Widget _buildOpoClassFields() {
+    Map<String, dynamic> selected = {};
+    if (selectedOpoId != null) {
+      for (final o in opos) {
+        if (o['id']?.toString() == selectedOpoId) {
+          selected = o;
+          break;
+        }
+      }
+    }
+    final classInit = checklist.opoHazardClass ??
+        selected['hazard_class']?.toString() ??
+        '';
+    final regInit = checklist.opoRegNumber ??
+        selected['registration_number']?.toString() ??
+        '';
+    return Column(
+      children: [
+        buildInspectionTextField(
+          'opo_hazard_class',
+          'Класс ОПО',
+          (v) => checklist.opoHazardClass = v,
+          initialValue: classInit,
+        ),
+        buildInspectionTextField(
+          'opo_reg_number',
+          'Регистрационный № ОПО',
+          (v) => checklist.opoRegNumber = v,
+          initialValue: regInit,
+        ),
+      ],
+    );
+  }
+
   // --- Инженеры ---
 
   Widget _buildEngineerSelectionSection() {
@@ -744,6 +911,8 @@ class InspectionGeneralInfoSection extends StatelessWidget {
             _buildEngineerRow('УЗТ', 'UZT'),
             const SizedBox(height: 10),
             _buildEngineerRow('ПВК/МК', 'PVK'),
+            const SizedBox(height: 10),
+            _buildEngineerRow('МПК', 'MPK'),
           ],
         ],
       ),
@@ -930,7 +1099,9 @@ class InspectionGeneralInfoSection extends StatelessWidget {
       case 'UZT':
         return {'UZT', 'УЗТ', 'UTM', 'THICKNESS'};
       case 'PVK':
-        return {'PVK', 'ПВК', 'MK', 'МК', 'PT', 'MT'};
+        return {'PVK', 'ПВК', 'MK', 'МК', 'PT', 'MT', 'МПК', 'MPK'};
+      case 'MPK':
+        return {'MPK', 'МПК', 'MK', 'МК', 'MT', 'MPI', 'PVK', 'ПВК'};
       default:
         return {normalized};
     }

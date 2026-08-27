@@ -9,11 +9,15 @@ import 'inspection_form_fields.dart';
 class InspectionPassportSection extends StatelessWidget {
   final VesselChecklist checklist;
   final VoidCallback onStateChanged;
+  final Future<void> Function()? onPickConnectionSchemeFile;
+  final VoidCallback? onClearConnectionSchemeFile;
 
   const InspectionPassportSection({
     super.key,
     required this.checklist,
     required this.onStateChanged,
+    this.onPickConnectionSchemeFile,
+    this.onClearConnectionSchemeFile,
   });
 
   @override
@@ -87,6 +91,62 @@ class InspectionPassportSection extends StatelessWidget {
             onStateChanged();
           },
         ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1e293b),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Файл схемы подключения',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                (checklist.connectionSchemeFile != null &&
+                        checklist.connectionSchemeFile!.trim().isNotEmpty)
+                    ? checklist.connectionSchemeFile!.split(RegExp(r'[\\/]')).last
+                    : 'Файл не выбран',
+                style: TextStyle(
+                  color: (checklist.connectionSchemeFile != null &&
+                          checklist.connectionSchemeFile!.trim().isNotEmpty)
+                      ? Colors.white
+                      : Colors.white38,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: onPickConnectionSchemeFile == null
+                        ? null
+                        : () => onPickConnectionSchemeFile!(),
+                    icon: const Icon(Icons.attach_file, size: 18),
+                    label: const Text('Прикрепить'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF334155),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (checklist.connectionSchemeFile != null &&
+                      checklist.connectionSchemeFile!.trim().isNotEmpty)
+                    TextButton(
+                      onPressed: onClearConnectionSchemeFile,
+                      child: const Text('Удалить', style: TextStyle(color: Colors.redAccent)),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(

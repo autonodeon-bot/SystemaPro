@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/equipment.dart';
 import '../models/assignment.dart';
 import '../data/technical_report_form_registry.dart';
+import '../data/inspection_form_profiles.dart';
 import '../models/vessel_checklist.dart';
 import '../models/compressor_checklist.dart';
 import '../services/api_service.dart';
@@ -35,7 +36,10 @@ import '../widgets/inspection/inspection_checks_section.dart';
 import '../widgets/inspection/inspection_safety_devices_section.dart';
 import '../widgets/inspection/inspection_measurements_section.dart';
 import '../widgets/inspection/inspection_defects_section.dart';
+import '../widgets/inspection/inspection_pipeline_extra_section.dart';
+import '../widgets/inspection/inspection_crane_safety_section.dart';
 import '../widgets/inspection/inspection_passport_section.dart';
+import 'vessel_scheme_constructor_screen.dart';
 import '../widgets/inspection/inspection_conclusion_section.dart';
 import 'image_annotation_screen.dart';
 
@@ -99,6 +103,21 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         typeName.contains('COMPRESSOR') ||
         typeName.contains('КОМПРЕССОР');
   }
+
+  /// Профиль UI по форме ТО (сосуд / трубопровод / ГПМ / резервуар / …).
+  InspectionProfile get _inspectionProfile {
+    final id = (_checklist.reportFormId ?? _reportForm.id).toLowerCase();
+    return InspectionFormProfiles.forFormId(id);
+  }
+
+  bool get _isVesselReportForm =>
+      InspectionFormProfiles.usesVesselSafetyDevices(_inspectionProfile);
+
+  bool get _isPipelineReportForm =>
+      InspectionFormProfiles.isPipeline(_inspectionProfile);
+
+  bool get _isCraneReportForm =>
+      InspectionFormProfiles.isCrane(_inspectionProfile);
 
   bool get _isGasSeparator {
     final typeCode = widget.equipment.typeCode?.toUpperCase() ?? '';
@@ -1229,6 +1248,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     _checklist.serialNumber =
         getAttr('serial_number') ?? widget.equipment.serialNumber;
     _checklist.regNumber = getAttr('reg_number');
+    _checklist.inventoryNumber = getAttr('inventory_number') ??
+        getAttr('inv_number') ??
+        getAttr('equipment_inventory_number');
+    _checklist.equipmentLocation = getAttr('equipment_location') ??
+        getAttr('location') ??
+        getAttr('installation_location');
     _checklist.manufacturer = getAttr('manufacturer');
     _checklist.manufactureYear = getAttr('manufacture_year');
     _checklist.organization =
@@ -1382,6 +1407,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         orElse: () => {},
       );
       if (opo.isEmpty) return;
+      final hc = opo['hazard_class']?.toString();
+      final rn = opo['registration_number']?.toString();
+      if ((_checklist.opoHazardClass == null || _checklist.opoHazardClass!.isEmpty) && hc != null && hc.isNotEmpty) {
+        _checklist.opoHazardClass = hc;
+      }
+      if ((_checklist.opoRegNumber == null || _checklist.opoRegNumber!.isEmpty) && rn != null && rn.isNotEmpty) {
+        _checklist.opoRegNumber = rn;
+      }
       final surveyData = opo['survey_data'] as Map<String, dynamic>?;
       if (surveyData == null) return;
       if ((_checklist.organization == null || _checklist.organization!.isEmpty) &&
@@ -1603,6 +1636,46 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
+  Future<void> _pickConnectionSchemeFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf', 'webp'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final path = result.files.single.path;
+      if (path == null || path.isEmpty) return;
+      if (!await File(path).exists()) return;
+      final persisted = await _persistPickedFile(
+        sourcePath: path,
+        fileName: Path.basename(path),
+        documentNumber: 'connection_scheme_file',
+      );
+      setState(() {
+        _checklist.connectionSchemeFile = persisted;
+        _hasUnsavedChanges = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Файл схемы подключения прикреплён'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка выбора файла схемы подключения: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickBuiltInTemplate() async {
     try {
       final byteData = await rootBundle.load('assets/images/vessel_template.png');
@@ -1627,6 +1700,57 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка загрузки шаблона: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _openSchemeConstructor() async {
+    try {
+      final typeCode = widget.equipment.typeCode?.toLowerCase().replaceAll('-', '_');
+      final formId = (_checklist.reportFormId ?? _reportForm.id).toLowerCase();
+      final result = await Navigator.of(context).push<VesselSchemeConstructorResult>(
+        MaterialPageRoute(
+          builder: (_) => VesselSchemeConstructorScreen(
+            initialOrientation: _checklist.orientation ?? _checklist.constructionType,
+            initialEquipmentKind: typeCode,
+            initialFormId: formId,
+          ),
+        ),
+      );
+      if (result == null || !mounted) return;
+      final persisted = await _persistPickedFile(
+        sourcePath: result.imagePath,
+        fileName: 'vessel_scheme_constructor.png',
+        documentNumber: 'control_scheme_image',
+      );
+      setState(() {
+        _controlSchemeImage = File(persisted);
+        _checklist.controlSchemeImage = persisted;
+        _checklist.orientation = result.orientation;
+        _checklist.baseVesselScheme = BaseVesselScheme()
+          ..imagePath = persisted
+          ..source = 'constructor'
+          ..orientation = result.orientation
+          ..geometry = result.geometry
+          ..points = _checklist.baseVesselScheme?.points ?? [];
+        _hasUnsavedChanges = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Схема из конструктора применена'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка конструктора схемы: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -2312,6 +2436,13 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       child: InspectionPassportSection(
         checklist: _checklist,
         onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        onPickConnectionSchemeFile: _pickConnectionSchemeFile,
+        onClearConnectionSchemeFile: () {
+          setState(() {
+            _checklist.connectionSchemeFile = null;
+            _hasUnsavedChanges = true;
+          });
+        },
       ),
     );
 
@@ -2329,6 +2460,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         onPickImageFromFile: _pickImageFromFile,
         onPickBuiltInTemplate: _pickBuiltInTemplate,
         onPickStandardDrawing: _pickStandardDrawing,
+        onOpenSchemeConstructor: _openSchemeConstructor,
         onPickAdditionalObjectPhoto: _pickAdditionalObjectPhoto,
         onRemoveObjectPhoto: (idx) {
           setState(() {
@@ -2358,13 +2490,15 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       ],
     );
 
-    // Страница 5: ЗРА + СППК
+    // Страница 5: ЗРА+СППК (сосуд) / сварные швы (трубопровод) / безопасность ГПМ
     final page5 = _buildSinglePage(
       pageIndex: 5,
-      child: InspectionSafetyDevicesSection(
-        checklist: _checklist,
-        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
-      ),
+      child: _isVesselReportForm
+          ? InspectionSafetyDevicesSection(
+              checklist: _checklist,
+              onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+            )
+          : _buildNonVesselPage5(),
     );
 
     // Страница 6: Измерения 7-10 (овальность, твёрдость, ПВК/УЗК, УЗТ)
@@ -2470,6 +2604,88 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               _KeepAlivePage(key: const PageStorageKey('insp_p7'), child: page7),
             ],
           ),
+        ),
+      ],
+    );
+  }
+
+  /// Страница вместо ЗРА/СППК — по профилю оборудования.
+  Widget _buildNonVesselPage5() {
+    if (_isPipelineReportForm) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            InspectionFormProfiles.page5Title(_inspectionProfile),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Дефекты ВИК и сварные швы (УЗК/МПК/ВТК) — ниже и на странице протоколов НК. '
+            'ЭХЗ, геометрия и расчёт — для приложений трубопроводных форм ТО.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 12),
+          InspectionDefectsSection(
+            checklist: _checklist,
+            imagePicker: _imagePicker,
+            onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+            maybeAddDateTimeGpsToPhoto: _maybeAddDateTimeGpsToPhoto,
+          ),
+          const SizedBox(height: 24),
+          InspectionPipelineExtraSection(
+            checklist: _checklist,
+            onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+          ),
+        ],
+      );
+    }
+    if (_isCraneReportForm) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InspectionCraneSafetySection(
+            checklist: _checklist,
+            onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+          ),
+          const SizedBox(height: 24),
+          InspectionDefectsSection(
+            checklist: _checklist,
+            imagePicker: _imagePicker,
+            onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+            maybeAddDateTimeGpsToPhoto: _maybeAddDateTimeGpsToPhoto,
+          ),
+        ],
+      );
+    }
+    // Резервуар / котёл / машины / эл. / арматура / башня / станция / прочее
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          InspectionFormProfiles.page5Title(_inspectionProfile),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Фиксируйте элементы и дефекты объекта по форме ${_reportForm.id}. '
+          'Схему контроля стройте конструктором для данного типа оборудования.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 12),
+        InspectionDefectsSection(
+          checklist: _checklist,
+          imagePicker: _imagePicker,
+          onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+          maybeAddDateTimeGpsToPhoto: _maybeAddDateTimeGpsToPhoto,
         ),
       ],
     );

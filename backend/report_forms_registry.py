@@ -17,21 +17,64 @@ logger = logging.getLogger(__name__)
 FORMS_DIR = Path(__file__).resolve().parent / "report_forms"
 FORMS_JSON = FORMS_DIR / "technical_report_forms.json"
 
-# Тип оборудования (code) → id формы ТО
+# Тип оборудования (code) → id формы ТО (Приложение_форма ТО, 44 формы)
 EQUIPMENT_TYPE_TO_FORM: Dict[str, str] = {
     "VESSEL": "to-1",
     "GAS_SEPARATOR": "to-1",
-    "UNDERGROUND_TANK": "to-25",
-    "OIL_SETTLER": "to-25",
-    "PIPELINE": "to-13",
-    "COMPRESSOR": "to-12",
-    "BOILER": "to-28",
+    "OIL_SETTLER": "to-1",
+    "CRANE_RUNWAY": "to-2",
     "CRANE": "to-3",
+    "GPM": "to-3",
+    "LIFTING": "to-3",
+    "GAS_COLLECTOR": "to-4",
+    "TRANSFORMER": "to-5",
+    "LIGHTNING_PROTECTION": "to-6",
+    "DC_SYSTEM": "to-7",
+    "ELECTRIC_MOTOR": "to-8",
+    "GRS": "to-9",
+    "COMPLEX_PERIODIC": "to-10",
+    "GPA": "to-11",
+    "COMPRESSOR": "to-12",
+    "PIPELINE": "to-13",
+    "ACCEPTANCE": "to-14",
+    "DIESEL_STATION": "to-15",
+    "CABLE_LINE": "to-16",
+    "GPA_DRIVE": "to-17",
+    "RIVERBED": "to-18",
+    "DIVER_SURVEY": "to-19",
+    "PIG_TRAP": "to-20",
+    "PIPELINE_CROSSING": "to-21",
+    "MAIN_PIPELINE": "to-22",
+    "AIR_COOLER": "to-23",
+    "PIPELINE_VALVE": "to-24",
     "TANK": "to-25",
+    "UNDERGROUND_TANK": "to-25",
+    "WELLHEAD_PIPING": "to-26",
+    "WELLHEAD_TREE": "to-27",
+    "BOILER": "to-28",
+    "PU_UNIT": "to-29",
+    "BOILER_AUX": "to-30",
+    "GAS_PIPELINE_GX": "to-31",
+    "ABOVEGROUND_PIPELINE": "to-32",
+    "UNDERGROUND_PIPELINE": "to-33",
+    "VENTILATION": "to-34",
+    "PRG": "to-35",
+    "POWER_STATION": "to-36",
+    "GIS_STATION": "to-37",
+    "AUX_EQUIPMENT": "to-38",
+    "CHIMNEY": "to-39",
+    "METERING": "to-40",
+    "BUILDINGS": "to-41",
+    "SWITCHGEAR": "to-42",
+    "WATER_TANK": "to-43",
+    "FLARE": "to-44",
 }
 
-# Формы, для которых реализовано заполнение Word-шаблона данными обследования
-FILLABLE_FORM_IDS = frozenset({"to-1", "to-13", "to-25"})
+# Все 44 официальные формы ТО заполняются (специализированные + generic filler)
+FILLABLE_FORM_IDS = frozenset({f"to-{i}" for i in range(1, 45)})
+
+# Специализированные fillers (остальные — form_template_filler_generic)
+SPECIALIZED_FILLABLE_FORM_IDS = frozenset({"to-1", "to-3", "to-13", "to-25", "to-33"})
 
 
 @lru_cache(maxsize=1)
@@ -147,23 +190,35 @@ def suggest_form_id(
 ) -> str:
     """Подбор формы ТО по типу/наименованию оборудования."""
     code = (equipment_type_code or "").strip().upper()
-    if code in EQUIPMENT_TYPE_TO_FORM:
-        return EQUIPMENT_TYPE_TO_FORM[code]
-
     name = (equipment_name or "").lower()
     type_name = (equipment_type_name or "").lower()
     blob = f"{name} {type_name} {code.lower()}"
 
+    # Специализации до общей карты (PIPELINE+подземн → to-33, а не to-13)
+    if code == "UNDERGROUND_PIPELINE" or (
+        ("трубопровод" in blob or "pipeline" in blob or code == "PIPELINE")
+        and "подземн" in blob
+    ):
+        return "to-33"
+    if code in ("CRANE", "GPM", "LIFTING") or (
+        "кран" in blob
+        or "грузоподъем" in blob
+        or "грузоподъём" in blob
+        or "гпм" in blob
+        or "подъемн" in blob
+        or "подъёмн" in blob
+    ):
+        return "to-3"
+
+    if code in EQUIPMENT_TYPE_TO_FORM:
+        return EQUIPMENT_TYPE_TO_FORM[code]
+
     if "трубопровод" in blob or "pipeline" in blob:
-        if "подземн" in blob:
-            return "to-33"
         if "надземн" in blob or "газопровод" in blob:
             return "to-32"
         if "обвязк" in blob and "скважин" in blob:
             return "to-26"
         return "to-13"
-    if "кран" in blob or "грузоподъем" in blob or "грузоподъём" in blob or "crane" in blob:
-        return "to-3"
     if "котел" in blob or "котёл" in blob or "boiler" in blob:
         return "to-28"
     if "резервуар" in blob or "ёмкост" in blob or "емкост" in blob or "tank" in blob:

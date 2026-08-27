@@ -19,7 +19,7 @@ from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt
+from docx.shared import Cm, Pt, RGBColor
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
@@ -31,12 +31,20 @@ from form_media_helpers import (
     collect_hydraulic_act_paths,
     collect_photo_paths,
     collect_scheme_paths,
+    find_all_paragraphs_containing,
     find_paragraph_containing,
     insert_media_block,
     insert_paragraph_after,
     is_image_file,
     resolve_image_path,
     add_picture_after_paragraph,
+    clear_pictures_after_paragraph,
+)
+from scheme_ndt_overlays import (
+    LAYER_ORDER,
+    layer_title,
+    png_to_tempfile,
+    render_all_layer_pngs,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +53,299 @@ MISSING = "—"
 NOT_PROVIDED = "Не предоставлено"
 _BLANK_RE = re.compile(r"_+")
 
+
+def _merge_report_instruments(
+    verification_equipment: Optional[List[Dict[str, Any]]],
+    data: Dict[str, Any],
+    ndt_methods: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Собрать приборы для табл. «Перечень приборов»: реестр + ручной ввод + НК."""
+    out: List[Dict[str, Any]] = []
+    seen: set = set()
+
+    def _key(eq: Dict[str, Any]) -> Tuple[str, str]:
+        name = str(eq.get("name") or eq.get("equipment") or "").strip().lower()
+        serial = str(
+            eq.get("serial_number")
+            or eq.get("factory_number")
+            or eq.get("equipment_serial")
+            or ""
+        ).strip().lower()
+        return name, serial
+
+    def _add(eq: Any) -> None:
+        if not isinstance(eq, dict):
+            return
+        name = str(eq.get("name") or eq.get("equipment") or "").strip()
+        if not name:
+            return
+        k = _key(eq)
+        for s in seen:
+            if s[0] == k[0] and (not k[1] or not s[1] or s[1] == k[1]):
+                return
+        seen.add(k)
+        out.append(eq)
+
+    for e in verification_equipment or []:
+        _add(e)
+
+    ad = data.get("additional_data") if isinstance(data.get("additional_data"), dict) else {}
+    for e in ad.get("manual_verification_equipment") or ad.get("manualVerificationEquipment") or []:
+        _add(e)
+
+    for e in data.get("_ndt_instruments") or []:
+        _add(e)
+
+    for key in ("instruments", "selected_instruments", "verification_equipment"):
+        raw = data.get(key)
+        if isinstance(raw, list):
+            for e in raw:
+                _add(e)
+
+    for m in ndt_methods or []:
+        if not isinstance(m, dict):
+            continue
+        eq_name = m.get("equipment") or (m.get("additional_data") or {}).get("equipment")
+        if not eq_name:
+            continue
+        ad_m = m.get("additional_data") if isinstance(m.get("additional_data"), dict) else {}
+        _add(
+            {
+                "name": eq_name,
+                "serial_number": m.get("equipment_serial")
+                or m.get("serial_number")
+                or ad_m.get("serial_number")
+                or ad_m.get("device_serial")
+                or "",
+                "equipment_type": m.get("method_code") or m.get("method_name") or "",
+                "model": ad_m.get("device_type") or ad_m.get("model") or "",
+                "verification_certificate_number": ad_m.get("verification_certificate_number")
+                or "",
+                "next_verification_date": ad_m.get("next_verification_date") or "",
+            }
+        )
+    return out
+
+
+def _renumber_table_column(table: Table, start_row: int = 1, col: int = 0) -> None:
+    """Перенумеровать № п/п после удаления пустых строк."""
+    n = 1
+    for r in range(start_row, len(table.rows)):
+        cells = table.rows[r].cells
+        if col >= len(cells):
+            continue
+        # пропускаем полностью пустые (на случай)
+        texts = [(c.text or "").strip() for c in cells]
+        if not any(t and t not in ("—", "-", "–") for i, t in enumerate(texts) if i != col):
+            continue
+        _set(table, r, col, f"{n}.")
+        n += 1
+
+
+def _keep_para(p: Paragraph) -> None:
+    try:
+        p.paragraph_format.keep_with_next = True
+        p.paragraph_format.widow_control = True
+    except Exception:
+        pass
+
+
+def _norm_ws(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").replace("\xa0", " ")).strip()
+
+
+def _force_horizontal_text(cell: _Cell) -> None:
+    """Горизонтальное направление текста в ячейке (шаблон to-1 часто задаёт вертикальное)."""
+    try:
+        tcPr = cell._tc.get_or_add_tcPr()
+        for td in list(tcPr.findall(qn("w:textDirection"))):
+            tcPr.remove(td)
+    except Exception:
+        pass
+
+
+def _strip_parens(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[()]", " ", text or "")).strip()
+
+
+def _doc_is_incomplete(text: str) -> bool:
+    t = (text or "").lower()
+    return any(
+        k in t
+        for k in (
+            "частичн",
+            "отсутств",
+            "не предостав",
+            "не в полном",
+            "неполн",
+        )
+    )
+
+
+def _doc_analysis_result_cell(ctx: Dict[str, Any]) -> str:
+    raw = _strip_parens(str(ctx.get("conclusion_doc") or ""))
+    if not raw:
+        return "Соответствует требованиям"
+    if _doc_is_incomplete(raw):
+        return raw[0].upper() + raw[1:] if raw else raw
+    if "полном" in raw.lower():
+        return "Соответствует требованиям"
+    return raw[0].upper() + raw[1:] if raw else raw
+
+
+def _doc_verdict_word(ctx: Dict[str, Any]) -> str:
+    raw = str(ctx.get("conclusion_doc") or "")
+    if _doc_is_incomplete(raw):
+        if "отсутств" in raw.lower() or "не предостав" in raw.lower():
+            return "не соответствует"
+        return "соответствует частично"
+    return "соответствует"
+
+
+def _ndt_items_have_defects(items: Any) -> bool:
+    if not isinstance(items, list):
+        return False
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        blob = " ".join(
+            str(it.get(k) or "")
+            for k in (
+                "conclusion",
+                "assessment",
+                "quality",
+                "defects",
+                "description",
+                "defect_description",
+                "uzk_defect",
+                "pvk_defect",
+                "indication",
+            )
+        ).lower()
+        if not blob.strip():
+            continue
+        if any(k in blob for k in ("ремонт", "негоден", "не годен", "недопустим", "брак")):
+            if "не обнаружен" not in blob:
+                return True
+        if "дефект" in blob and "не обнаружен" not in blob and "дефектов не" not in blob:
+            return True
+    return False
+
+
+def _ndt_result_summary(
+    ctx: Dict[str, Any],
+    *,
+    data_keys: Sequence[str],
+    custom_key: str,
+    ok_text: str,
+    defect_text: str,
+) -> str:
+    g = ctx["g"]
+    custom = str(g(custom_key, default="") or "").strip()
+    items = None
+    for k in data_keys:
+        items = g(k, default=None)
+        if isinstance(items, list) and items:
+            break
+    has_defects = _ndt_items_have_defects(items)
+    if has_defects:
+        if custom and any(
+            k in custom.lower() for k in ("дефект", "ремонт", "негоден", "не годен", "брак")
+        ):
+            return custom
+        return defect_text
+    if custom:
+        return custom
+    return ok_text
+
+
+def _keep_table_head(table: Table, max_rows: int = 2) -> None:
+    """Не отрывать шапку/первые строки таблицы от заголовка раздела."""
+    try:
+        for r in range(min(max_rows, len(table.rows))):
+            for cell in table.rows[r].cells:
+                for p in cell.paragraphs:
+                    _keep_para(p)
+    except Exception:
+        pass
+
+
+def _apply_heading_keep_with_next(doc: Document) -> None:
+    """Не отрывать заголовок раздела / «Таблица №» / СОДЕРЖАНИЕ от следующего контента."""
+    section_re = re.compile(r"^\d+\.\s+\S")
+    # Основной отчёт: заголовки вида «6. Сведения…», не пункты приложений с длинным текстом
+    main_section_re = re.compile(
+        r"^\d{1,2}\.\s+(Основания|Сроки|Перечень|Сведения|Краткая|Результаты|"
+        r"Заключение|Выводы|Рекомендации|Оценка|Расчёт|Расчет)"
+    )
+    paras = list(_iter_all_paragraphs(doc))
+    for i, p in enumerate(paras):
+        t = (p.text or "").strip()
+        if not t:
+            continue
+        keep = False
+        if t == "СОДЕРЖАНИЕ":
+            keep = True
+            for j in range(i + 1, min(i + 20, len(paras))):
+                tj = (paras[j].text or "").strip()
+                if not tj:
+                    continue
+                if "…" in tj or "..." in tj or re.match(r"^\d+\.", tj):
+                    _keep_para(paras[j])
+                elif tj.startswith("1.") or "Основания" in tj:
+                    _keep_para(paras[j])
+                    break
+                else:
+                    break
+        elif main_section_re.match(t) and len(t) < 160 and "…" not in t and "..." not in t:
+            keep = True
+        elif section_re.match(t) and len(t) < 120 and "…" not in t and "..." not in t:
+            # короткие нумерованные заголовки разделов основного отчёта
+            keep = True
+        elif t.startswith("Таблица №") or t.startswith("Таблица No"):
+            keep = True
+        elif t.startswith("Схема ") or t.startswith("4. Схема") or "Параметры контроля" in t:
+            keep = True
+        elif t.startswith("Результаты контроля") or t.startswith("5. Результаты") or t.startswith("3. Результаты") or "Материалы элементов" in t:
+            keep = True
+        elif t.startswith("Результаты визуального") or t.startswith("4. Результаты"):
+            keep = True
+        if keep:
+            _keep_para(p)
+            # «Таблица № N» сразу после заголовка раздела
+            if i + 1 < len(paras):
+                nxt = (paras[i + 1].text or "").strip()
+                if nxt.startswith("Таблица"):
+                    _keep_para(paras[i + 1])
+            # первая таблица после заголовка в том же SDT/родителе
+            try:
+                cur = p._p.getnext()
+                hops = 0
+                while cur is not None and hops < 8:
+                    hops += 1
+                    tag = cur.tag
+                    if tag == qn("w:p"):
+                        txt = "".join(x.text or "" for x in cur.iter(qn("w:t"))).strip()
+                        if txt.startswith("Таблица"):
+                            cur = cur.getnext()
+                            continue
+                        if txt:
+                            break
+                        cur = cur.getnext()
+                        continue
+                    if tag == qn("w:tbl"):
+                        _keep_table_head(Table(cur, doc), 2)
+                        break
+                    if tag == qn("w:sdt"):
+                        content = cur.find(qn("w:sdtContent"))
+                        if content is not None:
+                            tbl = content.find(qn("w:tbl"))
+                            if tbl is not None:
+                                _keep_table_head(Table(tbl, doc), 2)
+                                break
+                    cur = cur.getnext()
+            except Exception:
+                pass
 
 def fill_vessel_form_to1(
     inspection_data: Dict[str, Any],
@@ -82,11 +383,18 @@ def fill_vessel_form_to1(
         raw_data = {}
     inspection_data["data"] = _enrich_inspection_data(raw_data, ndt_methods or [])
 
+    # Приборы: реестр InspectionEquipment + ручной ввод + приборы из методов НК
+    merged_instruments = _merge_report_instruments(
+        verification_equipment,
+        inspection_data["data"],
+        ndt_methods or [],
+    )
+
     attachments = build_attachments_map(document_files)
     ctx = _build_context(
         inspection_data,
         equipment_data,
-        verification_equipment or [],
+        merged_instruments,
         org_settings,
         specialist_docs or [],
         attachments,
@@ -128,9 +436,11 @@ def fill_vessel_form_to1(
     if len(tables) > 7:
         _fill_strength_tests(tables[7], ctx)
         _strip_empty_rows(tables[7], 1)
+        _widen_date_column(tables[7], 0, 3.4)
     if len(tables) > 8:
         _fill_previous_inspections(tables[8], ctx)
         _strip_empty_rows(tables[8], 1)
+        _widen_date_column(tables[8], 0, 3.4)
     if len(tables) > 9:
         _fill_additional_data(tables[9], ctx)
 
@@ -171,7 +481,7 @@ def fill_vessel_form_to1(
         )
     if len(tables) > 21:
         _fill_uzt_results(tables[21], ctx)
-        _strip_empty_rows(tables[21], 1, ignore_cols=(0,))
+        # strip выполняется внутри _fill_uzt_results после заполнения
 
     # Прил. 5 — твердость
     if len(tables) > 24:
@@ -196,6 +506,9 @@ def fill_vessel_form_to1(
             method_keys=("УЗК", "UZK", "ДЕФЕКТОСКОП"),
             defaults=[("Дефектоскоп", ""), ("СОП", ""), ("Образцы шероховатости", "")],
         )
+    if len(tables) > 30:
+        _fill_uzk_parameters(tables[30], ctx)
+        _strip_empty_rows(tables[30], 1)
     if len(tables) > 31:
         _fill_uzk_results(tables[31], ctx)
         _strip_empty_rows(tables[31], 1, ignore_cols=(0,))
@@ -205,14 +518,17 @@ def fill_vessel_form_to1(
         _fill_instrument_table(
             tables[34],
             ctx,
-            method_keys=("МПК", "MPK", "МАГНИТ"),
-            defaults=[("Набор для МПД", ""), ("магнит", ""), ("КО", "")],
+            method_keys=("МПК", "MPK", "МАГНИТ", "МПД", "MPI", "MK", "МК", "YOKEMAG"),
+            defaults=None,
         )
+    if len(tables) > 35:
+        _fill_mpk_parameters(tables[35], ctx)
     if len(tables) > 36:
         _fill_mpk_results(tables[36], ctx)
         _strip_empty_rows(tables[36], 1, ignore_cols=(0,))
 
     _fill_paragraph_blanks(doc, ctx)
+    _fill_hardness_steel_heading(doc, ctx)
     _fill_appendix_8_calculation(doc, ctx)
     _fill_appendix_9_hydraulic_act(doc, ctx)
     _insert_schemes_and_photos(doc, ctx)
@@ -223,6 +539,11 @@ def fill_vessel_form_to1(
         _finalize_table_typography(doc)
     except Exception:
         logger.exception("to-1: не удалось унифицировать шрифт/ориентацию таблиц")
+
+    try:
+        _apply_heading_keep_with_next(doc)
+    except Exception:
+        logger.exception("to-1: не удалось применить keep-with-next к заголовкам")
 
     doc.save(str(out))
     logger.info("Форма to-1 заполнена: %s", out)
@@ -323,6 +644,16 @@ def _enrich_inspection_data(
         thickness = []
     else:
         thickness = list(thickness)
+    # Нормализация ключей (mobile: point_number / point)
+    for p in thickness:
+        if not isinstance(p, dict):
+            continue
+        if not p.get("section_number"):
+            alt = p.get("point_number") or p.get("number") or p.get("point")
+            if alt not in (None, ""):
+                p["section_number"] = alt
+        if p.get("thickness") in (None, "") and p.get("value") not in (None, ""):
+            p["thickness"] = p.get("value")
     schemes = out.get("uzt_schemes") or []
     if isinstance(schemes, list):
         for sch in schemes:
@@ -458,6 +789,10 @@ def _enrich_inspection_data(
                             "form": r.get("form") or r.get("character") or "",
                             "character": r.get("character") or r.get("form") or "",
                             "location": r.get("coordinate") or r.get("location") or "",
+                            "location_on_control_map": r.get("coordinate")
+                            or r.get("location_on_control_map")
+                            or r.get("location")
+                            or "",
                             "conclusion": method_conclusion,
                             "control_method": "UZK",
                         }
@@ -480,6 +815,41 @@ def _enrich_inspection_data(
                 existing = out.get("weld_inspections") or []
                 if not isinstance(existing, list) or not existing:
                     out["weld_inspections"] = mapped
+                else:
+                    def _structured(w: Dict[str, Any]) -> bool:
+                        return bool(
+                            w.get("equivalent_area")
+                            or w.get("area")
+                            or w.get("depth")
+                            or w.get("defect_number")
+                        )
+
+                    if not any(_structured(w) for w in existing if isinstance(w, dict)):
+                        # Чек-лист дал упрощённые записи — дополняем структурированными из метода НК
+                        out["weld_inspections"] = mapped + list(existing)
+
+            # Параметры контроля УЗК → таблица № параметров в to-1
+            param_row = {
+                "joint_type": ad.get("joint_type") or ad.get("connection_type") or "",
+                "element_thickness": ad.get("element_thickness")
+                or ad.get("thickness")
+                or "",
+                "transducer_type": ad.get("transducer_type") or ad.get("pep_type") or "",
+                "frequency_mhz": ad.get("frequency_mhz") or ad.get("frequency") or "",
+                "angle_deg": ad.get("angle_deg") or ad.get("angle") or "",
+                "max_equivalent_area": ad.get("max_equivalent_area")
+                or ad.get("s_reject")
+                or "",
+                "notch_params": ad.get("notch_params")
+                or ad.get("notch")
+                or ad.get("reference_sample")
+                or "",
+                "device_type": ad.get("device_type") or m.get("equipment") or "",
+            }
+            if any(str(v).strip() for v in param_row.values()):
+                params = out.setdefault("uzk_control_params", [])
+                if isinstance(params, list):
+                    params.append(param_row)
 
         # Твердость
         if any(k in code for k in ("ТВЕРД", "HARD", "TVI")):
@@ -490,7 +860,7 @@ def _enrich_inspection_data(
                     out["hardness_tests"] = ht
 
         # МПК / магнитный контроль
-        if any(k in code for k in ("МПК", "MPK", "МАГНИТ", "MPI")):
+        if any(k in code for k in ("МПК", "MPK", "МАГНИТ", "MPI", "МПД", "МК")):
             mapped_mpk: List[Dict[str, Any]] = []
             defects = m.get("defects")
             if isinstance(defects, list):
@@ -527,6 +897,55 @@ def _enrich_inspection_data(
                 existing = out.get("mpk_results") or []
                 if not isinstance(existing, list) or not existing:
                     out["mpk_results"] = mapped_mpk
+            param_row = {
+                "control_method": ad.get("magnetization_type")
+                or ad.get("control_method")
+                or ad.get("method")
+                or "",
+                "sensitivity": ad.get("sensitivity")
+                or ad.get("sensitivity_level")
+                or ad.get("field_strength")
+                or "",
+                "field_strength": ad.get("field_strength") or "",
+                "indicator": ad.get("indicator_suspension") or "",
+            }
+            if any(str(v).strip() for v in param_row.values()):
+                params = out.setdefault("mpk_control_params", [])
+                if isinstance(params, list):
+                    params.append(param_row)
+                if param_row["control_method"] and not out.get("mpk_control_method"):
+                    out["mpk_control_method"] = param_row["control_method"]
+                if param_row["sensitivity"] and not out.get("mpk_sensitivity"):
+                    out["mpk_sensitivity"] = param_row["sensitivity"]
+
+    # МПК из weld_inspections чек-листа
+    welds = out.get("weld_inspections") or []
+    if isinstance(welds, list):
+        extra_mpk: List[Dict[str, Any]] = []
+        for w in welds:
+            if not isinstance(w, dict):
+                continue
+            method = str(w.get("control_method") or w.get("method") or "").upper()
+            if method not in ("MPK", "МПК", "МПД", "MK", "МК", "MPI"):
+                continue
+            extra_mpk.append(
+                {
+                    "object": w.get("weld_number") or w.get("joint") or "",
+                    "zone": w.get("location_on_control_map") or w.get("location") or "",
+                    "scope": w.get("scope") or "100%",
+                    "defects": w.get("pvk_defect")
+                    or w.get("defect_description")
+                    or w.get("uzk_defect")
+                    or "",
+                    "assessment": w.get("conclusion") or w.get("assessment") or "",
+                }
+            )
+        if extra_mpk:
+            existing = out.get("mpk_results") or []
+            if not isinstance(existing, list) or not existing:
+                out["mpk_results"] = extra_mpk
+            else:
+                out["mpk_results"] = list(existing) + extra_mpk
 
     if thickness:
         out["thickness_measurements"] = thickness
@@ -621,6 +1040,7 @@ def _build_context(
         docs_dict = {}
     if not isinstance(docs_info, dict):
         docs_info = {}
+    docs_info = _merge_document_sets_into_info(data, docs_info)
 
     specialists = _extract_specialists(data, specialist_docs)
     opo_name = str(g("opo_name", default=MISSING))
@@ -667,7 +1087,10 @@ def _build_context(
         "customer_legal_name": customer.get("legal_name") or customer.get("name") or "",
         "orientation": orientation,
         "lab_name": lab.get("name") or contractor.get("legal_name") or "",
-        "lab_cert": lab.get("certificate") or lab.get("attestation_number") or "",
+        "lab_cert": lab.get("certificate")
+        or lab.get("attestation_number")
+        or contractor.get("certificate")
+        or "",
         "docs_dict": docs_dict,
         "docs_info": docs_info,
         "verification_equipment": verification_equipment,
@@ -965,10 +1388,12 @@ def _set_cell(cell: _Cell, text: Any, *, nowrap: bool = False) -> None:
     p0 = paragraphs[0]
     if p0.runs:
         p0.runs[0].text = value
+        _set_run_font(p0.runs[0])
         for run in p0.runs[1:]:
             run.text = ""
     else:
-        p0.text = value
+        run = p0.add_run(value)
+        _set_run_font(run)
     for p in paragraphs[1:]:
         p.clear()
     try:
@@ -1061,6 +1486,46 @@ _TABLE_FONT_PT = 12.0
 _TABLE_FONT_MIN_PT = 10.0
 # Таблицы с таким числом колонок считаются «широкими» → landscape.
 _WIDE_TABLE_MIN_COLS = 7
+# Единый шрифт всего отчёта ТО.
+_REPORT_FONT_NAME = "Times New Roman"
+
+
+def _set_run_font(
+    run,
+    *,
+    pt: Optional[float] = None,
+    bold: Optional[bool] = None,
+    name: str = _REPORT_FONT_NAME,
+) -> None:
+    """Times New Roman (+ ascii/hAnsi/eastAsia), опционально размер и bold."""
+    try:
+        run.font.name = name
+    except Exception:
+        pass
+    try:
+        rPr = run._element.get_or_add_rPr()
+        rFonts = rPr.rFonts
+        if rFonts is None:
+            rFonts = OxmlElement("w:rFonts")
+            rPr.insert(0, rFonts)
+        for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+            rFonts.set(qn(attr), name)
+    except Exception:
+        pass
+    if pt is not None:
+        try:
+            run.font.size = Pt(pt)
+        except Exception:
+            pass
+    if bold is not None:
+        try:
+            run.font.bold = bold
+        except Exception:
+            pass
+    try:
+        run.font.color.rgb = RGBColor(0, 0, 0)
+    except Exception:
+        pass
 
 
 def _shrink_table_font(table: Table, pt: float = _TABLE_FONT_PT) -> None:
@@ -1079,7 +1544,7 @@ def _apply_table_font(table: Table, pt: float = _TABLE_FONT_PT) -> None:
                 except Exception:
                     pass
                 for r in p.runs:
-                    r.font.size = Pt(pt)
+                    _set_run_font(r, pt=pt)
 
 
 def _style_table_header_row(table: Table, header_rows: int = 1, pt: float = _TABLE_FONT_PT) -> None:
@@ -1093,8 +1558,7 @@ def _style_table_header_row(table: Table, header_rows: int = 1, pt: float = _TAB
                 except Exception:
                     pass
                 for r in p.runs:
-                    r.font.size = Pt(pt)
-                    r.font.bold = True
+                    _set_run_font(r, pt=pt, bold=True)
 
 
 def _table_col_count(table: Table) -> int:
@@ -1113,13 +1577,15 @@ def _set_section_orientation(section, landscape: bool) -> None:
         section.page_width, section.page_height = h, w
 
 
-def _insert_section_break_before(element, landscape: bool) -> None:
-    """Вставить разрыв раздела (новая страница) перед элементом с заданной ориентацией."""
+def _make_section_break_paragraph(landscape: bool):
+    """Абзац с sectPr (nextPage). sectPr описывает секцию, которая им заканчивается."""
     p = OxmlElement("w:p")
     pPr = OxmlElement("w:pPr")
     sectPr = OxmlElement("w:sectPr")
+    type_el = OxmlElement("w:type")
+    type_el.set(qn("w:val"), "nextPage")
+    sectPr.append(type_el)
     pgSz = OxmlElement("w:pgSz")
-    # A4: 11906 x 16838 twips
     if landscape:
         pgSz.set(qn("w:w"), "16838")
         pgSz.set(qn("w:h"), "11906")
@@ -1143,51 +1609,64 @@ def _insert_section_break_before(element, landscape: bool) -> None:
     sectPr.append(pgMar)
     pPr.append(sectPr)
     p.append(pPr)
-    element.addprevious(p)
+    return p
+
+
+def _insert_section_break_before(element, landscape: bool) -> None:
+    """Вставить разрыв раздела (новая страница) перед элементом."""
+    element.addprevious(_make_section_break_paragraph(landscape))
+
+
+def _insert_section_break_after(element, landscape: bool) -> None:
+    """Вставить разрыв раздела (новая страница) сразу после элемента."""
+    element.addnext(_make_section_break_paragraph(landscape))
 
 
 def _finalize_table_typography(doc: Document) -> None:
-    """12 pt по умолчанию; широкие таблицы → landscape; умеренный shrink только в крайнем случае."""
+    """12 pt; landscape только для широких таблиц приложений; титул — portrait."""
+    main_ids: set = set()
+    try:
+        main_list = _main_sdt_tables(doc)
+        for t in main_list:
+            main_ids.add(id(t._tbl))
+    except Exception:
+        main_list = []
+
     seen: set = set()
     tables: List[Table] = []
-    try:
-        for t in _main_sdt_tables(doc)[1:]:
-            tid = id(t._tbl)
-            if tid not in seen:
-                seen.add(tid)
-                tables.append(t)
-    except Exception:
-        pass
+    for t in main_list:
+        tid = id(t._tbl)
+        if tid not in seen:
+            seen.add(tid)
+            tables.append(t)
     for t in doc.tables:
         tid = id(t._tbl)
         if tid not in seen:
             seen.add(tid)
             tables.append(t)
 
-    wide_done = False
     for t in tables:
         cols = _table_col_count(t)
         header_rows = 2 if cols >= 6 else 1
-        if cols >= _WIDE_TABLE_MIN_COLS and not wide_done:
+        in_main = id(t._tbl) in main_ids
+        # Не трогаем основной SDT (титул/разд.1–15): там бывает «широкая»
+        # однострочная сетка, из-за которой титул уезжал в landscape и
+        # три колонки титула выглядели как несколько одинаковых листов.
+        if not in_main and cols >= _WIDE_TABLE_MIN_COLS and len(t.rows) >= 2:
             try:
-                _insert_section_break_before(t._tbl, landscape=True)
-                # После таблицы — возврат к portrait (sectPr на следующем пустом абзаце).
-                after = OxmlElement("w:p")
-                t._tbl.addnext(after)
-                _insert_section_break_before(after, landscape=False)
-                parent = after.getparent()
-                if parent is not None:
-                    parent.remove(after)
-                wide_done = True
+                # 1) закрыть предыдущую секцию как portrait (титул остаётся портретным)
+                _insert_section_break_before(t._tbl, landscape=False)
+                # 2) закрыть секцию с таблицей как landscape
+                _insert_section_break_after(t._tbl, landscape=True)
             except Exception:
                 logger.exception("to-1: landscape для широкой таблицы")
+
         pt = _TABLE_FONT_PT
         if cols >= 10:
-            pt = _TABLE_FONT_MIN_PT  # умеренно, только для очень широких
+            pt = _TABLE_FONT_MIN_PT
         _apply_table_font(t, pt=pt)
         _style_table_header_row(t, header_rows=header_rows, pt=pt)
 
-    # Финальная секция документа — portrait
     try:
         for section in doc.sections:
             if section.orientation == WD_ORIENT.LANDSCAPE:
@@ -1195,6 +1674,117 @@ def _finalize_table_typography(doc: Document) -> None:
             _set_section_orientation(section, landscape=False)
     except Exception:
         pass
+
+    _ensure_title_section_portrait(doc)
+    _apply_document_font(doc)
+
+
+def _ensure_title_section_portrait(doc: Document) -> None:
+    """Если первый sectPr ошибочно landscape — сбросить в portrait (титул)."""
+    try:
+        body = doc.element.body
+        first_sect = None
+        for child in body.iter():
+            if child.tag == qn("w:sectPr"):
+                first_sect = child
+                break
+        if first_sect is None:
+            return
+        pgSz = first_sect.find(qn("w:pgSz"))
+        if pgSz is None:
+            return
+        if pgSz.get(qn("w:orient")) == "landscape":
+            pgSz.set(qn("w:orient"), "portrait")
+            pgSz.set(qn("w:w"), "11906")
+            pgSz.set(qn("w:h"), "16838")
+            logger.info("to-1: первый sectPr был landscape — сброшен в portrait (титул)")
+    except Exception:
+        logger.exception("to-1: не удалось зафиксировать portrait титула")
+
+
+def _iter_all_paragraphs(doc: Document):
+    """Все абзацы: тело, SDT основного отчёта, таблицы, колонтитулы."""
+    seen: set = set()
+
+    def _yield_p(p: Paragraph):
+        pid = id(p._p)
+        if pid in seen:
+            return
+        seen.add(pid)
+        yield p
+
+    try:
+        for sdt in doc.element.body.iter(qn("w:sdt")):
+            content = sdt.find(qn("w:sdtContent"))
+            if content is None:
+                continue
+            for p_el in content.iter(qn("w:p")):
+                yield from _yield_p(Paragraph(p_el, doc))
+    except Exception:
+        pass
+
+    for p in doc.paragraphs:
+        yield from _yield_p(p)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    yield from _yield_p(p)
+
+    try:
+        for section in doc.sections:
+            for part in (section.header, section.footer):
+                if part is None:
+                    continue
+                for p in part.paragraphs:
+                    yield from _yield_p(p)
+                for table in part.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for p in cell.paragraphs:
+                                yield from _yield_p(p)
+    except Exception:
+        pass
+
+
+def _apply_document_font(doc: Document) -> None:
+    """Весь отчёт — Times New Roman (стили + все runs)."""
+    try:
+        for style_name in (
+            "Normal",
+            "Heading 1",
+            "Heading 2",
+            "Heading 3",
+            "Title",
+            "Subtitle",
+            "List Paragraph",
+            "Caption",
+            "Body Text",
+            "No Spacing",
+        ):
+            try:
+                st = doc.styles[style_name]
+            except KeyError:
+                continue
+            try:
+                st.font.name = _REPORT_FONT_NAME
+                # eastAsia через rPr стиля
+                rPr = st.element.get_or_add_rPr()
+                rFonts = rPr.rFonts
+                if rFonts is None:
+                    rFonts = OxmlElement("w:rFonts")
+                    rPr.insert(0, rFonts)
+                for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+                    rFonts.set(qn(attr), _REPORT_FONT_NAME)
+            except Exception:
+                pass
+    except Exception:
+        logger.exception("to-1: не удалось задать шрифт стилей")
+
+    for p in _iter_all_paragraphs(doc):
+        for r in p.runs:
+            _set_run_font(r)
 
 
 def _add_table_row(table: Table) -> None:
@@ -1345,6 +1935,72 @@ def _uzt_smin_summary(ctx: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _residual_life_text(ctx: Dict[str, Any]) -> str:
+    g = ctx["g"]
+    calc = g("calculation_data", "calculationData", default=None)
+    if not isinstance(calc, dict):
+        calc = {}
+    residual = (
+        calc.get("residual_life_years")
+        or calc.get("residual_life")
+        or g("residual_life_text", "residual_life_years", default="")
+    )
+    if residual in (None, "", MISSING):
+        return ""
+    s = str(residual).strip()
+    if not s:
+        return ""
+    if "лет" in s.lower() or "год" in s.lower():
+        return s
+    return f"{s} лет"
+
+
+def _conclusion_needs_repair(ctx: Dict[str, Any]) -> bool:
+    blob = " ".join(
+        str(ctx.get(k) or "")
+        for k in ("conclusion_suitable", "tech_state", "calculation_result")
+    ).lower()
+    if any(k in blob for k in ("ремонт", "негоден", "не годен", "ограничен")):
+        return True
+    g = ctx["g"]
+    for key in ("weld_inspections", "uzk_results", "mpk_results", "visual_defects"):
+        if _ndt_items_have_defects(g(key, default=[])):
+            return True
+    return False
+
+
+def _hardness_summary(ctx: Dict[str, Any]) -> str:
+    g = ctx["g"]
+    tests = g("hardness_tests", "hardnessTests", default=[])
+    if not isinstance(tests, list) or not tests:
+        return "—"
+    blob = " ".join(
+        str(t.get(k) or "")
+        for t in tests
+        if isinstance(t, dict)
+        for k in ("conclusion", "assessment", "note", "remark")
+    ).lower()
+    if any(k in blob for k in ("превыш", "не соотв", "ремонт")):
+        return "Значения твёрдости выходят за допускаемые пределы (см. приложение № 5)"
+    return "Твёрдость металла в пределах допускаемых значений (см. приложение № 5)"
+
+
+def _widen_date_column(table: Table, col: int = 0, width_cm: float = 3.4) -> None:
+    """Колонка «Дата»: обычный шрифт, шире, дата в одну строку."""
+    try:
+        for row in table.rows:
+            if col >= len(row.cells):
+                continue
+            cell = row.cells[col]
+            cell.width = Cm(width_cm)
+            _force_horizontal_text(cell)
+            for p in cell.paragraphs:
+                for run in p.runs:
+                    _set_run_font(run, pt=12, bold=False)
+    except Exception:
+        logger.debug("widen date column failed", exc_info=True)
+
+
 def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     """Заполнить титул и таблицы/абзацы разделов 1–15 внутри SDT."""
     main_tables = _main_sdt_tables(doc)
@@ -1432,70 +2088,78 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
 
     # --- Таблица 4: специалисты ---
     if len(main_tables) > 4:
-        specs = ctx.get("specialists") or []
+        specs = [s for s in (ctx.get("specialists") or []) if isinstance(s, dict) and (s.get("name") or "").strip()]
         st = main_tables[4]
-        data_rows = max(0, len(st.rows) - 1)
-        for i in range(data_rows):
+        _ensure_rows(st, 1 + max(len(specs), 1))
+        # Очистить все строки данных
+        for r in range(1, len(st.rows)):
+            for c in range(len(st.rows[r].cells)):
+                _set(st, r, c, "")
+        for i, s in enumerate(specs):
             r = i + 1
-            if i < len(specs):
-                s = specs[i]
-                _set(st, r, 0, f"{i + 1}.")
-                _set(st, r, 1, s.get("name") or "")
-                _set(st, r, 2, s.get("cert") or MISSING, nowrap=True)
-                _set(st, r, 3, s.get("role") or s.get("area") or MISSING)
-                _set(st, r, 4, _fmt_date_ru(s.get("valid_until") or s.get("expiry")) or (s.get("valid_until") or s.get("expiry")) or MISSING)
-            else:
-                # Нет данных на эту строку — очищаем, чтобы не оставался
-                # посторонний текст из шаблона (напр. пример из старого обследования).
-                for c in range(len(st.rows[r].cells)):
-                    _set(st, r, c, "")
+            if r >= len(st.rows):
+                _ensure_rows(st, r + 1)
+            _set(st, r, 0, f"{i + 1}.")
+            _set(st, r, 1, s.get("name") or "")
+            _set(st, r, 2, s.get("cert") or MISSING, nowrap=True)
+            _set(st, r, 3, s.get("role") or s.get("area") or MISSING)
+            _set(
+                st,
+                r,
+                4,
+                _fmt_date_ru(s.get("valid_until") or s.get("expiry"))
+                or (s.get("valid_until") or s.get("expiry"))
+                or MISSING,
+            )
         _strip_empty_rows(st, 1, ignore_cols=(0,))
+        _renumber_table_column(st, 1, 0)
 
     # --- Таблица 5: приборы ---
     if len(main_tables) > 5:
-        ve = list(ctx.get("verification_equipment") or [])
+        ve = [e for e in (ctx.get("verification_equipment") or []) if isinstance(e, dict)]
         it = main_tables[5]
-        data_rows = max(0, len(it.rows) - 1)
-        for i in range(data_rows):
+        _ensure_rows(it, 1 + max(len(ve), 1))
+        for r in range(1, len(it.rows)):
+            for c in range(len(it.rows[r].cells)):
+                _set(it, r, c, "")
+        for i, eq in enumerate(ve):
             r = i + 1
-            if i < len(ve) and isinstance(ve[i], dict):
-                eq = ve[i]
-                _set(it, r, 0, f"{i + 1}.")
-                _set(it, r, 1, _instrument_full_name(eq))
-                _set(
-                    it,
-                    r,
-                    2,
-                    eq.get("serial_number") or eq.get("factory_number") or MISSING,
-                    nowrap=True,
+            if r >= len(it.rows):
+                _ensure_rows(it, r + 1)
+            _set(it, r, 0, f"{i + 1}.")
+            _set(it, r, 1, _instrument_full_name(eq))
+            _set(
+                it,
+                r,
+                2,
+                eq.get("serial_number") or eq.get("factory_number") or MISSING,
+                nowrap=True,
+            )
+            _set(
+                it,
+                r,
+                3,
+                eq.get("verification_certificate_number")
+                or eq.get("certificate")
+                or eq.get("verification_certificate")
+                or MISSING,
+                nowrap=True,
+            )
+            _set(
+                it,
+                r,
+                4,
+                _fmt_date_ru(
+                    eq.get("next_verification_date")
+                    or eq.get("valid_until")
+                    or eq.get("verification_until")
                 )
-                _set(
-                    it,
-                    r,
-                    3,
-                    eq.get("verification_certificate_number")
-                    or eq.get("certificate")
-                    or eq.get("verification_certificate")
-                    or MISSING,
-                    nowrap=True,
-                )
-                _set(
-                    it,
-                    r,
-                    4,
-                    _fmt_date_ru(
-                        eq.get("next_verification_date")
-                        or eq.get("valid_until")
-                        or eq.get("verification_until")
-                    )
-                    or eq.get("next_verification_date")
-                    or MISSING,
-                    nowrap=True,
-                )
-            else:
-                for c in range(len(it.rows[r].cells)):
-                    _set(it, r, c, "")
+                or eq.get("next_verification_date")
+                or MISSING,
+                nowrap=True,
+            )
         _strip_empty_rows(it, 1, ignore_cols=(0,))
+        _renumber_table_column(it, 1, 0)
 
     # --- Таблица 6: перечень объектов ---
     if len(main_tables) > 6:
@@ -1508,11 +2172,17 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
             ("Местонахождение", location),
             ("Заказчик", org_name),
         ]
+        _ensure_rows(ot, len(obj_rows))
         for i, (k, v) in enumerate(obj_rows):
             if i < len(ot.rows):
                 if not (ot.rows[i].cells[0].text or "").strip():
                     _set(ot, i, 0, k)
                 _set(ot, i, 1, v)
+        # Удалить хвост пустых строк шаблона (лишние 3 строки и т.п.)
+        _strip_empty_rows(ot, len(obj_rows), ignore_cols=None)
+        # Если после 6-й есть ещё строки — вырезать
+        while len(ot.rows) > len(obj_rows):
+            ot._tbl.remove(ot.rows[-1]._tr)
 
     # --- Таблица 7: краткая теххарактеристика ---
     if len(main_tables) > 7:
@@ -1630,8 +2300,44 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     if len(main_tables) > 11:
         res = main_tables[11]
         smin = _uzt_smin_summary(ctx)
-        if len(res.rows) > 4:
-            _set(res, 4, 2, smin)
+        uzk_cell = _ndt_result_summary(
+            ctx,
+            data_keys=("weld_inspections", "uzk_results", "weld_defects"),
+            custom_key="uzk_conclusion_text",
+            ok_text="Недопустимых дефектов не обнаружено",
+            defect_text="Выявлены дефекты, требуется ремонт (см. приложение № 6)",
+        )
+        mpk_cell = _ndt_result_summary(
+            ctx,
+            data_keys=("mpk_results", "magnetic_results", "weld_inspections"),
+            custom_key="mpk_conclusion_text",
+            ok_text="Недопустимых дефектов не обнаружено",
+            defect_text="Выявлены дефекты, требуется ремонт (см. приложение № 7)",
+        )
+        vik_cell = _ndt_result_summary(
+            ctx,
+            data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
+            custom_key="vik_conclusion_text",
+            ok_text="Дефектов, препятствующих дальнейшей безопасной эксплуатации сосуда не выявлено",
+            defect_text="Выявлены дефекты (см. приложение № 3)",
+        )
+        residual = _residual_life_text(ctx)
+        calc_cell = ctx.get("calculation_result") or "Условия прочности выполняются"
+        if residual:
+            calc_cell = f"{calc_cell}. Прогнозный срок остаточного ресурса: {residual}"
+        result_by_row = {
+            1: _doc_analysis_result_cell(ctx),
+            2: (ctx.get("operational_ok") or "Соответствует требованиям"),
+            3: vik_cell,
+            4: smin,
+            5: _hardness_summary(ctx),
+            6: uzk_cell,
+            7: mpk_cell,
+            8: calc_cell,
+        }
+        for r, val in result_by_row.items():
+            if r < len(res.rows) and len(res.rows[r].cells) > 2:
+                _set(res, r, 2, val)
         appendix_nums = {
             1: "1",
             2: "2",
@@ -1649,29 +2355,47 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
                     _set(res, r, 3, f"Приложение № {app}")
 
     # --- Абзацы разделов 1, 2, 14, 15 + разрыв перед СОДЕРЖАНИЕ ---
-    contract = str(g("contract_number", "work_basis", "basis", default="") or "")
+    contract = str(g("contract_number", default="") or "")
+    work_basis = str(g("work_basis", "basis", default="") or "")
     contract_date = _fmt_date_ru(g("contract_date", default="")) or str(g("contract_date", default="") or "")
     period_from = _fmt_date_ru(g("work_period_from", "date_from", default="")) or ""
     period_to = _fmt_date_ru(g("work_period_to", "date_to", "date_performed", default=ctx["date_ru"])) or ctx["date_ru"]
     calc_txt = ctx.get("calculation_result") or "сосуда при рабочих параметрах"
     tech_state = ctx.get("tech_state") or "работоспособное"
     conclusion = ctx.get("conclusion_suitable") or "соответствует"
+    contractor_name = ctx.get("contractor_name") or ""
+    residual = _residual_life_text(ctx)
+    needs_repair = _conclusion_needs_repair(ctx)
 
     for p in _iter_all_paragraphs(doc):
         text = p.text or ""
         stripped = text.strip()
+        norm = _norm_ws(text)
         if stripped == "СОДЕРЖАНИЕ":
             _insert_page_break_before_paragraph(p)
+            try:
+                p.paragraph_format.page_break_before = True
+                p.paragraph_format.keep_with_next = True
+            except Exception:
+                pass
             continue
-        if stripped.startswith("Работы по техническому диагностированию проведены в соответствии с договором"):
+        if "проведены в соответствии с" in norm and "договор" in norm:
             parties = org_name if org_name != MISSING else "__________________________"
+            if contractor_name:
+                parties = f"{parties} и {contractor_name}"
             c_no = contract or "____________"
             c_dt = contract_date or "______"
-            _set_paragraph_text(
-                p,
-                f"Работы по техническому диагностированию проведены в соответствии с договором между {parties} от {c_dt} № {c_no}.",
-            )
-        elif stripped.startswith("Работы по техническому диагностированию проведены в период"):
+            if work_basis and not contract:
+                _set_paragraph_text(
+                    p,
+                    f"Работы по техническому диагностированию проведены в соответствии с {work_basis}.",
+                )
+            else:
+                _set_paragraph_text(
+                    p,
+                    f"Работы по техническому диагностированию проведены в соответствии с договором между {parties} от {c_dt} № {c_no}.",
+                )
+        elif "проведены в период" in norm:
             pf = period_from or "__.__.____"
             pt = period_to or "__.__.____"
             loc = location if location != MISSING else "____________________"
@@ -1680,22 +2404,61 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
                 f"Работы по техническому диагностированию проведены в период с {pf} по {pt}, "
                 f"на объекте {loc}.",
             )
-        elif "По результатам работ произведена оценка работоспособности" in text:
+        elif "По результатам работ произведена оценка работоспособности" in text or (
+            "оценка работоспособности" in norm and "приложение" in norm
+        ):
+            extra = f" Прогнозный срок остаточного ресурса составляет {residual}." if residual else ""
             _set_paragraph_text(
                 p,
-                f"По результатам работ произведена оценка работоспособности {calc_txt}. (Приложение № 8)",
+                f"По результатам работ произведена оценка работоспособности {calc_txt}.{extra} (Приложение № 8)",
             )
-        elif stripped.startswith("Фактическое значение параметров, определяющих состояние эксплуатации"):
+        elif "Фактическое значение параметров, определяющих состояние эксплуатации" in norm or (
+            "состояние эксплуатации" in norm and "зав" in norm and "инв" in norm
+        ):
+            satisfy = (
+                "не удовлетворяют требованиям нормативных документов без выполнения ремонта"
+                if needs_repair
+                else "удовлетворяют требованиям нормативных документов"
+            )
             _set_paragraph_text(
                 p,
                 f"Фактическое значение параметров, определяющих состояние эксплуатации сосуда "
                 f"работающего под давлением – {device}, зав.№ {serial}, рег.№ {reg_no}, "
-                f"инв.№ {inv_no}, удовлетворяют требованиям нормативных документов.",
+                f"инв.№ {inv_no}, {satisfy}.",
             )
-        elif stripped.startswith("Техническое состояние объекта диагностирования"):
+        elif "Техническое состояние объекта диагностирования" in norm:
+            vik_s = _ndt_result_summary(
+                ctx,
+                data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
+                custom_key="vik_conclusion_text",
+                ok_text="дефектов не выявлено",
+                defect_text="выявлены дефекты (прил. № 3)",
+            )
+            uzk_s = _ndt_result_summary(
+                ctx,
+                data_keys=("weld_inspections", "uzk_results"),
+                custom_key="uzk_conclusion_text",
+                ok_text="дефектов не обнаружено",
+                defect_text="выявлены дефекты, требуется ремонт (прил. № 6)",
+            )
+            mpk_s = _ndt_result_summary(
+                ctx,
+                data_keys=("mpk_results", "weld_inspections"),
+                custom_key="mpk_conclusion_text",
+                ok_text="дефектов не обнаружено",
+                defect_text="выявлены дефекты, требуется ремонт (прил. № 7)",
+            )
+            summary = (
+                f"Результаты по видам контроля: анализ документации — {_doc_analysis_result_cell(ctx)}; "
+                f"ВИК — {vik_s}; УЗТ — {_uzt_smin_summary(ctx).replace(chr(10), '; ')}; "
+                f"твёрдость — {_hardness_summary(ctx)}; УЗК — {uzk_s}; МПК — {mpk_s}; "
+                f"расчёт на прочность — {calc_txt}"
+                + (f", остаточный ресурс {residual}" if residual else "")
+                + "."
+            )
             _set_paragraph_text(
                 p,
-                f"Техническое состояние объекта диагностирования: {tech_state} ({conclusion}).",
+                f"Техническое состояние объекта диагностирования: {tech_state}. {conclusion}. {summary}".replace("..", "."),
             )
 
 
@@ -1713,6 +2476,89 @@ def _fill_protocol_header(table: Table, ctx: Dict[str, Any]) -> None:
     _set(table, 6, 0, ctx.get("lab_cert") or "")
     ids = f"Зав.№ {ctx['serial']}, рег.№ {ctx['reg_no']}, инв.№ {ctx['inv_no']}"
     _set(table, 6, 2, ids, nowrap=True)
+
+
+def _merge_document_sets_into_info(
+    data: Dict[str, Any], docs_info: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Подтянуть номер/дату/листы из document_sets (ремонтная документация, акты УЗТ)."""
+    out = dict(docs_info)
+    extra = data.get("additional_data") if isinstance(data.get("additional_data"), dict) else {}
+    sets = data.get("document_sets") or extra.get("document_sets") or {}
+    if not isinstance(sets, dict):
+        return out
+    for num, lst in sets.items():
+        if not isinstance(lst, list) or not lst:
+            continue
+        idents: List[str] = []
+        pages_parts: List[str] = []
+        for item in lst:
+            if not isinstance(item, dict):
+                continue
+            n = str(item.get("number") or "").strip()
+            d = _fmt_date_ru(item.get("date")) or str(item.get("date") or "").strip()
+            p = str(item.get("pages") or item.get("volume") or "").strip()
+            ident = n
+            if d:
+                ident = f"{n} от {d}".strip() if n else f"от {d}"
+            if ident:
+                idents.append(ident)
+            if p:
+                pages_parts.append(p)
+        key = str(num)
+        info = dict(out.get(key) or out.get(num) or {})
+        if not isinstance(info, dict):
+            info = {}
+        if idents and not str(info.get("number") or "").strip():
+            info["number"] = "; ".join(idents)
+            info["date"] = ""
+        if pages_parts and not str(info.get("pages") or info.get("volume") or "").strip():
+            info["pages"] = "; ".join(pages_parts)
+        out[key] = info
+    return out
+
+
+def _ndt_methods_joined(ctx: Dict[str, Any]) -> str:
+    """Список методов НК из чек-листа / таблицы ndt_methods."""
+    names: List[str] = []
+    data = ctx.get("data") or {}
+    raw = data.get("ndt_methods") or ctx.get("ndt_methods") or []
+    if isinstance(raw, list):
+        for m in raw:
+            if isinstance(m, str):
+                val = m.strip()
+            elif isinstance(m, dict):
+                val = str(
+                    m.get("method_code") or m.get("code") or m.get("name") or ""
+                ).strip()
+            else:
+                val = ""
+            if val and val not in names:
+                names.append(val)
+    return ", ".join(names)
+
+
+def _hide_empty_row_borders(table: Table, start: int, end: int) -> None:
+    """Убрать горизонтальные линии у полностью пустых строк (лишняя черта в блоке температур)."""
+    for r in range(start, min(end, len(table.rows))):
+        texts = [(c.text or "").strip() for c in table.rows[r].cells]
+        if any(t and t not in ("—", "-", "–") for t in texts):
+            continue
+        for cell in table.rows[r].cells:
+            try:
+                tcPr = cell._tc.get_or_add_tcPr()
+                borders = tcPr.find(qn("w:tcBorders"))
+                if borders is None:
+                    borders = OxmlElement("w:tcBorders")
+                    tcPr.append(borders)
+                for edge in ("top", "bottom"):
+                    el = borders.find(qn(f"w:{edge}"))
+                    if el is None:
+                        el = OxmlElement(f"w:{edge}")
+                        borders.append(el)
+                    el.set(qn("w:val"), "nil")
+            except Exception:
+                pass
 
 
 def _doc_ident_and_pages(present: Any, info: Dict[str, Any]) -> Tuple[str, str]:
@@ -1794,7 +2640,7 @@ def _fill_elements_table(table: Table, ctx: Dict[str, Any]) -> None:
             ("Корпус", g("shell_qty", default="1"), g("diameter", default=""), g("shell_length", "height", default=""),
              g("wall_thickness", "thickness", default=""), g("calc_thickness", default=""),
              g("shell_material", "material", default=""), g("material_gost", default=""),
-             g("weld_type", default=""), g("electrodes", default=""), g("ndt_method", default="")),
+             g("weld_type", default=""), g("electrodes", default=""), g("ndt_method", default="") or _ndt_methods_joined(ctx)),
         ]
         for i, row_vals in enumerate(defaults):
             r = data_start + i
@@ -1833,12 +2679,13 @@ def _fill_elements_table(table: Table, ctx: Dict[str, Any]) -> None:
             el.get("gost") or el.get("material_gost") or "",
             el.get("weld_type") or el.get("weld_data") or "",
             el.get("electrodes") or "",
-            el.get("ndt_method") or "",
+            el.get("ndt_method") or _ndt_methods_joined(ctx),
         ]
         for c, v in enumerate(vals):
             if c < len(table.rows[r].cells):
                 # Размеры и марка стали — без «ломания» по символу в узких колонках
                 _set(table, r, c, v, nowrap=(c in (2, 3, 4, 5, 6, 7)))
+                _force_horizontal_text(table.rows[r].cells[c])
     # Очистить оставшиеся строки-заготовки шаблона (напр. «Нижнее днище»)
     for r in range(data_start + len(elements), len(table.rows)):
         for c in range(len(table.rows[r].cells)):
@@ -1896,6 +2743,8 @@ def _fill_characteristics(table: Table, ctx: Dict[str, Any]) -> None:
             if cols >= 4:
                 _set(table, row, 2, proj if proj not in (None, MISSING) else "", nowrap=True)
                 _set(table, row, 3, fact if fact not in (None, MISSING) else "", nowrap=True)
+    # Лишняя горизонтальная черта в блоке температур (пустая строка шаблона)
+    _hide_empty_row_borders(table, 5, 9)
 
 
 def _fill_materials(table: Table, ctx: Dict[str, Any]) -> None:
@@ -1947,6 +2796,38 @@ def _fill_materials(table: Table, ctx: Dict[str, Any]) -> None:
             for c, v in enumerate(vals):
                 if c < len(table.rows[r].cells):
                     _set(table, r, c, v)
+        # Если у элемента той же марки стали пустые мех. свойства — взять с любой строки той же марки
+        mech_cols = (3, 4, 5, 6, 7, 8, 9)
+        last = start + len(materials)
+        for r in range(start, last):
+            if r >= len(table.rows):
+                break
+            grade = (table.rows[r].cells[1].text or "").strip()
+            if not grade:
+                continue
+            empty = all(
+                not (table.rows[r].cells[c].text or "").strip()
+                for c in mech_cols
+                if c < len(table.rows[r].cells)
+            )
+            if not empty:
+                continue
+            for src in range(start, last):
+                if src == r or src >= len(table.rows):
+                    continue
+                if (table.rows[src].cells[1].text or "").strip() != grade:
+                    continue
+                src_empty = all(
+                    not (table.rows[src].cells[c].text or "").strip()
+                    for c in mech_cols
+                    if c < len(table.rows[src].cells)
+                )
+                if src_empty:
+                    continue
+                for c in mech_cols:
+                    if c < len(table.rows[r].cells):
+                        _set(table, r, c, table.rows[src].cells[c].text)
+                break
         for r in range(start + len(materials), len(table.rows)):
             for c in range(len(table.rows[r].cells)):
                 _set(table, r, c, "")
@@ -2109,7 +2990,7 @@ SIGNATURE_METHOD_KEYS: Dict[int, Tuple[str, ...]] = {
     22: ("УЗТ", "UZT"),
     27: ("ТВЕРД", "TVI", "HARD"),
     32: ("УЗК", "UZK"),
-    37: ("МПК", "MPK"),
+    37: ("МПК", "MPK", "МК", "MK", "MT", "MPI", "ПВК", "PVK"),
 }
 
 
@@ -2131,7 +3012,9 @@ def _specialists_for_methods(
         return matched
     if all(not str(s.get("role") or "").strip() for s in specs):
         return specs
-    return []
+    # Нет специалиста именно по этому методу — берём исполнителей обследования,
+    # иначе блок подписи в протоколе остаётся пустым.
+    return specs
 
 
 def _fill_signatures(
@@ -2213,6 +3096,9 @@ def _fill_instrument_table(
             matched.append(eq)
     if not matched and defaults:
         matched = [{"name": n, "serial_number": s} for n, s in defaults]
+    elif not matched and ve:
+        # Нет точного совпадения по методу — берём приборы, выбранные в обследовании
+        matched = [eq for eq in ve if isinstance(eq, dict)]
     # Очистим строки шаблона и заполним фактическими приборами
     for r in range(1, len(table.rows)):
         for c in range(len(table.rows[r].cells)):
@@ -2349,68 +3235,150 @@ def _fill_vik_results(table: Table, ctx: Dict[str, Any]) -> None:
     _strip_empty_rows(table, 2, ignore_cols=(0,))
 
 
-def _fill_uzt_results(table: Table, ctx: Dict[str, Any]) -> None:
-    g = ctx["g"]
-    points = g("thickness_measurements", "thicknessMeasurements", default=[])
-    if not isinstance(points, list) or not points:
-        return
-    # Группируем по элементу: 3 точки на строку
-    by_element: Dict[str, List[Dict[str, Any]]] = {}
-    for p in points:
-        if not isinstance(p, dict):
-            continue
-        el = str(
-            p.get("location")
-            or p.get("element")
-            or p.get("zone")
-            or p.get("name")
-            or "Элемент"
-        )
-        by_element.setdefault(el, []).append(p)
+def _set_row_tc(table: Table, row_idx: int, col_idx: int, text: Any) -> None:
+    """Запись в конкретный tc строки (обходит coalescing merged cells в python-docx)."""
+    try:
+        tr = table.rows[row_idx]._tr
+        tcs = tr.tc_lst
+        if col_idx < 0 or col_idx >= len(tcs):
+            return
+        _set_cell(_Cell(tcs[col_idx], table), text)
+    except Exception:
+        _set(table, row_idx, col_idx, text)
 
-    rows_needed = 1  # header
-    for pts in by_element.values():
-        rows_needed += max(1, (len(pts) + 2) // 3)
+
+def _fill_uzt_results(table: Table, ctx: Dict[str, Any]) -> None:
+    """Таблица результатов УЗТ: элемент | № точки | толщина | … (по 3 точки в ряд)."""
+    g = ctx["g"]
+    points: List[Dict[str, Any]] = []
+    raw = g("thickness_measurements", "thicknessMeasurements", default=[])
+    if isinstance(raw, list):
+        points.extend(p for p in raw if isinstance(p, dict))
+
+    def _fallbacks() -> List[Dict[str, Any]]:
+        extra: List[Dict[str, Any]] = []
+        for sch in g("uzt_schemes", default=[]) or []:
+            if isinstance(sch, dict):
+                for m in sch.get("measurements") or []:
+                    if isinstance(m, dict):
+                        extra.append(m)
+        for m in ctx.get("ndt_methods") or []:
+            if not isinstance(m, dict):
+                continue
+            code = str(m.get("method_code") or m.get("method_name") or "").upper()
+            if not any(k in code for k in ("УЗТ", "UZT", "ТОЛЩ")):
+                continue
+            ad = m.get("additional_data") or {}
+            if not isinstance(ad, dict):
+                continue
+            for p in ad.get("measurement_points") or ad.get("points") or []:
+                if isinstance(p, dict):
+                    extra.append(
+                        {
+                            "location": p.get("location") or p.get("element") or p.get("zone") or "",
+                            "section_number": p.get("point")
+                            or p.get("section_number")
+                            or p.get("point_number")
+                            or p.get("number")
+                            or "",
+                            "thickness": p.get("thickness") or p.get("value"),
+                        }
+                    )
+        return extra
+
+    def _to_usable(src: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        seen_keys: set = set()
+        for p in src:
+            num = (
+                p.get("section_number")
+                or p.get("point_number")
+                or p.get("number")
+                or p.get("point")
+                or ""
+            )
+            thick = p.get("thickness")
+            if thick is None:
+                thick = p.get("value") or p.get("measured_thickness")
+            loc = str(
+                p.get("element_name")
+                or p.get("element")
+                or p.get("location")
+                or p.get("zone")
+                or p.get("name")
+                or ""
+            ).strip()
+            if not str(num).strip() and thick in (None, "") and not loc:
+                continue
+            sec = str(num).strip() or str(len(out) + 1)
+            key = (loc, sec, str(thick if thick not in (None, "") else ""))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            out.append(
+                {
+                    **p,
+                    "location": loc or "Элемент",
+                    "section_number": sec,
+                    "thickness": thick if thick not in (None, "") else "",
+                }
+            )
+        return out
+
+    # enrich уже подмешивает схемы/НК — fallback только если список пуст
+    usable = _to_usable(points)
+    if not usable:
+        usable = _to_usable(_fallbacks())
+    if not usable:
+        return
+
+    by_element: Dict[str, List[Dict[str, Any]]] = {}
+    for p in usable:
+        by_element.setdefault(str(p.get("location") or "Элемент"), []).append(p)
+
+    # Снять vMerge у колонки «элемент» на уровне каждого tc строки
+    try:
+        for r_i in range(1, len(table.rows)):
+            tr = table.rows[r_i]._tr
+            if not tr.tc_lst:
+                continue
+            tcPr = tr.tc_lst[0].get_or_add_tcPr()
+            for vm in list(tcPr.findall(qn("w:vMerge"))):
+                tcPr.remove(vm)
+    except Exception:
+        logger.exception("uzt: не удалось снять vMerge")
+
+    rows_needed = 1 + sum(max(1, (len(pts) + 2) // 3) for pts in by_element.values())
     _ensure_rows(table, rows_needed)
 
-    # Колонка «элемент» в шаблоне часто объединена — пишем список один раз
-    element_label = " / ".join(by_element.keys())
-    written_element_cells: set = set()
+    # Очистить строки данных перед заполнением (через tc_lst — без merge-coalesce)
+    for r in range(1, len(table.rows)):
+        n_cols = len(table.rows[r]._tr.tc_lst)
+        for c in range(n_cols):
+            _set_row_tc(table, r, c, "")
+
     row = 1
     for el_name, pts in by_element.items():
         for chunk_start in range(0, len(pts), 3):
             chunk = pts[chunk_start : chunk_start + 3]
             if row >= len(table.rows):
                 _ensure_rows(table, row + 1)
-            cell0 = table.rows[row].cells[0]
-            cid = id(cell0._tc)
-            if cid not in written_element_cells:
-                _set_cell(
-                    cell0,
-                    el_name if len(by_element) == 1 else element_label,
-                )
-                written_element_cells.add(cid)
+            _set_row_tc(table, row, 0, el_name)
             for j, p in enumerate(chunk):
-                num = (
-                    p.get("section_number")
-                    or p.get("point_number")
-                    or p.get("number")
-                    or p.get("point")
-                    or (chunk_start + j + 1)
-                )
-                thick = (
-                    p.get("thickness")
-                    or p.get("value")
-                    or p.get("measured_thickness")
-                    or ""
-                )
-                point_label = str(num)
+                num = p.get("section_number") or (chunk_start + j + 1)
+                thick = p.get("thickness")
+                if thick in (None, ""):
+                    thick = ""
                 base = 1 + j * 2
-                if base < len(table.rows[row].cells):
-                    _set(table, row, base, point_label)
-                if base + 1 < len(table.rows[row].cells):
-                    _set(table, row, base + 1, thick)
+                n_cols = len(table.rows[row]._tr.tc_lst)
+                if base < n_cols:
+                    _set_row_tc(table, row, base, num)
+                if base + 1 < n_cols:
+                    _set_row_tc(table, row, base + 1, thick)
             row += 1
+
+    # Удалить только хвост полностью пустых строк (не трогая заполненные)
+    _strip_empty_rows(table, row if row > 1 else 1, ignore_cols=(0,))
 
 
 def _fill_hardness_matrix(table: Table, ctx: Dict[str, Any]) -> None:
@@ -2528,6 +3496,90 @@ def _fill_hardness_list(table: Table, ctx: Dict[str, Any]) -> None:
             )
 
 
+def _fill_uzk_parameters(table: Table, ctx: Dict[str, Any]) -> None:
+    """Таблица параметров контроля УЗК (прил. 6, табл. до результатов).
+
+    Колонки: № | тип соединения | толщина | ПЭП (тип, частота, угол) | Sбрак | зарубка.
+    """
+    g = ctx["g"]
+    rows = g("uzk_control_params", default=[])
+    if not isinstance(rows, list):
+        rows = []
+    else:
+        rows = [r for r in rows if isinstance(r, dict)]
+
+    if not rows:
+        # Fallback напрямую из методов НК в контексте
+        for m in ctx.get("ndt_methods") or []:
+            if not isinstance(m, dict):
+                continue
+            code = str(m.get("method_code") or m.get("method_name") or "").upper()
+            if not any(k in code for k in ("УЗК", "UZK")):
+                continue
+            ad = m.get("additional_data") or {}
+            if not isinstance(ad, dict):
+                ad = {}
+            rows.append(
+                {
+                    "joint_type": ad.get("joint_type") or "",
+                    "element_thickness": ad.get("element_thickness") or "",
+                    "transducer_type": ad.get("transducer_type") or "",
+                    "frequency_mhz": ad.get("frequency_mhz") or ad.get("frequency") or "",
+                    "angle_deg": ad.get("angle_deg") or ad.get("angle") or "",
+                    "max_equivalent_area": ad.get("max_equivalent_area") or "",
+                    "notch_params": ad.get("notch_params")
+                    or ad.get("notch")
+                    or ad.get("reference_sample")
+                    or "",
+                }
+            )
+
+    usable = [
+        r
+        for r in rows
+        if any(
+            str(r.get(k) or "").strip()
+            for k in (
+                "joint_type",
+                "element_thickness",
+                "transducer_type",
+                "frequency_mhz",
+                "angle_deg",
+                "max_equivalent_area",
+                "notch_params",
+                "pep",
+            )
+        )
+    ]
+    if not usable:
+        return
+
+    _ensure_rows(table, 1 + len(usable))
+    for i, p in enumerate(usable):
+        r = 1 + i
+        pep = str(p.get("pep") or "").strip()
+        if not pep:
+            parts = []
+            if p.get("transducer_type"):
+                parts.append(str(p.get("transducer_type")))
+            if p.get("frequency_mhz"):
+                parts.append(f"{p.get('frequency_mhz')} МГц")
+            if p.get("angle_deg"):
+                parts.append(f"{p.get('angle_deg')}°")
+            pep = ", ".join(parts)
+        vals = [
+            i + 1,
+            p.get("joint_type") or "",
+            p.get("element_thickness") or "",
+            pep,
+            p.get("max_equivalent_area") or "",
+            p.get("notch_params") or "",
+        ]
+        for c, v in enumerate(vals):
+            if c < len(table.rows[r].cells):
+                _set(table, r, c, v)
+
+
 def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
     g = ctx["g"]
     welds = g("weld_inspections", "uzk_results", "weld_defects", default=[])
@@ -2616,6 +3668,83 @@ def _fill_mpk_results(table: Table, ctx: Dict[str, Any]) -> None:
                 _set(table, r, c, v)
 
 
+def _fill_mpk_parameters(table: Table, ctx: Dict[str, Any]) -> None:
+    """Таблица параметров МПК: способ контроля и уровень чувствительности."""
+    g = ctx["g"]
+    method = str(g("mpk_control_method", "magnetization_type", default="") or "")
+    sensitivity = str(g("mpk_sensitivity", "sensitivity_level", default="") or "")
+    params = g("mpk_control_params", default=[])
+    if isinstance(params, list) and params and isinstance(params[0], dict):
+        method = method or str(params[0].get("control_method") or "")
+        sensitivity = sensitivity or str(
+            params[0].get("sensitivity") or params[0].get("field_strength") or ""
+        )
+    if not method:
+        for m in ctx.get("ndt_methods") or []:
+            if not isinstance(m, dict):
+                continue
+            code = str(m.get("method_code") or m.get("method_name") or "").upper()
+            if not any(k in code for k in ("МПК", "MPK", "МПД", "МК", "MPI")):
+                continue
+            ad = m.get("additional_data") or {}
+            if isinstance(ad, dict):
+                method = str(ad.get("magnetization_type") or ad.get("control_method") or method)
+                sensitivity = str(ad.get("sensitivity") or ad.get("field_strength") or sensitivity)
+            break
+    for r, needles, val in (
+        (0, ("способ", "намагнич", "метод"), method),
+        (1, ("чувствитель", "уровень", "напряж"), sensitivity),
+    ):
+        if r >= len(table.rows) or not val:
+            continue
+        blob = " ".join((c.text or "").lower() for c in table.rows[r].cells)
+        col = 1 if len(table.rows[r].cells) > 1 else 0
+        if col == 0 and any(n in blob for n in needles):
+            continue
+        _set(table, r, col, val)
+
+
+def _fill_hardness_steel_heading(doc: Document, ctx: Dict[str, Any]) -> None:
+    """Подставить марку стали в заголовок «для стали …….»."""
+    g = ctx["g"]
+    steel = str(g("shell_material", "material", default="") or "")
+    if not steel:
+        elements = g("vessel_elements", "elements", default=[])
+        if isinstance(elements, list):
+            for el in elements:
+                if isinstance(el, dict) and (el.get("material") or el.get("steel_grade")):
+                    steel = str(el.get("material") or el.get("steel_grade"))
+                    break
+    if not steel:
+        tests = g("hardness_tests", default=[])
+        if isinstance(tests, list):
+            for t in tests:
+                if isinstance(t, dict) and (t.get("steel_grade") or t.get("material")):
+                    steel = str(t.get("steel_grade") or t.get("material"))
+                    break
+    if not steel:
+        return
+    pat = re.compile(r"(для стали\s*)[.…_—\-–\s]*", re.IGNORECASE)
+
+    def _sub(text: str) -> str:
+        if "для стали" not in (text or "").lower():
+            return text
+        return pat.sub(rf"\g<1>{steel} ", text)
+
+    for p in _iter_all_paragraphs(doc):
+        t = p.text or ""
+        nt = _sub(t)
+        if nt != t:
+            _set_paragraph_text(p, nt)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                t = cell.text or ""
+                nt = _sub(t)
+                if nt != t:
+                    _set_cell(cell, nt)
+
+
 def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
     """Подставить номера протоколов, даты и выводы в абзацы с подчёркиваниями."""
     date_ru = ctx["date_ru"]
@@ -2624,11 +3753,59 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
     inv_no = ctx["inv_no"]
     device = ctx["device_name"]
     conclusion = ctx.get("conclusion_suitable") or "соответствует"
-    doc_concl = ctx.get("conclusion_doc") or "в полном объёме"
+    doc_concl = _strip_parens(str(ctx.get("conclusion_doc") or "в полном объёме"))
+    doc_verdict = _doc_verdict_word(ctx)
     op_ok = ctx.get("operational_ok") or "соответствует"
     g = ctx["g"]
     protocol_no = str(g("protocol_number", "report_number", default="") or "")
     tech_card = str(g("tech_card_number", "technological_card", default="") or "")
+
+    uzk_concl = _ndt_result_summary(
+        ctx,
+        data_keys=("weld_inspections", "uzk_results", "weld_defects"),
+        custom_key="uzk_conclusion_text",
+        ok_text=(
+            "По результатам обследования сварных соединений сосуда, "
+            "недопустимых дефектов не обнаружено, объект контроля соответствует требованиям НТД."
+        ),
+        defect_text=(
+            "По результатам ультразвукового контроля сварных соединений выявлены недопустимые дефекты. "
+            "Требуется ремонт сосуда / снижение максимально допустимого рабочего давления "
+            "(см. таблицу результатов)."
+        ),
+    )
+    mpk_concl = _ndt_result_summary(
+        ctx,
+        data_keys=("mpk_results", "magnetic_results", "weld_inspections"),
+        custom_key="mpk_conclusion_text",
+        ok_text=(
+            "По результатам магнитопорошкового контроля дефектов в сварных "
+            "соединениях сосуда не обнаружено, объект контроля соответствует "
+            "требованиям нормативно-технической документации."
+        ),
+        defect_text=(
+            "По результатам магнитопорошкового контроля выявлены дефекты. "
+            "Требуется ремонт сосуда / снижение максимально допустимого рабочего давления "
+            "(см. таблицу результатов)."
+        ),
+    )
+    vik_concl = str(g("vik_conclusion_text", default="") or "").strip()
+    if not vik_concl:
+        vik_concl = _ndt_result_summary(
+            ctx,
+            data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
+            custom_key="vik_conclusion_text",
+            ok_text=(
+                "По результатам визуального и измерительного контроля основного "
+                "металла и сварных соединений сосуда, недопустимых дефектов не обнаружено, "
+                "что удовлетворяет требованиям нормативно-технической документации "
+                f"{g('vik_ntd', default='СТО 9701105632-003-2021')}."
+            ),
+            defect_text=(
+                "По результатам визуального и измерительного контроля выявлены дефекты, "
+                "препятствующие дальнейшей безопасной эксплуатации без ремонта."
+            ),
+        )
 
     # Важно: основной отчёт в SDT — doc.paragraphs его не видит
     for p in _iter_all_paragraphs(doc):
@@ -2643,20 +3820,28 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
             no_part = protocol_no if protocol_no else "_________"
             new_text = f"№ {no_part} от {date_ru} г."
         elif "При анализе технической документации установлено" in text:
-            new_text = _replace_underscores(text, [doc_concl or "соответствие НТД"])
+            concl = doc_concl.strip() or "в полном объёме"
+            new_text = f"При анализе технической документации установлено, {concl}"
         elif "ВЫВОД:" in text or "Представленная техническая документация" in text:
             new_text = (
                 f"ВЫВОД: Представленная техническая документация на сосуд, "
                 f"работающий под давлением – {device} зав. № {serial}, рег. № {reg_no}, "
-                f"инв. № {inv_no} ведется в соответствии с требованиями действующей "
-                f"нормативно-технической документации ({conclusion})."
+                f"инв. № {inv_no} {doc_verdict} требованиям действующей "
+                f"нормативно-технической документации."
             )
         elif "функциональной (оперативной) диагностики установлено" in text:
-            new_text = (
-                f"В результате функциональной (оперативной) диагностики установлено, "
-                f"что сосуд {op_ok} и соответствует паспортным характеристикам. "
-                f"Сосуд соответствует требованиям действующей НТД."
-            )
+            op = str(op_ok).strip() or "соответствует"
+            if "соответств" in op.lower():
+                new_text = (
+                    f"В результате функциональной (оперативной) диагностики установлено, "
+                    f"что сосуд {op} паспортным характеристикам и требованиям действующей НТД."
+                )
+            else:
+                new_text = (
+                    f"В результате функциональной (оперативной) диагностики установлено, "
+                    f"что сосуд {op} паспортным характеристикам. "
+                    f"Сосуд соответствует требованиям действующей НТД."
+                )
         elif "Технологическая карта №" in text:
             card_val = tech_card if tech_card else "—"
             if "_" in text:
@@ -2667,22 +3852,16 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
                     rf"\1 {card_val}",
                     text,
                 )
-        elif "недопустимых дефектов не обнаружено" in text and (
-            "_" in text or "документацииСТО" in text.replace(" ", "")
-        ):
-            # Если техник выбрал в мобильном приложении конкретную
-            # формулировку заключения по ВИК — используем её, иначе —
-            # стандартный текст по умолчанию.
-            vik_conclusion = str(g("vik_conclusion_text", default="") or "").strip()
-            if vik_conclusion:
-                new_text = vik_conclusion
+        elif "недопустимых дефектов не обнаружено" in text.lower() or (
+            "объект контроля соответствует" in text.lower() and "сварн" in text.lower()
+        ) or ("магнитопорошкового контроля" in text.lower() and "заключен" not in stripped.lower()[:20]):
+            low = text.lower()
+            if "магнитопорошков" in low:
+                new_text = mpk_concl
+            elif "ультразвуков" in low or "сварных соединений сосуда" in low:
+                new_text = uzk_concl
             else:
-                ntd = str(g("vik_ntd", default="СТО 9701105632-003-2021") or "")
-                new_text = (
-                    "По результатам визуального и измерительного контроля основного "
-                    "металла и сварных соединений сосуда, недопустимых дефектов не обнаружено, "
-                    f"что удовлетворяет требованиям нормативно-технической документации {ntd}."
-                )
+                new_text = vik_concl
         else:
             continue
 
@@ -2831,39 +4010,28 @@ def _fill_appendix_9_hydraulic_act(doc: Document, ctx: Dict[str, Any]) -> None:
 
 
 def _insert_schemes_and_photos(doc: Document, ctx: Dict[str, Any]) -> None:
-    """Вставить схемы контроля и фото измерений в соответствующие разделы."""
+    """Вставить схемы контроля (слои ВИК/УЗТ/ТК/УЗК/МПК) и фото измерений."""
     data = ctx.get("data") or {}
     attachments = ctx.get("attachments") or {}
     find_image = ctx.get("find_image")
-
-    schemes = collect_scheme_paths(data, attachments)
+    kind = str((ctx.get("g")("equipment_kind", default="") if callable(ctx.get("g")) else "") or "vessel")
     photos = collect_photo_paths(data, attachments)
-
-    # Схемы — после заголовков «Схема контроля»
-    n_schemes = insert_media_block(
-        doc,
-        "Схема контроля",
-        schemes,
-        find_image=find_image,
-        width_inches=5.4,
-        max_items=8,
+    tmp_files: List[str] = []
+    n_schemes = insert_ndt_layer_schemes(
+        doc, data, attachments, find_image, kind=kind, tmp_files=tmp_files
     )
     logger.info("Вставлено схем: %s", n_schemes)
 
-    # Фото УЗТ — после результатов УЗТ / таблицы толщин
     uzt_photos = [p for p in photos if "УЗТ" in (p.get("label") or "")]
     other_photos = [p for p in photos if p not in uzt_photos]
-
     n_uzt = insert_media_block(
-        doc,
-        "Результаты контроля",
-        uzt_photos,
-        find_image=find_image,
-        width_inches=4.5,
-        max_items=15,
+        doc, "Результаты контроля", uzt_photos, find_image=find_image, width_inches=4.5, max_items=15
     )
-    # Фото дефектов ВИК
-    vik_photos = [p for p in other_photos if "дефект" in (p.get("label") or "").lower() or "ВИК" in (p.get("label") or "")]
+    vik_photos = [
+        p
+        for p in other_photos
+        if "дефект" in (p.get("label") or "").lower() or "ВИК" in (p.get("label") or "")
+    ]
     n_vik = insert_media_block(
         doc,
         "Результаты визуального и измерительного контроля",
@@ -2872,17 +4040,104 @@ def _insert_schemes_and_photos(doc: Document, ctx: Dict[str, Any]) -> None:
         width_inches=4.5,
         max_items=10,
     )
-    # Остальные фото объекта — в конец перед прил.10 или после прил.9
-    rest = [p for p in other_photos if p not in vik_photos]
-    if rest:
+    rest_photos = [p for p in other_photos if p not in vik_photos]
+    n_rest = 0
+    if rest_photos:
         n_rest = insert_media_block(
-            doc,
-            "ПРИЛОЖЕНИЕ № 9",
-            rest,
-            find_image=find_image,
-            width_inches=4.5,
-            max_items=10,
+            doc, "ПРИЛОЖЕНИЕ № 9", rest_photos, find_image=find_image, width_inches=4.5, max_items=10
         )
-    else:
-        n_rest = 0
     logger.info("Вставлено фото: УЗТ=%s ВИК=%s прочие=%s", n_uzt, n_vik, n_rest)
+    for pth in tmp_files:
+        try:
+            Path(pth).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def insert_ndt_layer_schemes(
+    doc: Document,
+    data: Dict[str, Any],
+    attachments: Dict[str, str],
+    find_image: Any,
+    *,
+    kind: str = "vessel",
+    tmp_files: Optional[List[str]] = None,
+) -> int:
+    """Сгенерировать и вставить 5 слоёв карт контроля в приложения 3–7 (и generic)."""
+    tmp_files = tmp_files if tmp_files is not None else []
+    generated: List[Dict[str, Any]] = []
+    try:
+        generated = render_all_layer_pngs(data)
+    except Exception:
+        logger.exception("Не удалось сгенерировать слои схем НК")
+
+    anchors = find_all_paragraphs_containing(doc, "Схема контроля")
+    extra = find_all_paragraphs_containing(doc, "Схема оборудования")
+    extra += find_all_paragraphs_containing(doc, "Карта контроля")
+    seen_p = set()
+    ordered: List[Paragraph] = []
+    for p in anchors + extra:
+        key = id(p._p)
+        if key in seen_p:
+            continue
+        seen_p.add(key)
+        ordered.append(p)
+
+    n_schemes = 0
+    if generated:
+        for i, item in enumerate(generated):
+            title = item.get("title") or layer_title(item.get("layer") or LAYER_ORDER[i], equipment_kind=kind)
+            png = item.get("png")
+            if not png:
+                continue
+            path = png_to_tempfile(png)
+            tmp_files.append(path)
+            extras = item.get("extra") or []
+            extra_paths: List[Tuple[str, str]] = []
+            for cap, extra_png in extras:
+                ep = png_to_tempfile(extra_png)
+                tmp_files.append(ep)
+                extra_paths.append((cap, ep))
+            if i < len(ordered):
+                _set_paragraph_text(ordered[i], title)
+                _keep_para(ordered[i])
+                clear_pictures_after_paragraph(ordered[i])
+                last = ordered[i]
+                pic = add_picture_after_paragraph(last, path, width_inches=6.2, caption=title)
+                if pic is not None:
+                    last = pic
+                    n_schemes += 1
+                for cap, ep in extra_paths:
+                    pic = add_picture_after_paragraph(last, ep, width_inches=5.6, caption=cap)
+                    if pic is not None:
+                        last = pic
+                        n_schemes += 1
+            else:
+                n_schemes += insert_media_block(
+                    doc,
+                    title,
+                    [{"path": path, "label": title}],
+                    find_image=find_image,
+                    width_inches=6.2,
+                    max_items=1,
+                )
+        return n_schemes
+
+    # Fallback: картинки из обследования / конструктора
+    schemes = collect_scheme_paths(data, attachments)
+    if not schemes:
+        return 0
+    for i, s in enumerate(schemes[:5]):
+        if i < len(ordered):
+            title = layer_title(LAYER_ORDER[i] if i < len(LAYER_ORDER) else "vik", equipment_kind=kind)
+            _set_paragraph_text(ordered[i], title)
+            clear_pictures_after_paragraph(ordered[i])
+            path = resolve_image_path(s.get("path"), find_image)
+            if path and is_image_file(path):
+                if add_picture_after_paragraph(ordered[i], path, width_inches=6.2, caption=title):
+                    n_schemes += 1
+        else:
+            n_schemes += insert_media_block(
+                doc, "Схема контроля", [s], find_image=find_image, width_inches=6.2, max_items=1
+            )
+    return n_schemes

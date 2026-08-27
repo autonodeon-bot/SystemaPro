@@ -1,5 +1,6 @@
 # Multi-stage build for frontend
-FROM node:20-alpine AS builder
+# ECR public mirror — обход Docker Hub 429 на VPS
+FROM public.ecr.aws/docker/library/node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -25,7 +26,7 @@ RUN echo "frontend build ref: ${BUILD_REF}"
 RUN ./node_modules/.bin/vite build
 
 # Production stage
-FROM nginx:alpine
+FROM public.ecr.aws/docker/library/nginx:alpine
 
 # Copy built files from builder
 COPY --from=builder /app/dist /usr/share/nginx/html

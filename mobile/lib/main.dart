@@ -10,6 +10,8 @@ import 'services/notification_service.dart';
 import 'services/sync_service.dart';
 import 'services/api_service.dart';
 import 'services/diagnostic_menu_service.dart';
+import 'services/auth_service.dart';
+import 'services/employee_location_tracker.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 import 'router.dart';
@@ -95,14 +97,45 @@ class MyApp extends ConsumerStatefulWidget {
   ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends ConsumerState<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService().initialize();
       DiagnosticMenuService.instance.prefetch();
+      _maybeStartLocationTracker();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    EmployeeLocationTracker.instance.stop();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _maybeStartLocationTracker();
+      EmployeeLocationTracker.instance.pingNow(force: true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      // Таймер оставляем — при паузе ОС может убить; при resume пинг обновится.
+    }
+  }
+
+  Future<void> _maybeStartLocationTracker() async {
+    try {
+      final ok = await AuthService().isAuthenticated();
+      if (ok) {
+        await EmployeeLocationTracker.instance.start();
+      } else {
+        EmployeeLocationTracker.instance.stop();
+      }
+    } catch (_) {}
   }
 
   @override

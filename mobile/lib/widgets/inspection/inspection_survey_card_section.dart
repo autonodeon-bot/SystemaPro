@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../constants/report_formulation_options.dart';
 import '../../data/technical_report_form_registry.dart';
+import '../../data/inspection_form_profiles.dart';
 import '../../models/vessel_checklist.dart';
 import '../../models/compressor_checklist.dart';
 import '../../services/api_service.dart';
@@ -19,6 +20,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
   final VoidCallback onPickImageFromFile;
   final VoidCallback onPickBuiltInTemplate;
   final VoidCallback onPickStandardDrawing;
+  final VoidCallback? onOpenSchemeConstructor;
   final void Function(ImageSource source) onPickAdditionalObjectPhoto;
   final void Function(int index) onRemoveObjectPhoto;
 
@@ -34,6 +36,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
     required this.onPickImageFromFile,
     required this.onPickBuiltInTemplate,
     required this.onPickStandardDrawing,
+    this.onOpenSchemeConstructor,
     required this.onPickAdditionalObjectPhoto,
     required this.onRemoveObjectPhoto,
   });
@@ -41,6 +44,13 @@ class InspectionSurveyCardSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final formId = (checklist.reportFormId ?? 'to-1').toLowerCase();
+    final profile = InspectionFormProfiles.forFormId(formId);
+    final isPipeline = InspectionFormProfiles.isPipeline(profile);
+    final isCrane = InspectionFormProfiles.isCrane(profile);
+    final usesVesselFields =
+        InspectionFormProfiles.usesPressureVesselFields(profile);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -51,33 +61,216 @@ class InspectionSurveyCardSection extends StatelessWidget {
           'vessel_name',
           isCompressor
               ? 'Наименование компрессора'
-              : 'Наименование сосуда',
+              : InspectionFormProfiles.nameFieldLabel(profile),
           (value) => checklist.vesselName = value,
           initialValue: checklist.vesselName,
         ),
         buildInspectionTextField('serial_number', 'Заводской номер',
             (value) => checklist.serialNumber = value,
             initialValue: checklist.serialNumber),
-        buildInspectionTextField('reg_number', 'Регистрационный номер',
+        buildInspectionTextField(
+            'reg_number',
+            isCrane ? 'Учетный / регистрационный номер' : 'Регистрационный номер',
             (value) => checklist.regNumber = value,
             initialValue: checklist.regNumber),
+        buildInspectionTextField('inventory_number', 'Инвентарный номер',
+            (value) => checklist.inventoryNumber = value,
+            initialValue: checklist.inventoryNumber),
+        buildInspectionTextField(
+            'equipment_location',
+            'Местонахождение (цех / НГДУ / трасса)',
+            (value) => checklist.equipmentLocation = value,
+            initialValue: checklist.equipmentLocation),
         buildInspectionTextField('manufacturer', 'Изготовитель',
             (value) => checklist.manufacturer = value,
             initialValue: checklist.manufacturer),
         buildInspectionTextField('manufacture_year', 'Год изготовления',
             (value) => checklist.manufactureYear = value,
             initialValue: checklist.manufactureYear),
-        if (!isCompressor) ..._buildVesselFields(form, context),
+        if (isPipeline) ..._buildPipelineFields(form),
+        if (isCrane) ..._buildCraneFields(form),
+        if (!isCompressor && !isPipeline && !isCrane && usesVesselFields)
+          ..._buildVesselFields(form, context),
+        if (!isCompressor &&
+            !isPipeline &&
+            !isCrane &&
+            !usesVesselFields)
+          ..._buildGenericEquipmentFields(form, profile),
         if (isCompressor) _buildCompressorFields(),
         const SizedBox(height: 16),
-        _buildPhotoSection(context, 'Фото заводской таблички',
+        _buildPhotoSection(context, 'Фото заводской таблички / объекта',
             factoryPlatePhoto, true),
         const SizedBox(height: 8),
-        _buildPhotoSection(context, 'Схема контроля',
-            controlSchemeImage, false),
+        _buildPhotoSection(
+            context,
+            isPipeline
+                ? 'Схема трассы / сварных соединений'
+                : isCrane
+                    ? 'Схема контроля металлоконструкции'
+                    : 'Схема контроля объекта',
+            controlSchemeImage,
+            false),
         _buildAdditionalObjectPhotosSection(context),
       ],
     );
+  }
+
+  List<Widget> _buildGenericEquipmentFields(
+    TechnicalReportForm form,
+    InspectionProfile profile,
+  ) {
+    return [
+      buildInspectionTextField(
+        'working_medium',
+        profile == InspectionProfile.electrical
+            ? 'Номинальные параметры / напряжение'
+            : 'Рабочая среда / назначение',
+        (value) => checklist.workingMedium = value,
+        initialValue: checklist.workingMedium,
+      ),
+      buildInspectionTextField(
+        'commissioning_year',
+        'Год ввода в эксплуатацию',
+        (value) => checklist.commissioningYear = value,
+        initialValue: checklist.commissioningYear,
+      ),
+      buildInspectionTextField(
+        'purpose',
+        profile == InspectionProfile.electrical
+            ? 'Тип / марка оборудования'
+            : 'Назначение / тип',
+        (value) => checklist.purpose = value,
+        initialValue: checklist.purpose,
+      ),
+      buildInspectionTextField(
+        'design_pressure',
+        'Основные технические параметры',
+        (value) => checklist.designPressure = value,
+        initialValue: checklist.designPressure,
+      ),
+    ];
+  }
+
+  List<Widget> _buildPipelineFields(TechnicalReportForm form) {
+    String? ad(String key) {
+      final m = checklist.additionalData;
+      if (m == null) return null;
+      final v = m[key];
+      return v?.toString();
+    }
+
+    void setAd(String key, String? v) {
+      checklist.additionalData ??= {};
+      checklist.additionalData![key] = v;
+      onStateChanged();
+    }
+
+    return [
+      buildSectionHeader(
+        form.sectionHeader('survey', fallback: 'Характеристика трубопровода'),
+      ),
+      buildInspectionTextField(
+          'purpose', 'Назначение', (v) => checklist.purpose = v,
+          initialValue: checklist.purpose),
+      buildInspectionTextField(
+        'pipeline_category',
+        'Категория трубопровода',
+        (v) => setAd('pipeline_category', v),
+        initialValue: ad('pipeline_category'),
+      ),
+      buildInspectionTextField(
+        'pipeline_length',
+        'Протяженность участка',
+        (v) => setAd('pipeline_length', v),
+        initialValue: ad('pipeline_length'),
+      ),
+      buildInspectionTextField('diameter', 'Номинальный диаметр DN, мм',
+          (value) => checklist.diameter = value,
+          initialValue: checklist.diameter),
+      buildInspectionTextField('working_pressure', 'Рабочее / номинальное давление',
+          (value) => checklist.workingPressure = value,
+          initialValue: checklist.workingPressure),
+      buildInspectionTextField(
+          'wall_thickness', 'Толщина стенки (номинал), мм',
+          (value) => checklist.wallThickness = value,
+          initialValue: checklist.wallThickness),
+      buildInspectionTextField(
+          'working_medium', 'Рабочая среда', (v) => checklist.workingMedium = v,
+          initialValue: checklist.workingMedium),
+      buildInspectionTextField(
+          'working_temperature',
+          'Температура рабочей среды, ℃',
+          (v) => checklist.workingTemperature = v,
+          initialValue: checklist.workingTemperature),
+      buildInspectionTextField(
+        'pipe_material',
+        'Материал труб',
+        (v) => setAd('pipe_material', v),
+        initialValue: ad('pipe_material') ?? ad('shell_material'),
+      ),
+      buildInspectionTextField('commissioning_year', 'Год ввода в эксплуатацию',
+          (v) => checklist.commissioningYear = v,
+          initialValue: checklist.commissioningYear?.toString()),
+    ];
+  }
+
+  List<Widget> _buildCraneFields(TechnicalReportForm form) {
+    String? ad(String key) {
+      final m = checklist.additionalData;
+      if (m == null) return null;
+      return m[key]?.toString();
+    }
+
+    void setAd(String key, String? v) {
+      checklist.additionalData ??= {};
+      checklist.additionalData![key] = v;
+      onStateChanged();
+    }
+
+    return [
+      buildSectionHeader(
+        form.sectionHeader('survey', fallback: 'Характеристика ГПМ'),
+      ),
+      buildInspectionTextField(
+        'crane_type',
+        'Тип подъемного сооружения',
+        (v) => setAd('crane_type', v),
+        initialValue: ad('crane_type'),
+      ),
+      buildInspectionTextField(
+          'purpose', 'Назначение', (v) => checklist.purpose = v,
+          initialValue: checklist.purpose),
+      buildInspectionTextField(
+        'crane_capacity',
+        'Грузоподъемность',
+        (v) => setAd('crane_capacity', v),
+        initialValue: ad('crane_capacity'),
+      ),
+      buildInspectionTextField(
+        'crane_mode',
+        'Режим работы (группа классификации)',
+        (v) => setAd('crane_mode', v),
+        initialValue: ad('crane_mode'),
+      ),
+      buildInspectionTextField(
+        'lift_height',
+        'Высота подъема',
+        (v) => setAd('lift_height', v),
+        initialValue: ad('lift_height'),
+      ),
+      buildInspectionTextField(
+        'crane_span',
+        'Пролет / вылет',
+        (v) => setAd('crane_span', v),
+        initialValue: ad('crane_span'),
+      ),
+      buildInspectionTextField(
+        'operating_environment',
+        'Окружающая среда эксплуатации',
+        (v) => setAd('operating_environment', v),
+        initialValue: ad('operating_environment'),
+      ),
+    ];
   }
 
   List<Widget> _buildVesselFields(TechnicalReportForm form, BuildContext context) {
@@ -504,6 +697,27 @@ class InspectionSurveyCardSection extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onOpenSchemeConstructor != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onOpenSchemeConstructor,
+                      icon: const Icon(Icons.architecture,
+                          color: kInspectionAccentBlue, size: 20),
+                      label: const Text('Конструктор схемы',
+                          style: TextStyle(
+                              color: kInspectionAccentBlue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        side:
+                            const BorderSide(color: kInspectionAccentBlue),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,

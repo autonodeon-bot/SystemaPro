@@ -23,6 +23,10 @@ class Enterprise(Base):
     code = Column(String(50), unique=True)  # Код предприятия
     description = Column(Text)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True, index=True)
+    director = Column(String(255))
+    phone = Column(String(50))
+    email = Column(String(255))
+    legal_address = Column(String(500))
     is_active = Column(Boolean, default=True, server_default='true')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

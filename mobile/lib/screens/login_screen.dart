@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import '../services/sync_service.dart';
 import '../services/biometric_service.dart';
+import '../services/employee_location_tracker.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -146,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       }
     }
     context.go('/dashboard');
+    EmployeeLocationTracker.instance.start();
   }
 
   Future<void> _promptTwoFactor({

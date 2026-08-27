@@ -23,12 +23,20 @@ class EnterpriseCreate(BaseModel):
     name: str
     code: Optional[str] = None
     description: Optional[str] = None
+    director: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    legal_address: Optional[str] = None
 
 
 class EnterpriseUpdate(BaseModel):
     name: Optional[str] = None
     code: Optional[str] = None
     description: Optional[str] = None
+    director: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    legal_address: Optional[str] = None
 
 
 async def _require_hierarchy_admin(db: AsyncSession, username: str) -> User:
@@ -45,6 +53,10 @@ def _serialize_enterprise(enterprise: Enterprise) -> dict:
         "name": enterprise.name or "",
         "code": enterprise.code or "",
         "description": enterprise.description or "",
+        "director": getattr(enterprise, "director", None) or "",
+        "phone": getattr(enterprise, "phone", None) or "",
+        "email": getattr(enterprise, "email", None) or "",
+        "legal_address": getattr(enterprise, "legal_address", None) or "",
     }
 
 
@@ -162,6 +174,10 @@ async def create_enterprise(
             name=enterprise_data.name.strip(),
             code=code,
             description=(enterprise_data.description or "").strip() or None,
+            director=(enterprise_data.director or "").strip() or None,
+            phone=(enterprise_data.phone or "").strip() or None,
+            email=(enterprise_data.email or "").strip() or None,
+            legal_address=(enterprise_data.legal_address or "").strip() or None,
         )
         db.add(new_enterprise)
         await db.commit()
@@ -218,6 +234,14 @@ async def update_enterprise(
 
         if enterprise_data.description is not None:
             enterprise.description = enterprise_data.description.strip() or None
+        if enterprise_data.director is not None:
+            enterprise.director = enterprise_data.director.strip() or None
+        if enterprise_data.phone is not None:
+            enterprise.phone = enterprise_data.phone.strip() or None
+        if enterprise_data.email is not None:
+            enterprise.email = enterprise_data.email.strip() or None
+        if enterprise_data.legal_address is not None:
+            enterprise.legal_address = enterprise_data.legal_address.strip() or None
 
         await db.commit()
         await db.refresh(enterprise)

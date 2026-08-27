@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import '../models/equipment.dart';
+import 'inspection_form_profiles.dart';
 
 /// Конфигурация формы технического отчёта (приложение к ТО).
 class TechnicalReportForm {
@@ -196,12 +197,104 @@ class TechnicalReportFormRegistry {
     _forms!.sort((a, b) => a.number.compareTo(b.number));
   }
 
+  static const List<String> _pipelineNavigation = [
+    '1–7. Сведения об обследовании',
+    '11. Сведения о рассмотренных документах',
+    'Паспорт трубопровода',
+    '9. Характеристика трубопровода',
+    'ВИК / дефекты',
+    'Сварные соединения',
+    'Протоколы НК (УЗТ, УЗК, МПК)',
+    '13. Выводы по результатам ТД',
+  ];
+
+  static const Map<String, String> _pipelineSections = {
+    'general':
+        '1–7. Основания, сроки, заказчик, организация, специалисты и приборы',
+    'documents':
+        '11. Сведения о рассмотренных в процессе ТД документах',
+    'passport': 'Прил. Б. Протокол анализа технической документации',
+    'survey': '9. Краткая характеристика трубопровода',
+    'survey_prev': 'Предыдущие обследования',
+    'checks': 'Прил. В. Визуальный и измерительный контроль',
+    'defects': 'Дефекты / результаты ВИК',
+    'zra': 'Сварные соединения (вместо ЗРА сосуда)',
+    'sppk': 'Элементы трассы',
+    'measurements_vik': 'Измерительный контроль',
+    'measurements_operational': 'Обследование трассы / ЭХЗ',
+    'measurements_hardness': 'Контроль твердости',
+    'measurements_ndt': 'УЗК / МПК / ВТК сварных соединений',
+    'measurements_uzt': 'Ультразвуковая толщинометрия',
+    'conclusion': '13. Выводы по результатам технической диагностики',
+  };
+
+  static const List<Map<String, String>> pipelineDocuments = [
+    {'number': '1', 'name': 'Лицензия на осуществление деятельности'},
+    {
+      'number': '2',
+      'name': 'Свидетельство о регистрации опасных производственных объектов'
+    },
+    {'number': '3', 'name': 'Декларация промышленной безопасности'},
+    {
+      'number': '4',
+      'name':
+          'Договор обязательного страхования гражданской ответственности'
+    },
+    {'number': '5', 'name': 'Страховой полис'},
+    {'number': '6', 'name': 'План мероприятий по локализации аварий'},
+    {'number': '7', 'name': 'Положение о производственном контроле'},
+    {'number': '8', 'name': 'Паспорт трубопровода'},
+    {'number': '9', 'name': 'Исполнительная документация / схемы'},
+    {'number': '10', 'name': 'Журнал эксплуатации / ремонтов'},
+    {'number': '11', 'name': 'Заключение ЭПБ (при наличии)'},
+    {'number': '12', 'name': 'Акты УЗТ / НК предыдущих обследований'},
+  ];
+
+  static const List<String> _craneNavigation = [
+    '1–7. Сведения об обследовании',
+    'Документы ПС',
+    'Паспортные данные ПС',
+    'Характеристика крана / ГПМ',
+    'ВИК металлоконструкций',
+    'Устройства безопасности',
+    'Протоколы НК (УЗТ, УЗК)',
+    '15. Выводы',
+  ];
+
+  static const Map<String, String> _craneSections = {
+    'general': '1–7. Сведения об обследовании ГПМ',
+    'documents': '11. Документы на подъемное сооружение',
+    'passport': 'Паспортные данные ПС',
+    'survey': '9. Краткая характеристика подъемного сооружения',
+    'survey_prev': 'Предыдущие обследования',
+    'checks': 'ВИК металлоконструкций',
+    'defects': 'Ведомость дефектов',
+    'zra': 'Приборы и устройства безопасности',
+    'sppk': 'Механическое / канатно-блочное оборудование',
+    'measurements_vik': 'Геометрия металлоконструкции',
+    'measurements_operational': 'Проверка работоспособности',
+    'measurements_hardness': 'Контроль твердости',
+    'measurements_ndt': 'УЗК металлоконструкций',
+    'measurements_uzt': 'Ультразвуковая толщинометрия',
+    'conclusion': '15. Выводы по результатам технического диагностирования',
+  };
+
+  static const List<Map<String, String>> craneDocuments = [
+    {'number': '1', 'name': 'Паспорт крана'},
+    {'number': '2', 'name': 'Инструкция по эксплуатации'},
+    {'number': '3', 'name': 'Страховой полис ОПО'},
+    {'number': '4', 'name': 'Предыдущие акты обследования'},
+    {'number': '5', 'name': 'Ведомость дефектов / ремонтов'},
+    {'number': '6', 'name': 'Документы на приборы безопасности'},
+  ];
+
   static TechnicalReportForm _buildForm({
     required String id,
     required int number,
     required String title,
   }) {
-    if (id == 'to-1') {
+    final profile = InspectionFormProfiles.forFormId(id);
+    if (profile == InspectionProfile.vessel) {
       return TechnicalReportForm(
         id: id,
         number: number,
@@ -211,15 +304,78 @@ class TechnicalReportFormRegistry {
         documents: vesselDocuments,
       );
     }
+    if (profile == InspectionProfile.pipeline) {
+      return TechnicalReportForm(
+        id: id,
+        number: number,
+        title: title,
+        navigationLabels: _pipelineNavigation,
+        sectionHeaders: _pipelineSections,
+        documents: pipelineDocuments,
+      );
+    }
+    if (profile == InspectionProfile.crane) {
+      return TechnicalReportForm(
+        id: id,
+        number: number,
+        title: title,
+        navigationLabels: _craneNavigation,
+        sectionHeaders: _craneSections,
+        documents: craneDocuments,
+      );
+    }
 
-    final label = cleanTitle(title);
+    final label = InspectionFormProfiles.objectLabel(profile, cleanTitle(title));
+    final nav = _genericNavigation(label);
+    // страница 5: не «арматура сосуда», а профиль объекта
+    final sections = _genericSections(label);
+    sections['zra'] = InspectionFormProfiles.page5Title(profile);
+    sections['sppk'] = profile == InspectionProfile.tank
+        ? 'Швы и пояса резервуара'
+        : profile == InspectionProfile.electrical
+            ? 'Точки электрических измерений'
+            : 'Элементы и узлы объекта';
+
+    List<Map<String, String>> docs = vesselDocuments;
+    if (profile == InspectionProfile.tank) {
+      docs = [
+        {'number': '1', 'name': 'Паспорт резервуара'},
+        {'number': '2', 'name': 'Свидетельство о регистрации ОПО'},
+        {'number': '3', 'name': 'Страховой полис'},
+        {'number': '4', 'name': 'Исполнительная документация / схемы'},
+        {'number': '5', 'name': 'Журнал эксплуатации / ремонтов'},
+        {'number': '6', 'name': 'Акты УЗТ / НК предыдущих обследований'},
+      ];
+    } else if (profile == InspectionProfile.boiler) {
+      docs = [
+        {'number': '1', 'name': 'Паспорт котла'},
+        {'number': '2', 'name': 'Инструкция по эксплуатации'},
+        {'number': '3', 'name': 'Свидетельство о регистрации ОПО'},
+        {'number': '4', 'name': 'Документы на арматуру и КИП'},
+        {'number': '5', 'name': 'Акты предыдущих обследований'},
+      ];
+    } else if (profile == InspectionProfile.electrical ||
+        profile == InspectionProfile.machinery ||
+        profile == InspectionProfile.station ||
+        profile == InspectionProfile.valve ||
+        profile == InspectionProfile.tower) {
+      docs = [
+        {'number': '1', 'name': 'Паспорт / формуляр оборудования'},
+        {'number': '2', 'name': 'Свидетельство о регистрации ОПО (при наличии)'},
+        {'number': '3', 'name': 'Страховой полис'},
+        {'number': '4', 'name': 'Инструкция по эксплуатации'},
+        {'number': '5', 'name': 'Исполнительная / ремонтная документация'},
+        {'number': '6', 'name': 'Акты предыдущих обследований / НК'},
+      ];
+    }
+
     return TechnicalReportForm(
       id: id,
       number: number,
       title: title,
-      navigationLabels: _genericNavigation(label),
-      sectionHeaders: _genericSections(label),
-      documents: vesselDocuments,
+      navigationLabels: nav,
+      sectionHeaders: sections,
+      documents: docs,
     );
   }
 
@@ -268,26 +424,44 @@ class TechnicalReportFormRegistry {
 
   /// Подбор формы ТО по типу и наименованию оборудования.
   static String suggestFormId(Equipment equipment) {
-    final type = (equipment.typeCode ?? '').toUpperCase();
+    final type = (equipment.typeCode ?? '').toUpperCase().trim();
+    if (type.isNotEmpty &&
+        InspectionFormProfiles.equipmentTypeToForm.containsKey(type)) {
+      return InspectionFormProfiles.equipmentTypeToForm[type]!;
+    }
+
     final name = equipment.name.toLowerCase();
     final typeName = (equipment.typeName ?? '').toLowerCase();
+    final blob = '$name $typeName ${type.toLowerCase()}';
 
+    if (type == 'UNDERGROUND_PIPELINE' ||
+        ((type.contains('PIPELINE') ||
+                name.contains('трубопровод') ||
+                typeName.contains('трубопровод') ||
+                typeName.contains('pipeline')) &&
+            blob.contains('подземн'))) {
+      return 'to-33';
+    }
+    if (type == 'CRANE' ||
+        type == 'GPM' ||
+        type == 'LIFTING' ||
+        name.contains('кран') ||
+        name.contains('грузоподъем') ||
+        name.contains('грузоподъём') ||
+        name.contains('трубоуклад') ||
+        typeName.contains('грузоподъем') ||
+        typeName.contains('гпм')) {
+      return 'to-3';
+    }
     if (type.contains('PIPELINE') ||
         name.contains('трубопровод') ||
         typeName.contains('трубопровод') ||
         typeName.contains('pipeline')) {
-      if (name.contains('подземн')) return 'to-33';
       if (name.contains('надземн') || name.contains('газопровод')) {
         return 'to-32';
       }
       if (name.contains('обвязк') && name.contains('скважин')) return 'to-26';
       return 'to-13';
-    }
-    if (name.contains('кран') ||
-        name.contains('грузоподъем') ||
-        name.contains('грузоподъём') ||
-        type.contains('CRANE')) {
-      return 'to-3';
     }
     if (name.contains('котел') ||
         name.contains('котёл') ||
@@ -306,6 +480,9 @@ class TechnicalReportFormRegistry {
     if (name.contains('трансформатор')) return 'to-5';
     if (name.contains('электродвигател')) return 'to-8';
     if (name.contains('арматур') && !name.contains('фонтан')) return 'to-24';
+    if (name.contains('факел')) return 'to-44';
+    if (name.contains('дымов')) return 'to-39';
+    if (name.contains('грс')) return 'to-9';
     return 'to-1';
   }
 }

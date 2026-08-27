@@ -34,6 +34,10 @@ const emptyFormData = (): CreateFormData => ({
   name: '',
   code: '',
   description: '',
+  director: '',
+  phone: '',
+  email: '',
+  legal_address: '',
   enterprise_id: '',
   branch_id: '',
   workshop_id: '',
@@ -298,6 +302,10 @@ const EquipmentManagement = () => {
       name: enterprise.name,
       code: enterprise.code || '',
       description: enterprise.description || '',
+      director: enterprise.director || '',
+      phone: enterprise.phone || '',
+      email: enterprise.email || '',
+      legal_address: enterprise.legal_address || '',
     });
   };
 
@@ -549,6 +557,10 @@ const EquipmentManagement = () => {
             name: formData.name,
             code: formData.code || undefined,
             description: formData.description || undefined,
+            director: formData.director || undefined,
+            phone: formData.phone || undefined,
+            email: formData.email || undefined,
+            legal_address: formData.legal_address || undefined,
           };
           break;
         case 'branch':

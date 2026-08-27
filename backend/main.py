@@ -46,12 +46,14 @@ from engineers_users_api import router as engineers_users_router
 from mobile_stats_api import router as mobile_stats_router
 from notifications_api import router as notifications_router
 from pipeline_map_api import router as pipeline_map_router
+from employee_location_api import router as employee_location_router
 from protocol_templates_api import router as protocol_templates_router
 from experience_base_api import router as experience_base_router
 from diagnostic_menu_api import router as diagnostic_menu_router
 from inspection_object_templates_api import router as inspection_object_templates_router
 from equipment_profiles_api import router as equipment_profiles_router
 from drawing_templates_api import router as drawing_templates_router
+from vessel_scheme_api import router as vessel_scheme_router
 from standalone_protocols_api import router as standalone_protocols_router
 from diagnostic_engine.api import router as diagnostic_router
 from report_verify_api import router as report_verify_router
@@ -61,7 +63,7 @@ from report_org_settings_api import router as report_org_settings_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.7.16",
+    version="3.7.25",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -79,7 +81,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.7.16")
+os.environ.setdefault("APP_VERSION", "3.7.25")
 init_observability(app)
 log = get_logger("main")
 
@@ -156,12 +158,14 @@ app.include_router(engineers_users_router)
 app.include_router(mobile_stats_router)
 app.include_router(notifications_router)
 app.include_router(pipeline_map_router)
+app.include_router(employee_location_router)
 app.include_router(protocol_templates_router)
 app.include_router(experience_base_router)
 app.include_router(diagnostic_menu_router)
 app.include_router(inspection_object_templates_router)
 app.include_router(equipment_profiles_router)
 app.include_router(drawing_templates_router)
+app.include_router(vessel_scheme_router)
 app.include_router(standalone_protocols_router)
 app.include_router(diagnostic_router)
 app.include_router(report_verify_router)
@@ -193,10 +197,23 @@ async def startup():
         await _ensure_inspection_object_templates_seed()
         await _ensure_equipment_types_seed()
         await _ensure_report_templates_seed()
+        await _ensure_employee_locations_table()
 
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
         traceback.print_exc()
+
+
+async def _ensure_employee_locations_table() -> None:
+    try:
+        from database import AsyncSessionLocal
+        from employee_location_api import ensure_employee_locations_table
+
+        async with AsyncSessionLocal() as session:
+            await ensure_employee_locations_table(session)
+        print("✅ employee_locations table ready")
+    except Exception as e:
+        print(f"⚠️  employee_locations skipped: {e}")
 
 
 async def _ensure_report_templates_seed() -> None:
@@ -306,6 +323,12 @@ async def _run_migrations():
         ("enterprises.client_id", [
             "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id)",
             "CREATE INDEX IF NOT EXISTS idx_enterprises_client_id ON enterprises(client_id)",
+        ]),
+        ("enterprises contact card", [
+            "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS director VARCHAR(255)",
+            "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS phone VARCHAR(50)",
+            "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS email VARCHAR(255)",
+            "ALTER TABLE enterprises ADD COLUMN IF NOT EXISTS legal_address VARCHAR(500)",
         ]),
         # clients — поля контактов (старые БД без них ломали SELECT через ORM)
         ("clients contact columns", [
@@ -706,7 +729,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.7.16")
+    checks["version"] = os.getenv("APP_VERSION", "3.7.25")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}

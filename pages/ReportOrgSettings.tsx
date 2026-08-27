@@ -7,6 +7,7 @@ type Customer = {
   legal_form?: string;
   address?: string;
   phone?: string;
+  email?: string;
   director?: string;
   department?: string;
   department_address?: string;
@@ -187,6 +188,7 @@ const ReportOrgSettings = () => {
             ['legal_form', 'Организационно-правовая форма'],
             ['address', 'Место нахождения'],
             ['phone', 'Телефон / факс'],
+            ['email', 'E-mail'],
             ['director', 'Руководитель'],
             ['department', 'Структурное подразделение'],
             ['department_address', 'Место нахождения подразделения'],

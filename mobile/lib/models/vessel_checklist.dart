@@ -25,6 +25,8 @@ class VesselChecklist {
   String? vesselName; // Наименование сосуда
   String? serialNumber; // Заводской номер
   String? regNumber; // Регистрационный номер
+  String? inventoryNumber; // Инвентарный номер (разд. 8 отчёта)
+  String? equipmentLocation; // Местонахождение объекта (разд. 8)
   String? manufacturer; // Изготовитель
   String? manufactureYear; // Год изготовления
   String? diameter; // Диаметр сосуда
@@ -66,6 +68,13 @@ class VesselChecklist {
   String? workBasis;
   String? techCardNumber;
   String? documentationConclusion;
+  String? vikConclusionText;
+  String? vikRoughness;
+  String? vikIllumination;
+  String? uzkConclusionText;
+  String? mpkConclusionText;
+  String? opoHazardClass;
+  String? opoRegNumber;
   String? operationalConclusion;
   /// Оперативная диагностика: params_ok, vibration, foundation, supports, kip (+ *_note)
   Map<String, String> operationalDiagnostics = {};
@@ -189,6 +198,7 @@ class VesselChecklist {
             .map((e) => <String, String>{
                   'number': (e['number'] ?? '').toString(),
                   'date': (e['date'] ?? '').toString(),
+                  'pages': (e['pages'] ?? '').toString(),
                 })
             .toList();
       }
@@ -208,7 +218,11 @@ class VesselChecklist {
       additionalData!['document_sets'] = <String, dynamic>{};
     }
     (additionalData!['document_sets'] as Map)[docNumber] = sets
-        .map((e) => {'number': e['number'] ?? '', 'date': e['date'] ?? ''})
+        .map((e) => {
+              'number': e['number'] ?? '',
+              'date': e['date'] ?? '',
+              'pages': e['pages'] ?? '',
+            })
         .toList();
     if (sets.isNotEmpty) {
       documentsInfo[docNumber] = Map<String, String>.from(sets.first);
@@ -220,7 +234,7 @@ class VesselChecklist {
   void ensureAtLeastOneDocumentSet(String docNumber) {
     if (getDocumentSets(docNumber).isEmpty) {
       setDocumentSets(docNumber, [
-        {'number': '', 'date': ''},
+        {'number': '', 'date': '', 'pages': ''},
       ]);
     }
   }
@@ -333,6 +347,10 @@ class VesselChecklist {
       'vessel_name': vesselName,
       'serial_number': serialNumber,
       'reg_number': regNumber,
+      'inventory_number': inventoryNumber,
+      'inv_number': inventoryNumber,
+      'location': equipmentLocation,
+      'equipment_location': equipmentLocation,
       'manufacturer': manufacturer,
       'manufacture_year': manufactureYear,
       'diameter': diameter,
@@ -372,6 +390,13 @@ class VesselChecklist {
       'work_basis': workBasis,
       'tech_card_number': techCardNumber,
       'documentation_conclusion': documentationConclusion,
+      'vik_conclusion_text': vikConclusionText,
+      'vik_roughness': vikRoughness,
+      'vik_illumination': vikIllumination,
+      'uzk_conclusion_text': uzkConclusionText,
+      'mpk_conclusion_text': mpkConclusionText,
+      'opo_hazard_class': opoHazardClass,
+      'opo_reg_number': opoRegNumber,
       'operational_conclusion': operationalConclusion,
       'operational_diagnostics': operationalDiagnostics,
       'previous_inspection_result': previousInspectionResult,
@@ -486,6 +511,9 @@ class VesselChecklist {
     checklist.vesselName = json['vessel_name'] as String?;
     checklist.serialNumber = json['serial_number'] as String?;
     checklist.regNumber = json['reg_number'] as String?;
+    checklist.inventoryNumber = (json['inventory_number'] ?? json['inv_number']) as String?;
+    checklist.equipmentLocation =
+        (json['equipment_location'] ?? json['location']) as String?;
     checklist.manufacturer = json['manufacturer'] as String?;
     checklist.manufactureYear = json['manufacture_year'] as String?;
     checklist.diameter = json['diameter'] as String?;
@@ -525,6 +553,14 @@ class VesselChecklist {
     checklist.workBasis = json['work_basis'] as String?;
     checklist.techCardNumber = json['tech_card_number'] as String?;
     checklist.documentationConclusion = json['documentation_conclusion'] as String?;
+    checklist.vikConclusionText = json['vik_conclusion_text'] as String?;
+    checklist.vikRoughness = json['vik_roughness'] as String?;
+    checklist.vikIllumination =
+        (json['vik_illumination'] ?? json['illumination'])?.toString();
+    checklist.uzkConclusionText = json['uzk_conclusion_text'] as String?;
+    checklist.mpkConclusionText = json['mpk_conclusion_text'] as String?;
+    checklist.opoHazardClass = json['opo_hazard_class'] as String?;
+    checklist.opoRegNumber = json['opo_reg_number'] as String?;
     checklist.operationalConclusion = json['operational_conclusion'] as String?;
     final op = json['operational_diagnostics'] ?? json['functional_diagnostics'];
     if (op is Map) {
@@ -1223,6 +1259,13 @@ class VisualDefect {
   String? assessment;
   // Объём контроля по объекту (напр. «100%»).
   String? scope;
+  /// Для трубопроводов: номер шва, ориентация, размеры дефекта.
+  String? weldNumber;
+  String? diameter;
+  String? clockPosition;
+  String? lengthMm;
+  String? widthMm;
+  String? depthMm;
   List<String> photos = [];
 
   VisualDefect();
@@ -1236,6 +1279,19 @@ class VisualDefect {
     'zone': zone,
     'assessment': assessment,
     'scope': scope,
+    'weld_number': weldNumber,
+    'joint_number': weldNumber,
+    'diameter': diameter,
+    'dn': diameter,
+    'clock': clockPosition,
+    'orientation': clockPosition,
+    'clock_position': clockPosition,
+    'length': lengthMm,
+    'length_mm': lengthMm,
+    'width': widthMm,
+    'width_mm': widthMm,
+    'depth': depthMm,
+    'depth_mm': depthMm,
     'photos': photos,
   };
 
@@ -1248,6 +1304,15 @@ class VisualDefect {
     d.zone = json['zone']?.toString();
     d.assessment = json['assessment']?.toString();
     d.scope = json['scope']?.toString();
+    d.weldNumber =
+        (json['weld_number'] ?? json['joint_number'])?.toString();
+    d.diameter = (json['diameter'] ?? json['dn'])?.toString();
+    d.clockPosition =
+        (json['clock'] ?? json['orientation'] ?? json['clock_position'])
+            ?.toString();
+    d.lengthMm = (json['length'] ?? json['length_mm'])?.toString();
+    d.widthMm = (json['width'] ?? json['width_mm'])?.toString();
+    d.depthMm = (json['depth'] ?? json['depth_mm'])?.toString();
     final ph = json['photos'];
     if (ph is List) {
       d.photos = ph.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
@@ -1546,8 +1611,11 @@ class SchemeControlPoint {
 /// Базовая схема сосуда: создаётся на ВИК, переиспользуется УЗТ/твёрдость/УЗК/МПК.
 class BaseVesselScheme {
   String? imagePath;
-  String? source; // vik | drawing_template | upload
+  /// vik | drawing_template | upload | constructor
+  String? source;
   String? orientation; // horizontal | vertical
+  /// Параметрическая геометрия конструктора (JSON-совместимый Map).
+  Map<String, dynamic>? geometry;
   List<SchemeControlPoint> points = [];
 
   BaseVesselScheme();
@@ -1557,6 +1625,7 @@ class BaseVesselScheme {
         'scheme_image_path': imagePath,
         'source': source,
         'orientation': orientation,
+        if (geometry != null) 'geometry': geometry,
         'points': points.map((e) => e.toJson()).toList(),
       };
 
@@ -1566,6 +1635,10 @@ class BaseVesselScheme {
         (json['image_path'] ?? json['scheme_image_path'] ?? json['path'])?.toString();
     s.source = json['source']?.toString();
     s.orientation = json['orientation']?.toString();
+    final g = json['geometry'];
+    if (g is Map) {
+      s.geometry = Map<String, dynamic>.from(g);
+    }
     final raw = json['points'];
     if (raw is List) {
       s.points = raw

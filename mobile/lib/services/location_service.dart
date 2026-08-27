@@ -31,6 +31,29 @@ class LocationService {
     return null;
   }
 
+  /// Текущие координаты со средней точностью (экономия батареи для пинга на карту).
+  Future<Map<String, double>?> getCurrentLocationMedium() async {
+    try {
+      final issue = await ensureLocationAccess();
+      if (issue != null) {
+        return null;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 12),
+      );
+      return {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'accuracy': position.accuracy,
+        'altitude': position.altitude,
+      };
+    } catch (e) {
+      print('Ошибка получения координат (medium): $e');
+      return null;
+    }
+  }
+
   /// Получить текущие GPS координаты
   Future<Map<String, double>?> getCurrentLocation() async {
     try {

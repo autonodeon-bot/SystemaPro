@@ -1,413 +1,287 @@
-﻿
-import { useState, useEffect, useRef } from 'react';
-import { PIPELINES_DATA, MOCK_INSPECTORS, MOCK_CADASTRAL, API_BASE } from '../constants';
-import { Layers, Zap, Wind, Navigation, Users, Hexagon, Triangle, Gauge, Map as MapIcon } from 'lucide-react';
-import { WeatherState, Inspector, PipelineSegment } from '../types';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_BASE } from '../constants';
+import { Layers, Users, MapPin, RefreshCw, Wifi } from 'lucide-react';
 
-// Declare Leaflet global
 declare const L: any;
+
+type OnlineEmployee = {
+  user_id: string;
+  username: string;
+  full_name: string;
+  role?: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  updated_at?: string | null;
+  device_label?: string | null;
+  online?: boolean;
+};
+
+function formatAgo(iso?: string | null): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const sec = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (sec < 60) return `${sec} с назад`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} мин назад`;
+  const h = Math.round(min / 60);
+  return `${h} ч назад`;
+}
 
 const PipelineMap = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const layerGroupsRef = useRef<{
-    pipelines: any;
-    cadastral: any;
-    inspectors: any;
-    toxiRisk: any;
-  }>({ pipelines: null, cadastral: null, inspectors: null, toxiRisk: null });
-  
-  const [activeLayers, setActiveLayers] = useState({
-    PIPELINES: true,
-    CADASTRAL: false,
-    INSPECTORS: true,
-    TOXI_RISK: false,
-  });
+  const markersLayerRef = useRef<any>(null);
+  const markerByIdRef = useRef<Record<string, any>>({});
 
   const [baseLayer, setBaseLayer] = useState<'OSM' | 'SATELLITE'>('OSM');
-  
-  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
-  const [weather, setWeather] = useState<WeatherState>({ temp: -12, windSpeed: 5, windDeg: 45, condition: 'Снег' });
-  const [inspectors, setInspectors] = useState<Inspector[]>(MOCK_INSPECTORS);
-  const [scadaData, setScadaData] = useState({ pressure: 5.5, temp: 42 });
-  const [pipelineSegments, setPipelineSegments] = useState<PipelineSegment[]>(PIPELINES_DATA);
-  const [pipelineSource, setPipelineSource] = useState<'database' | 'demo'>('demo');
+  const [employees, setEmployees] = useState<OnlineEmployee[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE}/api/pipeline-map/segments`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (Array.isArray(data.segments) && data.segments.length > 0 && !cancelled) {
-          setPipelineSegments(data.segments as PipelineSegment[]);
-          setPipelineSource('database');
-        }
-      } catch {
-        /* оставляем демо-данные */
+  const fetchOnline = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/employee-locations/online`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const data = await res.json();
+      const list = Array.isArray(data.employees) ? (data.employees as OnlineEmployee[]) : [];
+      setEmployees(list);
+      setLastFetch(new Date());
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось загрузить сотрудников');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // --- INITIALIZE MAP ---
+  // Init map
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // 1. Init Leaflet
     const map = L.map(mapContainerRef.current, {
-        center: [61.26, 73.41], // Surgut center
-        zoom: 13,
-        zoomControl: false,
-        attributionControl: false
+      center: [61.26, 73.41],
+      zoom: 12,
+      zoomControl: false,
+      attributionControl: false,
     });
-    
-    // Add Zoom Control at bottom right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
     mapInstanceRef.current = map;
-
-    // Initialize Layer Groups
-    layerGroupsRef.current.pipelines = L.layerGroup().addTo(map);
-    layerGroupsRef.current.cadastral = L.layerGroup().addTo(map);
-    layerGroupsRef.current.inspectors = L.layerGroup().addTo(map);
-    layerGroupsRef.current.toxiRisk = L.layerGroup().addTo(map);
+    markersLayerRef.current = L.layerGroup().addTo(map);
 
     return () => {
-        if(mapInstanceRef.current) {
-            mapInstanceRef.current.remove();
-            mapInstanceRef.current = null;
-        }
-    }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
   }, []);
 
-  // --- BASE LAYER SWITCHING ---
+  // Base tiles
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
-
-    // Remove existing tiles
     map.eachLayer((layer: any) => {
-        if (layer._url) map.removeLayer(layer);
+      if (layer._url) map.removeLayer(layer);
     });
-
+    if (markersLayerRef.current) {
+      markersLayerRef.current.addTo(map);
+    }
     if (baseLayer === 'OSM') {
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            opacity: 0.6 // Darker mood
-        }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        opacity: 0.85,
+      }).addTo(map);
     } else {
-        // Esri Satellite (Closest free alternative to Yandex Satellite without API key)
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 18,
-        }).addTo(map);
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 18 },
+      ).addTo(map);
     }
   }, [baseLayer]);
 
-  // --- RENDER PIPELINES ---
+  // Markers from employees
   useEffect(() => {
-    const lg = layerGroupsRef.current.pipelines;
-    if (!lg) return;
+    const lg = markersLayerRef.current;
+    const map = mapInstanceRef.current;
+    if (!lg || !map) return;
     lg.clearLayers();
+    markerByIdRef.current = {};
 
-    if (activeLayers.PIPELINES) {
-        pipelineSegments.forEach(pipe => {
-            const latlngs = pipe.coordinates.map(c => [c.lat, c.lng]);
-            const color =
-              pipe.type === 'UNDERGROUND' ? '#f59e0b' : pipe.type === 'CROSSING' ? '#a855f7' : '#3b82f6';
-            const isSelected = selectedSegment === pipe.id;
+    employees.forEach((emp) => {
+      const isSelected = emp.user_id === selectedId;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${isSelected ? '#2563eb' : '#16a34a'};
+          color:#fff;
+          border:2px solid #fff;
+          border-radius:9999px;
+          width:36px;height:36px;
+          display:flex;align-items:center;justify-content:center;
+          font-size:12px;font-weight:700;
+          box-shadow:0 2px 8px rgba(0,0,0,.35);
+        ">${(emp.full_name || emp.username || '?').trim().charAt(0).toUpperCase()}</div>`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+      });
+      const m = L.marker([emp.latitude, emp.longitude], { icon })
+        .bindPopup(
+          `<b>${emp.full_name || emp.username}</b><br/>${formatAgo(emp.updated_at)}`,
+        )
+        .on('click', () => setSelectedId(emp.user_id));
+      m.addTo(lg);
+      markerByIdRef.current[emp.user_id] = m;
+    });
 
-            // 1. Buffer Zone (Transparent)
-            L.polyline(latlngs, {
-                color: color,
-                weight: 40,
-                opacity: 0.1,
-                lineCap: 'round'
-            }).addTo(lg);
-
-            // 2. The Pipe
-            const lineOpts: Record<string, unknown> = {
-                color: isSelected ? '#fff' : color,
-                weight: isSelected ? 6 : 4,
-                opacity: 1,
-            };
-            if (pipe.type === 'UNDERGROUND') lineOpts.dashArray = '10, 10';
-            const line = L.polyline(latlngs, lineOpts).addTo(lg);
-
-            line.on('click', () => {
-                setSelectedSegment(pipe.id);
-                // Center map on click slightly
-                // mapInstanceRef.current.panTo(latlngs[0]);
-            });
-
-            // Label
-            // L.tooltip({permanent: true, direction: 'center', className: 'bg-transparent border-0 text-white font-bold'}).setContent(pipe.name).setLatLng(latlngs[0]).addTo(lg);
-        });
-    }
-  }, [activeLayers.PIPELINES, selectedSegment, pipelineSegments]);
-
-  // --- RENDER CADASTRAL ---
-  useEffect(() => {
-    const lg = layerGroupsRef.current.cadastral;
-    if (!lg) return;
-    lg.clearLayers();
-
-    if (activeLayers.CADASTRAL) {
-        MOCK_CADASTRAL.forEach(cad => {
-            const latlngs = cad.coordinates.map(c => [c.lat, c.lng]);
-            L.polygon(latlngs, {
-                color: 'orange',
-                fillColor: 'orange',
-                fillOpacity: 0.2,
-                weight: 1,
-                dashArray: '5,5'
-            }).bindTooltip(`Участок: ${cad.owner}`).addTo(lg);
-        });
-    }
-  }, [activeLayers.CADASTRAL]);
-
-  // --- RENDER INSPECTORS & LIVE MOVEMENT ---
-  useEffect(() => {
-    const lg = layerGroupsRef.current.inspectors;
-    if (!lg) return;
-    lg.clearLayers();
-
-    if (activeLayers.INSPECTORS) {
-        inspectors.forEach(insp => {
-            const icon = L.divIcon({
-                className: 'custom-icon',
-                html: `<div class="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg animate-pulse relative">
-                        <div class="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/70 text-white text-[10px] px-1 rounded">${insp.name}</div>
-                       </div>`,
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-            });
-
-            L.marker([insp.lat, insp.lng], { icon }).addTo(lg);
-        });
-    }
-  }, [activeLayers.INSPECTORS, inspectors]);
-
-  // --- RENDER TOXI RISK ---
-  useEffect(() => {
-     const lg = layerGroupsRef.current.toxiRisk;
-     if (!lg) return;
-     lg.clearLayers();
-
-     if (activeLayers.TOXI_RISK && selectedSegment) {
-        const pipe = pipelineSegments.find(p => p.id === selectedSegment);
-        if (pipe) {
-            const start = pipe.coordinates[0];
-            // Simple logic: Create a triangle polygon based on wind direction
-            // In a real app, this would use complex math converting LatLng to meters and back
-            const dist = 0.015; // roughly 1.5km
-            const angleRad = (weather.windDeg - 90) * (Math.PI / 180);
-            
-            const destLat = start.lat + dist * Math.sin(angleRad); // Approximation
-            const destLng = start.lng + dist * Math.cos(angleRad) * 2; // correction for longitude at this latitude
-
-            // Spread
-            const spread = 0.005;
-
-            const p1 = [start.lat, start.lng];
-            const p2 = [destLat + spread, destLng + spread];
-            const p3 = [destLat - spread, destLng - spread];
-
-            L.polygon([p1, p2, p3], {
-                color: 'red',
-                fillColor: 'red',
-                fillOpacity: 0.4,
-                weight: 0
-            }).addTo(lg);
-        }
-     }
-  }, [activeLayers.TOXI_RISK, selectedSegment, weather.windDeg, pipelineSegments]);
-
-
-  // --- SIMULATION LOOPS ---
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // 1. Weather Changes
-      setWeather(prev => ({
-        ...prev,
-        windDeg: (prev.windDeg + (Math.random() - 0.5) * 5) % 360, 
-        windSpeed: Math.max(0, prev.windSpeed + (Math.random() - 0.5))
-      }));
-
-      // 2. Inspectors Movement
-      setInspectors(prev => prev.map(insp => ({
-        ...insp,
-        lat: insp.lat + (Math.random() - 0.5) * 0.0002,
-        lng: insp.lng + (Math.random() - 0.5) * 0.0002,
-      })));
-
-      // 3. SCADA Live Data
-      if (selectedSegment) {
-        setScadaData(prev => ({
-           pressure: Number((prev.pressure + (Math.random() - 0.5) * 0.1).toFixed(2)),
-           temp: Number((prev.temp + (Math.random() - 0.5) * 0.5).toFixed(1))
-        }));
+    if (employees.length > 0 && !selectedId) {
+      const bounds = L.latLngBounds(employees.map((e) => [e.latitude, e.longitude]));
+      if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.35), { maxZoom: 14 });
       }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [selectedSegment]);
+    }
+  }, [employees, selectedId]);
 
-  const toggleLayer = (key: keyof typeof activeLayers) => {
-    setActiveLayers(prev => ({ ...prev, [key]: !prev[key] }));
+  // Poll every 30s
+  useEffect(() => {
+    fetchOnline();
+    const id = setInterval(fetchOnline, 30000);
+    return () => clearInterval(id);
+  }, [fetchOnline]);
+
+  const focusEmployee = (emp: OnlineEmployee) => {
+    setSelectedId(emp.user_id);
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    map.flyTo([emp.latitude, emp.longitude], 15, { duration: 0.8 });
+    const marker = markerByIdRef.current[emp.user_id];
+    if (marker) {
+      setTimeout(() => marker.openPopup(), 400);
+    }
   };
 
   return (
     <div className="h-full flex flex-col md:flex-row gap-4 relative">
-      
-      {/* MAP AREA */}
-      <div className="flex-1 bg-app-deep rounded-xl overflow-hidden relative border border-app-line shadow-2xl">
-        
-        {/* LEAFLET MAP CONTAINER */}
-        <div ref={mapContainerRef} className="w-full h-full z-0 bg-[#0f172a]" id="map"></div>
+      <div className="flex-1 bg-app-deep rounded-xl overflow-hidden relative border border-app-line shadow-2xl min-h-[420px]">
+        <div ref={mapContainerRef} className="w-full h-full z-0 bg-[#0f172a]" id="staff-map" />
 
-        {pipelineSource === 'demo' && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] max-w-xl px-3 py-1.5 rounded-lg bg-amber-950/90 border border-amber-700/50 text-amber-100 text-xs text-center">
-            Демо-геометрия трубопроводов. Реальные линии: сегменты в БД + координаты в{' '}
-            <span className="font-mono">equipment.attributes.pipeline_map.coordinates</span>
+        <div className="absolute top-4 left-4 z-[500] bg-secondary/95 backdrop-blur p-3 rounded-lg border border-app-line shadow-lg max-w-xs">
+          <h4 className="text-xs font-bold text-app-text3 mb-1 flex items-center gap-1">
+            <Wifi size={12} /> ТЕКУЩИЕ СОТРУДНИКИ
+          </h4>
+          <p className="text-sm text-app-text">
+            Онлайн: <span className="font-bold text-green-400">{employees.length}</span>
+          </p>
+          <p className="text-[11px] text-app-text3 mt-1">
+            Пинг с телефона раз в 5 мин. Окно онлайн — 15 мин.
+            {lastFetch ? ` Обновлено ${lastFetch.toLocaleTimeString('ru-RU')}` : ''}
+          </p>
+        </div>
+
+        <div className="absolute top-4 right-4 z-[500] bg-secondary/95 backdrop-blur p-2 rounded-lg border border-app-line shadow-lg">
+          <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2 px-2">
+            <Layers size={16} className="text-accent" /> Карта
+          </h3>
+          <div className="flex gap-1 mb-2 bg-app-panel p-1 rounded">
+            <button
+              type="button"
+              onClick={() => setBaseLayer('OSM')}
+              className={`flex-1 text-xs py-1 px-2 rounded ${
+                baseLayer === 'OSM' ? 'bg-app-softer text-app-text' : 'text-app-text3 hover:text-app-text'
+              }`}
+            >
+              Схема
+            </button>
+            <button
+              type="button"
+              onClick={() => setBaseLayer('SATELLITE')}
+              className={`flex-1 text-xs py-1 px-2 rounded ${
+                baseLayer === 'SATELLITE' ? 'bg-app-softer text-app-text' : 'text-app-text3 hover:text-app-text'
+              }`}
+            >
+              Спутник
+            </button>
           </div>
-        )}
-
-        {/* OVERLAYS */}
-        
-        {/* TOP LEFT: WEATHER */}
-        <div className="absolute top-4 left-4 z-[500] bg-secondary/90 backdrop-blur p-3 rounded-lg border border-app-line shadow-lg w-48">
-           <h4 className="text-xs font-bold text-app-text3 mb-2 flex items-center gap-1"><Wind size={12}/> МЕТЕОСТАНЦИЯ</h4>
-           <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 border-2 border-app-line rounded-full flex items-center justify-center bg-app-panel">
-                 <Navigation 
-                    size={24} 
-                    className="text-accent transition-transform duration-1000" 
-                    style={{ transform: `rotate(${weather.windDeg}deg)` }} 
-                    fill="currentColor"
-                 />
-                 <span className="absolute text-[8px] top-1 text-app-text3">N</span>
-              </div>
-              <div>
-                 <p className="text-2xl font-bold text-app-text">{weather.windSpeed.toFixed(1)} <span className="text-xs text-app-text3">м/с</span></p>
-                 <p className="text-xs text-app-text2">{weather.temp}°C, {weather.condition}</p>
-              </div>
-           </div>
+          <button
+            type="button"
+            onClick={() => fetchOnline()}
+            disabled={loading}
+            className="w-full text-xs px-3 py-1.5 rounded text-left flex items-center gap-2 text-app-text2 hover:bg-app-soft"
+          >
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+            Обновить
+          </button>
         </div>
-
-        {/* TOP RIGHT: LAYERS */}
-        <div className="absolute top-4 right-4 z-[500] bg-secondary/90 backdrop-blur p-2 rounded-lg border border-app-line shadow-lg">
-           <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2 px-2">
-             <Layers size={16} className="text-accent" /> Управление картой
-           </h3>
-           
-           {/* BASEMAP SWITCHER */}
-           <div className="flex gap-1 mb-3 bg-app-panel p-1 rounded">
-              <button onClick={() => setBaseLayer('OSM')} className={`flex-1 text-xs py-1 px-2 rounded ${baseLayer === 'OSM' ? 'bg-app-softer text-app-text' : 'text-app-text3 hover:text-app-text'}`}>Схема</button>
-              <button onClick={() => setBaseLayer('SATELLITE')} className={`flex-1 text-xs py-1 px-2 rounded ${baseLayer === 'SATELLITE' ? 'bg-app-softer text-app-text' : 'text-app-text3 hover:text-app-text'}`}>Спутник</button>
-           </div>
-
-           <div className="flex flex-col gap-1">
-             <button onClick={() => toggleLayer('PIPELINES')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.PIPELINES ? 'bg-blue-600 text-white' : 'text-app-text2 hover:bg-app-soft'}`}>
-               <span>Трубопроводы</span> {activeLayers.PIPELINES && <Zap size={10}/>}
-             </button>
-             <button onClick={() => toggleLayer('CADASTRAL')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.CADASTRAL ? 'bg-orange-600 text-white' : 'text-app-text2 hover:bg-app-soft'}`}>
-               <span>Кадастр (Земля)</span> {activeLayers.CADASTRAL && <Hexagon size={10}/>}
-             </button>
-             <button onClick={() => toggleLayer('INSPECTORS')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 ${activeLayers.INSPECTORS ? 'bg-green-600 text-white' : 'text-app-text2 hover:bg-app-soft'}`}>
-               <span>Персонал (GPS)</span> {activeLayers.INSPECTORS && <Users size={10}/>}
-             </button>
-             {selectedSegment && (
-               <button onClick={() => toggleLayer('TOXI_RISK')} className={`text-xs px-3 py-1.5 rounded text-left flex items-center justify-between gap-2 border border-dashed ${activeLayers.TOXI_RISK ? 'bg-red-900/80 text-red-200 border-red-500' : 'text-red-400 border-red-800 hover:bg-red-900/30'}`}>
-                  <span>Toxi-Risk (Симуляция)</span> <Triangle size={10}/>
-               </button>
-             )}
-           </div>
-        </div>
-
       </div>
 
-      {/* RIGHT SIDEBAR: INFO PANEL */}
-      {selectedSegment ? (
-        <div className="w-full md:w-80 bg-secondary rounded-xl p-5 border border-app-line animate-in slide-in-from-right duration-300 flex flex-col gap-4">
-           {(() => {
-             const seg = pipelineSegments.find(s => s.id === selectedSegment);
-             if(!seg) return null;
-             return (
-               <>
-                 <div className="flex justify-between items-start">
-                    <h3 className="text-lg font-bold text-app-text">{seg.id}</h3>
-                    <button onClick={() => { setSelectedSegment(null); setActiveLayers(l => ({...l, TOXI_RISK: false})); }} className="text-app-text3 hover:text-app-text"><Zap size={18}/></button>
-                 </div>
-                 <p className="text-app-text2 text-sm">{seg.name}</p>
-                 
-                 {/* LIVE SCADA BLOCK */}
-                 <div className="bg-app-deep p-4 rounded-lg border border-app-line relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-10"><Gauge size={48} className="text-accent"/></div>
-                    <h4 className="text-xs font-bold text-app-text3 mb-3 flex items-center gap-2">
-                       <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> SCADA ТЕЛЕМЕТРИЯ
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                       <div>
-                          <p className="text-[10px] text-app-text3">ДАВЛЕНИЕ (P1)</p>
-                          <p className="text-xl font-mono font-bold text-accent">{scadaData.pressure} <span className="text-xs">МПа</span></p>
-                       </div>
-                       <div>
-                          <p className="text-[10px] text-app-text3">ТЕМПЕРАТУРА (T1)</p>
-                          <p className="text-xl font-mono font-bold text-orange-400">{scadaData.temp} <span className="text-xs">°C</span></p>
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* TOXI RISK ACTIONS */}
-                 <div className="space-y-2">
-                    <button 
-                       onClick={() => toggleLayer('TOXI_RISK')}
-                       className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 border transition ${activeLayers.TOXI_RISK ? 'bg-red-500 text-white border-red-600' : 'bg-app-panel text-red-400 border-red-900/50 hover:bg-app-soft'}`}
-                    >
-                       <Triangle size={16} className={activeLayers.TOXI_RISK ? "fill-white" : ""} />
-                       {activeLayers.TOXI_RISK ? 'Остановить симуляцию' : 'Смоделировать разрыв (Toxi)'}
-                    </button>
-                    {activeLayers.TOXI_RISK && (
-                       <div className="p-3 bg-red-900/20 border border-red-900/50 rounded text-xs text-red-200">
-                          <p>⚠ Внимание: Направление облака рассчитано на основе текущего ветра ({weather.windDeg.toFixed(0)}°).</p>
-                       </div>
-                    )}
-                 </div>
-
-                 {/* STATIC INFO */}
-                 <div className="space-y-3 pt-4 border-t border-app-line">
-                     <div className="flex justify-between text-sm">
-                        <span className="text-app-text3">Толщина стенки:</span>
-                        <span className="text-white">{seg.thickness} мм</span>
-                     </div>
-                     <div className="flex justify-between text-sm">
-                        <span className="text-app-text3">Коррозия:</span>
-                        <span className="text-danger">{seg.corrosionRate} мм/год</span>
-                     </div>
-                     <div className="flex justify-between text-sm">
-                        <span className="text-app-text3">Прогноз ресурса:</span>
-                        <span className="text-success">{seg.remainingLife} лет</span>
-                     </div>
-                 </div>
-
-               </>
-             )
-           })()}
+      <div className="w-full md:w-80 bg-secondary rounded-xl p-4 border border-app-line flex flex-col gap-3 max-h-[70vh] md:max-h-none overflow-hidden">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-app-text flex items-center gap-2">
+            <Users size={18} className="text-accent" />
+            Онлайн
+          </h3>
+          <span className="text-xs text-app-text3">{employees.length}</span>
         </div>
-      ) : (
-         <div className="hidden md:flex w-80 bg-secondary rounded-xl p-5 border border-app-line items-center justify-center text-center">
-            <div>
-               <MapIcon className="mx-auto text-app-text3 mb-2" size={32} />
-               <p className="text-app-text3">Выберите объект на карте для доступа к телеметрии и функциям анализа</p>
+
+        {error && (
+          <div className="text-xs text-red-300 bg-red-950/40 border border-red-900/50 rounded p-2">{error}</div>
+        )}
+
+        <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+          {employees.length === 0 && !loading && (
+            <div className="text-sm text-app-text3 py-8 text-center px-2">
+              Нет сотрудников онлайн. Откройте мобильное приложение с доступом к геолокации и интернету —
+              координаты уйдут в течение 5 минут.
             </div>
-         </div>
-      )}
+          )}
+          {employees.map((emp) => {
+            const selected = emp.user_id === selectedId;
+            return (
+              <button
+                key={emp.user_id}
+                type="button"
+                onClick={() => focusEmployee(emp)}
+                className={`w-full text-left p-3 rounded-lg border transition ${
+                  selected
+                    ? 'bg-blue-600/30 border-blue-500 text-white'
+                    : 'bg-app-panel border-app-line hover:bg-app-soft text-app-text'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <div
+                    className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selected ? 'bg-blue-500 text-white' : 'bg-green-700 text-white'
+                    }`}
+                  >
+                    {(emp.full_name || emp.username || '?').trim().charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm truncate">{emp.full_name || emp.username}</p>
+                    <p className="text-[11px] text-app-text3 truncate">
+                      @{emp.username}
+                      {emp.role ? ` · ${emp.role}` : ''}
+                    </p>
+                    <p className="text-[11px] text-green-400/90 mt-0.5 flex items-center gap-1">
+                      <MapPin size={10} />
+                      {formatAgo(emp.updated_at) || 'сейчас'}
+                      {emp.accuracy != null ? ` · ±${Math.round(emp.accuracy)} м` : ''}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

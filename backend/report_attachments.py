@@ -172,3 +172,94 @@ def build_attachments_index(document_files: Optional[List[Dict[str, Any]]]) -> D
             if alt and alt not in attachments:
                 attachments[alt] = fp
     return attachments
+
+
+def pick_equipment_drawing_path(
+    rows: List[Dict[str, Any]],
+) -> Optional[str]:
+    """Выбрать путь к схеме оборудования: приоритет — схема из конструктора."""
+    if not rows:
+        return None
+    constructor: List[str] = []
+    others: List[str] = []
+    for row in rows:
+        path = row.get("image_file_path") or row.get("path")
+        if not isinstance(path, str) or not path.strip():
+            continue
+        desc = str(row.get("description") or "")
+        if "vessel_geometry" in desc or "constructor_geometry" in desc:
+            constructor.append(path.strip())
+        else:
+            others.append(path.strip())
+    for path in constructor + others:
+        p = Path(path)
+        if p.is_file():
+            return str(p)
+        # Docker / локальные варианты
+        for base in (
+            Path("/app/uploads/equipment_drawings"),
+            Path.cwd() / "uploads" / "equipment_drawings",
+        ):
+            cand = base / p.name
+            if cand.is_file():
+                return str(cand)
+    return (constructor or others or [None])[0]
+
+
+async def enrich_scheme_from_equipment_templates(
+    document_files: List[Dict[str, Any]],
+    equipment_id: Optional[str],
+    db: Any,
+    *,
+    resolve_fn: Optional[Callable[[str], Optional[str]]] = None,
+    inspection_data: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    """Если в обследовании нет control_scheme_image — взять чертёж оборудования (конструктор)."""
+    result = list(document_files or [])
+    existing_dn = {str(f.get("document_number")) for f in result if f.get("document_number")}
+    scheme_keys = ("control_scheme_image", "control_scheme", "base_vessel_scheme_image")
+    if any(k in existing_dn for k in scheme_keys):
+        return result
+
+    data = inspection_data if isinstance(inspection_data, dict) else {}
+    if any(isinstance(data.get(k), str) and data.get(k).strip() for k in scheme_keys):
+        return result
+    base = data.get("base_vessel_scheme")
+    if isinstance(base, dict):
+        bp = base.get("image_path") or base.get("scheme_image_path") or base.get("path")
+        if isinstance(bp, str) and bp.strip():
+            return result
+
+    if not equipment_id or db is None:
+        return result
+
+    try:
+        from sqlalchemy import text
+
+        q = await db.execute(
+            text(
+                """
+                SELECT image_file_path, description, updated_at
+                FROM drawing_templates
+                WHERE equipment_id = CAST(:eid AS uuid)
+                  AND is_active = TRUE
+                  AND image_file_path IS NOT NULL
+                ORDER BY
+                  CASE WHEN description LIKE '%%vessel_geometry%%'
+                         OR description LIKE '%%constructor_geometry%%'
+                       THEN 0 ELSE 1 END,
+                  updated_at DESC NULLS LAST
+                LIMIT 10
+                """
+            ),
+            {"eid": str(equipment_id)},
+        )
+        rows = [dict(r) for r in q.mappings().all()]
+    except Exception:
+        return result
+
+    path = pick_equipment_drawing_path(rows)
+    if not path:
+        return result
+    _append_file(result, existing_dn, "control_scheme_image", path, resolve_fn=resolve_fn)
+    return result

@@ -190,11 +190,13 @@ def merge_client_into_settings(
         if not (customer.get("legal_name") or "").strip():
             customer["legal_name"] = client.get("name") or enterprise_name or ""
         if not (customer.get("address") or "").strip():
-            customer["address"] = client.get("address") or ""
+            customer["address"] = client.get("address") or client.get("legal_address") or ""
         if not (customer.get("phone") or "").strip():
             customer["phone"] = client.get("phone") or ""
+        if not (customer.get("email") or "").strip():
+            customer["email"] = client.get("email") or ""
         if not (customer.get("director") or "").strip():
-            customer["director"] = client.get("contact_person") or ""
+            customer["director"] = client.get("contact_person") or client.get("director") or ""
         if not (customer.get("inn") or "").strip():
             customer["inn"] = client.get("inn") or ""
     elif enterprise_name and not (customer.get("legal_name") or "").strip():

@@ -235,6 +235,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
       case 'ВИК':
         ad['control_zone'] = formData['method_control_zone'];
         ad['illumination'] = formData['method_illumination'];
+        ad['roughness'] = formData['method_roughness'];
         ad['additional_lighting'] = formData['method_additional_lighting'] == true;
         ad['surface_temp'] = formData['method_surface_temp'];
         ad['defects_list'] = _defectsList
@@ -259,6 +260,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['joint_type'] = formData['method_joint_type'];
         ad['element_thickness'] = formData['method_element_thickness'];
         ad['max_equivalent_area'] = formData['method_max_equiv_area'];
+        ad['notch_params'] = formData['method_notch_params'];
         ad['results_list'] = _uzkResults
             .map<Map<String, String>>((r) => {
                     'joint': r['joint']?.text ?? '',
@@ -296,6 +298,8 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ad['magnetization_type'] = formData['method_magnetization_type'];
         ad['field_strength'] = formData['method_field_strength'];
         ad['indicator_suspension'] = formData['method_indicator_suspension'];
+        ad['sensitivity'] = formData['method_sensitivity'];
+        ad['control_method'] = formData['method_mpk_control_method'];
         ad['indications_list'] = _indicationsList
             .map<Map<String, String>>((ind) => {
                     'zone': ind['zone']?.text ?? '',
@@ -595,6 +599,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         ),
         const SizedBox(height: 12),
         FormBuilderTextField(
+          name: 'method_roughness',
+          decoration: _inputDeco('Шероховатость поверхности', hint: 'Rz 80'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        FormBuilderTextField(
           name: 'method_illumination',
           decoration: _inputDeco('Освещённость, лк'),
           keyboardType: TextInputType.number,
@@ -701,6 +711,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
           name: 'method_max_equiv_area',
           decoration: _inputDeco('Макс. допустимая эквивалентная площадь, мм²'),
           keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white),
+        ),
+        const SizedBox(height: 12),
+        FormBuilderTextField(
+          name: 'method_notch_params',
+          decoration: _inputDeco('Параметры зарубки, мм'),
           style: const TextStyle(color: Colors.white),
         ),
         const SizedBox(height: 12),
@@ -890,12 +906,20 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         _sectionHeader('Параметры МПД/МК'),
         FormBuilderDropdown<String>(
           name: 'method_magnetization_type',
-          decoration: _inputDeco('Тип намагничивания'),
+          decoration: _inputDeco('Тип намагничивания / способ контроля'),
           items: const [
             DropdownMenuItem(value: 'Циркулярное', child: Text('Циркулярное', style: TextStyle(color: Colors.white))),
             DropdownMenuItem(value: 'Продольное', child: Text('Продольное', style: TextStyle(color: Colors.white))),
             DropdownMenuItem(value: 'Комбинированное', child: Text('Комбинированное', style: TextStyle(color: Colors.white))),
+            DropdownMenuItem(value: 'Приложенным полем', child: Text('Приложенным полем', style: TextStyle(color: Colors.white))),
+            DropdownMenuItem(value: 'Остаточной намагниченностью', child: Text('Остаточной намагниченностью', style: TextStyle(color: Colors.white))),
           ],
+        ),
+        const SizedBox(height: 12),
+        FormBuilderTextField(
+          name: 'method_sensitivity',
+          decoration: _inputDeco('Уровень чувствительности'),
+          style: const TextStyle(color: Colors.white),
         ),
         const SizedBox(height: 12),
         FormBuilderTextField(

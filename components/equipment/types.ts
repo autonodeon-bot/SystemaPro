@@ -3,6 +3,10 @@ export interface Enterprise {
   name: string;
   code?: string;
   description?: string;
+  director?: string;
+  phone?: string;
+  email?: string;
+  legal_address?: string;
 }
 
 export interface Branch {
@@ -73,6 +77,10 @@ export interface CreateFormData {
   name: string;
   code: string;
   description: string;
+  director: string;
+  phone: string;
+  email: string;
+  legal_address: string;
   enterprise_id: string;
   branch_id: string;
   workshop_id: string;

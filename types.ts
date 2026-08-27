@@ -184,6 +184,10 @@ export interface Enterprise {
   name: string;
   code?: string;
   description?: string;
+  director?: string;
+  phone?: string;
+  email?: string;
+  legal_address?: string;
   is_active?: number;
 }
 

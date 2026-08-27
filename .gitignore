@@ -46,3 +46,16 @@ key.properties
 
 # Docker
 *.tar.gz
+
+# Локальные инструменты деплоя (скачиваются отдельно)
+tools/flutter.zip
+tools/putty/
+
+# Кириллические дубликаты форм: на сервер уезжают ASCII-алиасы to-N.docx
+backend/report_forms/Приложение*
+
+# Временные артефакты генерации отчётов
+backend/report_forms/_smoke_*.docx
+_test_uzt_fill.docx
+docs/_diag_full.docx
+docs/_diag_full.pdf

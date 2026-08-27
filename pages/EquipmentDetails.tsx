@@ -1014,6 +1014,23 @@ const EquipmentDrawingTemplatesSection: React.FC<{
               />
             </label>
             <button
+              onClick={() => {
+                const kindMap: Record<string, string> = {
+                  gas_separator: 'gas_separator',
+                  underground_tank: 'underground_tank',
+                  oil_settler: 'oil_settler',
+                  pipeline: 'pipeline',
+                };
+                const kind = kindMap[drawingCategory || ''] || '';
+                const q = new URLSearchParams({ equipment_id: equipmentId });
+                if (kind) q.set('kind', kind);
+                navigate(`/vessel-scheme-constructor?${q.toString()}`);
+              }}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-app-soft text-white text-sm font-semibold hover:bg-app-soft/80 border border-app-line"
+            >
+              Конструктор схемы
+            </button>
+            <button
               onClick={() => navigate('/drawing-templates')}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent/80"
             >

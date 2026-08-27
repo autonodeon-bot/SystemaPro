@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 from docx.text.paragraph import Paragraph
 
@@ -109,7 +110,47 @@ def find_paragraph_containing(doc: Document, needle: str) -> Optional[Paragraph]
 
 def find_all_paragraphs_containing(doc: Document, needle: str) -> List[Paragraph]:
     needle_l = needle.lower()
-    return [p for p in doc.paragraphs if needle_l in (p.text or "").lower()]
+    found: List[Paragraph] = []
+    body = doc.element.body
+    for p_el in body.iter(qn("w:p")):
+        txt = "".join(t.text or "" for t in p_el.iter(qn("w:t")))
+        if needle_l in (txt or "").lower():
+            found.append(Paragraph(p_el, doc))
+    return found
+
+
+def clear_pictures_after_paragraph(paragraph: Paragraph, max_hops: int = 14) -> int:
+    """Удалить рисунки шаблона сразу после заголовка схемы/карты, чтобы не двоились с мобильными."""
+    p = paragraph._p
+    el = p.getnext()
+    removed = 0
+    hops = 0
+    while el is not None and hops < max_hops:
+        hops += 1
+        nxt = el.getnext()
+        txt = "".join(t.text or "" for t in el.iter(qn("w:t"))).strip()
+        if txt and (
+            txt.startswith("Таблица")
+            or txt.startswith("5.")
+            or txt.startswith("4.")
+            or txt.startswith("3.")
+            or "Заключение" in txt
+            or "Результаты" in txt
+            or txt.upper().startswith("ПРИЛОЖЕНИЕ")
+        ):
+            break
+        has_drawing = bool(list(el.iter(qn("w:drawing")))) or bool(list(el.iter(qn("w:pict"))))
+        if has_drawing:
+            parent = el.getparent()
+            if parent is not None:
+                parent.remove(el)
+                removed += 1
+            el = nxt
+            continue
+        if txt:
+            break
+        el = nxt
+    return removed
 
 
 def add_heading_block(
@@ -134,12 +175,18 @@ def collect_scheme_paths(
     data: Dict[str, Any],
     attachments: Dict[str, str],
 ) -> List[Dict[str, str]]:
-    """Схемы контроля: ВИК + УЗТ."""
+    """Схемы контроля: ВИК + УЗТ + конструктор."""
     items: List[Dict[str, str]] = []
     for key in ("control_scheme_image", "control_scheme", "base_vessel_scheme_image"):
         path = attachments.get(key) or data.get(key)
         if isinstance(path, str) and path.strip():
-            items.append({"label": "Базовая схема сосуда (ВИК)", "path": path})
+            base = data.get("base_vessel_scheme")
+            label = "Базовая схема контроля (ВИК)"
+            if isinstance(base, dict) and str(base.get("source") or "") == "constructor":
+                label = "Схема оборудования (конструктор)"
+            elif key == "control_scheme_image" and "equipment_drawings" in path.replace("\\", "/"):
+                label = "Схема оборудования (чертёж)"
+            items.append({"label": label, "path": path})
             break
     # Базовая схема из структурированного объекта
     base = data.get("base_vessel_scheme")
@@ -147,7 +194,12 @@ def collect_scheme_paths(
         bp = base.get("image_path") or base.get("scheme_image_path") or base.get("path")
         if isinstance(bp, str) and bp.strip():
             if not any(it["path"] == bp for it in items):
-                items.append({"label": "Базовая схема сосуда (ВИК)", "path": bp})
+                label = (
+                    "Схема оборудования (конструктор)"
+                    if str(base.get("source") or "") == "constructor"
+                    else "Базовая схема контроля (ВИК)"
+                )
+                items.append({"label": label, "path": bp})
     # Схема подключения (файл)
     for key, label in (
         ("connection_scheme_file", "Схема подключения сосуда"),
@@ -186,6 +238,19 @@ def collect_scheme_paths(
         if key.startswith("uzt_scheme_") and "_point_" not in key:
             if not any(it["path"] == path for it in items):
                 items.append({"label": f"Схема УЗТ ({key})", "path": path})
+    # Схемы ТК / УЗК / МПК из мобильного приложения
+    for key, label in (
+        ("hardness_scheme_image", "Схема проведения ТК"),
+        ("hardness_scheme", "Схема проведения ТК"),
+        ("uzk_scheme_image", "Схема проведения УЗК"),
+        ("uzk_scheme", "Схема проведения УЗК"),
+        ("mpk_scheme_image", "Схема проведения МПК"),
+        ("mpk_scheme", "Схема проведения МПК"),
+    ):
+        path = attachments.get(key) or data.get(key)
+        if isinstance(path, str) and path.strip():
+            if not any(it["path"] == path for it in items):
+                items.append({"label": label, "path": path})
     return items
 
 

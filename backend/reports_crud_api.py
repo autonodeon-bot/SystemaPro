@@ -29,7 +29,10 @@ from models import (
 )
 from report_generator import ReportGenerator
 from shared import resolve_report_file_path, metrics
-from report_attachments import enrich_document_files_from_inspection
+from report_attachments import (
+    enrich_document_files_from_inspection,
+    enrich_scheme_from_equipment_templates,
+)
 from client_access import get_client_accessible_equipment_ids, client_user_can_access_equipment
 from report_org_settings import load_report_org_settings, merge_client_into_settings
 from report_forms_registry import suggest_form_id, get_form
@@ -61,19 +64,30 @@ async def _resolve_client_context(
     if not enterprise:
         return None, enterprise_name
     enterprise_name = enterprise.name
+    ent_card = {
+        "name": enterprise.name,
+        "director": getattr(enterprise, "director", None) or "",
+        "phone": getattr(enterprise, "phone", None) or "",
+        "email": getattr(enterprise, "email", None) or "",
+        "address": getattr(enterprise, "legal_address", None) or "",
+        "legal_address": getattr(enterprise, "legal_address", None) or "",
+        "contact_person": getattr(enterprise, "director", None) or "",
+    }
     if not enterprise.client_id:
-        return None, enterprise_name
+        return ent_card, enterprise_name
     cl_res = await db.execute(select(Client).where(Client.id == enterprise.client_id))
     client = cl_res.scalar_one_or_none()
     if not client:
-        return None, enterprise_name
+        return ent_card, enterprise_name
     return {
-        "name": client.name,
+        "name": client.name or ent_card["name"],
         "inn": client.inn,
-        "address": client.address,
-        "phone": client.phone,
-        "email": client.email,
-        "contact_person": client.contact_person,
+        "address": client.address or ent_card["address"],
+        "phone": client.phone or ent_card["phone"],
+        "email": client.email or ent_card["email"],
+        "contact_person": client.contact_person or ent_card["contact_person"],
+        "director": client.contact_person or ent_card["director"],
+        "legal_address": client.address or ent_card["legal_address"],
     }, enterprise_name
 
 
@@ -570,6 +584,18 @@ async def generate_report(
                 resolve_fn=_inspect_attachment_path,
                 questionnaire_id=questionnaire_scope,
             )
+            # Схема из конструктора / шаблонов оборудования → в отчёт, если ещё нет
+            try:
+                _eq_id = str(equipment.id) if equipment and getattr(equipment, "id", None) else None
+                document_files = await enrich_scheme_from_equipment_templates(
+                    document_files,
+                    _eq_id,
+                    db,
+                    resolve_fn=_inspect_attachment_path,
+                    inspection_data=_data,
+                )
+            except Exception as _scheme_exc:
+                print(f"Report generation: equipment scheme fallback failed: {_scheme_exc}")
             _existing_dn = {str(f.get("document_number")) for f in document_files if f.get("document_number")}
             _vd = _data.get("visual_defects")
             if isinstance(_vd, list):
@@ -670,6 +696,27 @@ async def generate_report(
             except Exception as e:
                 print(f"Warning: Could not load verification equipment: {e}")
                 verification_equipment_list = []
+
+            # Fallback: ручные приборы из data.additional_data (если связь InspectionEquipment пуста)
+            try:
+                _idata = inspection.data if isinstance(inspection.data, dict) else {}
+                _ad = _idata.get("additional_data") if isinstance(_idata.get("additional_data"), dict) else {}
+                _manual = _ad.get("manual_verification_equipment") or _ad.get("manualVerificationEquipment") or []
+                if isinstance(_manual, list):
+                    _existing_names = {
+                        (str(x.get("name") or "").strip().lower(), str(x.get("serial_number") or "").strip().lower())
+                        for x in verification_equipment_list
+                    }
+                    for m in _manual:
+                        if not isinstance(m, dict):
+                            continue
+                        key = (str(m.get("name") or "").strip().lower(), str(m.get("serial_number") or "").strip().lower())
+                        if not key[0] or key in _existing_names:
+                            continue
+                        verification_equipment_list.append(m)
+                        _existing_names.add(key)
+            except Exception as e:
+                print(f"Warning: Could not merge manual verification equipment: {e}")
             
             # Generate report
             reports_dir = Path("/app/reports")
@@ -1450,6 +1497,23 @@ async def bulk_export_reports(
                         "file_path": _bulk_attachment_path(f.file_path) or f.file_path,
                         "file_size": int(f.file_size or 0),
                     })
+            _bulk_data = inspection_payload_bulk.get("data") if isinstance(inspection_payload_bulk.get("data"), dict) else {}
+            document_files = enrich_document_files_from_inspection(
+                document_files,
+                _bulk_data,
+                resolve_fn=_bulk_attachment_path,
+                questionnaire_id=q_bulk_scope,
+            )
+            try:
+                document_files = await enrich_scheme_from_equipment_templates(
+                    document_files,
+                    str(equipment.id),
+                    db,
+                    resolve_fn=_bulk_attachment_path,
+                    inspection_data=_bulk_data,
+                )
+            except Exception:
+                pass
             out_path = os.path.join(temp_dir, f"report_{insp_id}.docx")
             try:
                 word_generator.generate_report_word(

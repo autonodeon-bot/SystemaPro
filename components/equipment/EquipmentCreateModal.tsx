@@ -99,6 +99,47 @@ const EquipmentCreateModal: React.FC<EquipmentCreateModalProps> = ({
             </>
           )}
 
+          {modal.type === 'enterprise' && (
+            <>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Руководитель</label>
+                <input
+                  type="text"
+                  value={formData.director || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, director: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Телефон</label>
+                <input
+                  type="text"
+                  value={formData.phone || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, phone: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">E-mail</label>
+                <input
+                  type="text"
+                  value={formData.email || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, email: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-app-text3 block mb-1">Юридический адрес</label>
+                <input
+                  type="text"
+                  value={formData.legal_address || ''}
+                  onChange={(e) => onFormDataChange({ ...formData, legal_address: e.target.value })}
+                  className="w-full bg-app-deep border border-app-line rounded p-2 text-app-text"
+                />
+              </div>
+            </>
+          )}
+
           {modal.type === 'equipment' && (
             <>
               <div>

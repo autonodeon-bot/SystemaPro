@@ -32,6 +32,7 @@ class InspectionArchiveService {
 
     addPath(data['factory_plate_photo'] as String?, 'factory_plate.jpg');
     addPath(data['control_scheme_image'] as String?, 'control_scheme.jpg');
+    addPath(data['connection_scheme_file'] as String?, 'connection_scheme.jpg');
     final additionalData = data['additional_data'];
     if (additionalData is Map) {
       final objectPhotosRaw = additionalData['object_photos'];
@@ -96,6 +97,7 @@ class InspectionArchiveService {
     }
     replacePath('factory_plate_photo', data['factory_plate_photo'] as String?);
     replacePath('control_scheme_image', data['control_scheme_image'] as String?);
+    replacePath('connection_scheme_file', data['connection_scheme_file'] as String?);
     if (dataCopy['additional_data'] is Map) {
       final ad = Map<String, dynamic>.from(dataCopy['additional_data'] as Map);
       final objectPhotosRaw = ad['object_photos'];

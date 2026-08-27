@@ -1,4 +1,5 @@
-FROM python:3.11-slim
+# ECR public mirror — обход Docker Hub 429 на VPS
+FROM public.ecr.aws/docker/library/python:3.11-slim
 
 WORKDIR /app
 

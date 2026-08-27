@@ -44,7 +44,10 @@ from report_org_settings import load_report_org_settings, merge_client_into_sett
 from report_forms_registry import get_form, resolve_form_path, suggest_form_id, FILLABLE_FORM_IDS
 from form_template_filler import fill_vessel_form_to1
 from form_template_filler_pipeline import fill_pipeline_form_to13
+from form_template_filler_underground_pipeline import fill_underground_pipeline_form_to33
+from form_template_filler_crane import fill_crane_form_to3
 from form_template_filler_tank import fill_tank_form_to25
+from form_template_filler_generic import fill_generic_official_form
 from report_format_helpers import (
     add_inspector_signature_block,
     add_protocol_header_from_settings,
@@ -2888,28 +2891,41 @@ class WordGenerator:
             )
         fillers = {
             "to-1": fill_vessel_form_to1,
+            "to-3": fill_crane_form_to3,
             "to-13": fill_pipeline_form_to13,
             "to-25": fill_tank_form_to25,
+            "to-33": fill_underground_pipeline_form_to33,
         }
         filler = fillers.get(form_id)
-        if not filler:
-            return None
         try:
-            kwargs = dict(
-                inspection_data=inspection_data,
-                equipment_data=equipment_data,
-                output_path=output_path,
-                verification_equipment=verification_equipment,
-                org_settings=org_settings,
-                specialist_docs=specialist_docs,
-                document_files=document_files,
-                find_image=self._find_image_path,
-            )
-            # ndt_methods поддерживает to-1; остальные fillers пока игнорируют лишний kw через отсутствие параметра
-            import inspect as _inspect
-            if "ndt_methods" in _inspect.signature(filler).parameters:
-                kwargs["ndt_methods"] = ndt_methods
-            filled = filler(**kwargs)
+            if filler is not None:
+                kwargs = dict(
+                    inspection_data=inspection_data,
+                    equipment_data=equipment_data,
+                    output_path=output_path,
+                    verification_equipment=verification_equipment,
+                    org_settings=org_settings,
+                    specialist_docs=specialist_docs,
+                    document_files=document_files,
+                    find_image=self._find_image_path,
+                )
+                import inspect as _inspect
+                if "ndt_methods" in _inspect.signature(filler).parameters:
+                    kwargs["ndt_methods"] = ndt_methods
+                filled = filler(**kwargs)
+            else:
+                filled = fill_generic_official_form(
+                    form_id=form_id,
+                    inspection_data=inspection_data,
+                    equipment_data=equipment_data,
+                    output_path=output_path,
+                    verification_equipment=verification_equipment,
+                    org_settings=org_settings,
+                    specialist_docs=specialist_docs,
+                    document_files=document_files,
+                    find_image=self._find_image_path,
+                    ndt_methods=ndt_methods,
+                )
             print(f"ТО сгенерирован по официальной форме {form_id}: {filled}")
             return filled
         except Exception as exc:
@@ -4043,6 +4059,40 @@ class WordGenerator:
                 doc.add_paragraph()
             
                 thickness = g("thickness_measurements", "thicknessMeasurements", default=[])
+                if not isinstance(thickness, list):
+                    thickness = []
+                else:
+                    thickness = [t for t in thickness if isinstance(t, dict)]
+                # Fallback: схемы УЗТ и точки из метода НК
+                if not thickness:
+                    for sch in g("uzt_schemes", default=[]) or []:
+                        if isinstance(sch, dict):
+                            for m in sch.get("measurements") or []:
+                                if isinstance(m, dict):
+                                    thickness.append(m)
+                if not thickness:
+                    for m in (ndt_methods or []):
+                        if not isinstance(m, dict):
+                            continue
+                        code = str(m.get("method_code") or m.get("method_name") or "").upper()
+                        if not any(k in code for k in ("УЗТ", "UZT", "ТОЛЩ")):
+                            continue
+                        ad = m.get("additional_data") or {}
+                        if not isinstance(ad, dict):
+                            continue
+                        for p in ad.get("measurement_points") or ad.get("points") or []:
+                            if isinstance(p, dict):
+                                thickness.append(
+                                    {
+                                        "location": p.get("location") or p.get("element") or p.get("zone") or "",
+                                        "section_number": p.get("point")
+                                        or p.get("section_number")
+                                        or p.get("point_number")
+                                        or p.get("number")
+                                        or "",
+                                        "thickness": p.get("thickness") or p.get("value"),
+                                    }
+                                )
                 attrs = equipment_data.get("attributes") or {}
                 if isinstance(thickness, list) and thickness:
                     # Группируем по элементам (обечайка, днище 1, днище 2)
@@ -4050,7 +4100,13 @@ class WordGenerator:
                     for t in thickness:
                         if not isinstance(t, dict):
                             continue
-                        element = str(t.get("location", "Обечайка"))
+                        element = str(
+                            t.get("element_name")
+                            or t.get("element")
+                            or t.get("location")
+                            or t.get("zone")
+                            or "Обечайка"
+                        )
                         if element not in elements:
                             elements[element] = []
                         elements[element].append(t)
@@ -4074,8 +4130,20 @@ class WordGenerator:
                                 point_idx = row_idx * 4 + col_idx
                                 if point_idx < len(measurements):
                                     point = measurements[point_idx]
-                                    point_num = str(point.get("point_number", point_idx + 1))
-                                    thickness_val = str(point.get("thickness", ""))
+                                    point_num = str(
+                                        point.get("section_number")
+                                        or point.get("point_number")
+                                        or point.get("number")
+                                        or point.get("point")
+                                        or (point_idx + 1)
+                                    )
+                                    thickness_val = str(
+                                        point.get("thickness")
+                                        if point.get("thickness") not in (None, "")
+                                        else point.get("value")
+                                        if point.get("value") not in (None, "")
+                                        else ""
+                                    )
                                     row.cells[col_idx * 2 + 1].text = point_num
                                     row.cells[col_idx * 2 + 2].text = thickness_val
                     
@@ -4083,6 +4151,8 @@ class WordGenerator:
                         min_meas_vals = []
                         for m in measurements:
                             t = m.get("thickness")
+                            if t is None or t == "":
+                                t = m.get("value")
                             if t is None or t == "":
                                 continue
                             try:
@@ -4723,6 +4793,19 @@ class WordGenerator:
         try:
             normal = doc.styles["Normal"]
             normal.font.name = "Times New Roman"
+            try:
+                rPr = normal.element.get_or_add_rPr()
+                rFonts = rPr.rFonts
+                if rFonts is None:
+                    from docx.oxml import OxmlElement
+                    from docx.oxml.ns import qn
+                    rFonts = OxmlElement("w:rFonts")
+                    rPr.insert(0, rFonts)
+                from docx.oxml.ns import qn
+                for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+                    rFonts.set(qn(attr), "Times New Roman")
+            except Exception:
+                pass
             normal.font.size = Pt(11)
             normal.paragraph_format.space_after = Pt(6)
             normal.paragraph_format.line_spacing = 1.15

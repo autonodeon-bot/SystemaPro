@@ -1,0 +1,240 @@
+{
+  "equipment_name": "Сепаратор нефтегазовый",
+  "serial": "1075",
+  "attributes": {
+    "diameter": "3000",
+    "reg_number": "477",
+    "vessel_name": "Сепаратор нефтегазовый",
+    "manufacturer": "Снежнянский завод химического машиностроения",
+    "organization": "ПАО \"Сургутнефтегаз\" / НГДУ «Лянторнефть» / Пункт подготовки и сбора нефти",
+    "test_pressure": "1,45",
+    "wall_thickness": "10,0/12,0",
+    "working_medium": "нефть, газ",
+    "design_pressure": "1,0",
+    "manufacture_year": "1986",
+    "working_pressure": "0,8",
+    "commissioning_year": "1987",
+    "design_temperature": "+100",
+    "corrosion_allowance": "2",
+    "working_temperature": "-60"
+  },
+  "type_code": "VESSEL",
+  "data": {
+    "gauge": null,
+    "volume": "100",
+    "purpose": "очистка нефти и газа",
+    "diameter": "3000",
+    "documents": {
+      "1": true,
+      "2": true,
+      "3": true,
+      "4": false,
+      "5": false,
+      "6": false,
+      "7": false,
+      "8": false,
+      "9": false,
+      "10": false,
+      "11": false,
+      "12": false,
+      "13": false,
+      "14": false,
+      "15": false,
+      "16": false,
+      "17": false
+    },
+    "executors": "Коровин Александр Сергеевич",
+    "zra_items": [],
+    "conclusion": null,
+    "reg_number": "477",
+    "sppk_items": [],
+    "level_alarm": null,
+    "ndt_methods": [
+      "VIK",
+      "UZK",
+      "UZT",
+      "PVK"
+    ],
+    "uzt_schemes": [],
+    "vessel_name": "Сепаратор нефтегазовый",
+    "level_sensor": null,
+    "manufacturer": "Снежнянский завод химического машиностроения",
+    "medium_group": null,
+    "organization": "ПАО \"Сургутнефтегаз\" / НГДУ «Лянторнефть» / Пункт подготовки и сбора нефти",
+    "scheme_index": null,
+    "vessel_group": null,
+    "serial_number": "1075",
+    "support_state": null,
+    "test_pressure": "1,45",
+    "documents_info": {
+      "1": {
+        "date": "2026-07-10",
+        "pages": "2",
+        "number": "1",
+        "present": true
+      },
+      "2": {
+        "date": "2026-07-10",
+        "pages": "3",
+        "number": "2",
+        "present": true
+      },
+      "3": {
+        "date": "2026-07-10",
+        "pages": "5",
+        "number": "3",
+        "present": true
+      },
+      "15": {
+        "date": "",
+        "pages": "",
+        "number": "",
+        "present": false
+      },
+      "17": {
+        "date": "",
+        "pages": "",
+        "number": "",
+        "present": false
+      }
+    },
+    "equipment_type": "VESSEL",
+    "hardness_tests": [],
+    "repair_history": [],
+    "report_form_id": "to-1",
+    "visual_defects": [],
+    "wall_thickness": "10,0/12,0",
+    "working_medium": "нефть, газ",
+    "additional_data": {
+      "document_sets": {
+        "15": [
+          {
+            "date": "",
+            "number": ""
+          }
+        ],
+        "17": [
+          {
+            "date": "",
+            "number": ""
+          }
+        ]
+      },
+      "object_photos": [],
+      "gps_coordinates": {
+        "accuracy": 100.0,
+        "altitude": 67.0,
+        "latitude": 57.1082093,
+        "longitude": 65.5749612
+      },
+      "manual_verification_equipment": []
+    },
+    "design_pressure": "1,0",
+    "fasteners_state": null,
+    "has_tpa_repairs": null,
+    "inspection_date": "2026-07-10T00:00:00.000",
+    "inspection_type": "VISUAL",
+    "matches_drawing": null,
+    "vessel_elements": [
+      {
+        "gost": null,
+        "name": "обечайка",
+        "material": "09Г2С",
+        "length_mm": "13000",
+        "weld_data": null,
+        "diameter_mm": "3000",
+        "wall_thickness_mm": "10,0"
+      },
+      {
+        "gost": null,
+        "name": "днище",
+        "material": "09Г2С",
+        "length_mm": "825",
+        "weld_data": null,
+        "diameter_mm": "3000",
+        "wall_thickness_mm": "12,0"
+      }
+    ],
+    "calculation_data": null,
+    "include_opo_data": true,
+    "manufacture_year": "1986",
+    "switching_device": null,
+    "weld_inspections": [],
+    "working_pressure": "0,8",
+    "construction_type": "горизонтальный",
+    "report_form_title": "Обследование сосудов и аппаратов",
+    "valve_inspections": [],
+    "commissioning_year": "1987",
+    "design_temperature": "+100",
+    "has_vessel_repairs": null,
+    "residual_life_text": null,
+    "corrosion_allowance": "2",
+    "factory_plate_photo": null,
+    "ndt_control_history": [],
+    "working_temperature": "-60",
+    "control_scheme_image": null,
+    "has_armature_defects": null,
+    "has_external_defects": null,
+    "has_internal_defects": null,
+    "inspection_engineers": [
+      {
+        "method": "VIK",
+        "full_name": "Коровин Александр Сергеевич",
+        "engineer_id": "5a777b6d-1125-4ab0-a1fb-c233dca2c76b",
+        "valid_until": null,
+        "certificate_number": null
+      },
+      {
+        "method": "UZK",
+        "full_name": "Коровин Александр Сергеевич",
+        "engineer_id": "5a777b6d-1125-4ab0-a1fb-c233dca2c76b",
+        "valid_until": null,
+        "certificate_number": null
+      },
+      {
+        "method": "UZT",
+        "full_name": "Коровин Александр Сергеевич",
+        "engineer_id": "5a777b6d-1125-4ab0-a1fb-c233dca2c76b",
+        "valid_until": null,
+        "certificate_number": null
+      },
+      {
+        "method": "PVK",
+        "full_name": "Коровин Александр Сергеевич",
+        "engineer_id": "5a777b6d-1125-4ab0-a1fb-c233dca2c76b",
+        "valid_until": null,
+        "certificate_number": null
+      }
+    ],
+    "ovality_measurements": [],
+    "previous_inspections": [
+      {
+        "date": null,
+        "kind": null,
+        "result": null,
+        "report_number": null
+      }
+    ],
+    "has_local_deformations": null,
+    "has_thermal_insulation": null,
+    "heat_treatment_records": [],
+    "hydraulic_test_history": [
+      {
+        "date": "10.07.2026",
+        "note": null,
+        "medium": null,
+        "pressure": "1,45",
+        "test_type": null
+      }
+    ],
+    "internal_devices_state": null,
+    "medium_characteristics": null,
+    "thickness_measurements": [],
+    "deflection_measurements": [],
+    "has_flange_misalignment": null,
+    "has_nozzle_misalignment": null,
+    "fittings_and_instruments": [],
+    "previous_inspection_result": null,
+    "anticorrosion_coating_state": null
+  }
+}

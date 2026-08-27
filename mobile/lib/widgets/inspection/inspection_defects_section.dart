@@ -4,6 +4,7 @@ import 'package:path/path.dart' as Path;
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../../data/technical_report_form_registry.dart';
+import '../../data/inspection_form_profiles.dart';
 import '../../models/vessel_checklist.dart';
 import '../../services/image_resize_service.dart';
 import 'inspection_form_fields.dart';
@@ -30,6 +31,18 @@ class InspectionDefectsSection extends StatelessWidget {
       children: [
         buildSectionHeader(
           form.sectionHeader('defects', fallback: '11. Дефекты'),
+        ),
+        buildInspectionTextField(
+          'vik_roughness',
+          'Шероховатость поверхности (ВИК), Rz',
+          (v) => checklist.vikRoughness = v,
+          initialValue: checklist.vikRoughness,
+        ),
+        buildInspectionTextField(
+          'vik_illumination',
+          'Освещённость, лк (ВИК)',
+          (v) => checklist.vikIllumination = v,
+          initialValue: checklist.vikIllumination,
         ),
         buildYesNoField(
             'has_local_deformations', 'Локально деформированные зоны',
@@ -148,6 +161,15 @@ class InspectionDefectsSection extends StatelessWidget {
     String zone = 'external';
     String assessment = 'Годен';
     final locationController = TextEditingController();
+    final weldCtrl = TextEditingController();
+    final dnCtrl = TextEditingController();
+    final clockCtrl = TextEditingController();
+    final lengthCtrl = TextEditingController();
+    final widthCtrl = TextEditingController();
+    final depthCtrl = TextEditingController();
+    final formId = (checklist.reportFormId ?? '').toLowerCase();
+    final profile = InspectionFormProfiles.forFormId(formId);
+    final isPipeline = InspectionFormProfiles.isPipeline(profile);
 
     final defectTypes = [
       'Коррозия',
@@ -162,16 +184,26 @@ class InspectionDefectsSection extends StatelessWidget {
     // Часто встречающиеся объекты контроля ВИК — для быстрого выбора,
     // чтобы техник мог добавлять произвольные объекты, а не только
     // 2 предустановленные в отчёте категории («фундаменты», «сварные соединения»).
-    const commonObjects = [
-      'фундаментов',
-      'сварных соединений',
-      'опор сосуда',
-      'запорной арматуры',
-      'трубопроводов обвязки',
-      'штуцеров',
-      'предохранительных клапанов',
-      'КИП',
-    ];
+    final commonObjects = isPipeline
+        ? [
+            'трубы',
+            'сварных соединений',
+            'отвода',
+            'тройника',
+            'перехода',
+            'опоры',
+            'изоляции',
+          ]
+        : [
+            'фундаментов',
+            'сварных соединений',
+            'опор сосуда',
+            'запорной арматуры',
+            'трубопроводов обвязки',
+            'штуцеров',
+            'предохранительных клапанов',
+            'КИП',
+          ];
 
     await showDialog(
       context: context,
@@ -186,9 +218,11 @@ class InspectionDefectsSection extends StatelessWidget {
                 DropdownButtonFormField<String>(
                   value: zone,
                   decoration: const InputDecoration(labelText: 'Зона осмотра'),
-                  items: const [
-                    DropdownMenuItem(value: 'external', child: Text('Наружный осмотр')),
-                    DropdownMenuItem(value: 'internal', child: Text('Внутренний осмотр')),
+                  items: [
+                    const DropdownMenuItem(value: 'external', child: Text('Наружный осмотр')),
+                    const DropdownMenuItem(value: 'internal', child: Text('Внутренний осмотр')),
+                    if (isPipeline)
+                      const DropdownMenuItem(value: 'weld', child: Text('Сварное соединение')),
                   ],
                   onChanged: (v) => setLocalState(() => zone = v ?? 'external'),
                 ),
@@ -212,6 +246,35 @@ class InspectionDefectsSection extends StatelessWidget {
                       labelText: 'Объект контроля / место'),
                   onChanged: (v) => location = v,
                 ),
+                if (isPipeline) ...[
+                  TextFormField(
+                    controller: weldCtrl,
+                    decoration: const InputDecoration(
+                        labelText: '№ сварного соединения'),
+                  ),
+                  TextFormField(
+                    controller: dnCtrl,
+                    decoration: const InputDecoration(labelText: 'Дн, мм'),
+                  ),
+                  TextFormField(
+                    controller: clockCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Ориентация (часы)'),
+                  ),
+                  TextFormField(
+                    controller: lengthCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Протяженность, мм'),
+                  ),
+                  TextFormField(
+                    controller: widthCtrl,
+                    decoration: const InputDecoration(labelText: 'Ширина, мм'),
+                  ),
+                  TextFormField(
+                    controller: depthCtrl,
+                    decoration: const InputDecoration(labelText: 'Глубина, мм'),
+                  ),
+                ],
                 DropdownButtonFormField<String>(
                   value: defectType,
                   decoration:
@@ -238,6 +301,8 @@ class InspectionDefectsSection extends StatelessWidget {
                   items: const [
                     DropdownMenuItem(value: 'Годен', child: Text('Годен')),
                     DropdownMenuItem(value: 'Не годен', child: Text('Не годен')),
+                    DropdownMenuItem(value: 'ремонт', child: Text('ремонт')),
+                    DropdownMenuItem(value: 'вырезать', child: Text('вырезать')),
                   ],
                   onChanged: (v) => setLocalState(() => assessment = v ?? 'Годен'),
                 ),
@@ -292,6 +357,23 @@ class InspectionDefectsSection extends StatelessWidget {
                 d.zone = zone;
                 d.assessment = assessment;
                 d.scope = '100%';
+                d.weldNumber = weldCtrl.text.trim().isEmpty
+                    ? null
+                    : weldCtrl.text.trim();
+                d.diameter =
+                    dnCtrl.text.trim().isEmpty ? null : dnCtrl.text.trim();
+                d.clockPosition = clockCtrl.text.trim().isEmpty
+                    ? null
+                    : clockCtrl.text.trim();
+                d.lengthMm = lengthCtrl.text.trim().isEmpty
+                    ? null
+                    : lengthCtrl.text.trim();
+                d.widthMm = widthCtrl.text.trim().isEmpty
+                    ? null
+                    : widthCtrl.text.trim();
+                d.depthMm = depthCtrl.text.trim().isEmpty
+                    ? null
+                    : depthCtrl.text.trim();
                 if (photoPath != null) {
                   d.photos = [photoPath!];
                 }

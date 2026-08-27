@@ -1,6 +1,6 @@
 ﻿import React, { useState, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Outlet, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon, Wallet, Network } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon, Wallet, Network, PenTool } from 'lucide-react';
 import {
   APP_VERSION,
   APP_HEADER_TITLE,
@@ -37,6 +37,7 @@ const VerificationsManagement = lazy(() => import('./pages/VerificationsManageme
 const VerificationsCalendar = lazy(() => import('./pages/VerificationsCalendar'));
 const ReportTemplates = lazy(() => import('./pages/ReportTemplates'));
 const ReportOrgSettings = lazy(() => import('./pages/ReportOrgSettings'));
+const EnterpriseCards = lazy(() => import('./pages/EnterpriseCards'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const EngineerPanel = lazy(() => import('./pages/EngineerPanel'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal'));
@@ -44,6 +45,7 @@ const PipelineMap = lazy(() => import('./pages/PipelineMap'));
 const ReportsAndExpertise = lazy(() => import('./pages/ReportsAndExpertise'));
 const ProtocolConstructor = lazy(() => import('./pages/ProtocolConstructor'));
 const DrawingTemplatesManager = lazy(() => import('./pages/DrawingTemplatesManager'));
+const VesselSchemeConstructor = lazy(() => import('./pages/VesselSchemeConstructor'));
 const DiagnosticMenuManager = lazy(() => import('./pages/DiagnosticMenuManager'));
 const InspectionObjectTemplatesManager = lazy(() => import('./pages/InspectionObjectTemplatesManager'));
 const DefectStatement = lazy(() => import('./pages/DefectStatement'));
@@ -195,6 +197,7 @@ const Layout: React.FC = () => {
             {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Инструменты</p>}
             <SidebarItem to="/protocol-constructor" icon={Layers} label={isSidebarOpen ? "Конструктор" : ""} />
             <SidebarItem to="/drawing-templates" icon={ImageIcon} label={isSidebarOpen ? "Шаблоны чертежей" : ""} />
+            <SidebarItem to="/vessel-scheme-constructor" icon={PenTool} label={isSidebarOpen ? "Конструктор схем" : ""} />
             <SidebarItem to="/diagnostic-menu" icon={Network} label={isSidebarOpen ? "Меню диагностики" : ""} />
             <SidebarItem to="/inspection-object-templates" icon={ListChecks} label={isSidebarOpen ? "Шаблоны обследования" : ""} />
           </>)}
@@ -213,10 +216,11 @@ const Layout: React.FC = () => {
             <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
             <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
             <SidebarItem to="/report-org-settings" icon={FileText} label={isSidebarOpen ? "Данные отчёта" : ""} />
+            <SidebarItem to="/enterprise-cards" icon={Building2} label={isSidebarOpen ? "Карточки предприятий" : ""} />
           </>)}
 
           {(user?.role === 'admin' || user?.role === 'chief_operator') && (
-            <SidebarItem to="/pipeline-map" icon={Map} label={isSidebarOpen ? "Карта трубопроводов" : ""} />
+            <SidebarItem to="/pipeline-map" icon={Map} label={isSidebarOpen ? "Текущие сотрудники" : ""} />
           )}
 
           {user?.role === 'engineer' && (
@@ -455,6 +459,7 @@ const App = () => {
             <Route path="/users" element={<ProtectedRoute requiredRole="admin"><UsersManagement /></ProtectedRoute>} />
             <Route path="/report-templates" element={<ProtectedRoute requiredRole="admin"><ReportTemplates /></ProtectedRoute>} />
             <Route path="/report-org-settings" element={<ProtectedRoute requiredRole="admin"><ReportOrgSettings /></ProtectedRoute>} />
+            <Route path="/enterprise-cards" element={<ProtectedRoute requiredRole="admin"><EnterpriseCards /></ProtectedRoute>} />
             <Route path="/inspection" element={<DynamicInspection />} />
             <Route path="/specs" element={<TechSpecs />} />
             <Route path="/glossary" element={<Glossary />} />
@@ -473,6 +478,7 @@ const App = () => {
             <Route path="/reports-expertise" element={<ReportsAndExpertise />} />
             <Route path="/protocol-constructor" element={<ProtocolConstructor />} />
             <Route path="/drawing-templates" element={<DrawingTemplatesManager />} />
+            <Route path="/vessel-scheme-constructor" element={<VesselSchemeConstructor />} />
             <Route path="/diagnostic-menu" element={<DiagnosticMenuManager />} />
             <Route path="/inspection-object-templates" element={<InspectionObjectTemplatesManager />} />
             <Route path="/defect-statement" element={<DefectStatement />} />

@@ -16,7 +16,9 @@ from PIL import Image, ImageDraw
 from form_template_filler import fill_vessel_form_to1
 from form_template_filler_pipeline import fill_pipeline_form_to13
 from form_template_filler_tank import fill_tank_form_to25
-from report_forms_registry import FILLABLE_FORM_IDS, resolve_form_path
+from form_template_filler_underground_pipeline import fill_underground_pipeline_form_to33
+from form_template_filler_crane import fill_crane_form_to3
+from report_forms_registry import FILLABLE_FORM_IDS, resolve_form_path, suggest_form_id
 
 
 def _make_png(path: Path, label: str) -> str:
@@ -82,8 +84,8 @@ def _base_data(**extra):
 
 
 def main() -> int:
-    assert FILLABLE_FORM_IDS == frozenset({"to-1", "to-13", "to-25"})
-    for fid in FILLABLE_FORM_IDS:
+    assert FILLABLE_FORM_IDS == frozenset({f"to-{i}" for i in range(1, 45)})
+    for fid in ("to-1", "to-3", "to-13", "to-25", "to-33", "to-5", "to-12", "to-28"):
         p = resolve_form_path(fid)
         assert p and p.exists(), f"Нет шаблона {fid}"
 
@@ -176,6 +178,79 @@ def main() -> int:
         )
         results["to-25"] = out25
 
+        data33 = dict(data)
+        data33["report_form_id"] = "to-33"
+        data33["vessel_name"] = "Подземный трубопровод ПТ-1"
+        data33["pipeline_category"] = "II"
+        data33["pipeline_length"] = "120 м"
+        data33["weld_inspections"] = [
+            {"weld_number": "С1", "result": "дефектов не обнаружено"},
+            {"weld_number": "С2", "result": "дефектов не обнаружено"},
+        ]
+        out33 = out_dir / "_test_generated_to33.docx"
+        fill_underground_pipeline_form_to33(
+            {"date_performed": "2026-06-15", "data": data33},
+            {
+                **equipment,
+                "name": "Подземный трубопровод ПТ-1",
+                "type_code": "UNDERGROUND_PIPELINE",
+            },
+            str(out33),
+            verification_equipment=ve,
+            org_settings=org,
+            specialist_docs=specialist_docs,
+            document_files=document_files,
+        )
+        results["to-33"] = out33
+
+        data3 = dict(data)
+        data3["report_form_id"] = "to-3"
+        data3["vessel_name"] = "Кран КС-25"
+        data3["additional_data"] = {
+            "crane_type": "Кран стреловой",
+            "crane_capacity": "25 т",
+            "crane_mode": "A3",
+        }
+        out3 = out_dir / "_test_generated_to3.docx"
+        fill_crane_form_to3(
+            {"date_performed": "2026-06-15", "data": data3},
+            {**equipment, "name": "Кран КС-25", "type_code": "CRANE"},
+            str(out3),
+            verification_equipment=ve,
+            org_settings=org,
+            specialist_docs=specialist_docs,
+            document_files=document_files,
+        )
+        results["to-3"] = out3
+
+        # Generic filler smoke for forms without specialized filler
+        from form_template_filler_generic import fill_generic_official_form
+
+        for fid in ("to-5", "to-12", "to-28", "to-9", "to-44"):
+            out_g = out_dir / f"_test_generated_{fid}.docx"
+            data_g = dict(data)
+            data_g["report_form_id"] = fid
+            data_g["vessel_name"] = f"Объект {fid}"
+            fill_generic_official_form(
+                form_id=fid,
+                inspection_data={"date_performed": "2026-06-15", "data": data_g},
+                equipment_data={**equipment, "name": f"Объект {fid}", "type_code": "VESSEL"},
+                output_path=str(out_g),
+                verification_equipment=ve,
+                org_settings=org,
+                specialist_docs=specialist_docs,
+                document_files=document_files,
+            )
+            assert out_g.exists() and out_g.stat().st_size > 10_000, fid
+            results[fid] = out_g
+            print(f"OK {fid}:", out_g, "size=", out_g.stat().st_size)
+
+        assert suggest_form_id("UNDERGROUND_PIPELINE", "ТП") == "to-33"
+        assert suggest_form_id("PIPELINE", "Подземный участок") == "to-33"
+        assert suggest_form_id("PIPELINE", "ТП-1") == "to-13"
+        assert suggest_form_id("CRANE", "Кран") == "to-3"
+        assert suggest_form_id("VESSEL", "Сосуд") == "to-1"
+
         # Проверки содержимого to-1
         from docx import Document
 
@@ -202,6 +277,8 @@ def main() -> int:
         print("OK to-1:", out1, "images=", len(image_rels))
         print("OK to-13:", out13, "size=", out13.stat().st_size)
         print("OK to-25:", out25, "size=", out25.stat().st_size)
+        print("OK to-33:", out33, "size=", out33.stat().st_size)
+        print("OK to-3:", out3, "size=", out3.stat().st_size)
         print("ALL PASSED")
         return 0
 

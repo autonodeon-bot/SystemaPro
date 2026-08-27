@@ -105,6 +105,7 @@ class SyncService {
 
       addAttachmentIfPresent('factory_plate_photo');
       addAttachmentIfPresent('control_scheme_image');
+      addAttachmentIfPresent('connection_scheme_file');
       final additionalData = checklistJson['additional_data'];
       if (additionalData is Map) {
         final objectPhotos = additionalData['object_photos'];

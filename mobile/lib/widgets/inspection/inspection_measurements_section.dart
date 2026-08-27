@@ -690,7 +690,14 @@ class InspectionMeasurementsSection extends StatelessWidget {
         TextEditingController(text: editWeld?.locationOnControlMap ?? '');
     final pvk = TextEditingController(text: editWeld?.pvkDefect ?? '');
     final uzk = TextEditingController(text: editWeld?.uzkDefect ?? '');
+    final defectNumber =
+        TextEditingController(text: editWeld?.defectNumber ?? '');
+    final eqArea =
+        TextEditingController(text: editWeld?.equivalentArea ?? '');
+    final depth = TextEditingController(text: editWeld?.depth ?? '');
+    final length = TextEditingController(text: editWeld?.length ?? '');
     String controlMethod = editWeld?.controlMethod?.toUpperCase() ?? 'MPK';
+    String character = editWeld?.character ?? '';
     final xPercent = TextEditingController(
         text: editWeld?.xPercent != null
             ? editWeld!.xPercent!.toStringAsFixed(1)
@@ -733,6 +740,38 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 ),
                 buildDialogTextField(pvk, 'Дефект (ПВК/МК)'),
                 buildDialogTextField(uzk, 'Дефект (УЗК)'),
+                buildDialogTextField(defectNumber, 'Условный номер дефекта'),
+                buildDialogTextField(eqArea, 'Эквивалентная площадь Sдеф, мм²',
+                    keyboard: TextInputType.number),
+                buildDialogTextField(depth, 'Глубина залегания Y, мм',
+                    keyboard: TextInputType.number),
+                buildDialogTextField(length, 'Протяжённость ΔL, мм',
+                    keyboard: TextInputType.number),
+                DropdownButtonFormField<String>(
+                  value: (character == 'объёмный' || character == 'плоскостной')
+                      ? character
+                      : '',
+                  decoration: const InputDecoration(
+                    labelText: 'Форма дефекта',
+                    labelStyle: TextStyle(color: Colors.white70),
+                  ),
+                  dropdownColor: kInspectionDarkBg,
+                  items: const [
+                    DropdownMenuItem(
+                        value: '',
+                        child: Text('не указана',
+                            style: TextStyle(color: Colors.white70))),
+                    DropdownMenuItem(
+                        value: 'объёмный',
+                        child: Text('объёмный',
+                            style: TextStyle(color: Colors.white))),
+                    DropdownMenuItem(
+                        value: 'плоскостной',
+                        child: Text('плоскостной',
+                            style: TextStyle(color: Colors.white))),
+                  ],
+                  onChanged: (v) => setInner(() => character = v ?? ''),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -793,6 +832,13 @@ class InspectionMeasurementsSection extends StatelessWidget {
       w.controlMethod = controlMethod;
       w.pvkDefect = pvk.text.trim().isEmpty ? null : pvk.text.trim();
       w.uzkDefect = uzk.text.trim().isEmpty ? null : uzk.text.trim();
+      w.defectNumber =
+          defectNumber.text.trim().isEmpty ? null : defectNumber.text.trim();
+      w.equivalentArea =
+          eqArea.text.trim().isEmpty ? null : eqArea.text.trim();
+      w.depth = depth.text.trim().isEmpty ? null : depth.text.trim();
+      w.length = length.text.trim().isEmpty ? null : length.text.trim();
+      w.character = character.isEmpty ? null : character;
       w.defectDescription = controlMethod == 'UZK'
           ? (w.uzkDefect ?? 'дефектов не обнаружено')
           : (w.pvkDefect ?? 'дефектов не обнаружено');

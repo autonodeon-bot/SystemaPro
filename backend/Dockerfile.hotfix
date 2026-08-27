@@ -1,0 +1,7 @@
+﻿FROM es-td-ngo-backend:latest
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer fonts-dejavu-core fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+COPY backend/ /app/
+WORKDIR /app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
