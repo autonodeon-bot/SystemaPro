@@ -217,6 +217,7 @@ class InspectionDefectsSection extends StatelessWidget {
               children: [
                 DropdownButtonFormField<String>(
                   value: zone,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Зона осмотра'),
                   items: [
                     const DropdownMenuItem(value: 'external', child: Text('Наружный осмотр')),
@@ -277,6 +278,7 @@ class InspectionDefectsSection extends StatelessWidget {
                 ],
                 DropdownButtonFormField<String>(
                   value: defectType,
+                  isExpanded: true,
                   decoration:
                       const InputDecoration(labelText: 'Тип дефекта (если есть)'),
                   items: defectTypes
@@ -297,6 +299,7 @@ class InspectionDefectsSection extends StatelessWidget {
                 ),
                 DropdownButtonFormField<String>(
                   value: assessment,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Оценка качества'),
                   items: const [
                     DropdownMenuItem(value: 'Годен', child: Text('Годен')),
@@ -312,8 +315,8 @@ class InspectionDefectsSection extends StatelessWidget {
                     'Фото: ${Path.basename(photoPath!)}',
                     style: const TextStyle(fontSize: 12),
                   ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
                   children: [
                     TextButton.icon(
                       onPressed: () async {

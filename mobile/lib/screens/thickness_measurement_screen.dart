@@ -615,6 +615,23 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
             fit: BoxFit.fill,
           ),
         ),
+        // Слой добавления точки лежит под маркерами: иначе тап по готовому
+        // маркеру перехватывался им и создавал новую точку поверх старой.
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) {
+              _pendingTapPosition = details.localPosition;
+            },
+            onTap: () {
+              if (_pendingTapPosition != null) {
+                _handleImageTapAtLocal(_pendingTapPosition!, imageSize);
+                _pendingTapPosition = null;
+              }
+            },
+            onTapCancel: () => _pendingTapPosition = null,
+          ),
+        ),
         ..._measurements.map((point) {
           final hasBoth = point.thickness != null && point.minAllowedThickness != null;
           final isCritical = hasBoth && point.thickness! < point.minAllowedThickness!;
@@ -653,21 +670,6 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
             ),
           );
         }),
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: (details) {
-              _pendingTapPosition = details.localPosition;
-            },
-            onTap: () {
-              if (_pendingTapPosition != null) {
-                _handleImageTapAtLocal(_pendingTapPosition!, imageSize);
-                _pendingTapPosition = null;
-              }
-            },
-            onTapCancel: () => _pendingTapPosition = null,
-          ),
-        ),
       ],
     );
 

@@ -547,6 +547,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
     return DropdownButtonFormField<String>(
       decoration: _inputDeco('Стандартная формулировка заключения'),
       dropdownColor: const Color(0xFF1e293b),
+      isExpanded: true,
       items: [
         ...presets.map(
           (t) => DropdownMenuItem(
@@ -661,6 +662,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         FormBuilderDropdown<String>(
           name: 'method_transducer_type',
           decoration: _inputDeco('Тип преобразователя'),
+          isExpanded: true,
           items: const [
             DropdownMenuItem(value: 'Прямой', child: Text('Прямой', style: TextStyle(color: Colors.white))),
             DropdownMenuItem(value: 'Наклонный', child: Text('Наклонный', style: TextStyle(color: Colors.white))),
@@ -828,6 +830,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
                         : 'объёмный',
                     decoration: _inputDeco('Характер дефекта'),
                     dropdownColor: const Color(0xFF0f172a),
+                    isExpanded: true,
                     style: const TextStyle(color: Colors.white),
                     items: const [
                       DropdownMenuItem(value: 'объёмный', child: Text('Объёмный')),
@@ -907,6 +910,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         FormBuilderDropdown<String>(
           name: 'method_magnetization_type',
           decoration: _inputDeco('Тип намагничивания / способ контроля'),
+          isExpanded: true,
           items: const [
             DropdownMenuItem(value: 'Циркулярное', child: Text('Циркулярное', style: TextStyle(color: Colors.white))),
             DropdownMenuItem(value: 'Продольное', child: Text('Продольное', style: TextStyle(color: Colors.white))),
@@ -1046,6 +1050,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
         FormBuilderDropdown<String>(
           name: 'method_hardness_test_method',
           decoration: _inputDeco('Метод измерения'),
+          isExpanded: true,
           items: const [
             DropdownMenuItem(value: 'Динамический (Либа)', child: Text('Динамический (Либа)', style: TextStyle(color: Colors.white))),
             DropdownMenuItem(value: 'Статический (Бринелль)', child: Text('Статический (Бринелль)', style: TextStyle(color: Colors.white))),
@@ -1215,18 +1220,22 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
       body: FormBuilder(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(
+              16, 16, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
           children: [
             // ── Выбор метода НК ─────────────────────────────────
             FormBuilderDropdown<String>(
               name: 'method_code',
               decoration: _inputDeco('Метод неразрушающего контроля *'),
+              isExpanded: true,
               items: NDT_METHODS.map((method) {
                 return DropdownMenuItem(
                   value: method['code'],
                   child: Text(
                     '${method['code']} - ${method['name']}',
                     style: const TextStyle(color: Colors.white),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 );
               }).toList(),

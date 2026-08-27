@@ -1,4 +1,4 @@
-﻿"""
+"""
 Монитор — API (ЕС ТД НГО / SystemaPro)
 Единая система технической диагностики нефтегазового оборудования.
 
@@ -63,7 +63,7 @@ from report_org_settings_api import router as report_org_settings_router
 app = FastAPI(
     title="Монитор — API (SystemaPro)",
     description="API платформы «Монитор»: единая система технической диагностики нефтегазового оборудования (ЕС ТД НГО / SystemaPro). Учёт оборудования, задания, обследования, отчёты.",
-    version="3.7.25",
+    version="3.7.26",
     openapi_tags=[
         {"name": "auth", "description": "Авторизация и пользователи"},
         {"name": "assignments", "description": "Задания"},
@@ -81,7 +81,7 @@ app = FastAPI(
 )
 
 # ─── Observability (Sentry + Prometheus + loguru) ─────────────────────────────
-os.environ.setdefault("APP_VERSION", "3.7.25")
+os.environ.setdefault("APP_VERSION", "3.7.26")
 init_observability(app)
 log = get_logger("main")
 
@@ -696,7 +696,7 @@ async def _run_migrations():
 async def root():
     return {
         "message": "ES TD NGO Platform API",
-        "version": os.getenv("APP_VERSION", "3.7.25"),
+        "version": os.getenv("APP_VERSION", "3.7.26"),
         "status": "running",
     }
 
@@ -733,7 +733,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         ok = False
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
-    checks["version"] = os.getenv("APP_VERSION", "3.7.25")
+    checks["version"] = os.getenv("APP_VERSION", "3.7.26")
     if not ok:
         return JSONResponse(status_code=503, content={"status": "not_ready", **checks})
     return {"status": "ready", **checks}

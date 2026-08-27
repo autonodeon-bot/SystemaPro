@@ -476,10 +476,14 @@ class InspectionGeneralInfoSection extends StatelessWidget {
               labelStyle: TextStyle(color: Colors.white70),
             ),
             dropdownColor: kInspectionDarkBg,
+            isExpanded: true,
             style: const TextStyle(color: Colors.white),
             items: [
               ...organizationOptions.map(
-                (o) => DropdownMenuItem(value: o, child: Text(o)),
+                (o) => DropdownMenuItem(
+                  value: o,
+                  child: Text(o, maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
               ),
             ],
             onChanged: (value) {
@@ -528,6 +532,9 @@ class InspectionGeneralInfoSection extends StatelessWidget {
                 style: TextStyle(color: Colors.white)),
             content: SizedBox(
               width: double.maxFinite,
+              // Без ограничения по высоте длинный список инженеров выходит
+              // за пределы экрана и обрезается.
+              height: MediaQuery.sizeOf(ctx).height * 0.6,
               child: ListView(
                 shrinkWrap: true,
                 children: engineers.map((eng) {

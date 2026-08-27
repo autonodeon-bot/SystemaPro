@@ -2293,10 +2293,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               Text(
                 widget.equipment.name,
                 style: const TextStyle(fontSize: 16),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               Text(
                 _reportForm.displayTitle,
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -2816,6 +2820,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             color: Color(0xFF1B2438),
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
+          // Список разделов не влезает на маленьком экране и при крупном
+          // системном шрифте — ограничиваем высоту и прокручиваем.
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetCtx).height * 0.8,
+          ),
           padding: EdgeInsets.fromLTRB(
               16, 16, 16, MediaQuery.viewPaddingOf(sheetCtx).bottom + 16),
           child: Column(
@@ -2838,18 +2847,26 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                 children: [
                   const Icon(Icons.list_alt_outlined, color: Colors.white70, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    _reportForm.displayTitle,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      _reportForm.displayTitle,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              ...List.generate(_pageLabels.length, (idx) {
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _pageLabels.length,
+                  itemBuilder: (listCtx, idx) {
                 final isCurrent = idx == _currentPage;
                 return Material(
                   color: Colors.transparent,
@@ -2922,7 +2939,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
                     ),
                   ),
                 );
-              }),
+                  },
+                ),
+              ),
             ],
           ),
         );

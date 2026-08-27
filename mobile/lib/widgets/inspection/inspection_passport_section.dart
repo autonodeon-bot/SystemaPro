@@ -435,6 +435,7 @@ class InspectionPassportSection extends StatelessWidget {
                         labelStyle: TextStyle(color: Colors.white70),
                       ),
                       dropdownColor: const Color(0xFF0f172a),
+                      isExpanded: true,
                       style: const TextStyle(color: Colors.white),
                       items: const [
                         DropdownMenuItem(value: 'гидравлическое', child: Text('Гидравлическое')),
@@ -452,6 +453,7 @@ class InspectionPassportSection extends StatelessWidget {
                         labelStyle: TextStyle(color: Colors.white70),
                       ),
                       dropdownColor: const Color(0xFF0f172a),
+                      isExpanded: true,
                       style: const TextStyle(color: Colors.white),
                       items: const [
                         DropdownMenuItem(value: 'вода', child: Text('Вода')),

@@ -143,11 +143,29 @@ Widget buildDropdownField(String name, String label, List<String> items,
           ? initialValue
           : null,
       decoration: _fieldDecoration(label),
+      // Формулировки заключений НК занимают до ~100 символов и без isExpanded
+      // выходят за ширину поля.
+      isExpanded: true,
       items: opts
           .map((item) => DropdownMenuItem(
                 value: item,
-                child:
-                    Text(item, style: const TextStyle(color: Colors.white)),
+                child: Text(
+                  item,
+                  style: const TextStyle(color: Colors.white),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ))
+          .toList(),
+      selectedItemBuilder: (context) => opts
+          .map((item) => Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  item,
+                  style: const TextStyle(color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ))
           .toList(),
       onChanged: onChanged,

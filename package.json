@@ -1,7 +1,7 @@
 {
   "name": "es-td-ngo-platform",
   "private": true,
-  "version": "3.7.25",
+  "version": "3.7.26",
   "type": "module",
   "scripts": {
     "dev": "vite",

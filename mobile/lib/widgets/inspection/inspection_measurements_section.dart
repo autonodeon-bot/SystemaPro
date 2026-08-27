@@ -732,6 +732,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
                     labelStyle: TextStyle(color: Colors.white70),
                   ),
                   dropdownColor: kInspectionDarkBg,
+                  isExpanded: true,
                   items: const [
                     DropdownMenuItem(value: 'MPK', child: Text('МПК', style: TextStyle(color: Colors.white))),
                     DropdownMenuItem(value: 'UZK', child: Text('УЗК', style: TextStyle(color: Colors.white))),
@@ -756,6 +757,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
                     labelStyle: TextStyle(color: Colors.white70),
                   ),
                   dropdownColor: kInspectionDarkBg,
+                  isExpanded: true,
                   items: const [
                     DropdownMenuItem(
                         value: '',
@@ -798,10 +800,13 @@ class InspectionMeasurementsSection extends StatelessWidget {
                         borderSide: BorderSide(color: Colors.blue)),
                   ),
                   dropdownColor: kInspectionDarkBg,
+                  isExpanded: true,
                   items: ChecklistConstants.weldConclusions
                       .map((c) => DropdownMenuItem(
                           value: c,
                           child: Text(c,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style:
                                   const TextStyle(color: Colors.white))))
                       .toList(),
