@@ -42,6 +42,12 @@ from scheme_family_renderers import (
     draw_valve_family,
 )
 
+# Легенда: 3 колонки позволяют уместить все патрубки крупного сосуда,
+# не съедая поле чертежа.
+_LEGEND_COLUMNS = 3
+_LEGEND_LINE_H = 14
+_LEGEND_MAX_H = 190
+
 WELD_PRESETS = (
     "ring_only",
     "long_plus_rings",
@@ -424,7 +430,9 @@ def normalize_geometry(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def _layout_development(geo: Dict[str, Any], width: int, height: int) -> Dict[str, Any]:
+def _layout_development(
+    geo: Dict[str, Any], width: int, height: int, margin_bottom: int = 120
+) -> Dict[str, Any]:
     """Развёртка: прямоугольник корпуса + круги днищ.
 
     vertical: верхнее днище / корпус / нижнее днище
@@ -433,17 +441,18 @@ def _layout_development(geo: Dict[str, Any], width: int, height: int) -> Dict[st
     orient = str(geo.get("orientation") or "vertical")
     margin_x = 70
     margin_top = 56
-    margin_bottom = 120
     usable_w = width - 2 * margin_x
     usable_h = height - margin_top - margin_bottom
     cx = width / 2
     cy = margin_top + usable_h / 2
 
     if orient == "horizontal":
-        head_d = min(usable_h * 0.72, usable_w * 0.22)
+        # Днища и корпус должны занимать поле чертежа, иначе развёртка
+        # висит узкой полосой посреди пустого листа.
+        head_d = min(usable_h * 0.55, usable_w * 0.24)
         gap = 22
         body_w = max(280, usable_w - 2 * head_d - 2 * gap)
-        body_h = min(usable_h * 0.78, head_d * 1.15)
+        body_h = min(usable_h * 0.9, head_d * 1.9)
         body_x0 = margin_x + head_d + gap
         body_x1 = body_x0 + body_w
         body_y0 = cy - body_h / 2
@@ -552,7 +561,64 @@ def _draw_full_head_circle(
     # внутренний кружок (люк / патрубок условно)
     ir = r * 0.22
     draw.ellipse([cx - ir, cy - ir, cx + ir, cy + ir], outline=ink, width=2)
-    draw.text((cx - r - 4, cy - r - 18), label, fill=ink, font=font)
+    # Подпись сбоку от круга с выноской: над кругом она наезжает на кромку
+    # корпуса развёртки, а снизу — на размер диаметра днища.
+    try:
+        tb = draw.textbbox((0, 0), label, font=font)
+        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+    except Exception:
+        tw, th = len(label) * 6.0, 11.0
+    if cx - r - tw - 14 >= 12:
+        lx, leader_x = cx - r - tw - 14, cx - r - 10
+    else:
+        lx, leader_x = cx + r + 14, cx + r + 10
+    ly = cy - r * 0.55 - th / 2
+    draw.text((lx, ly), label, fill=ink, font=font)
+    draw.line([(leader_x, ly + th / 2), (cx + (r * 0.28 if leader_x < cx else -r * 0.28), cy - r * 0.35)], fill=ink, width=1)
+
+
+def _boxes_overlap(a: Tuple[float, float, float, float], b: Tuple[float, float, float, float]) -> bool:
+    return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
+
+
+def _place_label(
+    draw: ImageDraw.ImageDraw,
+    anchor_x: float,
+    anchor_y: float,
+    r: float,
+    caption: str,
+    font,
+    taken: List[Tuple[float, float, float, float]],
+) -> Tuple[float, float]:
+    """Подобрать позицию подписи так, чтобы она не наезжала на уже размещённые."""
+    try:
+        tb = draw.textbbox((0, 0), caption, font=font)
+        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+    except Exception:
+        tw, th = len(caption) * 6.0, 11.0
+
+    # справа, слева, снизу, сверху — и те же варианты с увеличенным отступом
+    candidates: List[Tuple[float, float]] = []
+    for step in (0, 1, 2):
+        pad = r + 4 + step * (th + 3)
+        candidates.extend(
+            [
+                (anchor_x + pad, anchor_y - th / 2),
+                (anchor_x - pad - tw, anchor_y - th / 2),
+                (anchor_x - tw / 2, anchor_y + pad),
+                (anchor_x - tw / 2, anchor_y - pad - th),
+            ]
+        )
+
+    for lx, ly in candidates:
+        box = (lx - 1, ly - 1, lx + tw + 1, ly + th + 1)
+        if not any(_boxes_overlap(box, t) for t in taken):
+            taken.append(box)
+            return lx, ly
+
+    lx, ly = candidates[0]
+    taken.append((lx - 1, ly - 1, lx + tw + 1, ly + th + 1))
+    return lx, ly
 
 
 def _draw_nozzle_on_dev(
@@ -563,6 +629,7 @@ def _draw_nozzle_on_dev(
     label: str,
     accent: Tuple[int, int, int],
     font,
+    taken: Optional[List[Tuple[float, float, float, float]]] = None,
 ) -> Tuple[float, float]:
     try:
         dn_f = float(str(dn).replace(",", "."))
@@ -574,7 +641,13 @@ def _draw_nozzle_on_dev(
     draw.line([(x - r * 0.55, y), (x + r * 0.55, y)], fill=accent, width=1)
     draw.line([(x, y - r * 0.55), (x, y + r * 0.55)], fill=accent, width=1)
     caption = f"{label}" + (f" Ø{dn}" if dn not in (None, "") else "")
-    draw.text((x + r + 4, y - 8), caption, fill=accent, font=font)
+    if taken is None:
+        draw.text((x + r + 4, y - 8), caption, fill=accent, font=font)
+    else:
+        # сам кружок патрубка тоже занимает место — подписи его обходят
+        taken.append((x - r, y - r, x + r, y + r))
+        lx, ly = _place_label(draw, x, y, r, caption, font, taken)
+        draw.text((lx, ly), caption, fill=accent, font=font)
     return x, y
 
 
@@ -588,39 +661,80 @@ def _draw_layer_overlays(
     weld_segs: Dict[str, Tuple[float, float, float, float]],
     nozzle_xy: Dict[str, Tuple[float, float]],
     font_tiny,
+    taken: Optional[List[Tuple[float, float, float, float]]] = None,
+    body: Optional[Tuple[float, float, float, float]] = None,
 ) -> None:
     """Точки УЗТ/ТК и зоны УЗК/МПК поверх развёртки."""
+    boxes = taken if taken is not None else []
+
+    def _xy(p: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+        if body is not None and p.get("auto_placed"):
+            # Расчётные точки раскладываем сеткой по реальному корпусу —
+            # иначе они уезжают за развёртку или слипаются у кромок.
+            bx0, by0, bx1, by1 = body
+            cols = max(1, int(p.get("auto_cols") or 1))
+            rows = max(1, int(p.get("auto_rows") or 1))
+            pad_x = min(30.0, (bx1 - bx0) * 0.06)
+            pad_y = min(30.0, (by1 - by0) * 0.08)
+            ix0, ix1 = bx0 + pad_x, bx1 - pad_x
+            iy0, iy1 = by0 + pad_y, by1 - pad_y
+            col = int(p.get("auto_col") or 0)
+            row = int(p.get("auto_row") or 0)
+            x = ix0 + (ix1 - ix0) * ((col + 0.5) / cols)
+            y = iy0 + (iy1 - iy0) * ((row + 0.5) / rows)
+            return x, y
+
+        xp, yp = p.get("x_percent"), p.get("y_percent")
+        if xp in (None, "") or yp in (None, ""):
+            return None
+        x = width * _f(xp) / 100.0
+        y = height * _f(yp) / 100.0
+        if body is not None:
+            bx0, by0, bx1, by1 = body
+            inset = 14
+            x = min(max(x, bx0 + inset), bx1 - inset)
+            y = min(max(y, by0 + inset), by1 - inset)
+        return x, y
+
+    def _point(x: float, y: float, r: float, caption: str, fill, outline, text_color) -> None:
+        if fill is None:
+            draw.ellipse([x - r, y - r, x + r, y + r], outline=outline, width=2)
+        else:
+            draw.ellipse([x - r, y - r, x + r, y + r], fill=fill, outline=outline, width=1)
+        if not caption:
+            return
+        boxes.append((x - r, y - r, x + r, y + r))
+        lx, ly = _place_label(draw, x, y, r, caption, font_tiny, boxes)
+        draw.text((lx, ly), caption, fill=text_color, font=font_tiny)
+
     if layer == "uzt":
         color = (40, 160, 70)
         for p in overlays.get("uzt_points") or []:
-            xp = p.get("x_percent")
-            yp = p.get("y_percent")
-            if xp in (None, "") or yp in (None, ""):
+            pos = _xy(p)
+            if pos is None:
                 continue
-            x = width * _f(xp) / 100.0
-            y = height * _f(yp) / 100.0
-            r = 5
-            draw.ellipse([x - r, y - r, x + r, y + r], fill=color, outline=(20, 90, 40), width=1)
-            draw.text((x + 6, y - 8), str(p.get("n") or ""), fill=(20, 80, 30), font=font_tiny)
+            _point(pos[0], pos[1], 5, str(p.get("n") or ""), color, (20, 90, 40), (20, 80, 30))
         return
     if layer == "hardness":
         color = (40, 160, 70)
         for p in overlays.get("hardness_points") or []:
-            xp, yp = p.get("x_percent"), p.get("y_percent")
-            if xp in (None, "") or yp in (None, ""):
+            pos = _xy(p)
+            if pos is None:
                 continue
-            x = width * _f(xp) / 100.0
-            y = height * _f(yp) / 100.0
-            draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=color, outline=(20, 90, 40), width=1)
-            draw.text((x + 6, y - 8), str(p.get("n") or p.get("label") or ""), fill=(20, 80, 30), font=font_tiny)
+            _point(
+                pos[0],
+                pos[1],
+                5,
+                str(p.get("n") or p.get("label") or ""),
+                color,
+                (20, 90, 40),
+                (20, 80, 30),
+            )
         for p in (overlays.get("hardness_T") or []) + (overlays.get("hardness_U") or []):
-            xp, yp = p.get("x_percent"), p.get("y_percent")
-            if xp in (None, "") or yp in (None, ""):
+            pos = _xy(p)
+            if pos is None:
                 continue
-            x = width * _f(xp) / 100.0
-            y = height * _f(yp) / 100.0
-            draw.ellipse([x - 7, y - 7, x + 7, y + 7], outline=color, width=2)
-            draw.text((x + 8, y - 8), str(p.get("label") or ""), fill=color, font=font_tiny)
+            _point(pos[0], pos[1], 7, str(p.get("label") or ""), None, color, color)
         return
     if layer in ("uzk", "mpk"):
         zone_color = (0, 190, 210) if layer == "uzk" else (50, 190, 70)
@@ -742,9 +856,21 @@ def render_vessel_scheme(
     elif family == FAMILY_GENERIC:
         draw_generic_family(draw, geo, **family_kw)
     elif family == FAMILY_VESSEL_DEV:
-        layout = _layout_development(geo, width, height)
+        layout = _layout_development(
+            geo, width, height, margin_bottom=legend_height_px(geo, overlays or {}, layer) + 24
+        )
         x0, y0, x1, y1 = layout["body"]
         n_shell = max(1, int(geo.get("shell_count") or 1))
+        # Занятые подписями места: патрубки, швы и размеры регистрируются здесь,
+        # чтобы номера точек УЗТ/твёрдости на них не наезжали.
+        label_boxes: List[Tuple[float, float, float, float]] = []
+
+        def _mark_text(tx: float, ty: float, text: str, fnt) -> None:
+            try:
+                tb = draw.textbbox((tx, ty), text, font=fnt)
+            except Exception:
+                tb = (tx, ty, tx + len(text) * 6.0, ty + 11.0)
+            label_boxes.append((tb[0] - 1, tb[1] - 1, tb[2] + 1, tb[3] + 1))
 
         heads = geo.get("heads") or []
         h0 = heads[0] if heads else {}
@@ -783,6 +909,7 @@ def render_vessel_scheme(
                 x = x0 + (x1 - x0) * pos
                 draw.line([(x, y0), (x, y1)], fill=weld_color, width=2)
                 draw.text((x - 8, y0 - 16), label, fill=weld_color, font=font_sm)
+                _mark_text(x - 8, y0 - 16, label, font_sm)
                 weld_segs[label] = (x, y0, x, y1)
                 px, py = x, y0 - 10
             else:
@@ -790,8 +917,11 @@ def render_vessel_scheme(
                 draw.line([(x0, y), (x1, y)], fill=weld_color, width=2)
                 if 0.02 < pos < 0.98:
                     draw.text((x1 + 6, y - 8), label, fill=weld_color, font=font_sm)
+                    _mark_text(x1 + 6, y - 8, label, font_sm)
                 else:
-                    draw.text((x1 + 6, y - 8 if pos < 0.5 else y), label, fill=weld_color, font=font_tiny)
+                    ly = y - 8 if pos < 0.5 else y
+                    draw.text((x1 + 6, ly), label, fill=weld_color, font=font_tiny)
+                    _mark_text(x1 + 6, ly, label, font_tiny)
                 weld_segs[label] = (x0, y, x1, y)
                 px, py = x1 + 10, y
             suggested.append(
@@ -828,6 +958,7 @@ def render_vessel_scheme(
                 lx, ly = x + 4, (ya + yb) / 2 - 6
                 weld_segs[label] = (x, ya, x, yb)
             draw.text((lx, ly), label, fill=weld_color, font=font_sm)
+            _mark_text(lx, ly, label, font_sm)
             suggested.append(
                 {
                     "label": label,
@@ -847,15 +978,18 @@ def render_vessel_scheme(
             if horiz:
                 xm = x0 + (x1 - x0) * frac
                 draw.text((xm - 18, y1 + 6), lab, fill=(100, 100, 100), font=font_tiny)
+                _mark_text(xm - 18, y1 + 6, lab, font_tiny)
             else:
                 ym = y0 + (y1 - y0) * frac
                 draw.text((x0 - 78, ym - 6), lab, fill=(100, 100, 100), font=font_tiny)
+                _mark_text(x0 - 78, ym - 6, lab, font_tiny)
         body_len = dims.get("body_length_mm")
         if body_len:
             if horiz:
                 draw.text(((x0 + x1) / 2 - 30, y1 + 22), f"L={body_len:g}", fill=ink, font=font_tiny)
             else:
-                draw.text((x1 + 8, y1 - 14), f"L={body_len:g}", fill=ink, font=font_tiny)
+                # справа от корпуса идут метки кольцевых швов К1…Кn — уводим влево
+                draw.text((x0 - 78, y1 + 6), f"L={body_len:g}", fill=ink, font=font_tiny)
 
         nozzle_xy: Dict[str, Tuple[float, float]] = {}
         for n in geo.get("nozzles") or []:
@@ -883,7 +1017,7 @@ def render_vessel_scheme(
                 else:
                     nx = x0 + (x1 - x0) * circ
                     ny = y0 + (y1 - y0) * axial
-            _draw_nozzle_on_dev(draw, nx, ny, dn, label, accent, font_tiny)
+            _draw_nozzle_on_dev(draw, nx, ny, dn, label, accent, font_tiny, label_boxes)
             nozzle_xy[label] = (nx, ny)
             suggested.append(
                 {
@@ -903,6 +1037,8 @@ def render_vessel_scheme(
             weld_segs=weld_segs,
             nozzle_xy=nozzle_xy,
             font_tiny=font_tiny,
+            taken=label_boxes,
+            body=(x0, y0, x1, y1),
         )
     else:
         draw_generic_family(draw, geo, **family_kw)
@@ -919,7 +1055,51 @@ def render_vessel_scheme(
             font_tiny=font_tiny,
         )
 
-    legend_y = height - 108
+    lines = _build_legend_lines(geo, overlays or {}, layer)
+    k_labs = [str(w.get("label") or "") for w in (geo.get("welds") or []) if str(w.get("kind")) == "circumferential"]
+    p_labs = [str(w.get("label") or "") for w in (geo.get("welds") or []) if str(w.get("kind")) == "longitudinal"]
+    _draw_legend(draw, lines, width=width, height=height, weld_color=weld_color, accent=accent, font=font_tiny)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue(), geo, suggested
+
+
+def _nozzle_legend_lines(nozzles: List[Any]) -> List[str]:
+    """Патрубки с одинаковым назначением объединяются в «Пт3–Пт5 — люк-лаз»."""
+    items: List[Tuple[str, str, str]] = []
+    for n in nozzles or []:
+        if not isinstance(n, dict):
+            continue
+        lab = str(n.get("label") or "").strip()
+        if not lab:
+            continue
+        purpose = str(n.get("purpose") or "").strip()
+        dn = n.get("dn")
+        items.append((lab, purpose, "" if dn in (None, "") else f"Ø{dn}"))
+
+    lines: List[str] = []
+    i = 0
+    while i < len(items):
+        lab, purpose, dn = items[i]
+        j = i
+        while (
+            j + 1 < len(items)
+            and items[j + 1][1] == purpose
+            and items[j + 1][2] == dn
+            and purpose
+        ):
+            j += 1
+        head = lab if j == i else f"{lab}–{items[j][0]}"
+        bit = f"{head} — {purpose}" if purpose else head
+        if dn:
+            bit = f"{bit} {dn}"
+        lines.append(bit)
+        i = j + 1
+    return lines
+
+
+def _build_legend_lines(geo: Dict[str, Any], ov: Dict[str, Any], layer: str) -> List[str]:
     lines: List[str] = []
     k_labs = [str(w.get("label") or "") for w in (geo.get("welds") or []) if str(w.get("kind")) == "circumferential"]
     p_labs = [str(w.get("label") or "") for w in (geo.get("welds") or []) if str(w.get("kind")) == "longitudinal"]
@@ -927,20 +1107,7 @@ def render_vessel_scheme(
         lines.append("Кольцевые швы: " + ", ".join(k_labs))
     if p_labs:
         lines.append("Продольные швы: " + ", ".join(p_labs))
-    for n in geo.get("nozzles") or []:
-        if not isinstance(n, dict):
-            continue
-        lab = str(n.get("label") or "").strip()
-        purpose = str(n.get("purpose") or "").strip()
-        dn = n.get("dn")
-        bit = lab
-        if purpose:
-            bit = f"{lab} — {purpose}"
-        if dn not in (None, ""):
-            bit = f"{bit} Ø{dn}"
-        if bit:
-            lines.append(bit)
-    ov = overlays or {}
+    lines.extend(_nozzle_legend_lines(geo.get("nozzles") or []))
     if layer == "uzt":
         pts = ov.get("uzt_points") or []
         nmax = max((int(p.get("n") or 0) for p in pts), default=len(pts))
@@ -960,10 +1127,38 @@ def render_vessel_scheme(
         lines.append("Зона ультразвукового контроля сварных соединений элементов сосуда")
     elif layer == "mpk":
         lines.append("Зона магнитопорошкового контроля сварных соединений элементов сосуда")
-    for i, line in enumerate(lines[:7]):
-        col = accent if i >= (1 if k_labs else 0) + (1 if p_labs else 0) else weld_color
-        draw.text((24, legend_y + i * 14), line[:110], fill=col, font=font_tiny)
+    return lines
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
-    return buf.getvalue(), geo, suggested
+
+def legend_height_px(geo: Dict[str, Any], overlays: Dict[str, Any], layer: str) -> int:
+    """Сколько места снизу зарезервировать под легенду (см. _draw_legend)."""
+    n = len(_build_legend_lines(geo, overlays or {}, layer))
+    rows = math.ceil(n / _LEGEND_COLUMNS) if n else 0
+    return int(min(_LEGEND_MAX_H, 24 + rows * _LEGEND_LINE_H))
+
+
+def _draw_legend(
+    draw: ImageDraw.ImageDraw,
+    lines: List[str],
+    *,
+    width: int,
+    height: int,
+    weld_color: Tuple[int, int, int],
+    accent: Tuple[int, int, int],
+    font,
+) -> None:
+    """Легенда целиком: швы + все патрубки, в колонках, без обрезки."""
+    if not lines:
+        return
+    weld_rows = sum(1 for ln in lines[:2] if ln.startswith(("Кольцевые швы", "Продольные швы")))
+    rows = math.ceil(len(lines) / _LEGEND_COLUMNS)
+    col_w = (width - 48) / _LEGEND_COLUMNS
+    legend_y = height - min(_LEGEND_MAX_H, 24 + rows * _LEGEND_LINE_H) + 6
+
+    for i, line in enumerate(lines):
+        col, row = divmod(i, rows)
+        x = 24 + col * col_w
+        y = legend_y + row * _LEGEND_LINE_H
+        if y > height - 16:
+            continue
+        draw.text((x, y), line, fill=weld_color if i < weld_rows else accent, font=font)

@@ -694,7 +694,11 @@ async def _run_migrations():
 # ─── System endpoints ─────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"message": "ES TD NGO Platform API", "version": "3.7.9", "status": "running"}
+    return {
+        "message": "ES TD NGO Platform API",
+        "version": os.getenv("APP_VERSION", "3.7.25"),
+        "status": "running",
+    }
 
 
 @app.get("/health")

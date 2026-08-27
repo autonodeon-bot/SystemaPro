@@ -25,6 +25,7 @@ from form_template_filler import (
     _replace_underscores,
     _set,
     _set_paragraph_text,
+    finalize_official_form,
 )
 from form_template_filler_common import (
     fill_contractor_table,
@@ -297,6 +298,8 @@ def fill_crane_form_to3(
     for t in tables:
         if t.rows and "Контроль провел" in (t.rows[0].cells[0].text or ""):
             _fill_signatures(t, {"specialists": specs})
+
+    finalize_official_form(doc, "to-3")
 
     doc.save(str(out))
     logger.info("Форма to-3 заполнена (full): %s", out)

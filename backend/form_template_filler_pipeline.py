@@ -27,6 +27,7 @@ from form_template_filler import (
     _set,
     _set_paragraph_text,
     _ensure_rows,
+    finalize_official_form,
 )
 from report_forms_registry import resolve_form_path
 from report_org_settings import load_report_org_settings
@@ -155,6 +156,8 @@ def fill_pipeline_form_to13(
                 "specialists": _specs_from(data, specialist_docs or []),
             }
             _fill_signatures(t, ctx)
+
+    finalize_official_form(doc, "to-13")
 
     doc.save(str(out))
     logger.info("Форма to-13 заполнена: %s", out)

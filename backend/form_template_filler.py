@@ -142,6 +142,9 @@ def _renumber_table_column(table: Table, start_row: int = 1, col: int = 0) -> No
         n += 1
 
 
+_TABLE_CAPTION_RE = re.compile(r"^\s*Таблица\s*(?:№|No|N)?\s*\d", re.IGNORECASE)
+
+
 def _keep_para(p: Paragraph) -> None:
     try:
         p.paragraph_format.keep_with_next = True
@@ -270,6 +273,11 @@ def _keep_table_head(table: Table, max_rows: int = 2) -> None:
         pass
 
 
+def _is_table_caption(text: str) -> bool:
+    """«Таблица № 3», «Таблица No 3», «Таблица 3», «Таблица№3» — всё это подписи."""
+    return bool(_TABLE_CAPTION_RE.match(text or ""))
+
+
 def _apply_heading_keep_with_next(doc: Document) -> None:
     """Не отрывать заголовок раздела / «Таблица №» / СОДЕРЖАНИЕ от следующего контента."""
     section_re = re.compile(r"^\d+\.\s+\S")
@@ -302,7 +310,7 @@ def _apply_heading_keep_with_next(doc: Document) -> None:
         elif section_re.match(t) and len(t) < 120 and "…" not in t and "..." not in t:
             # короткие нумерованные заголовки разделов основного отчёта
             keep = True
-        elif t.startswith("Таблица №") or t.startswith("Таблица No"):
+        elif _is_table_caption(t):
             keep = True
         elif t.startswith("Схема ") or t.startswith("4. Схема") or "Параметры контроля" in t:
             keep = True
@@ -346,6 +354,138 @@ def _apply_heading_keep_with_next(doc: Document) -> None:
                     cur = cur.getnext()
             except Exception:
                 pass
+
+_DATE_HEADER_RE = re.compile(r"^\s*дата\b")
+
+
+def _widen_date_columns_everywhere(doc: Document) -> None:
+    """Во всех таблицах расширить колонки с заголовком «Дата» (обычный шрифт)."""
+    seen: set = set()
+    tables: List[Table] = []
+    try:
+        for t in _main_sdt_tables(doc):
+            if id(t._tbl) not in seen:
+                seen.add(id(t._tbl))
+                tables.append(t)
+    except Exception:
+        pass
+    for t in doc.tables:
+        if id(t._tbl) not in seen:
+            seen.add(id(t._tbl))
+            tables.append(t)
+
+    for table in tables:
+        if not table.rows:
+            continue
+        try:
+            header_cells = table.rows[0].cells
+        except Exception:
+            continue
+        for col, cell in enumerate(header_cells):
+            if _DATE_HEADER_RE.match((cell.text or "").strip().lower()):
+                _widen_date_column(table, col, 3.4)
+
+
+def finalize_official_form(doc: Document, form_id: str = "") -> None:
+    """
+    Общая «полировка» любой официальной формы ТО — то же, что получает to-1:
+    ширина колонок «Дата», единая типографика таблиц с landscape для широких
+    и keep-with-next, чтобы заголовок «Таблица № N» не отрывался от таблицы.
+    """
+    tag = form_id or "form"
+    try:
+        _widen_date_columns_everywhere(doc)
+    except Exception:
+        logger.exception("%s: не удалось расширить колонки «Дата»", tag)
+    try:
+        _finalize_table_typography(doc)
+    except Exception:
+        logger.exception("%s: не удалось унифицировать шрифт/ориентацию таблиц", tag)
+    try:
+        _apply_heading_keep_with_next(doc)
+    except Exception:
+        logger.exception("%s: не удалось применить keep-with-next к заголовкам", tag)
+
+
+def _table_header_blob(table: Table, rows: int = 2) -> str:
+    parts: List[str] = []
+    try:
+        for r in table.rows[:rows]:
+            for c in r.cells:
+                parts.append((c.text or "").replace("\n", " ").strip().lower())
+    except Exception:
+        return ""
+    return " | ".join(parts)
+
+
+def apply_ndt_protocol_tables(doc: Document, ctx: Dict[str, Any]) -> set:
+    """
+    Заполнить протокольные таблицы НК (ВИК/УЗТ/твёрдость/УЗК/МПК) в любой форме.
+
+    В to-1 таблицы адресуются фиксированными индексами; здесь они находятся по
+    заголовкам, поэтому те же данные попадают в формы to-2…to-44, у которых
+    порядок и количество таблиц другие.
+
+    Возвращает id(table._tbl) заполненных таблиц, чтобы более грубые эвристики
+    формы их потом не перезаписали.
+    """
+    filled: set = set()
+    seen: set = set()
+    tables: List[Table] = []
+    try:
+        for t in _main_sdt_tables(doc):
+            if id(t._tbl) not in seen:
+                seen.add(id(t._tbl))
+                tables.append(t)
+    except Exception:
+        pass
+    for t in doc.tables:
+        if id(t._tbl) not in seen:
+            seen.add(id(t._tbl))
+            tables.append(t)
+
+    for table in tables:
+        if not table.rows:
+            continue
+        blob = _table_header_blob(table)
+        if not blob:
+            continue
+        try:
+            if "шероховатость поверхности" in blob and "освещ" in blob:
+                _fill_vik_parameters(table, ctx)
+            elif "способ контроля" in blob and "уровень чувствительности" in blob:
+                _fill_mpk_parameters(table, ctx)
+            elif "№ стыка по карте контроля" in blob or "номер дефекта" in blob:
+                _fill_uzk_results(table, ctx)
+                _strip_empty_rows(table, 1, ignore_cols=(0,))
+            elif "тип сварного соединения" in blob and "пэп" in blob:
+                _fill_uzk_parameters(table, ctx)
+                _strip_empty_rows(table, 1)
+            elif "участок контроля согласно схемы измерения" in blob:
+                _fill_hardness_list(table, ctx)
+                _strip_empty_rows(table, 1, ignore_cols=(0,))
+            elif "допустимая твердость металла в точке" in blob:
+                _fill_hardness_matrix(table, ctx)
+                _strip_empty_rows(table, 3, ignore_cols=(0,))
+            elif "наименование элемента" in blob and "№ точки" in blob and "толщин" in blob:
+                _fill_uzt_results(table, ctx)
+            elif "оценка качества" in blob and "объем контроля" in blob or (
+                "оценка качества" in blob and "объём контроля" in blob
+            ):
+                # МПК отличается от ВИК наличием колонки «Зона контроля»
+                if "зона" in blob:
+                    _fill_mpk_results(table, ctx)
+                    _strip_empty_rows(table, 1, ignore_cols=(0,))
+                else:
+                    _fill_vik_results(table, ctx)
+            else:
+                continue
+        except Exception:
+            logger.debug("НК-таблица не заполнена: %s", blob[:120], exc_info=True)
+            continue
+        filled.add(id(table._tbl))
+    return filled
+
 
 def fill_vessel_form_to1(
     inspection_data: Dict[str, Any],
@@ -533,17 +673,7 @@ def fill_vessel_form_to1(
     _fill_appendix_9_hydraulic_act(doc, ctx)
     _insert_schemes_and_photos(doc, ctx)
 
-    # Читаемая типографика таблиц: ~12 pt, без экстремального сжатия.
-    # Широкие таблицы приложений — landscape, затем возврат к portrait.
-    try:
-        _finalize_table_typography(doc)
-    except Exception:
-        logger.exception("to-1: не удалось унифицировать шрифт/ориентацию таблиц")
-
-    try:
-        _apply_heading_keep_with_next(doc)
-    except Exception:
-        logger.exception("to-1: не удалось применить keep-with-next к заголовкам")
+    finalize_official_form(doc, "to-1")
 
     doc.save(str(out))
     logger.info("Форма to-1 заполнена: %s", out)

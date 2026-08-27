@@ -56,6 +56,8 @@ backend/report_forms/Приложение*
 
 # Временные артефакты генерации отчётов
 backend/report_forms/_smoke_*.docx
+backend/report_forms/_test_generated_*.docx
+docs/_scheme_preview/
 _test_uzt_fill.docx
 docs/_diag_full.docx
 docs/_diag_full.pdf

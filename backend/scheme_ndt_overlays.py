@@ -307,6 +307,13 @@ def _autoplace_missing(
         row = i // cols
         p["x_percent"] = round(18 + (64 * (col + 0.5) / cols), 2)
         p["y_percent"] = round((y0 + (y1 - y0) * ((row + 0.5) / rows)) * 100, 2)
+        # Признак расчётной позиции: рендерер разложит такие точки по сетке
+        # внутри реального прямоугольника корпуса, а не по листу целиком.
+        p["auto_placed"] = True
+        p["auto_col"] = col
+        p["auto_row"] = row
+        p["auto_cols"] = cols
+        p["auto_rows"] = rows
         if as_label and not p.get("label"):
             p["label"] = str(i + 1)
     return (placed + missing)[:max_n]

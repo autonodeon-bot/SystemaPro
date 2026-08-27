@@ -26,14 +26,19 @@ from form_media_helpers import (
 )
 from form_template_filler import (
     MISSING,
+    _build_context,
     _ensure_rows,
+    _enrich_inspection_data,
     _extract_specialists,
+    _fill_hardness_steel_heading,
     _fill_signatures,
     _fmt_date_ru,
     _instrument_full_name,
     _merge_report_instruments,
     _replace_underscores,
     _set,
+    apply_ndt_protocol_tables,
+    finalize_official_form,
     insert_ndt_layer_schemes,
 )
 from form_template_filler_common import (
@@ -110,9 +115,14 @@ def fill_generic_official_form(
     if org_settings is None:
         org_settings = load_report_org_settings()
 
-    data = inspection_data.get("data") or {}
-    if not isinstance(data, dict):
-        data = {}
+    # Те же нормализация мобильных ключей и подтягивание методов НК, что и в to-1
+    inspection_data = dict(inspection_data or {})
+    raw_data = inspection_data.get("data")
+    if not isinstance(raw_data, dict):
+        raw_data = {}
+    data = _enrich_inspection_data(raw_data, ndt_methods or [])
+    inspection_data["data"] = data
+
     attrs = equipment_data.get("attributes") or {}
     if not isinstance(attrs, dict):
         attrs = {}
@@ -190,11 +200,34 @@ def fill_generic_official_form(
     meta = get_form(fid) or {}
     form_title = meta.get("title") or fid
 
+    attachments = build_attachments_map(document_files)
+
     # --- таблицы ---
     _fill_org_blocks(doc, org_settings, location, org_name)
     _fill_people_and_instruments(doc, data, specialist_docs or [], verification_equipment, ndt_methods)
     _fill_kv_tables(doc, values)
-    _fill_uzt_tables(doc, data)
+
+    # Протоколы НК (ВИК/УЗТ/твёрдость/УЗК/МПК) — так же, как в форме сосудов,
+    # но таблицы находятся по заголовкам, а не по фиксированным индексам.
+    ndt_done: set = set()
+    try:
+        ndt_ctx = _build_context(
+            inspection_data,
+            equipment_data,
+            _merge_report_instruments(verification_equipment, data, ndt_methods or []),
+            org_settings,
+            specialist_docs or [],
+            attachments,
+        )
+        ndt_ctx["find_image"] = find_image
+        ndt_ctx["ndt_methods"] = ndt_methods or []
+        ndt_done = apply_ndt_protocol_tables(doc, ndt_ctx)
+        _fill_hardness_steel_heading(doc, ndt_ctx)
+    except Exception:
+        logger.exception("generic: не удалось заполнить протокольные таблицы НК")
+
+    # Резервный проход по «широким» таблицам толщинометрии, которых нет в to-1
+    _fill_uzt_tables(doc, data, skip_ids=ndt_done)
     _fill_paragraph_blanks(doc, date_ru, device, org_name, form_title, g)
 
     # подписи
@@ -208,7 +241,6 @@ def fill_generic_official_form(
             except Exception:
                 pass
 
-    attachments = build_attachments_map(document_files)
     tmp_files: List[str] = []
     try:
         insert_ndt_layer_schemes(
@@ -227,6 +259,8 @@ def fill_generic_official_form(
             Path(pth).unlink(missing_ok=True)
         except Exception:
             pass
+
+    finalize_official_form(doc, fid)
 
     doc.save(str(out))
     logger.info("Форма %s заполнена (generic): %s", fid, out)
@@ -398,15 +432,24 @@ def _fill_kv_tables(doc: Document, values: Dict[str, Any]) -> None:
                 pass
 
 
-def _fill_uzt_tables(doc: Document, data: Dict[str, Any]) -> None:
+def _fill_uzt_tables(
+    doc: Document, data: Dict[str, Any], skip_ids: Optional[set] = None
+) -> None:
     points = data.get("thickness_measurements") or data.get("thicknessMeasurements") or []
     if not isinstance(points, list) or not points:
         return
+    skip_ids = skip_ids or set()
     for table in doc.tables:
-        if not table.rows:
+        if not table.rows or id(table._tbl) in skip_ids:
             continue
         header = " ".join((c.text or "").lower() for c in table.rows[0].cells)
-        if not any(x in header for x in ("толщин", "s ном", "sном", "зоны контроля", "№ точки", "точки")):
+        # Заголовок должен говорить именно о точках/зонах замера толщины:
+        # одного слова «толщина» мало — оно есть и в таблицах элементов,
+        # и в параметрах УЗК, которые эта эвристика раньше затирала.
+        has_points = "№ точки" in header or "номер точки" in header or "точка" in header
+        has_zone = "зоны контроля" in header or "зона контроля" in header
+        has_snom = "s ном" in header or "sном" in header
+        if not (has_zone or has_snom or (has_points and "толщин" in header)):
             continue
         if "сварного шва" in header and "толщин" not in header:
             continue

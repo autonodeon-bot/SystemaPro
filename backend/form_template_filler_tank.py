@@ -28,6 +28,7 @@ from form_template_filler import (
     _fmt_date_ru,
     _set,
     _set_paragraph_text,
+    finalize_official_form,
 )
 from report_forms_registry import resolve_form_path
 from report_org_settings import load_report_org_settings
@@ -192,6 +193,8 @@ def fill_tank_form_to25(
         find_image=find_image,
         max_items=12,
     )
+
+    finalize_official_form(doc, "to-25")
 
     doc.save(str(out))
     logger.info("Форма to-25 заполнена: %s", out)
