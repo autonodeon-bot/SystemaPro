@@ -134,7 +134,7 @@ try {
 
 Write-Host "[6/7] Verify..." -ForegroundColor Yellow
 Invoke-Remote "cd $REMOTE; docker-compose ps"
-Invoke-Remote "docker exec es_td_ngo_backend python -c 'import urllib.request; print(urllib.request.urlopen(\"http://127.0.0.1:8000/health\").read().decode())'" -AllowFail
+Invoke-Remote "curl -fsS http://127.0.0.1:8000/health" -AllowFail
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
