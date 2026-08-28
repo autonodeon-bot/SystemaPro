@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from docx import Document
 from docx.enum.section import WD_ORIENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
@@ -671,9 +672,9 @@ def fill_vessel_form_to1(
     _fill_hardness_steel_heading(doc, ctx)
     _fill_appendix_8_calculation(doc, ctx)
     _fill_appendix_9_hydraulic_act(doc, ctx)
-    _insert_schemes_and_photos(doc, ctx)
 
     finalize_official_form(doc, "to-1")
+    _insert_schemes_and_photos(doc, ctx)
 
     doc.save(str(out))
     logger.info("Форма to-1 заполнена: %s", out)
@@ -1779,6 +1780,114 @@ def _insert_section_break_before(element, landscape: bool) -> None:
 def _insert_section_break_after(element, landscape: bool) -> None:
     """Вставить разрыв раздела (новая страница) сразу после элемента."""
     element.addnext(_make_section_break_paragraph(landscape))
+
+
+# A4 landscape с полями ~0.5": ширина ~10.2", высота под картинку с учётом заголовка.
+_SCHEME_PAGE_MAX_W_IN = 10.2
+_SCHEME_PAGE_MAX_H_IN = 6.4
+_SCHEME_EXTRA_MAX_H_IN = 5.5
+
+
+def _append_section_properties_to_paragraph(paragraph: Paragraph, *, landscape: bool) -> None:
+    """
+    sectPr в pPr задаёт свойства секции, которой принадлежит абзац (ECMA-376).
+    Разрыв через отдельный абзац ПОСЛЕ картинки не переводил лист в landscape —
+    заголовок и схема оставались в portrait и вылезали за край.
+    """
+    pPr = paragraph._p.get_or_add_pPr()
+    for old in list(pPr.findall(qn("w:sectPr"))):
+        pPr.remove(old)
+    sectPr = OxmlElement("w:sectPr")
+    pgSz = OxmlElement("w:pgSz")
+    if landscape:
+        pgSz.set(qn("w:w"), "16838")
+        pgSz.set(qn("w:h"), "11906")
+        pgSz.set(qn("w:orient"), "landscape")
+    else:
+        pgSz.set(qn("w:w"), "11906")
+        pgSz.set(qn("w:h"), "16838")
+        pgSz.set(qn("w:orient"), "portrait")
+    sectPr.append(pgSz)
+    pgMar = OxmlElement("w:pgMar")
+    for attr, val in (
+        ("w:top", "720"),
+        ("w:right", "720"),
+        ("w:bottom", "720"),
+        ("w:left", "720"),
+        ("w:header", "360"),
+        ("w:footer", "360"),
+        ("w:gutter", "0"),
+    ):
+        pgMar.set(qn(attr), val)
+    sectPr.append(pgMar)
+    pPr.append(sectPr)
+
+
+def _fit_image_width_inches(image_path: str, max_width: float, max_height: float) -> float:
+    """Подогнать ширину PNG под landscape-лист с запасом под заголовок."""
+    try:
+        from PIL import Image
+
+        with Image.open(image_path) as im:
+            w_px, h_px = im.size
+        if w_px <= 0 or h_px <= 0:
+            return max_width
+        aspect = w_px / h_px
+        w = max_width
+        if w / aspect > max_height:
+            w = max_height * aspect
+        return round(min(w, max_width), 2)
+    except Exception:
+        return round(min(max_width, 7.2), 2)
+
+
+def _style_scheme_title_paragraph(paragraph: Paragraph, title: str) -> None:
+    """Заголовок схемы сверху: 12 pt, жирный, не отрывать от картинки."""
+    _set_paragraph_text(paragraph, title, pt=12.0)
+    try:
+        paragraph.paragraph_format.space_after = Pt(4)
+        paragraph.paragraph_format.keep_with_next = True
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if paragraph.runs:
+            _set_run_font(paragraph.runs[0], pt=12.0, bold=True)
+    except Exception:
+        pass
+
+
+def _insert_scheme_landscape_block(
+    anchor: Paragraph,
+    title: str,
+    image_path: str,
+    extra_paths: List[Tuple[str, str]],
+    *,
+    new_page: bool = True,
+) -> Optional[Paragraph]:
+    """Одна схема: новая landscape-страница, заголовок, масштабированная картинка."""
+    if new_page:
+        _insert_page_break_before_paragraph(anchor)
+    _style_scheme_title_paragraph(anchor, title)
+    clear_pictures_after_paragraph(anchor)
+    last = anchor
+    w_main = _fit_image_width_inches(image_path, _SCHEME_PAGE_MAX_W_IN, _SCHEME_PAGE_MAX_H_IN)
+    pic = add_picture_after_paragraph(last, image_path, width_inches=w_main, caption=None)
+    if pic is None:
+        return None
+    last = pic
+    for cap, ep in extra_paths:
+        w_extra = _fit_image_width_inches(ep, _SCHEME_PAGE_MAX_W_IN - 0.4, _SCHEME_EXTRA_MAX_H_IN)
+        cap_p = insert_paragraph_after(last, cap)
+        _set_paragraph_font_size(cap_p, 12.0)
+        try:
+            if cap_p.runs:
+                _set_run_font(cap_p.runs[0], pt=12.0, bold=True)
+            cap_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        except Exception:
+            pass
+        pic2 = add_picture_after_paragraph(cap_p, ep, width_inches=w_extra, caption=None)
+        if pic2 is not None:
+            last = pic2
+    _append_section_properties_to_paragraph(last, landscape=True)
+    return last
 
 
 def _element_plain_text(el) -> str:
@@ -4378,8 +4487,6 @@ def insert_ndt_layer_schemes(
         ordered.append(p)
 
     n_schemes = 0
-    # На ландшафте схема занимает почти всю ширину листа A4 (≈297 мм − поля).
-    scheme_width = 9.5
     if generated:
         for i, item in enumerate(generated):
             title = item.get("title") or layer_title(item.get("layer") or LAYER_ORDER[i], equipment_kind=kind)
@@ -4395,35 +4502,23 @@ def insert_ndt_layer_schemes(
                 tmp_files.append(ep)
                 extra_paths.append((cap, ep))
             if i < len(ordered):
-                try:
-                    # Заголовок схемы + картинка на landscape — иначе мелкие на portrait
-                    _insert_section_break_before(ordered[i]._p, landscape=False)
-                except Exception:
-                    logger.debug("section break before scheme failed", exc_info=True)
-                _set_paragraph_text(ordered[i], title)
-                _keep_para(ordered[i])
-                clear_pictures_after_paragraph(ordered[i])
-                last = ordered[i]
-                pic = add_picture_after_paragraph(last, path, width_inches=scheme_width, caption=None)
+                pic = _insert_scheme_landscape_block(
+                    ordered[i],
+                    title,
+                    path,
+                    extra_paths,
+                    new_page=True,
+                )
                 if pic is not None:
-                    last = pic
-                    n_schemes += 1
-                for cap, ep in extra_paths:
-                    pic = add_picture_after_paragraph(last, ep, width_inches=scheme_width - 0.4, caption=cap)
-                    if pic is not None:
-                        last = pic
-                        n_schemes += 1
-                try:
-                    _insert_section_break_after(last._p, landscape=True)
-                except Exception:
-                    logger.debug("section break after scheme failed", exc_info=True)
+                    n_schemes += 1 + len(extra_paths)
             else:
+                w = _fit_image_width_inches(path, _SCHEME_PAGE_MAX_W_IN, _SCHEME_PAGE_MAX_H_IN)
                 n_schemes += insert_media_block(
                     doc,
                     title,
                     [{"path": path, "label": title}],
                     find_image=find_image,
-                    width_inches=scheme_width,
+                    width_inches=w,
                     max_items=1,
                 )
         return n_schemes
@@ -4435,23 +4530,19 @@ def insert_ndt_layer_schemes(
     for i, s in enumerate(schemes[:5]):
         if i < len(ordered):
             title = layer_title(LAYER_ORDER[i] if i < len(LAYER_ORDER) else "vik", equipment_kind=kind)
-            try:
-                _insert_section_break_before(ordered[i]._p, landscape=False)
-            except Exception:
-                pass
-            _set_paragraph_text(ordered[i], title)
-            clear_pictures_after_paragraph(ordered[i])
             path = resolve_image_path(s.get("path"), find_image)
             if path and is_image_file(path):
-                pic = add_picture_after_paragraph(ordered[i], path, width_inches=scheme_width, caption=None)
+                pic = _insert_scheme_landscape_block(ordered[i], title, path, [], new_page=True)
                 if pic is not None:
                     n_schemes += 1
-                    try:
-                        _insert_section_break_after(pic._p, landscape=True)
-                    except Exception:
-                        pass
         else:
+            path = resolve_image_path(s.get("path"), find_image)
+            w = (
+                _fit_image_width_inches(path, _SCHEME_PAGE_MAX_W_IN, _SCHEME_PAGE_MAX_H_IN)
+                if path
+                else 7.2
+            )
             n_schemes += insert_media_block(
-                doc, "Схема контроля", [s], find_image=find_image, width_inches=scheme_width, max_items=1
+                doc, "Схема контроля", [s], find_image=find_image, width_inches=w, max_items=1
             )
     return n_schemes

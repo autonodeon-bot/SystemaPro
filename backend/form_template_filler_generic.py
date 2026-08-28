@@ -242,6 +242,7 @@ def fill_generic_official_form(
                 pass
 
     tmp_files: List[str] = []
+    finalize_official_form(doc, fid)
     try:
         insert_ndt_layer_schemes(
             doc, data, attachments, find_image, kind=str(data.get("equipment_kind") or fid), tmp_files=tmp_files
@@ -259,8 +260,6 @@ def fill_generic_official_form(
             Path(pth).unlink(missing_ok=True)
         except Exception:
             pass
-
-    finalize_official_form(doc, fid)
 
     doc.save(str(out))
     logger.info("Форма %s заполнена (generic): %s", fid, out)
