@@ -2055,13 +2055,15 @@ def _ensure_title_section_portrait(doc: Document) -> None:
 
 def _iter_all_paragraphs(doc: Document):
     """Все абзацы: тело, SDT, таблицы, колонтитулы (по дереву XML)."""
+    # Важно: нельзя использовать id(p._p) — у lxml proxy id() переиспользуется
+    # после GC, и итератор «видел» только несколько абзацев из тысяч.
     seen: set = set()
 
     def _yield_p(p: Paragraph):
-        pid = id(p._p)
-        if pid in seen:
+        el = p._p
+        if el in seen:
             return
-        seen.add(pid)
+        seen.add(el)
         yield p
 
     # body.iter охватывает SDT, вложенные SDT, таблицы и текстовые поля
