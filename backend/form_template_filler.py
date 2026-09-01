@@ -158,6 +158,19 @@ def _norm_ws(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").replace("\xa0", " ")).strip()
 
 
+def _paragraph_plain_text(paragraph: Paragraph) -> str:
+    """
+    Текст абзаца из всех w:t (включая SDT/content control).
+
+    У python-docx paragraph.text для абзацев внутри w:sdt иногда пустой или
+    неполный — из‑за этого раздел 15 «Выводы» не заполнялся, хотя в XML текст есть.
+    """
+    try:
+        return "".join(t.text or "" for t in paragraph._p.iter(qn("w:t")))
+    except Exception:
+        return paragraph.text or ""
+
+
 def _force_horizontal_text(cell: _Cell) -> None:
     """Горизонтальное направление текста в ячейке (шаблон to-1 часто задаёт вертикальное)."""
     try:
@@ -289,14 +302,14 @@ def _apply_heading_keep_with_next(doc: Document) -> None:
     )
     paras = list(_iter_all_paragraphs(doc))
     for i, p in enumerate(paras):
-        t = (p.text or "").strip()
+        t = _paragraph_plain_text(p).strip()
         if not t:
             continue
         keep = False
         if t == "СОДЕРЖАНИЕ":
             keep = True
             for j in range(i + 1, min(i + 20, len(paras))):
-                tj = (paras[j].text or "").strip()
+                tj = _paragraph_plain_text(paras[j]).strip()
                 if not tj:
                     continue
                 if "…" in tj or "..." in tj or re.match(r"^\d+\.", tj):
@@ -323,7 +336,7 @@ def _apply_heading_keep_with_next(doc: Document) -> None:
             _keep_para(p)
             # «Таблица № N» сразу после заголовка раздела
             if i + 1 < len(paras):
-                nxt = (paras[i + 1].text or "").strip()
+                nxt = _paragraph_plain_text(paras[i + 1]).strip()
                 if nxt.startswith("Таблица"):
                     _keep_para(paras[i + 1])
             # первая таблица после заголовка в том же SDT/родителе
@@ -2041,7 +2054,7 @@ def _ensure_title_section_portrait(doc: Document) -> None:
 
 
 def _iter_all_paragraphs(doc: Document):
-    """Все абзацы: тело, SDT основного отчёта, таблицы, колонтитулы."""
+    """Все абзацы: тело, SDT, таблицы, колонтитулы (по дереву XML)."""
     seen: set = set()
 
     def _yield_p(p: Paragraph):
@@ -2051,37 +2064,20 @@ def _iter_all_paragraphs(doc: Document):
         seen.add(pid)
         yield p
 
+    # body.iter охватывает SDT, вложенные SDT, таблицы и текстовые поля
     try:
-        for sdt in doc.element.body.iter(qn("w:sdt")):
-            content = sdt.find(qn("w:sdtContent"))
-            if content is None:
-                continue
-            for p_el in content.iter(qn("w:p")):
-                yield from _yield_p(Paragraph(p_el, doc))
+        for p_el in doc.element.body.iter(qn("w:p")):
+            yield from _yield_p(Paragraph(p_el, doc))
     except Exception:
         pass
-
-    for p in doc.paragraphs:
-        yield from _yield_p(p)
-
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    yield from _yield_p(p)
 
     try:
         for section in doc.sections:
             for part in (section.header, section.footer):
                 if part is None:
                     continue
-                for p in part.paragraphs:
-                    yield from _yield_p(p)
-                for table in part.tables:
-                    for row in table.rows:
-                        for cell in row.cells:
-                            for p in cell.paragraphs:
-                                yield from _yield_p(p)
+                for p_el in part._element.iter(qn("w:p")):
+                    yield from _yield_p(Paragraph(p_el, part))
     except Exception:
         pass
 
@@ -2706,7 +2702,7 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     needs_repair = _conclusion_needs_repair(ctx)
 
     for p in _iter_all_paragraphs(doc):
-        text = p.text or ""
+        text = _paragraph_plain_text(p)
         stripped = text.strip()
         norm = _norm_ws(text)
         if stripped == "СОДЕРЖАНИЕ":
@@ -4154,9 +4150,9 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
             ),
         )
 
-    # Важно: основной отчёт в SDT — doc.paragraphs его не видит
+    # Важно: основной отчёт в SDT — doc.paragraphs / paragraph.text его не всегда видит
     for p in _iter_all_paragraphs(doc):
-        text = p.text
+        text = _paragraph_plain_text(p)
         if not text:
             continue
         new_text = text
@@ -4242,28 +4238,47 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
 
 
 def _set_paragraph_text(paragraph: Paragraph, text: str, *, pt: float = 12.0) -> None:
-    """Заменить текст абзаца, сохранив единый шрифт отчёта (12 pt)."""
-    if paragraph.runs:
+    """Заменить текст абзаца (в т.ч. внутри SDT), сохранив шрифт 12 pt."""
+    texts = list(paragraph._p.iter(qn("w:t")))
+    if texts:
+        texts[0].text = text
+        for t in texts[1:]:
+            t.text = ""
+    elif paragraph.runs:
         paragraph.runs[0].text = text
         for run in paragraph.runs[1:]:
             run.text = ""
-        try:
-            _set_run_font(paragraph.runs[0], pt=pt)
-        except Exception:
-            pass
     else:
-        paragraph.text = text
+        paragraph.add_run(text)
+    try:
         if paragraph.runs:
-            try:
-                _set_run_font(paragraph.runs[0], pt=pt)
-            except Exception:
-                pass
+            _set_run_font(paragraph.runs[0], pt=pt)
+        else:
+            # run может отсутствовать в обёртке — ставим через XML
+            for r in paragraph._p.iter(qn("w:r")):
+                try:
+                    from docx.text.run import Run
+
+                    _set_run_font(Run(r, paragraph), pt=pt)
+                except Exception:
+                    pass
+                break
+    except Exception:
+        pass
 
 
 def _set_paragraph_font_size(paragraph: Paragraph, pt: float = 12.0) -> None:
     """Выставить размер шрифта всем runs абзаца."""
     for run in paragraph.runs:
         _set_run_font(run, pt=pt)
+    if not paragraph.runs:
+        for r_el in paragraph._p.iter(qn("w:r")):
+            try:
+                from docx.text.run import Run
+
+                _set_run_font(Run(r_el, paragraph), pt=pt)
+            except Exception:
+                pass
 
 
 def _fill_appendix_8_calculation(doc: Document, ctx: Dict[str, Any]) -> None:
@@ -4352,7 +4367,7 @@ def _normalize_appendix_font(
     """Все абзацы приложения — 12 pt (как в остальном отчёте)."""
     started = False
     for p in _iter_all_paragraphs(doc):
-        t = (p.text or "").strip()
+        t = _paragraph_plain_text(p).strip()
         if not started:
             if start_marker.lower() in t.lower() or (
                 "расчет на прочность" in t.lower() and "приложение" in t.lower()

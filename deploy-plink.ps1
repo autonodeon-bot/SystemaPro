@@ -43,8 +43,8 @@ if (Test-Path $localEnv) {
 } else {
     Write-Host "  keep server .env" -ForegroundColor Gray
 }
-Write-Host "[2.6/7] Server version env 3.7.29+66..." -ForegroundColor Yellow
-Invoke-Remote "cd $REMOTE; touch .env; grep -q '^APP_VERSION=' .env && sed -i 's/^APP_VERSION=.*/APP_VERSION=3.7.29/' .env || echo APP_VERSION=3.7.29 >> .env; grep -q '^MOBILE_APP_VERSION=' .env && sed -i 's/^MOBILE_APP_VERSION=.*/MOBILE_APP_VERSION=3.7.29/' .env || echo MOBILE_APP_VERSION=3.7.29 >> .env; grep -q '^MOBILE_APP_BUILD=' .env && sed -i 's/^MOBILE_APP_BUILD=.*/MOBILE_APP_BUILD=66/' .env || echo MOBILE_APP_BUILD=66 >> .env; grep -E '^(APP_VERSION|MOBILE_APP_VERSION|MOBILE_APP_BUILD)=' .env"
+Write-Host "[2.6/7] Server version env 3.7.30+67..." -ForegroundColor Yellow
+Invoke-Remote "cd $REMOTE; touch .env; grep -q '^APP_VERSION=' .env && sed -i 's/^APP_VERSION=.*/APP_VERSION=3.7.30/' .env || echo APP_VERSION=3.7.30 >> .env; grep -q '^MOBILE_APP_VERSION=' .env && sed -i 's/^MOBILE_APP_VERSION=.*/MOBILE_APP_VERSION=3.7.30/' .env || echo MOBILE_APP_VERSION=3.7.30 >> .env; grep -q '^MOBILE_APP_BUILD=' .env && sed -i 's/^MOBILE_APP_BUILD=.*/MOBILE_APP_BUILD=67/' .env || echo MOBILE_APP_BUILD=67 >> .env; grep -E '^(APP_VERSION|MOBILE_APP_VERSION|MOBILE_APP_BUILD)=' .env"
 Write-Host "  Version env updated" -ForegroundColor Green
 
 Write-Host "[3/7] Copy files..." -ForegroundColor Yellow
@@ -141,4 +141,4 @@ Write-Host "  DEPLOY COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Site:   https://neftcontrol.ru/" -ForegroundColor White
 Write-Host "Mobile: https://neftcontrol.ru/mobile/app.apk" -ForegroundColor White
-Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.29-66.apk" -ForegroundColor White
+Write-Host "Mobile: https://neftcontrol.ru/mobile/es-td-ngo-3.7.30-67.apk" -ForegroundColor White

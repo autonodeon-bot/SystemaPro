@@ -113,9 +113,14 @@ def main() -> int:
     print("OUT", out)
     print("LANDSCAPE_SECTIONS", landscape_n)
     print("BODY_ORIENT", body_orient)
-    print("SEC15", sec15[:180] if sec15 else "MISSING")
+    print("SEC15", sec15[:200] if sec15 else "MISSING")
     print("PIC_WIDTHS_IN", widths[:8])
-    ok = landscape_n >= 1 and "SN-100" in (sec15 or "") and (not widths or max(widths) <= 9.5)
+    ok = (
+        landscape_n >= 1
+        and "SN-100" in (sec15 or "")
+        and "Аппарат" in (sec15 or "")
+        and (not widths or max(widths) <= 9.5)
+    )
     print("OK" if ok else "FAIL")
     return 0 if ok else 1
 

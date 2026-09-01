@@ -15,6 +15,18 @@ const Changelog = () => {
   /** Единственный источник для карточки «Версия системы» и списка ниже */
   const versions: Version[] = [
     {
+      version: '3.7.30',
+      date: '01.09.2026',
+      type: 'patch',
+      changes: [
+        {
+          type: 'fixed',
+          description:
+            'Отчёт ТО: раздел 15 «Выводы» заполняется из SDT (чтение w:t); схемы — section break + landscape с масштабом под заголовок; DIAGNOSTICS через официальную форму ТО. APK 3.7.30+67.',
+        },
+      ],
+    },
+    {
       version: '3.7.29',
       date: '01.09.2026',
       type: 'patch',
