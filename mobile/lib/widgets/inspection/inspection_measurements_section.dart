@@ -91,6 +91,31 @@ class InspectionMeasurementsSection extends StatelessWidget {
         ),
         buildAddItemButton('Добавить измерение твердости',
             () => _showHardnessDialog(context)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => _massAddHardnessZones(context, prefix: 'Т', maxN: 20),
+              icon: const Icon(Icons.add_circle_outline, size: 16),
+              label: const Text('Участки Т1–Тn'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Colors.white30),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _massAddHardnessZones(context, prefix: 'У', maxN: 30),
+              icon: const Icon(Icons.add_circle_outline, size: 16),
+              label: const Text('Участки У1–Уn'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Colors.white30),
+              ),
+            ),
+          ],
+        ),
         ...checklist.hardnessTests.asMap().entries.map((e) {
           final idx = e.key;
           final t = e.value;
@@ -626,6 +651,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final haz = TextEditingController();
     final hazT2 = TextEditingController();
     final hazT4 = TextEditingController();
+    final xPercent = TextEditingController();
+    final yPercent = TextEditingController();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -638,7 +665,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               buildDialogTextField(weld, 'Номер шва / участка *'),
-              buildDialogTextField(area, 'Номер участка'),
+              buildDialogTextField(area, 'Номер участка (Т1 / У1 …)'),
+              buildDialogTextField(xPercent, 'X % на схеме'),
+              buildDialogTextField(yPercent, 'Y % на схеме'),
               buildDialogTextField(
                   allowedBase, 'Допустимая твердость (осн.)'),
               buildDialogTextField(
@@ -667,6 +696,13 @@ class InspectionMeasurementsSection extends StatelessWidget {
       final t = HardnessTest(weldNumber: weld.text.trim());
       t.location = weld.text.trim();
       t.areaNumber = area.text.trim().isEmpty ? null : area.text.trim();
+      t.pointNumber = t.areaNumber ?? weld.text.trim();
+      final xVal =
+          double.tryParse(xPercent.text.trim().replaceAll(',', '.'));
+      final yVal =
+          double.tryParse(yPercent.text.trim().replaceAll(',', '.'));
+      t.xPercent = (xVal != null && xVal >= 0 && xVal <= 100) ? xVal : null;
+      t.yPercent = (yVal != null && yVal >= 0 && yVal <= 100) ? yVal : null;
       t.allowedHardnessBase =
           allowedBase.text.trim().isEmpty ? null : allowedBase.text.trim();
       t.allowedHardnessWeld =
@@ -681,6 +717,74 @@ class InspectionMeasurementsSection extends StatelessWidget {
       checklist.hardnessTests.add(t);
       onStateChanged();
     }
+  }
+
+  Future<void> _massAddHardnessZones(
+    BuildContext context, {
+    required String prefix,
+    required int maxN,
+  }) async {
+    final countCtrl = TextEditingController(text: prefix == 'Т' ? '5' : '8');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kInspectionDarkBg,
+        title: Text('Участки $prefix',
+            style: const TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Создать участки $prefix с координатами на схеме (сетка). Макс. $maxN.',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            buildDialogTextField(countCtrl, 'Количество'),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Создать')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final want = int.tryParse(countCtrl.text.trim()) ?? 0;
+    if (want <= 0) return;
+    final existing = checklist.hardnessTests
+        .where((h) {
+          final lab = (h.areaNumber ?? h.pointNumber ?? h.weldNumber).toUpperCase();
+          return lab.startsWith(prefix) ||
+              (prefix == 'Т' && lab.startsWith('T')) ||
+              (prefix == 'У' && lab.startsWith('U'));
+        })
+        .length;
+    final room = maxN - existing;
+    if (room <= 0) return;
+    final n = want > room ? room : want;
+    final cols = n <= 4 ? n : (n > 12 ? 6 : 4);
+    final rows = ((n + cols - 1) / cols).ceil();
+    for (var i = 0; i < n; i++) {
+      final idx = existing + i + 1;
+      final col = i % cols;
+      final row = i ~/ cols;
+      final xp = 14.0 + 72.0 * ((col + 0.5) / cols);
+      final yp = (prefix == 'Т' ? 18.0 : 28.0) +
+          50.0 * ((row + 0.5) / rows);
+      final lab = '$prefix$idx';
+      final t = HardnessTest(weldNumber: lab);
+      t.areaNumber = lab;
+      t.pointNumber = lab;
+      t.location = lab;
+      t.xPercent = double.parse(xp.toStringAsFixed(2));
+      t.yPercent = double.parse(yp.toStringAsFixed(2));
+      checklist.hardnessTests.add(t);
+    }
+    onStateChanged();
   }
 
   Future<void> _showWeldInspectionDialog(BuildContext context,

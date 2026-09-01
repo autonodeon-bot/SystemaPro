@@ -283,15 +283,24 @@ class VesselChecklist {
         baseVesselScheme!.imagePath = controlSchemeImage;
       }
     }
-    // Синхронизация точек УЗТ → слой схемы
+    // Синхронизация точек УЗТ → слой схемы (добавление и обновление координат)
     if (baseVesselScheme != null && thicknessMeasurements.isNotEmpty) {
       for (final m in thicknessMeasurements) {
         final num = m.sectionNumber.trim();
         if (num.isEmpty) continue;
-        final exists = baseVesselScheme!.points.any(
-          (p) => p.number == num && p.controlType == 'uzt',
-        );
-        if (!exists) {
+        SchemeControlPoint? existing;
+        for (final p in baseVesselScheme!.points) {
+          if (p.number == num && p.controlType == 'uzt') {
+            existing = p;
+            break;
+          }
+        }
+        if (existing != null) {
+          existing.elementName = m.location;
+          existing.xPercent = m.xPercent;
+          existing.yPercent = m.yPercent;
+          existing.value = m.thickness?.toString();
+        } else {
           baseVesselScheme!.points.add(SchemeControlPoint(
             id: m.schemePointId ?? 'uzt_$num',
             number: num,
@@ -308,10 +317,19 @@ class VesselChecklist {
       for (final h in hardnessTests) {
         final num = (h.pointNumber ?? h.areaNumber ?? h.weldNumber).trim();
         if (num.isEmpty) continue;
-        final exists = baseVesselScheme!.points.any(
-          (p) => p.number == num && p.controlType == 'hardness',
-        );
-        if (!exists) {
+        SchemeControlPoint? existing;
+        for (final p in baseVesselScheme!.points) {
+          if (p.number == num && p.controlType == 'hardness') {
+            existing = p;
+            break;
+          }
+        }
+        if (existing != null) {
+          existing.elementName = h.elementName ?? h.location;
+          existing.xPercent = h.xPercent;
+          existing.yPercent = h.yPercent;
+          existing.value = h.hardnessBase ?? h.hardnessWeld;
+        } else {
           baseVesselScheme!.points.add(SchemeControlPoint(
             id: 'hard_$num',
             number: num,
@@ -407,6 +425,9 @@ class VesselChecklist {
       'scheme_index': schemeIndex,
       'connection_scheme_file': connectionSchemeFile,
       'base_vessel_scheme': baseVesselScheme?.toJson(),
+      // Дублируем geometry для бэкенда (зоны УЗК/МПК, размеры)
+      if (baseVesselScheme?.geometry != null)
+        'scheme_geometry': baseVesselScheme!.geometry,
       'customer_info': customerInfo,
       'contractor_info': contractorInfo,
       'vessel_elements': vesselElements.map((e) => e.toJson()).toList(),

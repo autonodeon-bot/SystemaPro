@@ -741,14 +741,78 @@ def _draw_layer_overlays(
         zones = overlays.get("uzk_zones" if layer == "uzk" else "mpk_zones") or []
         highlight_all_w = any(str(z.get("kind")) == "all_welds" for z in zones)
         highlight_all_n = any(str(z.get("kind")) == "all_nozzles" for z in zones)
-        labels = {str(z.get("weld_label") or "") for z in zones if z.get("weld_label")}
-        nzz_labs = {str(z.get("nozzle_label") or "") for z in zones if z.get("nozzle_label")}
-        for lab, (xa, ya, xb, yb) in weld_segs.items():
-            if highlight_all_w or lab in labels:
+
+        def _seg_extent(xa, ya, xb, yb, z: Dict[str, Any]):
+            e0, e1 = z.get("extent_start"), z.get("extent_end")
+            if e0 in (None, "") and e1 in (None, ""):
+                return xa, ya, xb, yb
+            t0, t1 = _f(e0, 0.0), _f(e1, 1.0)
+            if t0 > 1.0 or t1 > 1.0:
+                t0, t1 = t0 / 100.0, t1 / 100.0
+            t0 = max(0.0, min(1.0, t0))
+            t1 = max(0.0, min(1.0, t1))
+            if t1 < t0:
+                t0, t1 = t1, t0
+            return (
+                xa + (xb - xa) * t0,
+                ya + (yb - ya) * t0,
+                xa + (xb - xa) * t1,
+                ya + (yb - ya) * t1,
+            )
+
+        def _band_px(z: Dict[str, Any]) -> int:
+            bw = z.get("band_width")
+            if bw in (None, ""):
+                return 6
+            v = _f(bw, 6)
+            if v > 40:  # могли передать «крупно» / проценты
+                v = max(4.0, v / 10.0)
+            return int(max(4, min(24, v)))
+
+        # 1) произвольные прямоугольники
+        for z in zones:
+            wp, hp = z.get("width_percent"), z.get("height_percent")
+            xp, yp = z.get("x_percent"), z.get("y_percent")
+            if wp in (None, "", 0) or hp in (None, "", 0):
+                continue
+            if xp in (None, "") or yp in (None, ""):
+                continue
+            rx0 = width * _f(xp) / 100.0
+            ry0 = height * _f(yp) / 100.0
+            rx1 = rx0 + width * _f(wp) / 100.0
+            ry1 = ry0 + height * _f(hp) / 100.0
+            draw.rectangle([rx0, ry0, rx1, ry1], outline=zone_color, width=3)
+            lab = str(z.get("weld_label") or z.get("nozzle_label") or "")
+            if lab:
+                draw.text((rx0 + 4, ry0 + 2), lab, fill=zone_color, font=font_tiny)
+
+        # 2) подсветка швов
+        if highlight_all_w:
+            for lab, (xa, ya, xb, yb) in weld_segs.items():
                 draw.line([(xa, ya), (xb, yb)], fill=zone_color, width=6)
+        else:
+            for z in zones:
+                lab = str(z.get("weld_label") or "")
+                if not lab or lab not in weld_segs:
+                    continue
+                # если зона задана только прямоугольником — линия не нужна
+                if z.get("width_percent") not in (None, "", 0) and z.get("height_percent") not in (None, "", 0):
+                    continue
+                xa, ya, xb, yb = weld_segs[lab]
+                x0, y0, x1, y1 = _seg_extent(xa, ya, xb, yb, z)
+                draw.line([(x0, y0), (x1, y1)], fill=zone_color, width=_band_px(z))
+
+        # 3) патрубки
         for lab, (nx, ny) in nozzle_xy.items():
-            if highlight_all_n or lab in nzz_labs:
-                draw.ellipse([nx - 16, ny - 16, nx + 16, ny + 16], outline=zone_color, width=4)
+            match = [z for z in zones if str(z.get("nozzle_label") or "") == lab]
+            if not (highlight_all_n or match):
+                continue
+            r = 16.0
+            for z in match:
+                if z.get("radius_percent") not in (None, ""):
+                    r = max(8.0, width * _f(z.get("radius_percent"), 2.5) / 100.0)
+                    break
+            draw.ellipse([nx - r, ny - r, nx + r, ny + r], outline=zone_color, width=4)
         return
 
 
@@ -1101,8 +1165,18 @@ def _nozzle_legend_lines(nozzles: List[Any]) -> List[str]:
 
 def _build_legend_lines(geo: Dict[str, Any], ov: Dict[str, Any], layer: str) -> List[str]:
     lines: List[str] = []
-    k_labs = [str(w.get("label") or "") for w in (geo.get("welds") or []) if str(w.get("kind")) == "circumferential"]
-    p_labs = [str(w.get("label") or "") for w in (geo.get("welds") or []) if str(w.get("kind")) == "longitudinal"]
+    welds = list(geo.get("welds") or [])
+    # Если welds ещё не разложены — восстановить из пресета (легенда K/P всегда полная)
+    if not welds:
+        preset = str(geo.get("weld_preset") or "long_plus_rings")
+        shell = int(_f(geo.get("shell_count") or (geo.get("shell") or {}).get("count"), 1))
+        kind = str(geo.get("equipment_kind") or "vessel").lower()
+        if kind in ("pipeline", "pipe"):
+            welds = _build_pipeline_welds(max(1, shell), [], preset)
+        else:
+            welds, _ = _build_vessel_welds(preset, max(1, shell), [])
+    k_labs = [str(w.get("label") or "") for w in welds if str(w.get("kind")) == "circumferential"]
+    p_labs = [str(w.get("label") or "") for w in welds if str(w.get("kind")) == "longitudinal"]
     if k_labs:
         lines.append("Кольцевые швы: " + ", ".join(k_labs))
     if p_labs:

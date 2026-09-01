@@ -1759,6 +1759,80 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
+  Future<void> _openNdtZoneEditor(String layer) async {
+    try {
+      final schemePath = _checklist.baseVesselScheme?.imagePath ??
+          _checklist.controlSchemeImage ??
+          _controlSchemeImage?.path;
+      File? schemeFile;
+      if (schemePath != null && schemePath.trim().isNotEmpty) {
+        final f = File(schemePath);
+        if (await f.exists()) schemeFile = f;
+      }
+      final geo = Map<String, dynamic>.from(
+        _checklist.baseVesselScheme?.geometry ?? {},
+      );
+      final key = layer == 'mpk' ? 'mpk_zones' : 'uzk_zones';
+      final existingRaw = geo[key];
+      final existing = <Map<String, dynamic>>[];
+      if (existingRaw is List) {
+        for (final z in existingRaw) {
+          if (z is Map) existing.add(Map<String, dynamic>.from(z));
+        }
+      }
+      if (!mounted) return;
+      final result = await context.push<Map<String, dynamic>>(
+        '/ndt-zone-editor',
+        extra: {
+          'layer': layer,
+          'schemeImage': schemeFile,
+          'geometry': geo,
+          'existingZones': existing,
+          'title': layer == 'mpk'
+              ? 'Зоны МПК на схеме'
+              : 'Зоны УЗК на схеме',
+        },
+      );
+      if (result == null || !mounted) return;
+      final zones = result['zones'];
+      final zoneKey = (result['zone_key'] as String?) ?? key;
+      setState(() {
+        final base = _checklist.baseVesselScheme ??
+            (BaseVesselScheme()
+              ..imagePath = schemePath
+              ..source = 'constructor'
+              ..orientation = _checklist.orientation);
+        final g = Map<String, dynamic>.from(base.geometry ?? {});
+        g[zoneKey] = zones is List ? zones : [];
+        base.geometry = g;
+        if (schemePath != null) base.imagePath ??= schemePath;
+        _checklist.baseVesselScheme = base;
+        _hasUnsavedChanges = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              layer == 'mpk'
+                  ? 'Зоны МПК сохранены в схему'
+                  : 'Зоны УЗК сохранены в схему',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка редактора зон: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickStandardDrawing() async {
     try {
       final templates = await _apiService.getVesselTemplates();
@@ -2468,6 +2542,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         onPickBuiltInTemplate: _pickBuiltInTemplate,
         onPickStandardDrawing: _pickStandardDrawing,
         onOpenSchemeConstructor: _openSchemeConstructor,
+        onOpenUzkZones: () => _openNdtZoneEditor('uzk'),
+        onOpenMpkZones: () => _openNdtZoneEditor('mpk'),
         onPickAdditionalObjectPhoto: _pickAdditionalObjectPhoto,
         onRemoveObjectPhoto: (idx) {
           setState(() {

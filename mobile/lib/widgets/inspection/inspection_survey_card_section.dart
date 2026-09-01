@@ -21,6 +21,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
   final VoidCallback onPickBuiltInTemplate;
   final VoidCallback onPickStandardDrawing;
   final VoidCallback? onOpenSchemeConstructor;
+  final VoidCallback? onOpenUzkZones;
+  final VoidCallback? onOpenMpkZones;
   final void Function(ImageSource source) onPickAdditionalObjectPhoto;
   final void Function(int index) onRemoveObjectPhoto;
 
@@ -37,6 +39,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
     required this.onPickBuiltInTemplate,
     required this.onPickStandardDrawing,
     this.onOpenSchemeConstructor,
+    this.onOpenUzkZones,
+    this.onOpenMpkZones,
     required this.onPickAdditionalObjectPhoto,
     required this.onRemoveObjectPhoto,
   });
@@ -716,6 +720,49 @@ class InspectionSurveyCardSection extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
+                  ),
+                ],
+                if (onOpenUzkZones != null || onOpenMpkZones != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (onOpenUzkZones != null)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onOpenUzkZones,
+                            icon: const Icon(Icons.border_style,
+                                color: Color(0xFF00BED2), size: 18),
+                            label: const Text('Зоны УЗК',
+                                style: TextStyle(
+                                    color: Color(0xFF00BED2),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF00BED2)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                      if (onOpenUzkZones != null && onOpenMpkZones != null)
+                        const SizedBox(width: 8),
+                      if (onOpenMpkZones != null)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onOpenMpkZones,
+                            icon: const Icon(Icons.border_style,
+                                color: Color(0xFF32BE46), size: 18),
+                            label: const Text('Зоны МПК',
+                                style: TextStyle(
+                                    color: Color(0xFF32BE46),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF32BE46)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
                 const SizedBox(height: 12),

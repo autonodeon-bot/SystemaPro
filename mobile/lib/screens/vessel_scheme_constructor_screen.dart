@@ -63,6 +63,7 @@ class _VesselSchemeConstructorScreenState
   int _shellCount = 3;
   String _headType = 'elliptical';
   final List<Map<String, dynamic>> _nozzles = [];
+  int? _dragNozzleIndex;
   bool _busy = false;
   String? _error;
   String _filter = '';
@@ -774,27 +775,91 @@ class _VesselSchemeConstructorScreenState
           ),
           child: RepaintBoundary(
             key: _repaintKey,
-            child: CustomPaint(
-              painter: _VesselSchemePainter(
-                orientation: _orientation,
-                weldPreset: _weldPreset,
-                shellCount: _shellCount,
-                nozzles: _nozzles,
-                family: _selected?.family ?? 'vessel_development',
-                title: _selected?.title ?? 'Карта контроля',
-              ),
-              child: const SizedBox.expand(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final body = _previewBodyRect(
+                  Size(constraints.maxWidth, constraints.maxHeight),
+                );
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: (d) {
+                    if (body == null) return;
+                    final idx = _hitNozzleIndex(d.localPosition, body);
+                    if (idx != null) {
+                      setState(() => _dragNozzleIndex = idx);
+                    }
+                  },
+                  onPanUpdate: (d) {
+                    final i = _dragNozzleIndex;
+                    if (i == null || body == null || i >= _nozzles.length) return;
+                    final n = _nozzles[i];
+                    final place = (n['place'] as String?) ?? 'body';
+                    if (place != 'body') {
+                      // на превью днища упрощены — двигаем по корпусу
+                      n['place'] = 'body';
+                      n['side'] = 'body';
+                    }
+                    final circ = ((d.localPosition.dx - body.left) / body.width)
+                        .clamp(0.08, 0.92);
+                    final pos = ((d.localPosition.dy - body.top) / body.height)
+                        .clamp(0.08, 0.92);
+                    setState(() {
+                      n['circ'] = double.parse(circ.toStringAsFixed(3));
+                      n['position'] = double.parse(pos.toStringAsFixed(3));
+                    });
+                  },
+                  onPanEnd: (_) => setState(() => _dragNozzleIndex = null),
+                  child: CustomPaint(
+                    painter: _VesselSchemePainter(
+                      orientation: _orientation,
+                      weldPreset: _weldPreset,
+                      shellCount: _shellCount,
+                      nozzles: _nozzles,
+                      family: _selected?.family ?? 'vessel_development',
+                      title: _selected?.title ?? 'Карта контроля',
+                      highlightIndex: _dragNozzleIndex,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                );
+              },
             ),
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Превью офлайн. При применении предпочтительно API-рендер (${_selected?.formId ?? ""}).',
-          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        const Text(
+          'Превью: перетащите патрубок пальцем. При применении — API-рендер.',
+          style: TextStyle(color: Colors.white54, fontSize: 11),
           textAlign: TextAlign.center,
         ),
       ],
     );
+  }
+
+  Rect? _previewBodyRect(Size size) {
+    final family = _selected?.family ?? 'vessel_development';
+    if (family != 'vessel_development' && family != 'tank') return null;
+    final cx = size.width / 2;
+    final headR = size.width * 0.14;
+    const gap = 10.0;
+    final topCy = 28 + headR;
+    final botCy = size.height - 20 - headR;
+    final bodyTop = topCy + headR + gap;
+    final bodyBot = botCy - headR - gap;
+    final bodyW = size.width * 0.62;
+    return Rect.fromLTRB(cx - bodyW / 2, bodyTop, cx + bodyW / 2, bodyBot);
+  }
+
+  int? _hitNozzleIndex(Offset local, Rect body) {
+    for (var i = _nozzles.length - 1; i >= 0; i--) {
+      final n = _nozzles[i];
+      final t = (n['position'] as num?)?.toDouble() ?? 0.5;
+      final circ = (n['circ'] as num?)?.toDouble() ?? 0.55;
+      final x = body.left + body.width * circ.clamp(0.08, 0.92);
+      final y = body.top + body.height * t.clamp(0.08, 0.92);
+      if ((Offset(x, y) - local).distance <= 22) return i;
+    }
+    return null;
   }
 }
 
@@ -805,6 +870,7 @@ class _VesselSchemePainter extends CustomPainter {
   final List<Map<String, dynamic>> nozzles;
   final String family;
   final String title;
+  final int? highlightIndex;
 
   _VesselSchemePainter({
     required this.orientation,
@@ -813,6 +879,7 @@ class _VesselSchemePainter extends CustomPainter {
     required this.nozzles,
     required this.family,
     required this.title,
+    this.highlightIndex,
   });
 
   List<double> _longPositions(int shellIndex, {required bool dual}) {
@@ -962,12 +1029,38 @@ class _VesselSchemePainter extends CustomPainter {
         }
       }
     }
-    for (final nzz in nozzles) {
+    for (var i = 0; i < nozzles.length; i++) {
+      final nzz = nozzles[i];
       final t = (nzz['position'] as num?)?.toDouble() ?? 0.5;
       final circ = (nzz['circ'] as num?)?.toDouble() ?? 0.55;
       final x = body.left + body.width * circ.clamp(0.08, 0.92);
       final y = body.top + body.height * t.clamp(0.08, 0.92);
-      canvas.drawCircle(Offset(x, y), 7, nozzle);
+      final r = i == highlightIndex ? 11.0 : 7.0;
+      final paint = Paint()
+        ..color = i == highlightIndex
+            ? const Color(0xFF1565C0)
+            : const Color(0xFF1e50a0)
+        ..strokeWidth = i == highlightIndex ? 3.0 : 2.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawCircle(Offset(x, y), r, paint);
+      if (i == highlightIndex) {
+        canvas.drawCircle(
+          Offset(x, y),
+          r,
+          Paint()..color = const Color(0x331565C0),
+        );
+      }
+      final lab = (nzz['label'] ?? '').toString();
+      if (lab.isNotEmpty) {
+        final tpN = TextPainter(
+          text: TextSpan(
+            text: lab,
+            style: const TextStyle(color: Color(0xFF1e50a0), fontSize: 10),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tpN.paint(canvas, Offset(x + 8, y - 6));
+      }
     }
   }
 

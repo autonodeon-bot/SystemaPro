@@ -332,23 +332,36 @@ def _apply_heading_keep_with_next(doc: Document) -> None:
             keep = True
         elif t.startswith("Результаты визуального") or t.startswith("4. Результаты"):
             keep = True
+        elif t.startswith("Приложение") and len(t) < 80:
+            keep = True
+        elif "Результаты ультразвукового" in t or "Результаты магнитопорошкового" in t:
+            keep = True
+        elif "Результаты измерения твердости" in t or "Результаты толщинометрии" in t:
+            keep = True
         if keep:
             _keep_para(p)
             # «Таблица № N» сразу после заголовка раздела
             if i + 1 < len(paras):
                 nxt = _paragraph_plain_text(paras[i + 1]).strip()
-                if nxt.startswith("Таблица"):
+                if nxt.startswith("Таблица") or _is_table_caption(nxt):
                     _keep_para(paras[i + 1])
             # первая таблица после заголовка в том же SDT/родителе
             try:
                 cur = p._p.getnext()
                 hops = 0
-                while cur is not None and hops < 8:
+                while cur is not None and hops < 16:
                     hops += 1
                     tag = cur.tag
                     if tag == qn("w:p"):
                         txt = "".join(x.text or "" for x in cur.iter(qn("w:t"))).strip()
-                        if txt.startswith("Таблица"):
+                        if txt.startswith("Таблица") or _is_table_caption(txt):
+                            # keep на самом caption
+                            try:
+                                from docx.text.paragraph import Paragraph as _P
+
+                                _keep_para(_P(cur, doc))
+                            except Exception:
+                                pass
                             cur = cur.getnext()
                             continue
                         if txt:
@@ -356,14 +369,14 @@ def _apply_heading_keep_with_next(doc: Document) -> None:
                         cur = cur.getnext()
                         continue
                     if tag == qn("w:tbl"):
-                        _keep_table_head(Table(cur, doc), 2)
+                        _keep_table_head(Table(cur, doc), 3)
                         break
                     if tag == qn("w:sdt"):
                         content = cur.find(qn("w:sdtContent"))
                         if content is not None:
                             tbl = content.find(qn("w:tbl"))
                             if tbl is not None:
-                                _keep_table_head(Table(tbl, doc), 2)
+                                _keep_table_head(Table(tbl, doc), 3)
                                 break
                     cur = cur.getnext()
             except Exception:
@@ -854,6 +867,8 @@ def _enrich_inspection_data(
                             or ad.get("nominal_thickness"),
                             "min_allowed_thickness": p.get("min_allowed_thickness")
                             or ad.get("min_allowed_thickness"),
+                            "x_percent": p.get("x_percent") or p.get("xPercent"),
+                            "y_percent": p.get("y_percent") or p.get("yPercent"),
                         }
                     )
             if ad.get("nominal_thickness") and not out.get("wall_thickness"):
@@ -1041,6 +1056,13 @@ def _enrich_inspection_data(
                 existing = out.get("mpk_results") or []
                 if not isinstance(existing, list) or not existing:
                     out["mpk_results"] = mapped_mpk
+                else:
+                    # дополняем, не затирая уже синхронизированные строки
+                    out["mpk_results"] = list(existing) + [
+                        row
+                        for row in mapped_mpk
+                        if row not in existing
+                    ]
             param_row = {
                 "control_method": ad.get("magnetization_type")
                 or ad.get("control_method")
@@ -3141,7 +3163,8 @@ def _fill_materials(table: Table, ctx: Dict[str, Any]) -> None:
             for c, v in enumerate(vals):
                 if c < len(table.rows[r].cells):
                     _set(table, r, c, v)
-        # Если у элемента той же марки стали пустые мех. свойства — взять с любой строки той же марки
+        # Если у элемента той же марки стали пустые мех. колонки — взять
+        # по колонкам с любой строки той же марки (даже если часть уже заполнена).
         mech_cols = (3, 4, 5, 6, 7, 8, 9)
         last = start + len(materials)
         for r in range(start, last):
@@ -3150,29 +3173,28 @@ def _fill_materials(table: Table, ctx: Dict[str, Any]) -> None:
             grade = (table.rows[r].cells[1].text or "").strip()
             if not grade:
                 continue
-            empty = all(
-                not (table.rows[r].cells[c].text or "").strip()
+            empty_cols = [
+                c
                 for c in mech_cols
                 if c < len(table.rows[r].cells)
-            )
-            if not empty:
+                and not (table.rows[r].cells[c].text or "").strip()
+            ]
+            if not empty_cols:
                 continue
             for src in range(start, last):
                 if src == r or src >= len(table.rows):
                     continue
                 if (table.rows[src].cells[1].text or "").strip() != grade:
                     continue
-                src_empty = all(
-                    not (table.rows[src].cells[c].text or "").strip()
-                    for c in mech_cols
-                    if c < len(table.rows[src].cells)
-                )
-                if src_empty:
-                    continue
-                for c in mech_cols:
-                    if c < len(table.rows[r].cells):
-                        _set(table, r, c, table.rows[src].cells[c].text)
-                break
+                filled_any = False
+                for c in empty_cols:
+                    src_val = (table.rows[src].cells[c].text or "").strip()
+                    if not src_val:
+                        continue
+                    _set(table, r, c, table.rows[src].cells[c].text)
+                    filled_any = True
+                if filled_any:
+                    break
         for r in range(start + len(materials), len(table.rows)):
             for c in range(len(table.rows[r].cells)):
                 _set(table, r, c, "")

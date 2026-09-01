@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' as intl;
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import '../models/vessel_checklist.dart';
 import '../services/api_service.dart';
@@ -183,6 +184,15 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
 
   void _handleImageTapAtLocal(Offset localPosition, Size imageSize) {
     if (_schemeImage == null) return;
+    if (_measurements.length >= 150) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Достигнут лимит 150 точек УЗТ'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     final double xPercent = (localPosition.dx / imageSize.width) * 100;
     final double yPercent = (localPosition.dy / imageSize.height) * 100;
@@ -201,6 +211,88 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     });
 
     _showPointDialog(newPoint);
+  }
+
+  Future<void> _massAddGrid() async {
+    final countCtrl = TextEditingController(text: '30');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1e293b),
+        title: const Text('Массовое добавление точек',
+            style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Точки будут расставлены сеткой по схеме (без наездов). Максимум 150.',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: countCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Количество точек',
+                labelStyle: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Добавить')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final want = int.tryParse(countCtrl.text.trim()) ?? 0;
+    if (want <= 0) return;
+    final room = 150 - _measurements.length;
+    if (room <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Достигнут лимит 150 точек УЗТ'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    final n = want > room ? room : want;
+    final cols = (n <= 4)
+        ? n
+        : math.max(4, math.min(20, math.ceil(math.sqrt(n * 1.6)).toInt()));
+    final rows = ((n + cols - 1) / cols).ceil();
+    final start = _measurements.length;
+    final added = <ThicknessMeasurement>[];
+    for (var i = 0; i < n; i++) {
+      final col = i % cols;
+      final row = i ~/ cols;
+      final xp = 12.0 + 76.0 * ((col + 0.5) / cols);
+      final yp = 22.0 + 56.0 * ((row + 0.5) / rows);
+      final num = start + i + 1;
+      final m = ThicknessMeasurement(
+        location: 'Точка $num',
+        sectionNumber: '$num',
+      );
+      m.xPercent = double.parse(xp.toStringAsFixed(2));
+      m.yPercent = double.parse(yp.toStringAsFixed(2));
+      added.add(m);
+    }
+    setState(() => _measurements.addAll(added));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Добавлено $n точек сеткой ($cols×$rows)'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _showPointDialog(ThicknessMeasurement point) {
@@ -707,6 +799,11 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
         backgroundColor: const Color(0xFF0f172a),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.grid_on),
+            tooltip: 'Массовое добавление сеткой',
+            onPressed: _massAddGrid,
+          ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: () {

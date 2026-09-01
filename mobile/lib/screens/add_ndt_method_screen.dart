@@ -796,6 +796,12 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
+                    controller: c['coordinate'],
+                    decoration: _inputDeco('Место на карте контроля'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
                     controller: c['defect_number'],
                     decoration: _inputDeco('Условный номер дефекта'),
                     style: const TextStyle(color: Colors.white),

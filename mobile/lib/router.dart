@@ -13,6 +13,7 @@ import 'screens/settings_screen.dart';
 import 'screens/add_ndt_method_screen.dart';
 import 'screens/verification_equipment_selection_screen.dart';
 import 'screens/thickness_measurement_screen.dart';
+import 'screens/ndt_zone_editor_screen.dart';
 import 'screens/image_annotation_screen.dart';
 import 'screens/weld_defect_annotation_screen.dart';
 import 'screens/drawing_template_picker_screen.dart';
@@ -129,6 +130,28 @@ final appRouter = GoRouter(
           existingMeasurements:
               extra['existingMeasurements'] as List<ThicknessMeasurement>?,
           equipment: extra['equipment'] as Equipment?,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/ndt-zone-editor',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? {};
+        final zonesRaw = extra['existingZones'];
+        final zones = <Map<String, dynamic>>[];
+        if (zonesRaw is List) {
+          for (final z in zonesRaw) {
+            if (z is Map) {
+              zones.add(Map<String, dynamic>.from(z));
+            }
+          }
+        }
+        return NdtZoneEditorScreen(
+          layer: (extra['layer'] as String?) ?? 'uzk',
+          schemeImage: extra['schemeImage'] as File?,
+          geometry: extra['geometry'] as Map<String, dynamic>?,
+          existingZones: zones,
+          title: (extra['title'] as String?) ?? 'Зоны контроля',
         );
       },
     ),

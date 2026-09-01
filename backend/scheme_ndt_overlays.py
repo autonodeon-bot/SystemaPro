@@ -222,9 +222,28 @@ def _collect_hardness_zones(
 ) -> List[Dict[str, Any]]:
     tests = data.get("hardness_tests") or []
     if not isinstance(tests, list):
-        return []
+        tests = []
     prefs = tuple(p.upper() for p in prefixes)
     zones: List[Dict[str, Any]] = []
+    seen_labels: set = set()
+
+    def _add(label: str, xp: Any, yp: Any) -> None:
+        nonlocal zones
+        if len(zones) >= max_n:
+            return
+        lab = (label or f"{prefixes[0]}{len(zones) + 1}").strip()
+        key = lab.upper()
+        if key in seen_labels:
+            return
+        seen_labels.add(key)
+        zones.append(
+            {
+                "label": lab,
+                "x_percent": _f(xp, 0) if xp not in (None, "") else None,
+                "y_percent": _f(yp, 0) if yp not in (None, "") else None,
+            }
+        )
+
     for t in tests:
         if not isinstance(t, dict):
             continue
@@ -234,21 +253,129 @@ def _collect_hardness_zones(
         up = label.upper().replace("У", "U")
         if not any(up.startswith(p) for p in prefs):
             continue
-        xp = t.get("x_percent")
-        yp = t.get("y_percent")
-        zones.append(
-            {
-                "label": label or f"{prefixes[0]}{len(zones) + 1}",
-                "x_percent": _f(xp, 0) if xp not in (None, "") else None,
-                "y_percent": _f(yp, 0) if yp not in (None, "") else None,
-            }
-        )
-        if len(zones) >= max_n:
-            break
+        _add(label, t.get("x_percent"), t.get("y_percent"))
+
+    # зоны из geometry / scheme_control_points
+    geo = extract_geometry(data)
+    geo_key = "hardness_T" if any(p in ("T", "Т") for p in prefs) else "hardness_U"
+    for z in geo.get(geo_key) or []:
+        if isinstance(z, dict):
+            _add(str(z.get("label") or ""), z.get("x_percent"), z.get("y_percent"))
+    base = data.get("base_vessel_scheme")
+    if isinstance(base, dict):
+        for p in base.get("points") or []:
+            if not isinstance(p, dict):
+                continue
+            if str(p.get("control_type") or p.get("controlType") or "").lower() != "hardness":
+                continue
+            lab = str(p.get("number") or p.get("label") or "").strip()
+            up = lab.upper().replace("У", "U")
+            if any(up.startswith(pr) for pr in prefs):
+                _add(lab, p.get("x_percent") or p.get("xPercent"), p.get("y_percent") or p.get("yPercent"))
+
     return _autoplace_missing(zones, max_n=max_n, y0=0.22, y1=0.78, as_label=True)
 
 
+def _zone_from_dict(z: Dict[str, Any], *, default_kind: str = "weld") -> Optional[Dict[str, Any]]:
+    """Нормализация пользовательской зоны УЗК/МПК."""
+    if not isinstance(z, dict):
+        return None
+    kind = str(z.get("kind") or "").strip() or default_kind
+    out: Dict[str, Any] = {"kind": kind}
+    for key in ("weld_label", "nozzle_label", "label"):
+        val = z.get(key)
+        if val not in (None, ""):
+            out[key if key != "label" else "weld_label"] = str(val).strip()
+    # прямоугольник в % листа
+    for key in ("x_percent", "y_percent", "width_percent", "height_percent"):
+        if z.get(key) not in (None, ""):
+            out[key] = _f(z.get(key), 0)
+    # доля протяжённости шва 0..1 (или 0..100)
+    for key in ("extent_start", "extent_end", "band_width"):
+        if z.get(key) not in (None, ""):
+            out[key] = _f(z.get(key), 0)
+    if z.get("radius_percent") not in (None, ""):
+        out["radius_percent"] = _f(z.get("radius_percent"), 2.5)
+    # достаточно: all_* / weld_label / nozzle / rect
+    has_target = bool(
+        out.get("weld_label")
+        or out.get("nozzle_label")
+        or kind in ("all_welds", "all_nozzles", "rect")
+        or (
+            out.get("width_percent") not in (None, 0)
+            and out.get("height_percent") not in (None, 0)
+        )
+    )
+    if not has_target and out.get("x_percent") is None:
+        return None
+    if out.get("weld_label") and kind in ("weld", ""):
+        out["kind"] = _weld_kind_from_label(str(out["weld_label"]))
+    if out.get("nozzle_label") and kind == "weld":
+        out["kind"] = "nozzle"
+    return out
+
+
+def _collect_custom_zones(data: Dict[str, Any], methods: Sequence[str]) -> List[Dict[str, Any]]:
+    """Зоны из geometry / scheme_geometry / ndt overlays, заданные пользователем."""
+    methods_u = {m.upper() for m in methods}
+    is_uzk = bool(methods_u & {"UZK", "УЗК"})
+    key = "uzk_zones" if is_uzk else "mpk_zones"
+    alt_key = "uzkZones" if is_uzk else "mpkZones"
+    sources: List[Any] = []
+    geo = extract_geometry(data)
+    for src in (
+        geo.get(key),
+        geo.get(alt_key),
+        (data.get("scheme_geometry") or {}).get(key) if isinstance(data.get("scheme_geometry"), dict) else None,
+        data.get(key),
+        (data.get("ndt_scheme_zones") or {}).get(key) if isinstance(data.get("ndt_scheme_zones"), dict) else None,
+    ):
+        if isinstance(src, list) and src:
+            sources.extend(src)
+    # из методов НК: additional_data.scheme_zones
+    for m in data.get("ndt_methods") or []:
+        if not isinstance(m, dict):
+            continue
+        code = str(m.get("method_code") or m.get("code") or m.get("method") or "").upper()
+        if is_uzk and not any(k in code for k in ("UZK", "УЗК")):
+            continue
+        if not is_uzk and not any(k in code for k in ("MPK", "МПК", "МПД", "MK", "МК", "MPI")):
+            continue
+        ad = m.get("additional_data") or m.get("additionalData") or {}
+        if isinstance(ad, dict):
+            for src in (ad.get("scheme_zones"), ad.get(key)):
+                if isinstance(src, list):
+                    sources.extend(src)
+    items: List[Dict[str, Any]] = []
+    seen = set()
+    for z in sources:
+        norm = _zone_from_dict(z if isinstance(z, dict) else {})
+        if not norm:
+            continue
+        sig = (
+            norm.get("weld_label"),
+            norm.get("nozzle_label"),
+            norm.get("kind"),
+            round(_f(norm.get("x_percent"), -1), 2),
+            round(_f(norm.get("y_percent"), -1), 2),
+            round(_f(norm.get("width_percent"), -1), 2),
+            round(_f(norm.get("height_percent"), -1), 2),
+            round(_f(norm.get("extent_start"), -1), 3),
+            round(_f(norm.get("extent_end"), -1), 3),
+        )
+        if sig in seen:
+            continue
+        seen.add(sig)
+        items.append(norm)
+    return items
+
+
 def _collect_weld_zones(data: Dict[str, Any], methods: Sequence[str]) -> List[Dict[str, Any]]:
+    # Пользовательские зоны (редактор) имеют приоритет
+    custom = _collect_custom_zones(data, methods)
+    if custom:
+        return custom
+
     methods_u = {m.upper() for m in methods}
     items: List[Dict[str, Any]] = []
     welds = data.get("weld_inspections") or data.get("uzk_results") or []
@@ -265,10 +392,28 @@ def _collect_weld_zones(data: Dict[str, Any], methods: Sequence[str]) -> List[Di
                 else:
                     continue
             lab = str(w.get("weld_number") or w.get("joint") or w.get("seam") or "").strip()
+            item: Dict[str, Any] = {}
             if lab:
-                items.append({"weld_label": lab, "kind": _weld_kind_from_label(lab)})
+                item = {"weld_label": lab, "kind": _weld_kind_from_label(lab)}
             nzz = str(w.get("nozzle") or w.get("nozzle_label") or "").strip()
             if nzz:
+                item = {**item, "nozzle_label": nzz, "kind": item.get("kind") or "nozzle"}
+            # размеры зоны, если заданы в записи шва
+            for key in (
+                "x_percent",
+                "y_percent",
+                "width_percent",
+                "height_percent",
+                "extent_start",
+                "extent_end",
+                "band_width",
+                "radius_percent",
+            ):
+                if w.get(key) not in (None, ""):
+                    item[key] = _f(w.get(key), 0)
+            if item:
+                items.append(item)
+            elif nzz and not lab:
                 items.append({"nozzle_label": nzz, "kind": "nozzle"})
     # Если зон нет — подсветить все швы и патрубки (как на эталоне «по всей протяжённости»)
     if not items:
@@ -301,11 +446,15 @@ def _autoplace_missing(
     if n_miss == 0:
         return points[:max_n]
     cols = max(4, int(math.ceil(math.sqrt(n_miss * 1.6))))
+    # Для большого числа точек — шире сетка, меньше наездов
+    if n_miss > 40:
+        cols = max(cols, int(math.ceil(math.sqrt(n_miss * 2.2))))
     rows = max(1, int(math.ceil(n_miss / cols)))
+    x_pad, x_span = (12.0, 76.0) if n_miss > 60 else (18.0, 64.0)
     for i, p in enumerate(missing):
         col = i % cols
         row = i // cols
-        p["x_percent"] = round(18 + (64 * (col + 0.5) / cols), 2)
+        p["x_percent"] = round(x_pad + (x_span * (col + 0.5) / cols), 2)
         p["y_percent"] = round((y0 + (y1 - y0) * ((row + 0.5) / rows)) * 100, 2)
         # Признак расчётной позиции: рендерер разложит такие точки по сетке
         # внутри реального прямоугольника корпуса, а не по листу целиком.
