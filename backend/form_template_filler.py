@@ -1782,22 +1782,25 @@ def _insert_section_break_after(element, landscape: bool) -> None:
     element.addnext(_make_section_break_paragraph(landscape))
 
 
-# A4 landscape с полями ~0.5": ширина ~10.2", высота под картинку с учётом заголовка.
-_SCHEME_PAGE_MAX_W_IN = 10.2
-_SCHEME_PAGE_MAX_H_IN = 6.4
-_SCHEME_EXTRA_MAX_H_IN = 5.5
+# A4 landscape: 297×210 мм. Поля 0.5" → поле ~10.2"×7.1".
+# Оставляем запас сверху под заголовок (название + номер схемы).
+_SCHEME_PAGE_MAX_W_IN = 9.0
+_SCHEME_PAGE_MAX_H_IN = 5.6
+_SCHEME_EXTRA_MAX_H_IN = 4.8
 
 
 def _append_section_properties_to_paragraph(paragraph: Paragraph, *, landscape: bool) -> None:
     """
-    sectPr в pPr задаёт свойства секции, которой принадлежит абзац (ECMA-376).
-    Разрыв через отдельный абзац ПОСЛЕ картинки не переводил лист в landscape —
-    заголовок и схема оставались в portrait и вылезали за край.
+    sectPr в pPr задаёт свойства секции, которой принадлежит абзац (ECMA-376):
+    секция ЗАКАНЧИВАЕТСЯ этим абзацем.
     """
     pPr = paragraph._p.get_or_add_pPr()
     for old in list(pPr.findall(qn("w:sectPr"))):
         pPr.remove(old)
     sectPr = OxmlElement("w:sectPr")
+    type_el = OxmlElement("w:type")
+    type_el.set(qn("w:val"), "nextPage")
+    sectPr.append(type_el)
     pgSz = OxmlElement("w:pgSz")
     if landscape:
         pgSz.set(qn("w:w"), "16838")
@@ -1832,20 +1835,21 @@ def _fit_image_width_inches(image_path: str, max_width: float, max_height: float
             w_px, h_px = im.size
         if w_px <= 0 or h_px <= 0:
             return max_width
-        aspect = w_px / h_px
+        aspect = w_px / float(h_px)
         w = max_width
         if w / aspect > max_height:
             w = max_height * aspect
-        return round(min(w, max_width), 2)
+        return round(max(4.0, min(w, max_width)), 2)
     except Exception:
-        return round(min(max_width, 7.2), 2)
+        return round(min(max_width, 7.0), 2)
 
 
 def _style_scheme_title_paragraph(paragraph: Paragraph, title: str) -> None:
     """Заголовок схемы сверху: 12 pt, жирный, не отрывать от картинки."""
     _set_paragraph_text(paragraph, title, pt=12.0)
     try:
-        paragraph.paragraph_format.space_after = Pt(4)
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(6)
         paragraph.paragraph_format.keep_with_next = True
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         if paragraph.runs:
@@ -1860,11 +1864,25 @@ def _insert_scheme_landscape_block(
     image_path: str,
     extra_paths: List[Tuple[str, str]],
     *,
-    new_page: bool = True,
+    close_prev_as_portrait: bool = True,
 ) -> Optional[Paragraph]:
-    """Одна схема: новая landscape-страница, заголовок, масштабированная картинка."""
-    if new_page:
+    """
+    Одна схема на landscape-листе: заголовок сверху + масштабированная картинка.
+
+    OOXML: sectPr на абзаце описывает секцию, которая им заканчивается.
+    1) перед блоком — разрыв секции, закрывающий предыдущий контент как portrait
+       (иначе заголовок+схема остаются на portrait и PNG вылезает за край);
+    2) в конце блока — landscape на последнем абзаце (картинка).
+    """
+    if close_prev_as_portrait:
+        try:
+            _insert_section_break_before(anchor._p, landscape=False)
+        except Exception:
+            _insert_page_break_before_paragraph(anchor)
+    else:
+        # Предыдущая схема уже закрыла секцию landscape — нужна только новая страница.
         _insert_page_break_before_paragraph(anchor)
+
     _style_scheme_title_paragraph(anchor, title)
     clear_pictures_after_paragraph(anchor)
     last = anchor
@@ -1874,13 +1892,14 @@ def _insert_scheme_landscape_block(
         return None
     last = pic
     for cap, ep in extra_paths:
-        w_extra = _fit_image_width_inches(ep, _SCHEME_PAGE_MAX_W_IN - 0.4, _SCHEME_EXTRA_MAX_H_IN)
+        w_extra = _fit_image_width_inches(ep, _SCHEME_PAGE_MAX_W_IN - 0.3, _SCHEME_EXTRA_MAX_H_IN)
         cap_p = insert_paragraph_after(last, cap)
         _set_paragraph_font_size(cap_p, 12.0)
         try:
             if cap_p.runs:
                 _set_run_font(cap_p.runs[0], pt=12.0, bold=True)
             cap_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cap_p.paragraph_format.keep_with_next = True
         except Exception:
             pass
         pic2 = add_picture_after_paragraph(cap_p, ep, width_inches=w_extra, caption=None)
@@ -4507,7 +4526,7 @@ def insert_ndt_layer_schemes(
                     title,
                     path,
                     extra_paths,
-                    new_page=True,
+                    close_prev_as_portrait=(i == 0),
                 )
                 if pic is not None:
                     n_schemes += 1 + len(extra_paths)
@@ -4532,7 +4551,13 @@ def insert_ndt_layer_schemes(
             title = layer_title(LAYER_ORDER[i] if i < len(LAYER_ORDER) else "vik", equipment_kind=kind)
             path = resolve_image_path(s.get("path"), find_image)
             if path and is_image_file(path):
-                pic = _insert_scheme_landscape_block(ordered[i], title, path, [], new_page=True)
+                pic = _insert_scheme_landscape_block(
+                    ordered[i],
+                    title,
+                    path,
+                    [],
+                    close_prev_as_portrait=(i == 0),
+                )
                 if pic is not None:
                     n_schemes += 1
         else:

@@ -517,21 +517,19 @@ class WordGenerator:
         if org_settings is None:
             org_settings = load_report_org_settings()
         rt = (report_type or "").strip().upper()
-        if rt in ["DIAGNOSTICS", "DIAGNOSTIC", "TECHNICAL_DIAGNOSTICS"]:
-            return self._generate_diagnostics_report_word(
-                inspection_data=inspection_data,
-                equipment_data=equipment_data,
-                ndt_methods=ndt_methods,
-                output_path=output_path,
-                document_files=document_files,
-                specialist_docs=specialist_docs,
-                verification_equipment=verification_equipment,
-                template_definition=template_definition,
-                org_settings=org_settings,
-            )
-        
-        # Технический отчёт по форме ТО (Word-шаблон из каталога «Приложение_форма ТО»)
-        if rt in ("TECHNICAL_REPORT", "TECHNICAL", "TO", "ТД", ""):
+        # Технический отчёт / диагностика по форме ТО (Word-шаблон из report_forms).
+        # Раньше DIAGNOSTICS шёл в программный генератор — правки по замечаниям PDF
+        # (выводы, landscape схем, keep-with-next) туда не попадали.
+        if rt in (
+            "TECHNICAL_REPORT",
+            "TECHNICAL",
+            "TO",
+            "ТД",
+            "DIAGNOSTICS",
+            "DIAGNOSTIC",
+            "TECHNICAL_DIAGNOSTICS",
+            "",
+        ):
             filled = self._try_fill_official_form(
                 inspection_data=inspection_data,
                 equipment_data=equipment_data,
@@ -544,6 +542,18 @@ class WordGenerator:
             )
             if filled:
                 return filled
+
+        if rt in ["DIAGNOSTICS", "DIAGNOSTIC", "TECHNICAL_DIAGNOSTICS"]:
+            return self._generate_diagnostics_report_word(
+                inspection_data=inspection_data,
+                equipment_data=equipment_data,
+                ndt_methods=ndt_methods,
+                output_path=output_path,
+                document_files=document_files,
+                specialist_docs=specialist_docs,
+                verification_equipment=verification_equipment,
+                template_definition=template_definition,
+            )
 
         # Сосуд / газосепаратор / ресивер — программный шаблон (ЭПБ и fallback)
         if is_pressure_device(equipment_data):
