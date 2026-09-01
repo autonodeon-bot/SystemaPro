@@ -267,7 +267,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     final n = want > room ? room : want;
     final cols = (n <= 4)
         ? n
-        : math.max(4, math.min(20, math.ceil(math.sqrt(n * 1.6)).toInt()));
+        : math.max<int>(4, math.min<int>(20, math.ceil(math.sqrt(n * 1.6)).toInt()));
     final rows = ((n + cols - 1) / cols).ceil();
     final start = _measurements.length;
     final added = <ThicknessMeasurement>[];
