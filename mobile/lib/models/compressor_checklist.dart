@@ -36,10 +36,7 @@ class CompressorChecklist extends VesselChecklist {
   @override
   Map<String, dynamic> toJson() {
     final json = super.toJson();
-    // Удаляем поля, специфичные для сосудов
-    json.remove('diameter');
-    json.remove('wall_thickness');
-    json.remove('working_pressure');
+    // Общие паспортные параметры нужны и в отчётах компрессоров.
     
     // Добавляем поля компрессора
     json['equipment_type'] = 'COMPRESSOR';
@@ -68,33 +65,7 @@ class CompressorChecklist extends VesselChecklist {
   }
   
   factory CompressorChecklist.fromJson(Map<String, dynamic> json) {
-    final checklist = CompressorChecklist();
-    
-    // Заполняем общие поля из VesselChecklist
-    checklist.inspectionDate = json['inspection_date'];
-    checklist.executors = json['executors'];
-    checklist.organization = json['organization'];
-    checklist.documents = Map<String, bool>.from(json['documents'] ?? {});
-    final docsInfoRaw = json['documents_info'];
-    if (docsInfoRaw is Map) {
-      final m = Map<String, dynamic>.from(docsInfoRaw);
-      checklist.documentsInfo = m.map((k, v) {
-        if (v is Map) {
-          final mv = Map<String, dynamic>.from(v);
-          return MapEntry(
-            k.toString(),
-            {
-              'number': (mv['number'] ?? mv['doc_number'] ?? '').toString(),
-              'date': (mv['date'] ?? mv['doc_date'] ?? '').toString(),
-            },
-          );
-        }
-        return MapEntry(k.toString(), {'number': '', 'date': ''});
-      });
-    }
-    checklist.conclusion = json['conclusion'];
-    checklist.factoryPlatePhoto = json['factory_plate_photo'];
-    checklist.controlSchemeImage = json['control_scheme_image'];
+    final checklist = CompressorChecklist()..loadJson(json);
     
     // Заполняем специфичные для компрессора поля
     checklist.compressorType = json['compressor_type'];

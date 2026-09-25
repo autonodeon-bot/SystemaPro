@@ -480,9 +480,61 @@ class DatabaseService {
     await batch.commit(noResult: true);
   }
 
+  /// Atomically replace matching drafts while preserving signed revisions and unrelated writes.
+  static Future<void> enqueueInspection(Map<String, dynamic> data) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final rows = await txn.query('pending_inspections');
+      final form = data['data'] is Map ? data['data']['report_form_id'] : null;
+      for (final row in rows) {
+        final existing = jsonDecode(row['data'] as String) as Map;
+        final oldForm = existing['data'] is Map ? existing['data']['report_form_id'] : null;
+        if ((existing['status'] ?? 'DRAFT').toString().toUpperCase() == 'DRAFT' &&
+            existing['equipment_id'] == data['equipment_id'] &&
+            (existing['assignment_id'] ?? '') == (data['assignment_id'] ?? '') && oldForm == form) {
+          await txn.delete('pending_inspections', where: 'id = ?', whereArgs: [row['id']]);
+        }
+      }
+      await txn.insert('pending_inspections', {
+        'id': data['id'], 'data': jsonEncode(data),
+        'created_at': DateTime.now().toUtc().toIso8601String(), 'status': 'pending',
+      });
+    });
+  }
+
   static Future<void> clearPendingInspections() async {
     final db = await database;
     await db.delete('pending_inspections');
+  }
+
+  /// Acknowledge only the uploaded revision; edits made during upload survive.
+  static Future<void> acknowledgeInspectionUpload(Map<String, dynamic> uploaded) async {
+    final db = await database;
+    final id = uploaded['id']?.toString();
+    if (id == null) return;
+    await db.transaction((txn) async {
+      final rows = await txn.query('pending_inspections', where: 'id = ?', whereArgs: [id]);
+      if (rows.isNotEmpty) {
+        final current = jsonDecode(rows.first['data'] as String) as Map;
+        if (current['timestamp'] == uploaded['timestamp']) {
+          await txn.delete('pending_inspections', where: 'id = ?', whereArgs: [id]);
+        }
+      }
+      final sentAt = DateTime.tryParse(uploaded['timestamp']?.toString() ?? '');
+      if (sentAt == null) return;
+      final drafts = await txn.query('drafts', where: 'screen_type = ?', whereArgs: ['inspection']);
+      final form = uploaded['data'] is Map ? uploaded['data']['report_form_id'] : null;
+      for (final row in drafts) {
+        final draft = jsonDecode(row['data'] as String) as Map;
+        final savedAt = DateTime.tryParse(draft['saved_at']?.toString() ?? '');
+        final draftForm = draft['checklist_data'] is Map ? draft['checklist_data']['report_form_id'] : null;
+        if (savedAt != null && !savedAt.isAfter(sentAt) &&
+            draft['equipment_id'] == uploaded['equipment_id'] &&
+            (draft['assignment_id'] ?? '') == (uploaded['assignment_id'] ?? '') && form == draftForm) {
+          await txn.delete('drafts', where: 'id = ?', whereArgs: [row['id']]);
+        }
+      }
+    });
   }
 
   static Future<void> markInspectionSynced(String id) async {
@@ -493,6 +545,22 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  static Future<void> recordInspectionSyncError(Map<String, dynamic> uploaded, String message) async {
+    final db = await database;
+    final id = uploaded['id']?.toString();
+    if (id == null) return;
+    await db.transaction((txn) async {
+      final rows = await txn.query('pending_inspections', where: 'id = ?', whereArgs: [id]);
+      if (rows.isEmpty) return;
+      final current = jsonDecode(rows.first['data'] as String) as Map<String, dynamic>;
+      if (current['timestamp'] != uploaded['timestamp']) return;
+      current['sync_error'] = message;
+      current['sync_attempted_at'] = DateTime.now().toUtc().toIso8601String();
+      current['sync_attempts'] = (current['sync_attempts'] as int? ?? 0) + 1;
+      await txn.update('pending_inspections', {'data': jsonEncode(current)}, where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   // Sync metadata

@@ -1,0 +1,1082 @@
+{
+  "equipment": {
+    "attributes": {},
+    "id": "00000000-0000-0000-0001-000000000002",
+    "location": "Площадка диагностики № 2",
+    "name": "Ресивер РГС 10-1,6-1400",
+    "serial_number": "КП-05502",
+    "type_code": "VESSEL"
+  },
+  "inspection": {
+    "data": {
+      "allowed_pressure": "1,2",
+      "allowed_temperature": "40",
+      "body_length_mm": 5500,
+      "calculation_data": {
+        "elements": [
+          {
+            "allowed_pressure": "1,2",
+            "conclusion": "Условия прочности выполняются",
+            "corrosion_rate": 0.04,
+            "element": "Обечайка 1",
+            "min_allowed_thickness": 10,
+            "min_thickness": 11.5,
+            "nominal_thickness": 12,
+            "residual_life_years": 5
+          },
+          {
+            "allowed_pressure": "1,2",
+            "conclusion": "Условия прочности выполняются",
+            "corrosion_rate": 0.04,
+            "element": "Обечайка 2",
+            "min_allowed_thickness": 10,
+            "min_thickness": 11.5,
+            "nominal_thickness": 12,
+            "residual_life_years": 5
+          },
+          {
+            "allowed_pressure": "1,2",
+            "conclusion": "Условия прочности выполняются",
+            "corrosion_rate": 0.04,
+            "element": "Обечайка 3",
+            "min_allowed_thickness": 10,
+            "min_thickness": 11.5,
+            "nominal_thickness": 12,
+            "residual_life_years": 5
+          },
+          {
+            "allowed_pressure": "1,2",
+            "conclusion": "Условия прочности выполняются",
+            "corrosion_rate": 0.04,
+            "element": "Днище левое",
+            "min_allowed_thickness": 10,
+            "min_thickness": 11.5,
+            "nominal_thickness": 12,
+            "residual_life_years": 5
+          },
+          {
+            "allowed_pressure": "1,2",
+            "conclusion": "Условия прочности выполняются",
+            "corrosion_rate": 0.04,
+            "element": "Днище правое",
+            "min_allowed_thickness": 10,
+            "min_thickness": 11.5,
+            "nominal_thickness": 12,
+            "residual_life_years": 5
+          }
+        ],
+        "method": "По методике, указанной в техническом отчёте",
+        "residual_life_years": 5
+      },
+      "calculation_result": "Значения фактической толщины превышают минимально допустимые значения из расчёта.",
+      "commissioning_year": "2013",
+      "contract_number": "КП-26/09 от 01.09.2026",
+      "control_scheme_image": "C:\\RUSTAM\\DIATEKS\\sys\\SystemaPro\\docs\\epb-comparison\\baseline\\scheme-2.png",
+      "defects": [],
+      "deflection_measurements": [
+        {
+          "deflection_mm": 2.0,
+          "deflection_percent": 0.1,
+          "section_number": "1"
+        },
+        {
+          "deflection_mm": 2.0,
+          "deflection_percent": 0.1,
+          "section_number": "2"
+        },
+        {
+          "deflection_mm": 2.0,
+          "deflection_percent": 0.1,
+          "section_number": "3"
+        }
+      ],
+      "design_pressure": "1,6",
+      "design_temperature": "60",
+      "diameter": "1400",
+      "doc_analysis_conclusion": "Представленная техническая документация идентифицирует сосуд и условия эксплуатации.",
+      "documentation_conclusion": "документация в полном объёме",
+      "documents": {
+        "10": true
+      },
+      "documents_info": {
+        "10": {
+          "date": "2012-05-20",
+          "number": "П-1",
+          "pages": "24"
+        }
+      },
+      "epb_compliance_analysis": "Оценка выполнена по перечню нормативных документов, указанному в исходном отчёте.",
+      "epb_conclusion": "Ресивер РГС 10-1,6-1400, зав. № КП-05502, соответствует требованиям промышленной безопасности при соблюдении установленных условий эксплуатации.",
+      "epb_conditions": "Давление не выше 1,2 МПа, температура не выше 40 °C; контроль технического состояния по регламенту.",
+      "equipment_device_name": "Ресивер РГС 10-1,6-1400",
+      "executors": "Иванов И.И.",
+      "fittings": [
+        {
+          "dn": 80,
+          "name": "Предохранительный клапан",
+          "pressure": "1,6",
+          "quantity": 2
+        },
+        {
+          "dn": "—",
+          "name": "Манометр",
+          "pressure": "1,6",
+          "quantity": 1
+        }
+      ],
+      "functional_checks": [
+        {
+          "name": "Герметичность",
+          "result": "Течей не обнаружено"
+        },
+        {
+          "name": "Рабочие параметры",
+          "result": "1,2 МПа, 40 °C"
+        }
+      ],
+      "functional_params": "Рабочее давление 1,2 МПа; температура 40 °C.",
+      "hardness_conclusion": "Измеренные значения твёрдости находятся в установленных пределах.",
+      "hardness_tests": [
+        {
+          "allowed_hardness_base": "120–180",
+          "allowed_hardness_weld": "225",
+          "area_number": "1",
+          "hardness_base_t1": 146,
+          "hardness_base_t5": 149,
+          "hardness_haz_t2": 155,
+          "hardness_haz_t4": 153,
+          "hardness_weld": 162,
+          "location": "К1/П1",
+          "weld_number": "К1/П1"
+        },
+        {
+          "allowed_hardness_base": "120–180",
+          "allowed_hardness_weld": "225",
+          "area_number": "2",
+          "hardness_base_t1": 147,
+          "hardness_base_t5": 150,
+          "hardness_haz_t2": 156,
+          "hardness_haz_t4": 154,
+          "hardness_weld": 163,
+          "location": "К2/П2",
+          "weld_number": "К2/П2"
+        }
+      ],
+      "has_external_defects": false,
+      "has_internal_defects": false,
+      "hydraulic_test_history": [
+        {
+          "date": "2026-09-18",
+          "medium": "вода",
+          "pressure": "2,0",
+          "result": "Течи и остаточные деформации не обнаружены",
+          "type": "гидравлическое"
+        }
+      ],
+      "hydrostatic_test": {
+        "date": "2026-09-18",
+        "hold_time": "10 мин",
+        "medium": "вода",
+        "result": "Течи и остаточные деформации не обнаружены",
+        "test_pressure": "2,0"
+      },
+      "inspection_engineers": [
+        {
+          "certificate_number": "КОНТРОЛЬ-01",
+          "full_name": "Иванов Иван Иванович",
+          "method": "UZT",
+          "role": "Специалист НК II уровня",
+          "valid_until": "2027-09-18"
+        }
+      ],
+      "inspection_reglament": [
+        {
+          "control_type": "Наружный и внутренний осмотр, УЗТ",
+          "date": "18.09.2028",
+          "executor": "Ответственное лицо",
+          "periodicity": "По утверждённому регламенту"
+        }
+      ],
+      "inventory_number": "ИНВ-778",
+      "kip_state": "КИП работоспособны",
+      "location": "Площадка диагностики № 2",
+      "manometer_verification": "Поверка действительна до 18.09.2027",
+      "manufacture_year": "2012",
+      "manufacturer": "Завод контрольного оборудования",
+      "manufacturing_year": "2012",
+      "min_wall_temperature": "минус 40",
+      "mpk_conclusion": "Техническим заданием не предусмотрен.",
+      "operating_conditions_conclusion": "Условия эксплуатации соответствуют представленным паспортным характеристикам.",
+      "operational_conclusion": "Отклонений при оперативном диагностировании не выявлено.",
+      "opo_code": "А00-00000-002",
+      "opo_hazard_class": "II",
+      "opo_name": "Площадка подготовки продукции",
+      "organization": "ООО «Контрольный заказчик»",
+      "ovality_measurements": [
+        {
+          "allowed_ovality": "1,0",
+          "deviation_percent": 0.286,
+          "max_diameter": 1402,
+          "min_diameter": 1398,
+          "section_number": "1"
+        },
+        {
+          "allowed_ovality": "1,0",
+          "deviation_percent": 0.286,
+          "max_diameter": 1402,
+          "min_diameter": 1398,
+          "section_number": "2"
+        },
+        {
+          "allowed_ovality": "1,0",
+          "deviation_percent": 0.286,
+          "max_diameter": 1402,
+          "min_diameter": 1398,
+          "section_number": "3"
+        }
+      ],
+      "protocol_number": "ТО-99/26",
+      "purpose": "накопления сжатого воздуха",
+      "pvk_conclusion": "Недопустимых индикаций не обнаружено.",
+      "reg_number": "К-279",
+      "report_form_id": "to-1",
+      "report_number": "ТО-ПРОВЕРКА-2",
+      "residual_life_until": "18.09.2031",
+      "residual_life_years": "5",
+      "scheme_index": "С-2",
+      "serial_number": "КП-05502",
+      "shell_material": "09Г2С",
+      "source_report_number": "ТО-ПРОВЕРКА-2",
+      "suitability_conclusion": "соответствует",
+      "support_state": "Опоры работоспособны",
+      "tech_card_number": "ТК-01",
+      "technical_task": {
+        "hardness_sections": 2,
+        "mpk_sections": 0,
+        "pvk_sections": 2,
+        "uzk_sections": 2
+      },
+      "test_pressure": "2,0",
+      "thickness_measurements": [
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 1,
+          "section_number": "1",
+          "thickness": 11.8,
+          "x_percent": 22.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 2,
+          "section_number": "2",
+          "thickness": 11.7,
+          "x_percent": 25.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 3,
+          "section_number": "3",
+          "thickness": 11.6,
+          "x_percent": 28.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 4,
+          "section_number": "4",
+          "thickness": 11.5,
+          "x_percent": 22.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 5,
+          "section_number": "5",
+          "thickness": 11.9,
+          "x_percent": 25.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 6,
+          "section_number": "6",
+          "thickness": 11.8,
+          "x_percent": 28.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 7,
+          "section_number": "7",
+          "thickness": 11.7,
+          "x_percent": 22.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 8,
+          "section_number": "8",
+          "thickness": 11.6,
+          "x_percent": 25.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 9,
+          "section_number": "9",
+          "thickness": 11.5,
+          "x_percent": 28.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 10,
+          "section_number": "10",
+          "thickness": 11.9,
+          "x_percent": 22.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 11,
+          "section_number": "11",
+          "thickness": 11.8,
+          "x_percent": 25.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 1",
+          "element_name": "Обечайка 1",
+          "location": "Обечайка 1",
+          "nominal_thickness": 12,
+          "point_number": 12,
+          "section_number": "12",
+          "thickness": 11.7,
+          "x_percent": 28.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 1,
+          "section_number": "1",
+          "thickness": 11.7,
+          "x_percent": 34.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 2,
+          "section_number": "2",
+          "thickness": 11.6,
+          "x_percent": 37.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 3,
+          "section_number": "3",
+          "thickness": 11.5,
+          "x_percent": 40.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 4,
+          "section_number": "4",
+          "thickness": 11.9,
+          "x_percent": 34.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 5,
+          "section_number": "5",
+          "thickness": 11.8,
+          "x_percent": 37.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 6,
+          "section_number": "6",
+          "thickness": 11.7,
+          "x_percent": 40.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 7,
+          "section_number": "7",
+          "thickness": 11.6,
+          "x_percent": 34.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 8,
+          "section_number": "8",
+          "thickness": 11.5,
+          "x_percent": 37.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 9,
+          "section_number": "9",
+          "thickness": 11.9,
+          "x_percent": 40.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 10,
+          "section_number": "10",
+          "thickness": 11.8,
+          "x_percent": 34.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 11,
+          "section_number": "11",
+          "thickness": 11.7,
+          "x_percent": 37.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 2",
+          "element_name": "Обечайка 2",
+          "location": "Обечайка 2",
+          "nominal_thickness": 12,
+          "point_number": 12,
+          "section_number": "12",
+          "thickness": 11.6,
+          "x_percent": 40.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 1,
+          "section_number": "1",
+          "thickness": 11.6,
+          "x_percent": 46.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 2,
+          "section_number": "2",
+          "thickness": 11.5,
+          "x_percent": 49.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 3,
+          "section_number": "3",
+          "thickness": 11.9,
+          "x_percent": 52.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 4,
+          "section_number": "4",
+          "thickness": 11.8,
+          "x_percent": 46.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 5,
+          "section_number": "5",
+          "thickness": 11.7,
+          "x_percent": 49.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 6,
+          "section_number": "6",
+          "thickness": 11.6,
+          "x_percent": 52.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 7,
+          "section_number": "7",
+          "thickness": 11.5,
+          "x_percent": 46.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 8,
+          "section_number": "8",
+          "thickness": 11.9,
+          "x_percent": 49.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 9,
+          "section_number": "9",
+          "thickness": 11.8,
+          "x_percent": 52.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 10,
+          "section_number": "10",
+          "thickness": 11.7,
+          "x_percent": 46.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 11,
+          "section_number": "11",
+          "thickness": 11.6,
+          "x_percent": 49.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Обечайка 3",
+          "element_name": "Обечайка 3",
+          "location": "Обечайка 3",
+          "nominal_thickness": 12,
+          "point_number": 12,
+          "section_number": "12",
+          "thickness": 11.5,
+          "x_percent": 52.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 1,
+          "section_number": "1",
+          "thickness": 11.5,
+          "x_percent": 58.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 2,
+          "section_number": "2",
+          "thickness": 11.9,
+          "x_percent": 61.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 3,
+          "section_number": "3",
+          "thickness": 11.8,
+          "x_percent": 64.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 4,
+          "section_number": "4",
+          "thickness": 11.7,
+          "x_percent": 58.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 5,
+          "section_number": "5",
+          "thickness": 11.6,
+          "x_percent": 61.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 6,
+          "section_number": "6",
+          "thickness": 11.5,
+          "x_percent": 64.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 7,
+          "section_number": "7",
+          "thickness": 11.9,
+          "x_percent": 58.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 8,
+          "section_number": "8",
+          "thickness": 11.8,
+          "x_percent": 61.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 9,
+          "section_number": "9",
+          "thickness": 11.7,
+          "x_percent": 64.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 10,
+          "section_number": "10",
+          "thickness": 11.6,
+          "x_percent": 58.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 11,
+          "section_number": "11",
+          "thickness": 11.5,
+          "x_percent": 61.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Днище левое",
+          "element_name": "Днище левое",
+          "location": "Днище левое",
+          "nominal_thickness": 12,
+          "point_number": 12,
+          "section_number": "12",
+          "thickness": 11.9,
+          "x_percent": 64.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 1,
+          "section_number": "1",
+          "thickness": 11.9,
+          "x_percent": 70.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 2,
+          "section_number": "2",
+          "thickness": 11.8,
+          "x_percent": 73.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 3,
+          "section_number": "3",
+          "thickness": 11.7,
+          "x_percent": 76.4,
+          "y_percent": 30
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 4,
+          "section_number": "4",
+          "thickness": 11.6,
+          "x_percent": 70.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 5,
+          "section_number": "5",
+          "thickness": 11.5,
+          "x_percent": 73.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 6,
+          "section_number": "6",
+          "thickness": 11.9,
+          "x_percent": 76.4,
+          "y_percent": 40
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 7,
+          "section_number": "7",
+          "thickness": 11.8,
+          "x_percent": 70.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 8,
+          "section_number": "8",
+          "thickness": 11.7,
+          "x_percent": 73.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 9,
+          "section_number": "9",
+          "thickness": 11.6,
+          "x_percent": 76.4,
+          "y_percent": 50
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 10,
+          "section_number": "10",
+          "thickness": 11.5,
+          "x_percent": 70.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 11,
+          "section_number": "11",
+          "thickness": 11.9,
+          "x_percent": 73.4,
+          "y_percent": 60
+        },
+        {
+          "element": "Днище правое",
+          "element_name": "Днище правое",
+          "location": "Днище правое",
+          "nominal_thickness": 12,
+          "point_number": 12,
+          "section_number": "12",
+          "thickness": 11.8,
+          "x_percent": 76.4,
+          "y_percent": 60
+        }
+      ],
+      "uzk_conclusion": "Дефекты, превышающие браковочный уровень, не обнаружены.",
+      "uzt_conclusion": "Измеренные толщины не ниже допустимых значений, приведённых в расчётных данных.",
+      "uzt_schemes": [],
+      "vessel_elements": [
+        {
+          "diameter_mm": 1400,
+          "gost": "ГОСТ 19281",
+          "length_mm": 2000,
+          "material": "09Г2С",
+          "name": "Обечайка 1",
+          "wall_thickness_mm": 12,
+          "weld_data": "Автоматическая сварка"
+        },
+        {
+          "diameter_mm": 1400,
+          "gost": "ГОСТ 19281",
+          "length_mm": 2000,
+          "material": "09Г2С",
+          "name": "Обечайка 2",
+          "wall_thickness_mm": 12,
+          "weld_data": "Автоматическая сварка"
+        },
+        {
+          "diameter_mm": 1400,
+          "gost": "ГОСТ 19281",
+          "length_mm": 1500,
+          "material": "09Г2С",
+          "name": "Обечайка 3",
+          "wall_thickness_mm": 12,
+          "weld_data": "Автоматическая сварка"
+        },
+        {
+          "diameter_mm": 1400,
+          "gost": "ГОСТ 19281",
+          "length_mm": 640,
+          "material": "09Г2С",
+          "name": "Днище левое",
+          "wall_thickness_mm": 12,
+          "weld_data": "Автоматическая сварка"
+        },
+        {
+          "diameter_mm": 1400,
+          "gost": "ГОСТ 19281",
+          "length_mm": 640,
+          "material": "09Г2С",
+          "name": "Днище правое",
+          "wall_thickness_mm": 12,
+          "weld_data": "Автоматическая сварка"
+        }
+      ],
+      "vessel_name": "Ресивер РГС 10-1,6-1400",
+      "vibration": "Вибрация не выявлена",
+      "vik_conclusion": "При наружном и внутреннем осмотре недопустимых дефектов не обнаружено.",
+      "visual_defects": [],
+      "volume": "10",
+      "wall_thickness": "12",
+      "weld_inspections": [
+        {
+          "area_number": "1",
+          "conclusion": "годен",
+          "control_method": "UZK",
+          "defect_description": "Дефектов не обнаружено",
+          "defect_number": "—",
+          "depth": "—",
+          "description": "Недопустимые индикации отсутствуют",
+          "equivalent_area": "—",
+          "length": "—",
+          "location": "К1/П1",
+          "weld_number": "К1/П1"
+        },
+        {
+          "area_number": "2",
+          "conclusion": "годен",
+          "control_method": "UZK",
+          "defect_description": "Дефектов не обнаружено",
+          "defect_number": "—",
+          "depth": "—",
+          "description": "Недопустимые индикации отсутствуют",
+          "equivalent_area": "—",
+          "length": "—",
+          "location": "К2/П2",
+          "weld_number": "К2/П2"
+        },
+        {
+          "area_number": "1",
+          "conclusion": "годен",
+          "control_method": "PVK",
+          "defect_description": "Дефектов не обнаружено",
+          "defect_number": "—",
+          "depth": "—",
+          "description": "Недопустимые индикации отсутствуют",
+          "equivalent_area": "—",
+          "length": "—",
+          "location": "К1/П1",
+          "weld_number": "К1/П1"
+        },
+        {
+          "area_number": "2",
+          "conclusion": "годен",
+          "control_method": "PVK",
+          "defect_description": "Дефектов не обнаружено",
+          "defect_number": "—",
+          "depth": "—",
+          "description": "Недопустимые индикации отсутствуют",
+          "equivalent_area": "—",
+          "length": "—",
+          "location": "К2/П2",
+          "weld_number": "К2/П2"
+        }
+      ],
+      "working_medium": "Воздух",
+      "working_pressure": "1,2",
+      "working_temperature": "40"
+    },
+    "date_performed": "2026-09-18",
+    "id": "00000000-0000-0000-0000-000000000002",
+    "status": "COMPLETED"
+  },
+  "ndt_methods": [],
+  "org_settings": {
+    "appendix_protocol_header": {
+      "customer_label": "Заказчик:",
+      "date_label": "Дата проведения контроля:",
+      "location_label": "Место проведения контроля:",
+      "ntd_label": "НТД, по которой выполнен контроль:",
+      "object_label": "Объект контроля:"
+    },
+    "conclusion_templates": {
+      "COMPLIANT": "На основании результатов выполненного комплекса работ по техническому диагностированию оборудование соответствует требованиям нормативно-технической документации и пригодно к дальнейшей эксплуатации.",
+      "NON_COMPLIANT": "На основании результатов выполненного комплекса работ по техническому диагностированию оборудование не соответствует требованиям нормативно-технической документации. Дальнейшая эксплуатация не допускается до устранения выявленных недостатков.",
+      "PARTIALLY_COMPLIANT": "На основании результатов выполненного комплекса работ по техническому диагностированию оборудование ограниченно соответствует требованиям нормативно-технической документации при соблюдении установленных ограничений."
+    },
+    "contractor": {
+      "address": "628285, Ханты-Мансийский автономный округ – Югра, г. Урай, улица Ивана Шестакова, строение 46Б",
+      "certificate": "№ АЦЛНК-5-00083 об аттестации лаборатории неразрушающих методов контроля ООО «ЮТАР»",
+      "director_name": "Петров Пётр Петрович",
+      "director_title": "Генеральный директор",
+      "email": "",
+      "legal_form": "Общество с ограниченной ответственностью",
+      "license": "Регистрационный номер Л043-00109-72/00514886 на осуществление деятельности по проведению экспертизы промышленной безопасности",
+      "name": "Общество с ограниченной ответственностью «ЮТАР»",
+      "phone": "",
+      "short_name": "ООО «ЮТАР»"
+    },
+    "customer": {
+      "legal_name": "ООО «Контрольный заказчик»"
+    },
+    "epb_registry_date": "",
+    "normative_documents": [
+      "Федеральный закон от 21.07.1997 № 116-ФЗ «О промышленной безопасности опасных производственных объектов»;",
+      "Федеральные нормы и правила в области промышленной безопасности «Правила промышленной безопасности при использовании оборудования, работающего под избыточным давлением», утверждённые приказом Ростехнадзора от 15.12.2020 № 536;",
+      "Федеральные нормы и правила «Правила безопасности в нефтяной и газовой промышленности», утверждённые приказом Ростехнадзора от 15.12.2020 № 534;",
+      "ГОСТ 14249-89 «Сосуды и аппараты. Нормы и методы расчёта на прочность»;",
+      "СО 153-34.17.439-2003 «Инструкция по ультразвуковому контролю»;",
+      "ГОСТ Р 55614-2013 «Контроль неразрушающий. Соединения сварные. Методы ультразвуковые»;"
+    ],
+    "report_city": "г. Урай",
+    "work_basis": "Работы по техническому диагностированию проведены на основании договора с эксплуатирующей организацией и в соответствии с требованиями нормативно-технической документации."
+  },
+  "report_type": "TECHNICAL_REPORT"
+}

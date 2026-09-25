@@ -24,6 +24,8 @@ dist-ssr
 *.sw?
 
 # Python
+.venv-audit/
+tools/flutter/
 __pycache__/
 *.pyc
 
@@ -61,3 +63,8 @@ docs/_scheme_preview/
 _test_uzt_fill.docx
 docs/_diag_full.docx
 docs/_diag_full.pdf
+
+# Local report QA runtime
+tools/LibreOffice*.msi
+tools/libreoffice/
+docs/report-render-qa/

@@ -1,0 +1,1593 @@
+access_management.py:7:1: F401 'sqlalchemy.orm.selectinload' imported but unused
+access_management.py:9:1: F401 'datetime.timedelta' imported but unused
+access_management.py:17:1: E302 expected 2 blank lines, found 1
+access_management.py:25:1: E302 expected 2 blank lines, found 1
+access_management.py:43:1: W293 blank line contains whitespace
+access_management.py:45:1: W293 blank line contains whitespace
+access_management.py:53:1: W293 blank line contains whitespace
+access_management.py:60:1: W293 blank line contains whitespace
+access_management.py:66:13: E722 do not use bare 'except'
+access_management.py:68:1: W293 blank line contains whitespace
+access_management.py:73:1: W293 blank line contains whitespace
+access_management.py:80:1: W293 blank line contains whitespace
+access_management.py:92:1: W293 blank line contains whitespace
+access_management.py:112:1: W293 blank line contains whitespace
+access_management.py:116:1: W293 blank line contains whitespace
+access_management.py:118:1: W293 blank line contains whitespace
+access_management.py:132:1: E302 expected 2 blank lines, found 1
+access_management.py:148:1: W293 blank line contains whitespace
+access_management.py:150:1: W293 blank line contains whitespace
+access_management.py:162:1: W293 blank line contains whitespace
+access_management.py:165:1: W293 blank line contains whitespace
+access_management.py:168:1: W293 blank line contains whitespace
+access_management.py:176:1: E302 expected 2 blank lines, found 1
+access_management.py:191:1: W293 blank line contains whitespace
+access_management.py:200:1: W293 blank line contains whitespace
+access_management.py:216:1: W293 blank line contains whitespace
+access_management.py:227:1: W293 blank line contains whitespace
+access_management.py:234:1: E302 expected 2 blank lines, found 1
+access_management.py:250:1: W293 blank line contains whitespace
+access_management.py:252:1: W293 blank line contains whitespace
+access_management.py:258:1: W293 blank line contains whitespace
+access_management.py:261:1: W293 blank line contains whitespace
+access_management.py:266:1: W293 blank line contains whitespace
+access_management.py:271:1: W293 blank line contains whitespace
+access_management.py:274:1: W293 blank line contains whitespace
+access_management.py:280:1: W293 blank line contains whitespace
+access_management.py:283:1: W293 blank line contains whitespace
+access_management.py:296:1: W391 blank line at end of file
+add_certification_scan_columns.py:85:1: W391 blank line at end of file
+add_is_active_to_equipment.py:19:1: E302 expected 2 blank lines, found 1
+add_is_active_to_equipment.py:25:1: E305 expected 2 blank lines after class or function definition, found 1
+add_is_active_to_equipment.py:31:1: E302 expected 2 blank lines, found 1
+add_is_active_to_equipment.py:33:1: W293 blank line contains whitespace
+add_is_active_to_equipment.py:38:38: W291 trailing whitespace
+add_is_active_to_equipment.py:41:1: W293 blank line contains whitespace
+add_is_active_to_equipment.py:44:33: W291 trailing whitespace
+add_is_active_to_equipment.py:48:1: W293 blank line contains whitespace
+add_is_active_to_equipment.py:51:1: W293 blank line contains whitespace
+add_is_active_to_equipment.py:73:1: W391 blank line at end of file
+add_project_id_to_assignments.py:8:1: E302 expected 2 blank lines, found 1
+add_project_id_to_assignments.py:15:39: W291 trailing whitespace
+add_project_id_to_assignments.py:16:52: W291 trailing whitespace
+add_project_id_to_assignments.py:17:53: W291 trailing whitespace
+add_project_id_to_assignments.py:22:1: W293 blank line contains whitespace
+add_project_id_to_assignments.py:26:1: W293 blank line contains whitespace
+add_project_id_to_assignments.py:29:40: W291 trailing whitespace
+add_project_id_to_assignments.py:33:1: W293 blank line contains whitespace
+add_project_id_to_inspections.py:8:1: E302 expected 2 blank lines, found 1
+add_project_id_to_inspections.py:14:35: W291 trailing whitespace
+add_project_id_to_inspections.py:15:48: W291 trailing whitespace
+add_project_id_to_inspections.py:16:49: W291 trailing whitespace
+add_project_id_to_inspections.py:20:1: W293 blank line contains whitespace
+add_project_id_to_inspections.py:24:1: W293 blank line contains whitespace
+add_project_id_to_inspections.py:27:40: W291 trailing whitespace
+add_project_id_to_inspections.py:31:1: W293 blank line contains whitespace
+add_project_id_to_inspections.py:52:1: W391 blank line at end of file
+add_updated_at_column.py:8:1: E302 expected 2 blank lines, found 1
+add_updated_at_column.py:45:1: W391 blank line at end of file
+add_updated_at_to_certifications.py:8:1: E302 expected 2 blank lines, found 1
+add_updated_at_to_certifications.py:34:1: W391 blank line at end of file
+assignments_api.py:9:1: F401 'sqlalchemy.orm.selectinload' imported but unused
+assignments_api.py:101:1: E303 too many blank lines (3)
+assignments_api.py:120:1: E302 expected 2 blank lines, found 1
+assignments_api.py:153:1: E302 expected 2 blank lines, found 1
+assignments_api.py:167:1: E302 expected 2 blank lines, found 1
+assignments_api.py:170:1: E302 expected 2 blank lines, found 1
+assignments_api.py:209:1: E302 expected 2 blank lines, found 1
+assignments_api.py:218:1: E302 expected 2 blank lines, found 1
+assignments_api.py:224:1: E302 expected 2 blank lines, found 1
+assignments_api.py:278:59: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+assignments_api.py:382:1: E302 expected 2 blank lines, found 1
+assignments_api.py:770:17: E131 continuation line unaligned for hanging indent
+assignments_api.py:779:1: E302 expected 2 blank lines, found 1
+assignments_api.py:996:1: W293 blank line contains whitespace
+assignments_api.py:997:9: E303 too many blank lines (2)
+assignments_api.py:1299:1: E302 expected 2 blank lines, found 1
+assignments_api.py:1375:1: E302 expected 2 blank lines, found 1
+assignments_api.py:1389:72: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+assignments_api.py:1457:59: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+auth.py:42:1: E305 expected 2 blank lines after class or function definition, found 1
+auth.py:48:1: E302 expected 2 blank lines, found 1
+auth.py:59:1: E302 expected 2 blank lines, found 1
+auth.py:64:5: E722 do not use bare 'except'
+auth.py:72:9: E722 do not use bare 'except'
+auth.py:76:1: E305 expected 2 blank lines after class or function definition, found 1
+auth.py:96:1: E302 expected 2 blank lines, found 1
+auth.py:122:1: E302 expected 2 blank lines, found 1
+auth.py:136:1: E302 expected 2 blank lines, found 1
+auth.py:142:1: E302 expected 2 blank lines, found 1
+auth_2fa_api.py:12:1: F401 'typing.Optional' imported but unused
+auth_2fa_api.py:14:1: F401 'fastapi.status' imported but unused
+auth_api.py:6:1: F401 'fastapi.status' imported but unused
+auth_api.py:11:1: F401 'auth.hash_password' imported but unused
+check_db.py:7:1: F401 'sqlalchemy.inspect' imported but unused
+check_db.py:8:1: F401 'sqlalchemy.orm.declarative_base' imported but unused
+check_db.py:24:1: E302 expected 2 blank lines, found 1
+check_db.py:30:1: E305 expected 2 blank lines after class or function definition, found 1
+check_db.py:44:1: E302 expected 2 blank lines, found 1
+check_db.py:51:19: F541 f-string is missing placeholders
+check_db.py:58:1: E302 expected 2 blank lines, found 1
+check_db.py:64:34: W291 trailing whitespace
+check_db.py:65:47: W291 trailing whitespace
+check_db.py:81:1: E302 expected 2 blank lines, found 1
+check_db.py:89:58: W291 trailing whitespace
+check_db.py:90:50: W291 trailing whitespace
+check_db.py:95:1: W293 blank line contains whitespace
+check_db.py:99:1: W293 blank line contains whitespace
+check_db.py:103:19: F541 f-string is missing placeholders
+check_db.py:110:1: E302 expected 2 blank lines, found 1
+check_db.py:114:9: F401 'models.Equipment' imported but unused
+check_db.py:114:9: F401 'models.EquipmentType' imported but unused
+check_db.py:114:9: F401 'models.PipelineSegment' imported but unused
+check_db.py:114:9: F401 'models.Inspection' imported but unused
+check_db.py:115:1: W293 blank line contains whitespace
+check_db.py:126:1: E302 expected 2 blank lines, found 1
+check_db.py:132:1: W293 blank line contains whitespace
+check_db.py:137:1: W293 blank line contains whitespace
+check_db.py:141:1: W293 blank line contains whitespace
+check_db.py:152:1: W293 blank line contains whitespace
+check_db.py:162:1: W293 blank line contains whitespace
+check_db.py:173:1: W293 blank line contains whitespace
+check_db.py:184:1: E302 expected 2 blank lines, found 1
+check_db.py:189:11: F541 f-string is missing placeholders
+check_db.py:196:1: W293 blank line contains whitespace
+check_db.py:201:1: W293 blank line contains whitespace
+check_db.py:204:1: W293 blank line contains whitespace
+check_db.py:220:1: W293 blank line contains whitespace
+check_db.py:227:1: W391 blank line at end of file
+check_enterprises.py:7:1: E302 expected 2 blank lines, found 1
+check_enterprises.py:36:1: W391 blank line at end of file
+check_enterprises_data.py:7:1: E402 module level import not at top of file
+check_enterprises_data.py:8:1: E402 module level import not at top of file
+check_enterprises_data.py:9:1: E402 module level import not at top of file
+check_enterprises_data.py:11:1: E302 expected 2 blank lines, found 1
+check_enterprises_data.py:18:15: F541 f-string is missing placeholders
+check_enterprises_data.py:20:57: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+check_enterprises_data.py:24:1: W293 blank line contains whitespace
+check_enterprises_data.py:28:15: F541 f-string is missing placeholders
+check_enterprises_data.py:30:63: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+check_enterprises_data.py:32:1: W293 blank line contains whitespace
+check_enterprises_data.py:36:15: F541 f-string is missing placeholders
+check_enterprises_data.py:38:65: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+check_enterprises_data.py:40:1: W293 blank line contains whitespace
+check_enterprises_data.py:44:15: F541 f-string is missing placeholders
+check_enterprises_data.py:46:1: W293 blank line contains whitespace
+check_enterprises_data.py:63:1: W391 blank line at end of file
+check_table_structure.py:6:1: E302 expected 2 blank lines, found 1
+check_table_structure.py:11:46: W291 trailing whitespace
+check_table_structure.py:12:48: W291 trailing whitespace
+check_table_structure.py:13:68: W291 trailing whitespace
+check_table_structure.py:40:1: W391 blank line at end of file
+cleanup_old_data.py:5:1: F401 'os' imported but unused
+cleanup_old_data.py:7:1: F401 'sqlalchemy.delete' imported but unused
+cleanup_old_data.py:12:1: E302 expected 2 blank lines, found 1
+cleanup_old_data.py:14:1: W293 blank line contains whitespace
+cleanup_old_data.py:19:1: W293 blank line contains whitespace
+cleanup_old_data.py:25:1: W293 blank line contains whitespace
+cleanup_old_data.py:31:1: W293 blank line contains whitespace
+cleanup_old_data.py:45:1: W293 blank line contains whitespace
+cleanup_old_data.py:51:1: W293 blank line contains whitespace
+cleanup_old_data.py:57:1: W293 blank line contains whitespace
+cleanup_old_data.py:63:1: W293 blank line contains whitespace
+cleanup_old_data.py:69:1: W293 blank line contains whitespace
+cleanup_old_data.py:84:1: W293 blank line contains whitespace
+cleanup_old_data.py:90:1: W293 blank line contains whitespace
+cleanup_old_data.py:96:1: W293 blank line contains whitespace
+cleanup_old_data.py:99:1: W293 blank line contains whitespace
+cleanup_old_data.py:103:19: F541 f-string is missing placeholders
+cleanup_old_data.py:114:1: W293 blank line contains whitespace
+cleanup_old_data.py:121:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:9:1: E302 expected 2 blank lines, found 1
+create_hierarchy_tables.py:16:58: W291 trailing whitespace
+create_hierarchy_tables.py:17:50: W291 trailing whitespace
+create_hierarchy_tables.py:22:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:28:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:32:58: W291 trailing whitespace
+create_hierarchy_tables.py:33:50: W291 trailing whitespace
+create_hierarchy_tables.py:38:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:44:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:48:58: W291 trailing whitespace
+create_hierarchy_tables.py:49:50: W291 trailing whitespace
+create_hierarchy_tables.py:54:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:60:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:64:58: W291 trailing whitespace
+create_hierarchy_tables.py:65:50: W291 trailing whitespace
+create_hierarchy_tables.py:70:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:76:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:95:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:101:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:103:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:106:35: W291 trailing whitespace
+create_hierarchy_tables.py:107:48: W291 trailing whitespace
+create_hierarchy_tables.py:108:47: W291 trailing whitespace
+create_hierarchy_tables.py:112:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:115:42: W291 trailing whitespace
+create_hierarchy_tables.py:124:1: W293 blank line contains whitespace
+create_hierarchy_tables.py:132:1: W391 blank line at end of file
+create_ndt_methods_table.py:6:1: F401 'database.AsyncSessionLocal' imported but unused
+create_ndt_methods_table.py:7:1: F401 'models.NDTMethod' imported but unused
+create_ndt_methods_table.py:9:1: E302 expected 2 blank lines, found 1
+create_ndt_methods_table.py:17:62: W291 trailing whitespace
+create_ndt_methods_table.py:18:54: W291 trailing whitespace
+create_ndt_methods_table.py:24:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:28:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:31:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:57:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:60:72: W291 trailing whitespace
+create_ndt_methods_table.py:63:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:65:76: W291 trailing whitespace
+create_ndt_methods_table.py:68:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:70:73: W291 trailing whitespace
+create_ndt_methods_table.py:73:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:75:71: W291 trailing whitespace
+create_ndt_methods_table.py:78:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:82:1: W293 blank line contains whitespace
+create_ndt_methods_table.py:105:1: W391 blank line at end of file
+create_questionnaire_document_files_table.py:8:1: E302 expected 2 blank lines, found 1
+create_questionnaire_document_files_table.py:16:62: W291 trailing whitespace
+create_questionnaire_document_files_table.py:17:54: W291 trailing whitespace
+create_questionnaire_document_files_table.py:23:1: W293 blank line contains whitespace
+create_questionnaire_document_files_table.py:27:1: W293 blank line contains whitespace
+create_questionnaire_document_files_table.py:44:1: W293 blank line contains whitespace
+create_questionnaire_document_files_table.py:47:79: W291 trailing whitespace
+create_questionnaire_document_files_table.py:50:1: W293 blank line contains whitespace
+create_questionnaire_document_files_table.py:52:78: W291 trailing whitespace
+create_questionnaire_document_files_table.py:55:1: W293 blank line contains whitespace
+create_questionnaire_document_files_table.py:57:1: W293 blank line contains whitespace
+create_questionnaire_document_files_table.py:79:1: W391 blank line at end of file
+create_questionnaires_table.py:6:1: F401 'database.AsyncSessionLocal' imported but unused
+create_questionnaires_table.py:7:1: F401 'models.Questionnaire' imported but unused
+create_questionnaires_table.py:9:1: E302 expected 2 blank lines, found 1
+create_questionnaires_table.py:17:62: W291 trailing whitespace
+create_questionnaires_table.py:18:54: W291 trailing whitespace
+create_questionnaires_table.py:24:1: W293 blank line contains whitespace
+create_questionnaires_table.py:28:1: W293 blank line contains whitespace
+create_questionnaires_table.py:31:1: W293 blank line contains whitespace
+create_questionnaires_table.py:48:1: W293 blank line contains whitespace
+create_questionnaires_table.py:51:75: W291 trailing whitespace
+create_questionnaires_table.py:54:1: W293 blank line contains whitespace
+create_questionnaires_table.py:56:73: W291 trailing whitespace
+create_questionnaires_table.py:59:1: W293 blank line contains whitespace
+create_questionnaires_table.py:64:1: W293 blank line contains whitespace
+create_questionnaires_table.py:95:1: W391 blank line at end of file
+create_test_certifications.py:6:1: F401 'datetime.datetime' imported but unused
+create_test_certifications.py:8:1: F401 'sqlalchemy.ext.asyncio.AsyncSession' imported but unused
+create_test_certifications.py:9:1: F401 'uuid as uuid_lib' imported but unused
+create_test_certifications.py:11:1: F401 'models.User' imported but unused
+create_test_certifications.py:39:1: E302 expected 2 blank lines, found 1
+create_test_certifications.py:44:1: W293 blank line contains whitespace
+create_test_certifications.py:49:59: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_certifications.py:52:1: W293 blank line contains whitespace
+create_test_certifications.py:56:1: W293 blank line contains whitespace
+create_test_certifications.py:58:1: W293 blank line contains whitespace
+create_test_certifications.py:60:1: W293 blank line contains whitespace
+create_test_certifications.py:64:1: W293 blank line contains whitespace
+create_test_certifications.py:68:1: W293 blank line contains whitespace
+create_test_certifications.py:72:1: W293 blank line contains whitespace
+create_test_certifications.py:77:1: W293 blank line contains whitespace
+create_test_certifications.py:80:1: W293 blank line contains whitespace
+create_test_certifications.py:83:1: W293 blank line contains whitespace
+create_test_certifications.py:92:1: W293 blank line contains whitespace
+create_test_certifications.py:105:1: W293 blank line contains whitespace
+create_test_certifications.py:108:1: W293 blank line contains whitespace
+create_test_certifications.py:117:1: W293 blank line contains whitespace
+create_test_certifications.py:120:1: W293 blank line contains whitespace
+create_test_certifications.py:123:1: W293 blank line contains whitespace
+create_test_certifications.py:126:69: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_certifications.py:129:1: W293 blank line contains whitespace
+create_test_certifications.py:133:1: W293 blank line contains whitespace
+create_test_certifications.py:134:19: F541 f-string is missing placeholders
+create_test_certifications.py:139:1: W293 blank line contains whitespace
+create_test_certifications.py:141:1: W293 blank line contains whitespace
+create_test_certifications.py:151:1: W391 blank line at end of file
+create_test_data_3.3.0.py:7:1: F401 'database.engine' imported but unused
+create_test_data_3.3.0.py:13:1: F401 'datetime.datetime' imported but unused
+create_test_data_3.3.0.py:16:1: E302 expected 2 blank lines, found 1
+create_test_data_3.3.0.py:24:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:33:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:52:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:54:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:65:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:89:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:91:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:103:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:127:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:129:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:139:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:158:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:160:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:185:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:190:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:196:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:204:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:226:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:228:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:261:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:269:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:283:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:297:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:302:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:304:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:308:19: F541 f-string is missing placeholders
+create_test_data_3.3.0.py:315:19: F541 f-string is missing placeholders
+create_test_data_3.3.0.py:319:1: W293 blank line contains whitespace
+create_test_data_3.3.0.py:329:1: W391 blank line at end of file
+create_test_opos.py:6:1: F401 'sys' imported but unused
+create_test_opos.py:10:1: F401 'database.Base' imported but unused
+create_test_opos.py:24:1: E302 expected 2 blank lines, found 1
+create_test_opos.py:28:1: W293 blank line contains whitespace
+create_test_opos.py:33:63: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_opos.py:36:1: W293 blank line contains whitespace
+create_test_opos.py:40:1: W293 blank line contains whitespace
+create_test_opos.py:42:1: W293 blank line contains whitespace
+create_test_opos.py:47:38: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_opos.py:51:1: W293 blank line contains whitespace
+create_test_opos.py:55:1: W293 blank line contains whitespace
+create_test_opos.py:57:1: W293 blank line contains whitespace
+create_test_opos.py:62:40: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_opos.py:66:1: W293 blank line contains whitespace
+create_test_opos.py:70:1: W293 blank line contains whitespace
+create_test_opos.py:72:1: W293 blank line contains whitespace
+create_test_opos.py:78:151: E501 line too long (169 > 150 characters)
+create_test_opos.py:109:151: E501 line too long (165 > 150 characters)
+create_test_opos.py:228:1: W293 blank line contains whitespace
+create_test_opos.py:236:1: W293 blank line contains whitespace
+create_test_opos.py:240:1: W293 blank line contains whitespace
+create_test_opos.py:250:1: W293 blank line contains whitespace
+create_test_opos.py:261:1: W293 blank line contains whitespace
+create_test_opos.py:267:1: W293 blank line contains whitespace
+create_test_opos_full.py:6:1: F401 'sys' imported but unused
+create_test_opos_full.py:13:1: F401 'json' imported but unused
+create_test_opos_full.py:24:1: E302 expected 2 blank lines, found 1
+create_test_opos_full.py:28:1: W293 blank line contains whitespace
+create_test_opos_full.py:33:63: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_opos_full.py:36:1: W293 blank line contains whitespace
+create_test_opos_full.py:40:1: W293 blank line contains whitespace
+create_test_opos_full.py:42:1: W293 blank line contains whitespace
+create_test_opos_full.py:45:1: W293 blank line contains whitespace
+create_test_opos_full.py:48:1: W293 blank line contains whitespace
+create_test_opos_full.py:53:42: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_opos_full.py:57:1: W293 blank line contains whitespace
+create_test_opos_full.py:61:1: W293 blank line contains whitespace
+create_test_opos_full.py:63:1: W293 blank line contains whitespace
+create_test_opos_full.py:68:44: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+create_test_opos_full.py:72:1: W293 blank line contains whitespace
+create_test_opos_full.py:76:1: W293 blank line contains whitespace
+create_test_opos_full.py:78:1: W293 blank line contains whitespace
+create_test_opos_full.py:84:151: E501 line too long (173 > 150 characters)
+create_test_opos_full.py:115:151: E501 line too long (169 > 150 characters)
+create_test_opos_full.py:234:1: W293 blank line contains whitespace
+create_test_opos_full.py:241:1: W293 blank line contains whitespace
+create_test_opos_full.py:245:1: W293 blank line contains whitespace
+create_test_opos_full.py:255:1: W293 blank line contains whitespace
+create_test_opos_full.py:262:1: W293 blank line contains whitespace
+create_test_opos_full.py:265:1: W293 blank line contains whitespace
+create_test_verifications.py:53:1: E302 expected 2 blank lines, found 1
+create_test_verifications.py:65:1: E302 expected 2 blank lines, found 1
+create_test_verifications.py:70:1: W293 blank line contains whitespace
+create_test_verifications.py:75:1: W293 blank line contains whitespace
+create_test_verifications.py:79:1: W293 blank line contains whitespace
+create_test_verifications.py:82:1: W293 blank line contains whitespace
+create_test_verifications.py:85:1: W293 blank line contains whitespace
+create_test_verifications.py:88:1: W293 blank line contains whitespace
+create_test_verifications.py:91:1: W293 blank line contains whitespace
+create_test_verifications.py:107:1: E302 expected 2 blank lines, found 1
+create_test_verifications.py:110:1: W293 blank line contains whitespace
+create_test_verifications.py:116:1: W293 blank line contains whitespace
+create_test_verifications.py:123:1: E302 expected 2 blank lines, found 1
+create_test_verifications.py:126:1: W293 blank line contains whitespace
+create_test_verifications.py:135:1: W293 blank line contains whitespace
+create_test_verifications.py:139:1: W293 blank line contains whitespace
+create_test_verifications.py:150:1: W293 blank line contains whitespace
+create_test_verifications.py:152:11: F541 f-string is missing placeholders
+create_test_verifications.py:157:1: E305 expected 2 blank lines after class or function definition, found 1
+create_test_verifications.py:159:1: W391 blank line at end of file
+create_test_verifications_db.py:14:1: E402 module level import not at top of file
+create_test_verifications_db.py:15:1: E402 module level import not at top of file
+create_test_verifications_db.py:16:1: E402 module level import not at top of file
+create_test_verifications_db.py:17:1: E402 module level import not at top of file
+create_test_verifications_db.py:56:1: E302 expected 2 blank lines, found 1
+create_test_verifications_db.py:61:1: W293 blank line contains whitespace
+create_test_verifications_db.py:66:1: W293 blank line contains whitespace
+create_test_verifications_db.py:70:1: W293 blank line contains whitespace
+create_test_verifications_db.py:73:1: W293 blank line contains whitespace
+create_test_verifications_db.py:76:1: W293 blank line contains whitespace
+create_test_verifications_db.py:79:1: W293 blank line contains whitespace
+create_test_verifications_db.py:82:1: W293 blank line contains whitespace
+create_test_verifications_db.py:98:1: E302 expected 2 blank lines, found 1
+create_test_verifications_db.py:116:1: W293 blank line contains whitespace
+create_test_verifications_db.py:120:1: W293 blank line contains whitespace
+create_test_verifications_db.py:123:1: E302 expected 2 blank lines, found 1
+create_test_verifications_db.py:126:1: W293 blank line contains whitespace
+create_test_verifications_db.py:129:1: W293 blank line contains whitespace
+create_test_verifications_db.py:144:1: W293 blank line contains whitespace
+create_test_verifications_db.py:146:11: F541 f-string is missing placeholders
+create_test_verifications_db.py:155:1: W391 blank line at end of file
+create_unified_equipment_system.py:25:1: E302 expected 2 blank lines, found 1
+create_unified_equipment_system.py:31:1: E305 expected 2 blank lines after class or function definition, found 1
+create_unified_equipment_system.py:37:1: E302 expected 2 blank lines, found 1
+create_unified_equipment_system.py:39:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:44:38: W291 trailing whitespace
+create_unified_equipment_system.py:47:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:50:62: W291 trailing whitespace
+create_unified_equipment_system.py:53:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:72:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:74:69: W291 trailing whitespace
+create_unified_equipment_system.py:77:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:79:71: W291 trailing whitespace
+create_unified_equipment_system.py:82:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:84:66: W291 trailing whitespace
+create_unified_equipment_system.py:87:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:107:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:109:76: W291 trailing whitespace
+create_unified_equipment_system.py:112:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:114:71: W291 trailing whitespace
+create_unified_equipment_system.py:117:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:133:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:135:72: W291 trailing whitespace
+create_unified_equipment_system.py:138:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:140:67: W291 trailing whitespace
+create_unified_equipment_system.py:143:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:154:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:157:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:162:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:168:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:173:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:182:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:185:33: W291 trailing whitespace
+create_unified_equipment_system.py:189:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:198:1: W293 blank line contains whitespace
+create_unified_equipment_system.py:208:1: W391 blank line at end of file
+create_user_equipment_access_table.py:9:1: E302 expected 2 blank lines, found 1
+create_user_equipment_access_table.py:16:58: W291 trailing whitespace
+create_user_equipment_access_table.py:17:50: W291 trailing whitespace
+create_user_equipment_access_table.py:22:1: W293 blank line contains whitespace
+create_user_equipment_access_table.py:26:1: W293 blank line contains whitespace
+create_user_equipment_access_table.py:30:1: W293 blank line contains whitespace
+create_user_equipment_access_table.py:36:151: E501 line too long (151 > 150 characters)
+create_user_equipment_access_table.py:39:1: W293 blank line contains whitespace
+create_user_equipment_access_table.py:60:1: W391 blank line at end of file
+create_users_table.py:9:1: E302 expected 2 blank lines, found 1
+create_users_table.py:16:58: W291 trailing whitespace
+create_users_table.py:17:50: W291 trailing whitespace
+create_users_table.py:22:1: W293 blank line contains whitespace
+create_users_table.py:26:1: W293 blank line contains whitespace
+create_users_table.py:30:1: W293 blank line contains whitespace
+create_users_table.py:38:1: W293 blank line contains whitespace
+create_users_table.py:59:1: W391 blank line at end of file
+create_workshops_tables.py:1:1: W391 blank line at end of file
+db_probe.py:2:1: F401 'sys' imported but unused
+db_probe.py:75:1: W391 blank line at end of file
+diagnostic_menu_api.py:8:1: F401 'datetime.datetime' imported but unused
+diagnostic_menu_api.py:8:1: F401 'datetime.timezone' imported but unused
+diagnostic_menu_api.py:134:9: F841 local variable 'user' is assigned to but never used
+dictionaries_api.py:13:1: F401 'os' imported but unused
+dictionaries_api.py:52:87: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+dictionaries_api.py:137:49: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+dictionaries_api.py:189:68: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+dictionaries_api.py:1205:79: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+drawing_templates_api.py:16:1: F401 'mimetypes' imported but unused
+drawing_templates_api.py:22:1: F401 'fastapi.Response' imported but unused
+employee_location_api.py:8:1: F401 'uuid.UUID' imported but unused
+engineers_users_api.py:157:77: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+engineers_users_api.py:232:1: W293 blank line contains whitespace
+engineers_users_api.py:257:1: W293 blank line contains whitespace
+engineers_users_api.py:258:51: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+engineers_users_api.py:261:1: W293 blank line contains whitespace
+engineers_users_api.py:264:1: W293 blank line contains whitespace
+engineers_users_api.py:525:1: W293 blank line contains whitespace
+engineers_users_api.py:542:1: W293 blank line contains whitespace
+engineers_users_api.py:559:69: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+engineers_users_api.py:564:13: E722 do not use bare 'except'
+engineers_users_api.py:568:1: W293 blank line contains whitespace
+engineers_users_api.py:599:1: W293 blank line contains whitespace
+engineers_users_api.py:623:1: W293 blank line contains whitespace
+engineers_users_api.py:625:1: W293 blank line contains whitespace
+engineers_users_api.py:631:13: E722 do not use bare 'except'
+engineers_users_api.py:637:1: W293 blank line contains whitespace
+engineers_users_api.py:647:151: E501 line too long (151 > 150 characters)
+engineers_users_api.py:650:151: E501 line too long (157 > 150 characters)
+engineers_users_api.py:653:1: W293 blank line contains whitespace
+engineers_users_api.py:657:1: W293 blank line contains whitespace
+engineers_users_api.py:665:151: E501 line too long (216 > 150 characters)
+engineers_users_api.py:695:1: W293 blank line contains whitespace
+engineers_users_api.py:701:1: W293 blank line contains whitespace
+engineers_users_api.py:704:1: W293 blank line contains whitespace
+engineers_users_api.py:710:151: E501 line too long (155 > 150 characters)
+engineers_users_api.py:712:151: E501 line too long (158 > 150 characters)
+engineers_users_api.py:718:151: E501 line too long (164 > 150 characters)
+engineers_users_api.py:734:17: E722 do not use bare 'except'
+engineers_users_api.py:738:1: W293 blank line contains whitespace
+engineers_users_api.py:741:1: W293 blank line contains whitespace
+engineers_users_api.py:778:1: W293 blank line contains whitespace
+engineers_users_api.py:784:1: W293 blank line contains whitespace
+engineers_users_api.py:787:1: W293 blank line contains whitespace
+engineers_users_api.py:790:1: W293 blank line contains whitespace
+epb_protocol_tables.py:8:1: F401 'typing.Optional' imported but unused
+epb_protocol_tables.py:11:1: F401 'docx.enum.table.WD_TABLE_ALIGNMENT' imported but unused
+epb_protocol_tables.py:163:151: E501 line too long (229 > 150 characters)
+epb_report_builder.py:13:1: F401 'docx.enum.text.WD_ALIGN_PARAGRAPH' imported but unused
+epb_report_builder.py:705:5: F841 local variable 'g' is assigned to but never used
+equipment_crud_api.py:16:1: F401 'models.UserEquipmentAccess' imported but unused
+equipment_crud_api.py:16:1: F401 'models.HierarchyEngineerAssignment' imported but unused
+equipment_crud_api.py:503:13: E128 continuation line under-indented for visual indent
+equipment_crud_api.py:504:151: E501 line too long (155 > 150 characters)
+equipment_history_api.py:20:1: E302 expected 2 blank lines, found 1
+equipment_history_api.py:38:1: E302 expected 2 blank lines, found 1
+equipment_history_api.py:52:1: E302 expected 2 blank lines, found 1
+equipment_history_api.py:66:1: W293 blank line contains whitespace
+equipment_history_api.py:69:1: W293 blank line contains whitespace
+equipment_history_api.py:74:1: W293 blank line contains whitespace
+equipment_history_api.py:77:1: W293 blank line contains whitespace
+equipment_history_api.py:80:1: W293 blank line contains whitespace
+equipment_history_api.py:83:1: W293 blank line contains whitespace
+equipment_history_api.py:96:1: W293 blank line contains whitespace
+equipment_history_api.py:114:1: W293 blank line contains whitespace
+equipment_history_api.py:116:1: W293 blank line contains whitespace
+equipment_history_api.py:122:1: E302 expected 2 blank lines, found 1
+equipment_history_api.py:135:1: W293 blank line contains whitespace
+equipment_history_api.py:138:1: W293 blank line contains whitespace
+equipment_history_api.py:143:1: W293 blank line contains whitespace
+equipment_history_api.py:146:1: W293 blank line contains whitespace
+equipment_history_api.py:159:1: W293 blank line contains whitespace
+equipment_history_api.py:174:1: W293 blank line contains whitespace
+equipment_history_api.py:176:1: W293 blank line contains whitespace
+equipment_history_api.py:182:1: E302 expected 2 blank lines, found 1
+equipment_history_api.py:196:1: W293 blank line contains whitespace
+equipment_history_api.py:199:1: W293 blank line contains whitespace
+equipment_history_api.py:205:1: W293 blank line contains whitespace
+equipment_history_api.py:208:1: W293 blank line contains whitespace
+equipment_history_api.py:214:13: E722 do not use bare 'except'
+equipment_history_api.py:216:1: W293 blank line contains whitespace
+equipment_history_api.py:227:1: W293 blank line contains whitespace
+equipment_history_api.py:231:1: W293 blank line contains whitespace
+equipment_history_api.py:237:1: W293 blank line contains whitespace
+equipment_history_api.py:244:1: E302 expected 2 blank lines, found 1
+equipment_history_api.py:257:1: W293 blank line contains whitespace
+equipment_history_api.py:260:1: W293 blank line contains whitespace
+equipment_history_api.py:266:1: W293 blank line contains whitespace
+equipment_history_api.py:275:1: W293 blank line contains whitespace
+equipment_history_api.py:281:1: W293 blank line contains whitespace
+equipment_history_api.py:290:1: W293 blank line contains whitespace
+equipment_history_api.py:302:1: W293 blank line contains whitespace
+equipment_history_api.py:328:1: W293 blank line contains whitespace
+equipment_history_api.py:333:1: W391 blank line at end of file
+equipment_profiles.py:15:1: F401 'equipment_presets.PRESET_PRESSURE_REGIME' imported but unused
+fix_certifications_table.py:11:1: E302 expected 2 blank lines, found 1
+fix_certifications_table.py:16:1: W293 blank line contains whitespace
+fix_certifications_table.py:32:1: W293 blank line contains whitespace
+fix_certifications_table.py:35:35: W291 trailing whitespace
+fix_certifications_table.py:36:48: W291 trailing whitespace
+fix_certifications_table.py:37:52: W291 trailing whitespace
+fix_certifications_table.py:42:1: W293 blank line contains whitespace
+fix_certifications_table.py:47:47: W291 trailing whitespace
+fix_certifications_table.py:51:1: W293 blank line contains whitespace
+fix_certifications_table.py:55:47: W291 trailing whitespace
+fix_certifications_table.py:59:1: W293 blank line contains whitespace
+fix_certifications_table.py:63:47: W291 trailing whitespace
+fix_certifications_table.py:67:1: W293 blank line contains whitespace
+fix_certifications_table.py:71:47: W291 trailing whitespace
+fix_certifications_table.py:75:1: W293 blank line contains whitespace
+fix_certifications_table.py:80:42: W291 trailing whitespace
+fix_certifications_table.py:81:52: W291 trailing whitespace
+fix_certifications_table.py:85:1: W293 blank line contains whitespace
+fix_certifications_table.py:89:42: W291 trailing whitespace
+fix_certifications_table.py:90:57: W291 trailing whitespace
+fix_certifications_table.py:94:1: W293 blank line contains whitespace
+fix_certifications_table.py:97:1: W293 blank line contains whitespace
+fix_certifications_table.py:99:1: W293 blank line contains whitespace
+fix_certifications_table.py:109:1: W391 blank line at end of file
+fix_equipment_resources_table_columns.py:35:1: W391 blank line at end of file
+fix_hierarchy_tables.py:8:1: E302 expected 2 blank lines, found 1
+fix_hierarchy_tables.py:14:35: W291 trailing whitespace
+fix_hierarchy_tables.py:15:48: W291 trailing whitespace
+fix_hierarchy_tables.py:19:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:23:39: W291 trailing whitespace
+fix_hierarchy_tables.py:24:52: W291 trailing whitespace
+fix_hierarchy_tables.py:25:50: W291 trailing whitespace
+fix_hierarchy_tables.py:32:45: W291 trailing whitespace
+fix_hierarchy_tables.py:36:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:40:41: W291 trailing whitespace
+fix_hierarchy_tables.py:47:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:50:35: W291 trailing whitespace
+fix_hierarchy_tables.py:51:48: W291 trailing whitespace
+fix_hierarchy_tables.py:55:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:59:42: W291 trailing whitespace
+fix_hierarchy_tables.py:66:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:69:35: W291 trailing whitespace
+fix_hierarchy_tables.py:70:48: W291 trailing whitespace
+fix_hierarchy_tables.py:71:47: W291 trailing whitespace
+fix_hierarchy_tables.py:75:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:79:42: W291 trailing whitespace
+fix_hierarchy_tables.py:88:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:90:1: W293 blank line contains whitespace
+fix_hierarchy_tables.py:98:1: W391 blank line at end of file
+fix_is_active_column_type.py:8:1: E302 expected 2 blank lines, found 1
+fix_is_active_column_type.py:14:33: W291 trailing whitespace
+fix_is_active_column_type.py:15:48: W291 trailing whitespace
+fix_is_active_column_type.py:16:59: W291 trailing whitespace
+fix_is_active_column_type.py:20:1: W293 blank line contains whitespace
+fix_is_active_column_type.py:25:54: W291 trailing whitespace
+fix_is_active_column_type.py:26:56: W291 trailing whitespace
+fix_is_active_column_type.py:34:1: W293 blank line contains whitespace
+fix_is_active_column_type.py:55:1: W391 blank line at end of file
+fix_ndt_methods_inspection_link.py:88:1: W391 blank line at end of file
+fix_questionnaires_table_columns.py:8:1: E302 expected 2 blank lines, found 1
+fix_questionnaires_table_columns.py:15:39: W291 trailing whitespace
+fix_questionnaires_table_columns.py:16:52: W291 trailing whitespace
+fix_questionnaires_table_columns.py:21:1: W293 blank line contains whitespace
+fix_questionnaires_table_columns.py:23:1: W293 blank line contains whitespace
+fix_questionnaires_table_columns.py:31:1: W293 blank line contains whitespace
+fix_questionnaires_table_columns.py:37:55: W291 trailing whitespace
+fix_questionnaires_table_columns.py:44:1: W293 blank line contains whitespace
+fix_questionnaires_table_columns.py:46:1: W293 blank line contains whitespace
+fix_questionnaires_table_columns.py:67:1: W391 blank line at end of file
+fix_reports_table_columns.py:64:1: W391 blank line at end of file
+fix_users_is_active.py:8:1: E302 expected 2 blank lines, found 1
+fix_users_is_active.py:14:33: W291 trailing whitespace
+fix_users_is_active.py:15:48: W291 trailing whitespace
+fix_users_is_active.py:16:43: W291 trailing whitespace
+fix_users_is_active.py:20:1: W293 blank line contains whitespace
+fix_users_is_active.py:22:1: W293 blank line contains whitespace
+fix_users_is_active.py:27:38: W291 trailing whitespace
+fix_users_is_active.py:28:56: W291 trailing whitespace
+fix_users_is_active.py:36:1: W293 blank line contains whitespace
+fix_users_is_active.py:57:1: W391 blank line at end of file
+form_template_filler.py:385:1: E305 expected 2 blank lines after class or function definition, found 1
+form_template_filler.py:1330:1: E303 too many blank lines (3)
+form_template_filler.py:1332:1: E305 expected 2 blank lines after class or function definition, found 3
+form_template_filler.py:2087:1: F811 redefinition of unused '_iter_all_paragraphs' from line 1644
+form_template_filler.py:2237:72: E203 whitespace before ':'
+form_template_filler.py:3345:1: E302 expected 2 blank lines, found 1
+form_template_filler.py:3739:36: E203 whitespace before ':'
+form_template_filler.py:4421:1: E302 expected 2 blank lines, found 1
+form_template_filler_crane.py:225:17: F841 local variable 'col' is assigned to but never used
+form_template_filler_ndt_shared.py:6:1: F401 'typing.Optional' imported but unused
+form_template_filler_tank.py:119:48: E231 missing whitespace after ','
+form_template_filler_tank.py:119:68: E231 missing whitespace after ','
+form_template_filler_underground_pipeline.py:7:1: F401 're' imported but unused
+hierarchy_management.py:4:1: F401 'fastapi.status' imported but unused
+hierarchy_management.py:9:1: F401 'datetime.date' imported but unused
+hierarchy_management.py:9:1: F401 'datetime.timedelta' imported but unused
+hierarchy_management.py:13:1: F401 'models.EquipmentType' imported but unused
+hierarchy_management.py:17:1: F401 'auth.verify_token_optional' imported but unused
+hierarchy_management.py:22:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:108:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:113:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:123:1: W293 blank line contains whitespace
+hierarchy_management.py:128:1: W293 blank line contains whitespace
+hierarchy_management.py:131:59: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:135:1: W293 blank line contains whitespace
+hierarchy_management.py:144:1: W293 blank line contains whitespace
+hierarchy_management.py:155:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:168:88: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:228:46: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:279:74: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:305:55: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:308:1: W293 blank line contains whitespace
+hierarchy_management.py:315:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:409:70: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:435:59: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:438:1: W293 blank line contains whitespace
+hierarchy_management.py:445:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:539:76: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+hierarchy_management.py:572:1: W293 blank line contains whitespace
+hierarchy_management.py:574:1: W293 blank line contains whitespace
+hierarchy_management.py:577:1: W293 blank line contains whitespace
+hierarchy_management.py:589:1: W293 blank line contains whitespace
+hierarchy_management.py:604:1: W293 blank line contains whitespace
+hierarchy_management.py:615:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:630:1: W293 blank line contains whitespace
+hierarchy_management.py:632:1: W293 blank line contains whitespace
+hierarchy_management.py:635:1: W293 blank line contains whitespace
+hierarchy_management.py:646:1: W293 blank line contains whitespace
+hierarchy_management.py:659:1: W293 blank line contains whitespace
+hierarchy_management.py:670:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:685:1: W293 blank line contains whitespace
+hierarchy_management.py:687:1: W293 blank line contains whitespace
+hierarchy_management.py:690:1: W293 blank line contains whitespace
+hierarchy_management.py:701:1: W293 blank line contains whitespace
+hierarchy_management.py:714:1: W293 blank line contains whitespace
+hierarchy_management.py:725:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:740:1: W293 blank line contains whitespace
+hierarchy_management.py:742:1: W293 blank line contains whitespace
+hierarchy_management.py:745:1: W293 blank line contains whitespace
+hierarchy_management.py:756:1: W293 blank line contains whitespace
+hierarchy_management.py:769:1: W293 blank line contains whitespace
+hierarchy_management.py:780:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:795:1: W293 blank line contains whitespace
+hierarchy_management.py:797:1: W293 blank line contains whitespace
+hierarchy_management.py:800:1: W293 blank line contains whitespace
+hierarchy_management.py:811:1: W293 blank line contains whitespace
+hierarchy_management.py:824:1: W293 blank line contains whitespace
+hierarchy_management.py:835:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:844:1: W293 blank line contains whitespace
+hierarchy_management.py:858:1: W293 blank line contains whitespace
+hierarchy_management.py:878:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:902:1: W293 blank line contains whitespace
+hierarchy_management.py:921:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:945:1: W293 blank line contains whitespace
+hierarchy_management.py:964:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:988:1: W293 blank line contains whitespace
+hierarchy_management.py:1007:1: E302 expected 2 blank lines, found 1
+hierarchy_management.py:1031:1: W293 blank line contains whitespace
+hierarchy_management.py:1050:1: W391 blank line at end of file
+init_specialists.py:6:1: F401 'datetime.datetime' imported but unused
+init_specialists.py:6:1: F401 'datetime.timedelta' imported but unused
+init_specialists.py:7:1: F401 'sqlalchemy.ext.asyncio.AsyncSession' imported but unused
+init_specialists.py:11:1: E302 expected 2 blank lines, found 1
+init_specialists.py:18:1: W293 blank line contains whitespace
+init_specialists.py:221:1: W293 blank line contains whitespace
+init_specialists.py:224:1: W293 blank line contains whitespace
+init_specialists.py:232:1: W293 blank line contains whitespace
+init_specialists.py:236:1: W293 blank line contains whitespace
+init_specialists.py:250:1: W293 blank line contains whitespace
+init_specialists.py:267:1: W293 blank line contains whitespace
+init_specialists.py:270:1: W293 blank line contains whitespace
+init_specialists.py:272:1: W293 blank line contains whitespace
+init_specialists.py:277:1: W293 blank line contains whitespace
+init_specialists.py:286:1: W391 blank line at end of file
+init_test_equipment.py:1:1: W391 blank line at end of file
+init_test_hierarchy_data.py:6:1: F401 'database.engine' imported but unused
+init_test_hierarchy_data.py:9:1: F401 'uuid' imported but unused
+init_test_hierarchy_data.py:11:1: E302 expected 2 blank lines, found 1
+init_test_hierarchy_data.py:21:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:40:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:42:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:51:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:75:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:77:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:88:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:112:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:114:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:126:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:145:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:147:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:171:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:176:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:198:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:202:1: W293 blank line contains whitespace
+init_test_hierarchy_data.py:211:1: W391 blank line at end of file
+init_users.py:5:1: F401 'database.engine' imported but unused
+init_users.py:5:1: F401 'database.Base' imported but unused
+init_users.py:11:1: E302 expected 2 blank lines, found 1
+init_users.py:21:1: W293 blank line contains whitespace
+init_users.py:46:1: W293 blank line contains whitespace
+init_users.py:90:1: W293 blank line contains whitespace
+init_users.py:102:1: W293 blank line contains whitespace
+init_users.py:111:1: W293 blank line contains whitespace
+init_users.py:147:1: W391 blank line at end of file
+inspection_archive_api.py:26:1: F401 'typing.Optional' imported but unused
+inspection_archive_api.py:274:151: E501 line too long (177 > 150 characters)
+inspection_object_templates_api.py:14:1: F401 'fastapi.Query' imported but unused
+inspections_crud_api.py:126:39: E712 comparison to False should be 'if cond is False:' or 'if not cond:'
+inspections_crud_api.py:126:71: E711 comparison to None should be 'if cond is None:'
+inspections_crud_api.py:212:42: E203 whitespace before ':'
+inspections_crud_api.py:245:1: W293 blank line contains whitespace
+inspections_crud_api.py:248:1: W293 blank line contains whitespace
+inspections_crud_api.py:264:1: W293 blank line contains whitespace
+inspections_crud_api.py:274:1: W293 blank line contains whitespace
+inspections_crud_api.py:284:1: W293 blank line contains whitespace
+inspections_crud_api.py:303:1: W293 blank line contains whitespace
+inspections_crud_api.py:314:1: W293 blank line contains whitespace
+inspections_crud_api.py:487:1: W293 blank line contains whitespace
+inspections_crud_api.py:493:13: E722 do not use bare 'except'
+inspections_crud_api.py:495:1: W293 blank line contains whitespace
+inspections_crud_api.py:501:13: E722 do not use bare 'except'
+inspections_crud_api.py:562:1: W293 blank line contains whitespace
+inspections_crud_api.py:610:1: W293 blank line contains whitespace
+inspections_crud_api.py:629:1: W293 blank line contains whitespace
+inspections_crud_api.py:636:29: F841 local variable 'inspection_date_obj' is assigned to but never used
+inspections_crud_api.py:637:21: E722 do not use bare 'except'
+inspections_crud_api.py:639:1: W293 blank line contains whitespace
+inspections_crud_api.py:667:1: W293 blank line contains whitespace
+inspections_crud_api.py:673:13: E722 do not use bare 'except'
+inspections_crud_api.py:675:1: W293 blank line contains whitespace
+inspections_crud_api.py:683:1: W293 blank line contains whitespace
+inspections_crud_api.py:689:13: E722 do not use bare 'except'
+inspections_crud_api.py:691:1: W293 blank line contains whitespace
+inspections_crud_api.py:737:1: W293 blank line contains whitespace
+inspections_crud_api.py:861:88: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+inspections_crud_api.py:908:35: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+inspections_crud_api.py:965:38: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+inspections_crud_api.py:1083:1: W293 blank line contains whitespace
+inspections_crud_api.py:1091:1: W293 blank line contains whitespace
+inspections_crud_api.py:1137:1: W293 blank line contains whitespace
+inspections_crud_api.py:1218:1: W293 blank line contains whitespace
+inspections_crud_api.py:1235:1: W293 blank line contains whitespace
+inspections_crud_api.py:1369:1: W293 blank line contains whitespace
+inspections_crud_api.py:1373:1: W293 blank line contains whitespace
+inspections_crud_api.py:1378:1: W293 blank line contains whitespace
+inspections_crud_api.py:1385:1: W293 blank line contains whitespace
+inspections_crud_api.py:1388:1: W293 blank line contains whitespace
+inspections_crud_api.py:1396:1: W293 blank line contains whitespace
+inspections_crud_api.py:1399:1: W293 blank line contains whitespace
+inspections_crud_api.py:1405:1: W293 blank line contains whitespace
+inspections_crud_api.py:1410:1: W293 blank line contains whitespace
+inspections_crud_api.py:1421:1: W293 blank line contains whitespace
+inspections_crud_api.py:1432:1: W293 blank line contains whitespace
+inspections_crud_api.py:1440:1: W293 blank line contains whitespace
+inspections_crud_api.py:1460:1: W293 blank line contains whitespace
+inspections_crud_api.py:1464:1: W293 blank line contains whitespace
+inspections_crud_api.py:1469:1: W293 blank line contains whitespace
+inspections_crud_api.py:1476:1: W293 blank line contains whitespace
+inspections_crud_api.py:1479:1: W293 blank line contains whitespace
+inspections_crud_api.py:1487:1: W293 blank line contains whitespace
+inspections_crud_api.py:1490:1: W293 blank line contains whitespace
+inspections_crud_api.py:1493:13: F841 local variable 'e' is assigned to but never used
+inspections_crud_api.py:1495:1: W293 blank line contains whitespace
+instruments_api.py:10:1: F401 'sqlalchemy.select' imported but unused
+instruments_api.py:176:151: E501 line too long (169 > 150 characters)
+main.py:10:1: F401 'time' imported but unused
+main.py:12:1: F401 'typing.Optional' imported but unused
+main.py:14:1: F401 'fastapi.Request' imported but unused
+main.py:65:151: E501 line too long (185 > 150 characters)
+migrate_is_archived.py:7:1: E302 expected 2 blank lines, found 1
+migrate_is_archived.py:13:39: W291 trailing whitespace
+migrate_is_archived.py:14:52: W291 trailing whitespace
+migrate_is_archived.py:15:53: W291 trailing whitespace
+migrate_is_archived.py:20:1: W293 blank line contains whitespace
+migrate_reports_is_archived.py:7:1: E302 expected 2 blank lines, found 1
+migrate_reports_is_archived.py:13:39: W291 trailing whitespace
+migrate_reports_is_archived.py:14:52: W291 trailing whitespace
+migrate_reports_is_archived.py:15:49: W291 trailing whitespace
+migrate_reports_is_archived.py:20:1: W293 blank line contains whitespace
+migrate_verification_scans.py:5:1: F401 'os' imported but unused
+mobile_stats_api.py:58:44: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+mobile_stats_api.py:59:39: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+mobile_stats_api.py:103:1: W293 blank line contains whitespace
+mobile_stats_api.py:105:1: W293 blank line contains whitespace
+mobile_stats_api.py:107:1: W293 blank line contains whitespace
+mobile_stats_api.py:110:1: W293 blank line contains whitespace
+mobile_stats_api.py:117:1: W293 blank line contains whitespace
+mobile_stats_api.py:131:1: E302 expected 2 blank lines, found 1
+mobile_stats_api.py:140:1: W293 blank line contains whitespace
+mobile_stats_api.py:149:1: W293 blank line contains whitespace
+mobile_stats_api.py:154:1: E302 expected 2 blank lines, found 1
+mobile_stats_api.py:160:1: W293 blank line contains whitespace
+mobile_stats_api.py:163:1: W293 blank line contains whitespace
+mobile_stats_api.py:167:1: W293 blank line contains whitespace
+mobile_stats_api.py:175:1: W293 blank line contains whitespace
+mobile_stats_api.py:183:1: W293 blank line contains whitespace
+models.py:1:1: F401 'sqlalchemy.JSON' imported but unused
+models.py:7:1: E302 expected 2 blank lines, found 1
+models.py:10:1: W293 blank line contains whitespace
+models.py:17:1: E302 expected 2 blank lines, found 1
+models.py:20:1: W293 blank line contains whitespace
+models.py:34:1: E302 expected 2 blank lines, found 1
+models.py:37:1: W293 blank line contains whitespace
+models.py:47:1: E302 expected 2 blank lines, found 1
+models.py:50:1: W293 blank line contains whitespace
+models.py:60:1: E302 expected 2 blank lines, found 1
+models.py:63:1: W293 blank line contains whitespace
+models.py:78:1: E302 expected 2 blank lines, found 1
+models.py:81:1: W293 blank line contains whitespace
+models.py:98:1: E302 expected 2 blank lines, found 1
+models.py:119:1: E302 expected 2 blank lines, found 1
+models.py:133:1: E302 expected 2 blank lines, found 1
+models.py:136:1: W293 blank line contains whitespace
+models.py:147:1: E302 expected 2 blank lines, found 1
+models.py:150:1: W293 blank line contains whitespace
+models.py:214:1: W293 blank line contains whitespace
+models.py:226:1: E302 expected 2 blank lines, found 1
+models.py:229:1: W293 blank line contains whitespace
+models.py:252:1: E302 expected 2 blank lines, found 1
+models.py:255:1: W293 blank line contains whitespace
+models.py:271:1: E302 expected 2 blank lines, found 1
+models.py:274:1: W293 blank line contains whitespace
+models.py:296:1: E302 expected 2 blank lines, found 1
+models.py:312:1: E302 expected 2 blank lines, found 1
+models.py:315:1: W293 blank line contains whitespace
+models.py:346:1: E302 expected 2 blank lines, found 1
+models.py:349:1: W293 blank line contains whitespace
+models.py:369:15: E221 multiple spaces before operator
+models.py:370:15: E221 multiple spaces before operator
+models.py:371:15: E221 multiple spaces before operator
+models.py:377:1: E302 expected 2 blank lines, found 1
+models.py:396:1: E302 expected 2 blank lines, found 1
+models.py:411:1: E302 expected 2 blank lines, found 1
+models.py:414:1: W293 blank line contains whitespace
+models.py:427:1: E302 expected 2 blank lines, found 1
+models.py:430:1: W293 blank line contains whitespace
+models.py:452:1: E302 expected 2 blank lines, found 1
+models.py:455:1: W293 blank line contains whitespace
+models.py:468:1: E302 expected 2 blank lines, found 1
+models.py:484:1: E302 expected 2 blank lines, found 1
+models.py:487:1: W293 blank line contains whitespace
+models.py:511:1: E302 expected 2 blank lines, found 1
+models.py:514:1: W293 blank line contains whitespace
+models.py:522:1: E302 expected 2 blank lines, found 1
+models.py:525:1: W293 blank line contains whitespace
+models.py:548:1: E302 expected 2 blank lines, found 1
+models.py:564:1: E302 expected 2 blank lines, found 1
+notifications_api.py:11:1: F401 'uuid as uuid_lib' imported but unused
+notifications_api.py:188:70: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+opos_api.py:29:49: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+pdf_stamping.py:26:1: F401 'reportlab.lib.pagesizes.A4' imported but unused
+pdf_stamping.py:164:9: F401 'pyhanko.sign.fields.SigFieldSpec' imported but unused
+protocol_templates_api.py:10:1: F401 'datetime.datetime' imported but unused
+protocol_templates_api.py:10:1: F401 'datetime.timezone' imported but unused
+questionnaires_api.py:29:1: F401 'shared.resolve_report_file_path' imported but unused
+questionnaires_api.py:77:1: W293 blank line contains whitespace
+questionnaires_api.py:82:13: E722 do not use bare 'except'
+questionnaires_api.py:84:1: W293 blank line contains whitespace
+questionnaires_api.py:86:1: W293 blank line contains whitespace
+questionnaires_api.py:89:1: W293 blank line contains whitespace
+questionnaires_api.py:127:1: W293 blank line contains whitespace
+questionnaires_api.py:130:1: W293 blank line contains whitespace
+questionnaires_api.py:316:1: W293 blank line contains whitespace
+questionnaires_api.py:323:1: W293 blank line contains whitespace
+questionnaires_api.py:328:13: E722 do not use bare 'except'
+questionnaires_api.py:330:1: W293 blank line contains whitespace
+questionnaires_api.py:333:1: W293 blank line contains whitespace
+questionnaires_api.py:351:1: W293 blank line contains whitespace
+questionnaires_api.py:355:1: W293 blank line contains whitespace
+questionnaires_api.py:483:1: W293 blank line contains whitespace
+questionnaires_api.py:490:1: W293 blank line contains whitespace
+questionnaires_api.py:495:13: E722 do not use bare 'except'
+questionnaires_api.py:497:1: W293 blank line contains whitespace
+questionnaires_api.py:515:1: W293 blank line contains whitespace
+questionnaires_api.py:519:1: W293 blank line contains whitespace
+questionnaires_api.py:618:1: W293 blank line contains whitespace
+questionnaires_api.py:621:1: W293 blank line contains whitespace
+questionnaires_api.py:626:1: W293 blank line contains whitespace
+questionnaires_api.py:629:1: W293 blank line contains whitespace
+questionnaires_api.py:634:1: W293 blank line contains whitespace
+questionnaires_api.py:638:1: W293 blank line contains whitespace
+questionnaires_api.py:641:1: W293 blank line contains whitespace
+questionnaires_api.py:674:1: W293 blank line contains whitespace
+questionnaires_api.py:678:1: W293 blank line contains whitespace
+questionnaires_api.py:707:1: W293 blank line contains whitespace
+questionnaires_api.py:710:1: W293 blank line contains whitespace
+questionnaires_api.py:717:1: W293 blank line contains whitespace
+questionnaires_api.py:720:1: W293 blank line contains whitespace
+questionnaires_api.py:724:1: W293 blank line contains whitespace
+questionnaires_api.py:746:1: W293 blank line contains whitespace
+questionnaires_api.py:752:1: W293 blank line contains whitespace
+questionnaires_api.py:755:1: W293 blank line contains whitespace
+questionnaires_api.py:760:1: W293 blank line contains whitespace
+questionnaires_api.py:763:1: W293 blank line contains whitespace
+questionnaires_api.py:768:1: W293 blank line contains whitespace
+questionnaires_api.py:772:1: W293 blank line contains whitespace
+questionnaires_api.py:775:1: W293 blank line contains whitespace
+questionnaires_api.py:808:1: W293 blank line contains whitespace
+questionnaires_api.py:812:1: W293 blank line contains whitespace
+questionnaires_api.py:841:1: W293 blank line contains whitespace
+questionnaires_api.py:844:1: W293 blank line contains whitespace
+questionnaires_api.py:851:1: W293 blank line contains whitespace
+questionnaires_api.py:854:1: W293 blank line contains whitespace
+questionnaires_api.py:858:1: W293 blank line contains whitespace
+questionnaires_api.py:886:1: W293 blank line contains whitespace
+questionnaires_api.py:893:1: W293 blank line contains whitespace
+questionnaires_api.py:901:1: W293 blank line contains whitespace
+questionnaires_api.py:919:1: W293 blank line contains whitespace
+questionnaires_api.py:925:1: W293 blank line contains whitespace
+questionnaires_api.py:928:1: W293 blank line contains whitespace
+questionnaires_api.py:934:1: W293 blank line contains whitespace
+questionnaires_api.py:938:1: W293 blank line contains whitespace
+questionnaires_api.py:960:151: E501 line too long (160 > 150 characters)
+questionnaires_api.py:971:1: W293 blank line contains whitespace
+questionnaires_api.py:982:1: W293 blank line contains whitespace
+questionnaires_api.py:986:1: W293 blank line contains whitespace
+questionnaires_api.py:1015:1: W293 blank line contains whitespace
+questionnaires_api.py:1026:1: W293 blank line contains whitespace
+questionnaires_api.py:1046:1: W293 blank line contains whitespace
+questionnaires_api.py:1054:1: W293 blank line contains whitespace
+questionnaires_api.py:1057:1: W293 blank line contains whitespace
+questionnaires_api.py:1061:1: W293 blank line contains whitespace
+questionnaires_api.py:1070:1: W293 blank line contains whitespace
+questionnaires_api.py:1076:1: W293 blank line contains whitespace
+questionnaires_api.py:1093:1: W293 blank line contains whitespace
+questionnaires_api.py:1100:1: W293 blank line contains whitespace
+questionnaires_api.py:1116:1: W293 blank line contains whitespace
+questionnaires_api.py:1185:1: W293 blank line contains whitespace
+questionnaires_api.py:1193:1: W293 blank line contains whitespace
+questionnaires_api.py:1196:1: W293 blank line contains whitespace
+questionnaires_api.py:1200:1: W293 blank line contains whitespace
+questionnaires_api.py:1203:1: W293 blank line contains whitespace
+questionnaires_api.py:1205:1: W293 blank line contains whitespace
+report_format_helpers.py:6:1: F401 'os' imported but unused
+report_format_helpers.py:13:1: F401 'docx.enum.text.WD_ALIGN_PARAGRAPH' imported but unused
+report_generator.py:18:1: F401 'io' imported but unused
+report_generator.py:392:13: F541 f-string is missing placeholders
+report_generator.py:834:27: E128 continuation line under-indented for visual indent
+report_generator.py:1007:151: E501 line too long (174 > 150 characters)
+report_generator.py:1013:151: E501 line too long (165 > 150 characters)
+report_generator.py:1015:151: E501 line too long (193 > 150 characters)
+report_generator.py:1016:151: E501 line too long (173 > 150 characters)
+report_jobs.py:73:9: E306 expected 1 blank line before a nested definition, found 0
+report_queue.py:25:1: F401 'typing.Optional' imported but unused
+report_schema.py:63:21: E128 continuation line under-indented for visual indent
+report_templates_api.py:187:151: E501 line too long (180 > 150 characters)
+report_templates_api.py:199:151: E501 line too long (171 > 150 characters)
+report_utils.py:3:1: F401 'sqlalchemy.func' imported but unused
+report_utils.py:24:1: W293 blank line contains whitespace
+report_utils.py:29:1: W293 blank line contains whitespace
+report_utils.py:32:1: W293 blank line contains whitespace
+report_utils.py:42:13: E722 do not use bare 'except'
+report_utils.py:46:1: W293 blank line contains whitespace
+report_utils.py:50:5: F841 local variable 'e' is assigned to but never used
+report_utils.py:64:1: W293 blank line contains whitespace
+report_utils.py:67:1: W293 blank line contains whitespace
+report_utils.py:76:13: E722 do not use bare 'except'
+report_utils.py:80:1: W293 blank line contains whitespace
+report_utils.py:83:5: F841 local variable 'e' is assigned to but never used
+report_utils.py:94:1: W293 blank line contains whitespace
+report_utils.py:97:1: W293 blank line contains whitespace
+report_utils.py:104:1: W293 blank line contains whitespace
+report_utils.py:111:1: W293 blank line contains whitespace
+report_utils.py:115:1: W293 blank line contains whitespace
+report_utils.py:126:1: W293 blank line contains whitespace
+report_utils.py:197:1: W293 blank line contains whitespace
+report_utils.py:207:1: W293 blank line contains whitespace
+report_utils.py:226:1: W293 blank line contains whitespace
+report_utils.py:248:1: W293 blank line contains whitespace
+report_utils.py:255:1: W293 blank line contains whitespace
+report_utils.py:258:1: W293 blank line contains whitespace
+report_utils.py:267:1: W293 blank line contains whitespace
+report_utils.py:274:1: W293 blank line contains whitespace
+report_utils.py:280:1: W293 blank line contains whitespace
+report_utils.py:288:1: W293 blank line contains whitespace
+report_utils.py:291:1: W293 blank line contains whitespace
+report_utils.py:308:1: W293 blank line contains whitespace
+reports_crud_api.py:17:1: F401 'sqlalchemy.func' imported but unused
+reports_crud_api.py:159:13: E722 do not use bare 'except'
+reports_crud_api.py:168:13: E722 do not use bare 'except'
+reports_crud_api.py:176:13: E722 do not use bare 'except'
+reports_crud_api.py:201:1: W293 blank line contains whitespace
+reports_crud_api.py:217:1: W293 blank line contains whitespace
+reports_crud_api.py:228:1: W293 blank line contains whitespace
+reports_crud_api.py:237:1: W293 blank line contains whitespace
+reports_crud_api.py:248:1: W293 blank line contains whitespace
+reports_crud_api.py:258:1: W293 blank line contains whitespace
+reports_crud_api.py:277:1: W293 blank line contains whitespace
+reports_crud_api.py:294:1: W293 blank line contains whitespace
+reports_crud_api.py:322:1: W293 blank line contains whitespace
+reports_crud_api.py:405:13: E722 do not use bare 'except'
+reports_crud_api.py:409:1: W293 blank line contains whitespace
+reports_crud_api.py:445:1: W293 blank line contains whitespace
+reports_crud_api.py:453:1: W293 blank line contains whitespace
+reports_crud_api.py:505:1: W293 blank line contains whitespace
+reports_crud_api.py:523:1: W293 blank line contains whitespace
+reports_crud_api.py:615:151: E501 line too long (156 > 150 characters)
+reports_crud_api.py:643:151: E501 line too long (174 > 150 characters)
+reports_crud_api.py:652:151: E501 line too long (181 > 150 characters)
+reports_crud_api.py:710:1: W293 blank line contains whitespace
+reports_crud_api.py:756:1: W293 blank line contains whitespace
+reports_crud_api.py:760:1: W293 blank line contains whitespace
+reports_crud_api.py:823:1: W293 blank line contains whitespace
+reports_crud_api.py:835:1: W293 blank line contains whitespace
+reports_crud_api.py:839:1: W293 blank line contains whitespace
+reports_crud_api.py:1181:21: E301 expected 1 blank line, found 0
+reports_crud_api.py:1228:25: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1229:25: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1269:29: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1270:29: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1316:29: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1317:29: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1334:29: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1335:29: E128 continuation line under-indented for visual indent
+reports_crud_api.py:1351:1: W293 blank line contains whitespace
+reports_crud_api.py:1354:1: W293 blank line contains whitespace
+reports_crud_api.py:1400:1: W293 blank line contains whitespace
+reports_crud_api.py:1456:151: E501 line too long (177 > 150 characters)
+reports_crud_api.py:1634:71: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+reports_crud_api.py:1635:1: W293 blank line contains whitespace
+reports_crud_api.py:1640:13: E722 do not use bare 'except'
+reports_crud_api.py:1642:1: W293 blank line contains whitespace
+reports_crud_api.py:1645:1: W293 blank line contains whitespace
+reports_crud_api.py:1648:1: W293 blank line contains whitespace
+reports_crud_api.py:1661:1: W293 blank line contains whitespace
+reports_crud_api.py:1678:1: W293 blank line contains whitespace
+reports_crud_api.py:1683:13: E722 do not use bare 'except'
+reports_crud_api.py:1685:1: W293 blank line contains whitespace
+reports_crud_api.py:1690:47: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+reports_crud_api.py:1695:1: W293 blank line contains whitespace
+reports_crud_api.py:1705:1: W293 blank line contains whitespace
+reports_crud_api.py:1709:1: W293 blank line contains whitespace
+reports_crud_api.py:1733:1: W293 blank line contains whitespace
+reports_crud_api.py:1736:1: W293 blank line contains whitespace
+reports_crud_api.py:1749:17: E722 do not use bare 'except'
+reports_crud_api.py:1753:1: W293 blank line contains whitespace
+reports_crud_api.py:1759:51: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+reports_crud_api.py:1766:1: W293 blank line contains whitespace
+reports_crud_api.py:1769:1: W293 blank line contains whitespace
+reports_crud_api.py:1794:1: W293 blank line contains whitespace
+reports_crud_api.py:1797:1: W293 blank line contains whitespace
+reports_crud_api.py:1800:1: W293 blank line contains whitespace
+reports_crud_api.py:1823:1: W293 blank line contains whitespace
+reports_crud_api.py:1829:1: W293 blank line contains whitespace
+reports_crud_api.py:1832:1: W293 blank line contains whitespace
+reports_crud_api.py:1842:1: W293 blank line contains whitespace
+reports_crud_api.py:1845:1: W293 blank line contains whitespace
+reports_crud_api.py:1933:1: W293 blank line contains whitespace
+reports_crud_api.py:1937:1: W293 blank line contains whitespace
+reports_crud_api.py:1942:1: W293 blank line contains whitespace
+reports_crud_api.py:1949:1: W293 blank line contains whitespace
+reports_crud_api.py:1952:1: W293 blank line contains whitespace
+reports_crud_api.py:1965:1: W293 blank line contains whitespace
+reports_crud_api.py:1968:1: W293 blank line contains whitespace
+reports_crud_api.py:1980:1: W293 blank line contains whitespace
+reports_crud_api.py:1983:13: F841 local variable 'e' is assigned to but never used
+reports_crud_api.py:1985:1: W293 blank line contains whitespace
+reports_crud_api.py:2005:1: W293 blank line contains whitespace
+reports_crud_api.py:2009:1: W293 blank line contains whitespace
+reports_crud_api.py:2014:1: W293 blank line contains whitespace
+reports_crud_api.py:2021:1: W293 blank line contains whitespace
+reports_crud_api.py:2024:1: W293 blank line contains whitespace
+reports_crud_api.py:2037:1: W293 blank line contains whitespace
+reports_crud_api.py:2040:1: W293 blank line contains whitespace
+reports_crud_api.py:2043:13: F841 local variable 'e' is assigned to but never used
+reports_crud_api.py:2045:1: W293 blank line contains whitespace
+run_migration_3.3.0.py:15:1: W293 blank line contains whitespace
+run_migration_3.3.0.py:33:1: W391 blank line at end of file
+scheme_equipment_catalog.py:507:5: E306 expected 1 blank line before a nested definition, found 0
+scheme_family_renderers.py:59:15: F841 local variable 'margin_y' is assigned to but never used
+scheme_ndt_overlays.py:231:9: F824 `nonlocal zones` is unused: name is never assigned in scope
+standalone_protocols_api.py:192:151: E501 line too long (153 > 150 characters)
+standalone_protocols_api.py:194:151: E501 line too long (185 > 150 characters)
+standalone_protocols_api.py:230:151: E501 line too long (151 > 150 characters)
+standalone_protocols_api.py:239:151: E501 line too long (151 > 150 characters)
+technical_report_builder.py:8:1: F401 'typing.Optional' imported but unused
+technical_report_builder.py:222:151: E501 line too long (172 > 150 characters)
+test_api.py:5:1: F401 'json' imported but unused
+test_api.py:6:1: F401 'datetime.datetime' imported but unused
+test_api.py:10:1: E302 expected 2 blank lines, found 1
+test_api.py:14:1: W293 blank line contains whitespace
+test_api.py:24:1: W293 blank line contains whitespace
+test_api.py:34:17: E722 do not use bare 'except'
+test_api.py:44:1: E302 expected 2 blank lines, found 1
+test_api.py:48:1: W293 blank line contains whitespace
+test_api.py:50:1: W293 blank line contains whitespace
+test_api.py:53:1: W293 blank line contains whitespace
+test_api.py:56:1: W293 blank line contains whitespace
+test_api.py:59:1: W293 blank line contains whitespace
+test_api.py:62:1: W293 blank line contains whitespace
+test_api.py:65:1: W293 blank line contains whitespace
+test_api.py:68:1: W293 blank line contains whitespace
+test_api.py:71:1: W293 blank line contains whitespace
+test_api.py:74:1: W293 blank line contains whitespace
+test_api.py:77:1: W293 blank line contains whitespace
+test_api.py:80:1: W293 blank line contains whitespace
+test_api.py:83:1: W293 blank line contains whitespace
+test_api.py:93:1: W293 blank line contains whitespace
+test_api.py:99:1: E305 expected 2 blank lines after class or function definition, found 1
+test_api.py:103:1: W391 blank line at end of file
+test_data.py:8:1: F401 'sqlalchemy.select' imported but unused
+test_data.py:19:1: E302 expected 2 blank lines, found 1
+test_data.py:26:1: E302 expected 2 blank lines, found 1
+test_data.py:28:1: W293 blank line contains whitespace
+test_data.py:35:1: W293 blank line contains whitespace
+test_data.py:37:1: W293 blank line contains whitespace
+test_data.py:46:1: W293 blank line contains whitespace
+test_data.py:50:1: W293 blank line contains whitespace
+test_data.py:76:19: F541 f-string is missing placeholders
+test_data.py:77:1: W293 blank line contains whitespace
+test_data.py:103:19: F541 f-string is missing placeholders
+test_data.py:104:1: W293 blank line contains whitespace
+test_data.py:149:19: F541 f-string is missing placeholders
+test_data.py:150:1: W293 blank line contains whitespace
+test_data.py:175:19: F541 f-string is missing placeholders
+test_data.py:176:1: W293 blank line contains whitespace
+test_data.py:201:19: F541 f-string is missing placeholders
+test_data.py:202:1: W293 blank line contains whitespace
+test_data.py:227:19: F541 f-string is missing placeholders
+test_data.py:228:1: W293 blank line contains whitespace
+test_data.py:274:19: F541 f-string is missing placeholders
+test_data.py:275:1: W293 blank line contains whitespace
+test_data.py:313:19: F541 f-string is missing placeholders
+test_data.py:314:1: W293 blank line contains whitespace
+test_data.py:364:19: F541 f-string is missing placeholders
+test_data.py:365:1: W293 blank line contains whitespace
+test_data.py:370:19: F541 f-string is missing placeholders
+test_data.py:371:19: F541 f-string is missing placeholders
+test_data.py:372:19: F541 f-string is missing placeholders
+test_data.py:373:19: F541 f-string is missing placeholders
+test_data.py:374:19: F541 f-string is missing placeholders
+test_data.py:375:19: F541 f-string is missing placeholders
+test_data.py:376:19: F541 f-string is missing placeholders
+test_data.py:377:19: F541 f-string is missing placeholders
+test_data.py:378:19: F541 f-string is missing placeholders
+test_data.py:379:1: W293 blank line contains whitespace
+test_data.py:389:1: W391 blank line at end of file
+test_enterprises_api.py:1:1: F401 'asyncio' imported but unused
+test_enterprises_api.py:7:1: E302 expected 2 blank lines, found 1
+test_enterprises_api.py:10:1: W293 blank line contains whitespace
+test_enterprises_api.py:16:1: W293 blank line contains whitespace
+test_enterprises_api.py:22:1: W293 blank line contains whitespace
+test_enterprises_api.py:26:1: W293 blank line contains whitespace
+test_enterprises_api.py:43:1: E305 expected 2 blank lines after class or function definition, found 1
+test_enterprises_api.py:57:1: W391 blank line at end of file
+verification_equipment_api.py:14:1: F401 'traceback' imported but unused
+verification_equipment_api.py:121:151: E501 line too long (182 > 150 characters)
+verification_equipment_api.py:136:1: W293 blank line contains whitespace
+verification_equipment_api.py:139:1: W293 blank line contains whitespace
+verification_equipment_api.py:142:1: W293 blank line contains whitespace
+verification_equipment_api.py:150:1: W293 blank line contains whitespace
+verification_equipment_api.py:153:1: W293 blank line contains whitespace
+verification_equipment_api.py:178:9: F811 redefinition of unused 'traceback' from line 14
+verification_equipment_api.py:211:49: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+verification_equipment_api.py:286:1: W293 blank line contains whitespace
+verification_equipment_api.py:292:1: W293 blank line contains whitespace
+verification_equipment_api.py:296:1: W293 blank line contains whitespace
+verification_equipment_api.py:300:1: W293 blank line contains whitespace
+verification_equipment_api.py:304:1: W293 blank line contains whitespace
+verification_equipment_api.py:309:1: W293 blank line contains whitespace
+verification_equipment_api.py:312:1: W293 blank line contains whitespace
+verification_equipment_api.py:332:1: W293 blank line contains whitespace
+verification_equipment_api.py:336:1: W293 blank line contains whitespace
+verification_equipment_api.py:363:1: W293 blank line contains whitespace
+verification_equipment_api.py:366:1: W293 blank line contains whitespace
+verification_equipment_api.py:373:1: W293 blank line contains whitespace
+verification_equipment_api.py:438:1: W293 blank line contains whitespace
+verification_equipment_api.py:443:1: W293 blank line contains whitespace
+verification_equipment_api.py:446:1: W293 blank line contains whitespace
+verification_equipment_api.py:464:1: W293 blank line contains whitespace
+verification_equipment_api.py:491:1: W293 blank line contains whitespace
+verification_equipment_api.py:496:17: E722 do not use bare 'except'
+verification_equipment_api.py:498:1: W293 blank line contains whitespace
+verification_equipment_api.py:501:1: W293 blank line contains whitespace
+verification_equipment_api.py:505:1: W293 blank line contains whitespace
+verification_equipment_api.py:509:1: W293 blank line contains whitespace
+verification_equipment_api.py:514:1: W293 blank line contains whitespace
+verification_equipment_api.py:517:1: W293 blank line contains whitespace
+verification_equipment_api.py:541:1: W293 blank line contains whitespace
+verification_equipment_api.py:546:1: W293 blank line contains whitespace
+verification_equipment_api.py:549:1: W293 blank line contains whitespace
+verification_equipment_api.py:553:13: E722 do not use bare 'except'
+verification_equipment_api.py:555:1: W293 blank line contains whitespace
+verification_equipment_api.py:558:1: W293 blank line contains whitespace
+verification_equipment_api.py:580:1: W293 blank line contains whitespace
+verification_equipment_api.py:583:1: W293 blank line contains whitespace
+verification_equipment_api.py:586:1: W293 blank line contains whitespace
+verification_equipment_api.py:590:1: W293 blank line contains whitespace
+verification_equipment_api.py:596:1: W293 blank line contains whitespace
+verification_equipment_api.py:620:1: W293 blank line contains whitespace
+verification_equipment_api.py:623:1: W293 blank line contains whitespace
+verification_equipment_api.py:628:1: W293 blank line contains whitespace
+verification_equipment_api.py:631:1: W293 blank line contains whitespace
+verification_equipment_api.py:634:1: W293 blank line contains whitespace
+verification_equipment_api.py:638:1: W293 blank line contains whitespace
+verification_equipment_api.py:647:1: W293 blank line contains whitespace
+verification_equipment_api.py:650:1: W293 blank line contains whitespace
+verification_equipment_api.py:659:1: W293 blank line contains whitespace
+verification_equipment_api.py:668:1: W293 blank line contains whitespace
+verification_equipment_api.py:670:1: W293 blank line contains whitespace
+verification_equipment_api.py:695:1: W293 blank line contains whitespace
+verification_equipment_api.py:702:1: W293 blank line contains whitespace
+verification_equipment_api.py:720:1: W293 blank line contains whitespace
+verification_equipment_api.py:738:85: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+verification_equipment_api.py:739:1: W293 blank line contains whitespace
+verification_equipment_api.py:742:1: W293 blank line contains whitespace
+verification_equipment_api.py:750:1: W293 blank line contains whitespace
+verification_equipment_api.py:753:1: W293 blank line contains whitespace
+verification_equipment_api.py:757:1: W293 blank line contains whitespace
+verification_equipment_api.py:763:1: W293 blank line contains whitespace
+verification_equipment_api.py:784:1: W293 blank line contains whitespace
+verification_equipment_api.py:787:1: W293 blank line contains whitespace
+verify_model.py:3:1: E402 module level import not at top of file
+verify_model.py:27:1: W391 blank line at end of file
+vessel_scheme_api.py:20:1: F401 'scheme_equipment_catalog.get_kind' imported but unused
+vessel_scheme_renderer.py:1123:5: F841 local variable 'k_labs' is assigned to but never used
+vessel_scheme_renderer.py:1124:5: F841 local variable 'p_labs' is assigned to but never used
+word_generator.py:43:1: F401 'report_org_settings.merge_client_into_settings' imported but unused
+word_generator.py:44:1: F401 'report_forms_registry.get_form' imported but unused
+word_generator.py:94:1: E302 expected 2 blank lines, found 1
+word_generator.py:327:1: W293 blank line contains whitespace
+word_generator.py:330:1: W293 blank line contains whitespace
+word_generator.py:334:1: W293 blank line contains whitespace
+word_generator.py:340:1: W293 blank line contains whitespace
+word_generator.py:342:1: W293 blank line contains whitespace
+word_generator.py:345:1: W293 blank line contains whitespace
+word_generator.py:349:1: W293 blank line contains whitespace
+word_generator.py:356:1: W293 blank line contains whitespace
+word_generator.py:362:1: W293 blank line contains whitespace
+word_generator.py:364:1: W293 blank line contains whitespace
+word_generator.py:367:1: W293 blank line contains whitespace
+word_generator.py:370:1: W293 blank line contains whitespace
+word_generator.py:378:13: E722 do not use bare 'except'
+word_generator.py:380:1: W293 blank line contains whitespace
+word_generator.py:388:1: W293 blank line contains whitespace
+word_generator.py:393:1: W293 blank line contains whitespace
+word_generator.py:395:1: W293 blank line contains whitespace
+word_generator.py:398:1: W293 blank line contains whitespace
+word_generator.py:402:1: W293 blank line contains whitespace
+word_generator.py:410:1: W293 blank line contains whitespace
+word_generator.py:419:1: W293 blank line contains whitespace
+word_generator.py:421:1: W293 blank line contains whitespace
+word_generator.py:427:1: W293 blank line contains whitespace
+word_generator.py:432:1: W293 blank line contains whitespace
+word_generator.py:437:1: W293 blank line contains whitespace
+word_generator.py:441:1: W293 blank line contains whitespace
+word_generator.py:445:1: W293 blank line contains whitespace
+word_generator.py:448:151: E501 line too long (170 > 150 characters)
+word_generator.py:454:151: E501 line too long (161 > 150 characters)
+word_generator.py:456:151: E501 line too long (189 > 150 characters)
+word_generator.py:457:151: E501 line too long (169 > 150 characters)
+word_generator.py:466:1: W293 blank line contains whitespace
+word_generator.py:471:1: W293 blank line contains whitespace
+word_generator.py:479:1: W293 blank line contains whitespace
+word_generator.py:491:1: W293 blank line contains whitespace
+word_generator.py:498:1: W293 blank line contains whitespace
+word_generator.py:501:1: W293 blank line contains whitespace
+word_generator.py:574:1: W293 blank line contains whitespace
+word_generator.py:577:1: W293 blank line contains whitespace
+word_generator.py:584:1: W293 blank line contains whitespace
+word_generator.py:590:1: W293 blank line contains whitespace
+word_generator.py:621:1: W293 blank line contains whitespace
+word_generator.py:624:1: W293 blank line contains whitespace
+word_generator.py:627:1: W293 blank line contains whitespace
+word_generator.py:633:1: W293 blank line contains whitespace
+word_generator.py:639:1: W293 blank line contains whitespace
+word_generator.py:641:1: W293 blank line contains whitespace
+word_generator.py:691:13: E301 expected 1 blank line, found 0
+word_generator.py:777:1: W293 blank line contains whitespace
+word_generator.py:818:1: W293 blank line contains whitespace
+word_generator.py:821:1: W293 blank line contains whitespace
+word_generator.py:833:1: W293 blank line contains whitespace
+word_generator.py:878:151: E501 line too long (174 > 150 characters)
+word_generator.py:884:151: E501 line too long (165 > 150 characters)
+word_generator.py:886:151: E501 line too long (193 > 150 characters)
+word_generator.py:887:151: E501 line too long (173 > 150 characters)
+word_generator.py:1139:1: W293 blank line contains whitespace
+word_generator.py:1148:1: W293 blank line contains whitespace
+word_generator.py:1163:1: W293 blank line contains whitespace
+word_generator.py:1173:1: W293 blank line contains whitespace
+word_generator.py:1184:1: W293 blank line contains whitespace
+word_generator.py:1190:1: W293 blank line contains whitespace
+word_generator.py:1202:1: W293 blank line contains whitespace
+word_generator.py:1208:1: W293 blank line contains whitespace
+word_generator.py:1213:1: W293 blank line contains whitespace
+word_generator.py:1215:1: W293 blank line contains whitespace
+word_generator.py:1222:21: E722 do not use bare 'except'
+word_generator.py:1225:1: W293 blank line contains whitespace
+word_generator.py:1232:21: E722 do not use bare 'except'
+word_generator.py:1235:1: W293 blank line contains whitespace
+word_generator.py:1238:1: W293 blank line contains whitespace
+word_generator.py:1242:17: F841 local variable 'scan_name' is assigned to but never used
+word_generator.py:1246:1: W293 blank line contains whitespace
+word_generator.py:1291:1: W293 blank line contains whitespace
+word_generator.py:1311:1: W293 blank line contains whitespace
+word_generator.py:1434:9: E301 expected 1 blank line, found 0
+word_generator.py:1553:151: E501 line too long (151 > 150 characters)
+word_generator.py:1600:151: E501 line too long (183 > 150 characters)
+word_generator.py:1604:151: E501 line too long (198 > 150 characters)
+word_generator.py:1611:151: E501 line too long (186 > 150 characters)
+word_generator.py:1613:151: E501 line too long (222 > 150 characters)
+word_generator.py:1615:151: E501 line too long (247 > 150 characters)
+word_generator.py:1618:151: E501 line too long (211 > 150 characters)
+word_generator.py:1621:151: E501 line too long (222 > 150 characters)
+word_generator.py:1624:151: E501 line too long (242 > 150 characters)
+word_generator.py:1627:151: E501 line too long (258 > 150 characters)
+word_generator.py:1738:1: W293 blank line contains whitespace
+word_generator.py:1748:1: W293 blank line contains whitespace
+word_generator.py:1765:1: W293 blank line contains whitespace
+word_generator.py:1776:1: W293 blank line contains whitespace
+word_generator.py:1787:1: W293 blank line contains whitespace
+word_generator.py:1791:1: W293 blank line contains whitespace
+word_generator.py:1820:1: W293 blank line contains whitespace
+word_generator.py:1822:1: W293 blank line contains whitespace
+word_generator.py:1827:151: E501 line too long (152 > 150 characters)
+word_generator.py:1862:1: W293 blank line contains whitespace
+word_generator.py:1901:13: E301 expected 1 blank line, found 0
+word_generator.py:1965:151: E501 line too long (168 > 150 characters)
+word_generator.py:2010:1: W293 blank line contains whitespace
+word_generator.py:2023:1: W293 blank line contains whitespace
+word_generator.py:2029:1: W293 blank line contains whitespace
+word_generator.py:2035:46: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+word_generator.py:2037:46: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+word_generator.py:2042:1: W293 blank line contains whitespace
+word_generator.py:2050:1: W293 blank line contains whitespace
+word_generator.py:2058:1: W293 blank line contains whitespace
+word_generator.py:2071:151: E501 line too long (189 > 150 characters)
+word_generator.py:2077:151: E501 line too long (270 > 150 characters)
+word_generator.py:2099:151: E501 line too long (155 > 150 characters)
+word_generator.py:2204:1: W293 blank line contains whitespace
+word_generator.py:2206:68: W291 trailing whitespace
+word_generator.py:2207:27: E128 continuation line under-indented for visual indent
+word_generator.py:2208:27: E128 continuation line under-indented for visual indent
+word_generator.py:2209:1: W293 blank line contains whitespace
+word_generator.py:2214:1: W293 blank line contains whitespace
+word_generator.py:2218:1: W293 blank line contains whitespace
+word_generator.py:2225:1: W293 blank line contains whitespace
+word_generator.py:2237:1: W293 blank line contains whitespace
+word_generator.py:2249:1: W293 blank line contains whitespace
+word_generator.py:2278:1: W293 blank line contains whitespace
+word_generator.py:2297:151: E501 line too long (218 > 150 characters)
+word_generator.py:2300:1: W293 blank line contains whitespace
+word_generator.py:2306:151: E501 line too long (271 > 150 characters)
+word_generator.py:2307:1: W293 blank line contains whitespace
+word_generator.py:2316:1: W293 blank line contains whitespace
+word_generator.py:2323:1: W293 blank line contains whitespace
+word_generator.py:2324:151: E501 line too long (152 > 150 characters)
+word_generator.py:2334:1: W293 blank line contains whitespace
+word_generator.py:2340:1: W293 blank line contains whitespace
+word_generator.py:2376:1: W293 blank line contains whitespace
+word_generator.py:2384:1: W293 blank line contains whitespace
+word_generator.py:2393:151: E501 line too long (155 > 150 characters)
+word_generator.py:2399:1: W293 blank line contains whitespace
+word_generator.py:2412:1: W293 blank line contains whitespace
+word_generator.py:2421:151: E501 line too long (154 > 150 characters)
+word_generator.py:2428:1: W293 blank line contains whitespace
+word_generator.py:2459:1: W293 blank line contains whitespace
+word_generator.py:2463:151: E501 line too long (152 > 150 characters)
+word_generator.py:2471:151: E501 line too long (159 > 150 characters)
+word_generator.py:2473:1: W293 blank line contains whitespace
+word_generator.py:2477:1: W293 blank line contains whitespace
+word_generator.py:2480:1: W293 blank line contains whitespace
+word_generator.py:2483:151: E501 line too long (276 > 150 characters)
+word_generator.py:2489:1: W293 blank line contains whitespace
+word_generator.py:2499:1: W293 blank line contains whitespace
+word_generator.py:2500:151: E501 line too long (152 > 150 characters)
+word_generator.py:2508:151: E501 line too long (161 > 150 characters)
+word_generator.py:2510:1: W293 blank line contains whitespace
+word_generator.py:2514:151: E501 line too long (158 > 150 characters)
+word_generator.py:2516:151: E501 line too long (161 > 150 characters)
+word_generator.py:2518:151: E501 line too long (160 > 150 characters)
+word_generator.py:2533:1: W293 blank line contains whitespace
+word_generator.py:2537:1: W293 blank line contains whitespace
+word_generator.py:2544:1: W293 blank line contains whitespace
+word_generator.py:2549:151: E501 line too long (187 > 150 characters)
+word_generator.py:2555:1: W293 blank line contains whitespace
+word_generator.py:2568:1: W293 blank line contains whitespace
+word_generator.py:2580:151: E501 line too long (228 > 150 characters)
+word_generator.py:2582:151: E501 line too long (169 > 150 characters)
+word_generator.py:2602:151: E501 line too long (161 > 150 characters)
+word_generator.py:2628:151: E501 line too long (152 > 150 characters)
+word_generator.py:2689:151: E501 line too long (151 > 150 characters)
+word_generator.py:2774:151: E501 line too long (164 > 150 characters)
+word_generator.py:2777:151: E501 line too long (246 > 150 characters)
+word_generator.py:2783:1: W293 blank line contains whitespace
+word_generator.py:2785:1: W293 blank line contains whitespace
+word_generator.py:2788:151: E501 line too long (168 > 150 characters)
+word_generator.py:2789:1: W293 blank line contains whitespace
+word_generator.py:2792:151: E501 line too long (299 > 150 characters)
+word_generator.py:2799:151: E501 line too long (171 > 150 characters)
+word_generator.py:2801:151: E501 line too long (170 > 150 characters)
+word_generator.py:2805:1: W293 blank line contains whitespace
+word_generator.py:2957:1: W293 blank line contains whitespace
+word_generator.py:2979:1: W293 blank line contains whitespace
+word_generator.py:2999:1: W293 blank line contains whitespace
+word_generator.py:3011:1: W293 blank line contains whitespace
+word_generator.py:3051:1: W293 blank line contains whitespace
+word_generator.py:3086:1: W293 blank line contains whitespace
+word_generator.py:3096:1: W293 blank line contains whitespace
+word_generator.py:3108:1: W293 blank line contains whitespace
+word_generator.py:3191:1: W293 blank line contains whitespace
+word_generator.py:3193:1: W293 blank line contains whitespace
+word_generator.py:3200:1: W293 blank line contains whitespace
+word_generator.py:3217:1: W293 blank line contains whitespace
+word_generator.py:3220:1: W293 blank line contains whitespace
+word_generator.py:3225:1: W293 blank line contains whitespace
+word_generator.py:3231:1: W293 blank line contains whitespace
+word_generator.py:3241:151: E501 line too long (224 > 150 characters)
+word_generator.py:3242:151: E501 line too long (186 > 150 characters)
+word_generator.py:3244:151: E501 line too long (199 > 150 characters)
+word_generator.py:3247:151: E501 line too long (188 > 150 characters)
+word_generator.py:3250:151: E501 line too long (199 > 150 characters)
+word_generator.py:3253:151: E501 line too long (219 > 150 characters)
+word_generator.py:3256:151: E501 line too long (235 > 150 characters)
+word_generator.py:3285:1: W293 blank line contains whitespace
+word_generator.py:3297:13: F824 `nonlocal app_no` is unused: name is never assigned in scope
+word_generator.py:3353:1: W293 blank line contains whitespace
+word_generator.py:3356:151: E501 line too long (152 > 150 characters)
+word_generator.py:3359:1: W293 blank line contains whitespace
+word_generator.py:3365:1: W293 blank line contains whitespace
+word_generator.py:3398:17: E301 expected 1 blank line, found 0
+word_generator.py:3425:1: W293 blank line contains whitespace
+word_generator.py:3443:1: W293 blank line contains whitespace
+word_generator.py:3448:1: W293 blank line contains whitespace
+word_generator.py:3478:1: W293 blank line contains whitespace
+word_generator.py:3483:1: W293 blank line contains whitespace
+word_generator.py:3534:1: W293 blank line contains whitespace
+word_generator.py:3552:17: E722 do not use bare 'except'
+word_generator.py:3555:1: W293 blank line contains whitespace
+word_generator.py:3560:1: W293 blank line contains whitespace
+word_generator.py:3572:1: W293 blank line contains whitespace
+word_generator.py:3577:1: W293 blank line contains whitespace
+word_generator.py:3596:1: W293 blank line contains whitespace
+word_generator.py:3604:1: W293 blank line contains whitespace
+word_generator.py:3640:1: W293 blank line contains whitespace
+word_generator.py:3659:1: W293 blank line contains whitespace
+word_generator.py:3673:1: W293 blank line contains whitespace
+word_generator.py:3684:1: W293 blank line contains whitespace
+word_generator.py:3687:151: E501 line too long (221 > 150 characters)
+word_generator.py:3690:1: W293 blank line contains whitespace
+word_generator.py:3702:1: W293 blank line contains whitespace
+word_generator.py:3713:1: W293 blank line contains whitespace
+word_generator.py:3729:13: F841 local variable 'epb_protocol_section_open' is assigned to but never used
+word_generator.py:3748:1: W293 blank line contains whitespace
+word_generator.py:3794:1: W293 blank line contains whitespace
+word_generator.py:3809:1: W293 blank line contains whitespace
+word_generator.py:3824:1: W293 blank line contains whitespace
+word_generator.py:3852:1: W293 blank line contains whitespace
+word_generator.py:3867:17: E722 do not use bare 'except'
+word_generator.py:3870:1: W293 blank line contains whitespace
+word_generator.py:3882:1: W293 blank line contains whitespace
+word_generator.py:3926:151: E501 line too long (179 > 150 characters)
+word_generator.py:3929:151: E501 line too long (210 > 150 characters)
+word_generator.py:3937:1: W293 blank line contains whitespace
+word_generator.py:3941:151: E501 line too long (209 > 150 characters)
+word_generator.py:3943:1: W293 blank line contains whitespace
+word_generator.py:3954:1: W293 blank line contains whitespace
+word_generator.py:3976:1: W293 blank line contains whitespace
+word_generator.py:3990:1: W293 blank line contains whitespace
+word_generator.py:4018:1: W293 blank line contains whitespace
+word_generator.py:4020:151: E501 line too long (235 > 150 characters)
+word_generator.py:4037:1: W293 blank line contains whitespace
+word_generator.py:4039:9: F841 local variable 'uz_method' is assigned to but never used
+word_generator.py:4046:17: E117 over-indented
+word_generator.py:4058:151: E501 line too long (172 > 150 characters)
+word_generator.py:4077:1: W293 blank line contains whitespace
+word_generator.py:4083:1: W293 blank line contains whitespace
+word_generator.py:4136:1: W293 blank line contains whitespace
+word_generator.py:4142:151: E501 line too long (163 > 150 characters)
+word_generator.py:4148:1: W293 blank line contains whitespace
+word_generator.py:4172:1: W293 blank line contains whitespace
+word_generator.py:4186:151: E501 line too long (166 > 150 characters)
+word_generator.py:4193:1: W293 blank line contains whitespace
+word_generator.py:4220:1: W293 blank line contains whitespace
+word_generator.py:4222:151: E501 line too long (188 > 150 characters)
+word_generator.py:4224:1: W293 blank line contains whitespace
+word_generator.py:4231:1: W293 blank line contains whitespace
+word_generator.py:4236:1: W293 blank line contains whitespace
+word_generator.py:4261:1: W293 blank line contains whitespace
+word_generator.py:4263:9: F841 local variable 'uzk_method' is assigned to but never used
+word_generator.py:4279:151: E501 line too long (170 > 150 characters)
+word_generator.py:4298:151: E501 line too long (178 > 150 characters)
+word_generator.py:4318:151: E501 line too long (279 > 150 characters)
+word_generator.py:4338:151: E501 line too long (279 > 150 characters)
+word_generator.py:4349:151: E501 line too long (171 > 150 characters)
+word_generator.py:4352:9: F841 local variable 'hardness_for_protocol' is assigned to but never used
+word_generator.py:4366:151: E501 line too long (164 > 150 characters)
+word_generator.py:4400:151: E501 line too long (191 > 150 characters)
+word_generator.py:4426:151: E501 line too long (154 > 150 characters)
+word_generator.py:4441:151: E501 line too long (153 > 150 characters)
+word_generator.py:4444:151: E501 line too long (230 > 150 characters)
+word_generator.py:4461:1: W293 blank line contains whitespace
+word_generator.py:4468:1: W293 blank line contains whitespace
+word_generator.py:4491:1: W293 blank line contains whitespace
+word_generator.py:4538:1: W293 blank line contains whitespace
+word_generator.py:4548:1: W293 blank line contains whitespace
+word_generator.py:4562:1: W293 blank line contains whitespace
+word_generator.py:4578:151: E501 line too long (152 > 150 characters)
+word_generator.py:4604:151: E501 line too long (151 > 150 characters)
+word_generator.py:4639:151: E501 line too long (155 > 150 characters)
+word_generator.py:4664:151: E501 line too long (151 > 150 characters)
+word_generator.py:4677:151: E501 line too long (153 > 150 characters)
+word_generator.py:4686:151: E501 line too long (168 > 150 characters)
+word_generator.py:4689:151: E501 line too long (250 > 150 characters)
+word_generator.py:4704:151: E501 line too long (157 > 150 characters)
+word_generator.py:4708:1: W293 blank line contains whitespace
+word_generator.py:4730:1: W293 blank line contains whitespace
+word_generator.py:4745:1: W293 blank line contains whitespace
+word_generator.py:4749:1: W293 blank line contains whitespace
+word_generator.py:4790:1: W293 blank line contains whitespace
+word_generator.py:4799:1: W293 blank line contains whitespace
+word_generator.py:4827:17: F811 redefinition of unused 'qn' from line 4824
+1     E117 over-indented
+13    E128 continuation line under-indented for visual indent
+1     E131 continuation line unaligned for hanging indent
+3     E203 whitespace before ':'
+3     E221 multiple spaces before operator
+2     E231 missing whitespace after ','
+5     E301 expected 1 blank line, found 0
+126   E302 expected 2 blank lines, found 1
+3     E303 too many blank lines (3)
+10    E305 expected 2 blank lines after class or function definition, found 1
+2     E306 expected 1 blank line before a nested definition, found 0
+8     E402 module level import not at top of file
+116   E501 line too long (169 > 150 characters)
+1     E711 comparison to None should be 'if cond is None:'
+44    E712 comparison to True should be 'if cond is True:' or 'if cond:'
+32    E722 do not use bare 'except'
+85    F401 'sqlalchemy.orm.selectinload' imported but unused
+32    F541 f-string is missing placeholders
+3     F811 redefinition of unused '_iter_all_paragraphs' from line 1644
+2     F824 `nonlocal zones` is unused: name is never assigned in scope
+17    F841 local variable 'user' is assigned to but never used
+102   W291 trailing whitespace
+915   W293 blank line contains whitespace
+42    W391 blank line at end of file
+1568

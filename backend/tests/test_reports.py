@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from conftest import make_mock_user
+from types import SimpleNamespace
 
 
 def _setup_user_and_reports(mock_db, reports=None, role="admin"):
@@ -66,3 +67,20 @@ async def test_get_reports_user_not_found(client, mock_db):
 
     response = await client.get("/api/reports")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action', ['sign', 'delete'])
+async def test_signed_report_cannot_be_rewritten_or_deleted(client, mock_db, action):
+    user = make_mock_user(role='admin')
+    report = SimpleNamespace(id=uuid.uuid4(), is_signed=True, created_by=user.id)
+    user_result = MagicMock(); user_result.scalar_one_or_none.return_value = user
+    report_result = MagicMock(); report_result.scalar_one_or_none.return_value = report
+    mock_db.execute.side_effect = [user_result, report_result]
+    if action == 'sign':
+        response = await client.post(f'/api/reports/{report.id}/sign', json={})
+    else:
+        response = await client.delete(f'/api/reports/{report.id}')
+    assert response.status_code == 409
+    mock_db.commit.assert_not_awaited()
+    mock_db.delete.assert_not_awaited()

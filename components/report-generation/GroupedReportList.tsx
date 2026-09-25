@@ -79,7 +79,6 @@ const ReportActionGroup = ({
   inspectionId,
   generatingId,
   loadingPreview,
-  canUseExpertise,
   technicalReady,
   existingReport,
   onLoadPreview,

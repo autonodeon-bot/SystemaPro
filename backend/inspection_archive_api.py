@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from database import get_db
 from models import (
@@ -20,7 +20,9 @@ from models import (
 )
 from inspection_utils import create_ndt_methods_from_mobile, update_equipment_attributes_from_inspection
 from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
-from auth import verify_token_optional
+from auth import verify_token
+from archive_integrity import verify_inspection_archive, archive_upload_identity
+import mimetypes
 from typing import Optional
 
 
@@ -61,7 +63,7 @@ router = APIRouter(prefix="/api/inspections", tags=["inspections"])
 @router.post("/upload-archive")
 async def upload_inspection_archive(
     file: UploadFile = File(...),
-    username: Optional[str] = Depends(verify_token_optional),
+    username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Принять ZIP-архив обследования (manifest.json, checklist.json, photos/*), распаковать и создать обследование."""
@@ -85,6 +87,11 @@ async def upload_inspection_archive(
             with open(zip_path, "wb") as f:
                 f.write(content)
             with zipfile.ZipFile(zip_path, "r") as zf:
+                try:
+                    verify_inspection_archive(zf)
+                    upload_id = archive_upload_identity(zf, created_by_id)
+                except (ValueError, zipfile.BadZipFile) as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
                 zf.extractall(tmpdir)
             manifest_path = os.path.join(tmpdir, "manifest.json")
             checklist_path = os.path.join(tmpdir, "checklist.json")
@@ -113,6 +120,19 @@ async def upload_inspection_archive(
             }
             _validate_create_inspection(inspection_data)
             equipment_id = uuid_lib.UUID(str(inspection_data["equipment_id"]))
+            from equipment_crud_api import _authorize_equipment_write
+            await _authorize_equipment_write(db, username, str(equipment_id))
+            # Serialize retries in PostgreSQL until the complete archive transaction commits.
+            lock_key = int.from_bytes(upload_id.bytes[:8], 'big', signed=True)
+            await db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': lock_key})
+            existing = await db.get(Inspection, upload_id)
+            if existing is not None:
+                response = {'id': str(existing.id), 'equipment_id': str(existing.equipment_id),
+                    'questionnaire_id': str(existing.questionnaire_id) if existing.questionnaire_id else None,
+                    'status': 'already_received',
+                    'date_performed': existing.date_performed.isoformat() if existing.date_performed else None}
+                await db.rollback()
+                return response
             date_performed = None
             if inspection_data.get("date_performed"):
                 try:
@@ -142,6 +162,7 @@ async def upload_inspection_archive(
                 if _asg_gate:
                     await assert_mandatory_standalone_protocol_uploaded(db, _asg_gate)
             new_inspection = Inspection(
+                id=upload_id,
                 equipment_id=equipment_id,
                 project_id=project_id,
                 assignment_id=assignment_id_parsed,
@@ -155,7 +176,7 @@ async def upload_inspection_archive(
                 performed_by=created_by_id,
             )
             db.add(new_inspection)
-            await db.commit()
+            await db.flush()
             await db.refresh(new_inspection)
             # Сразу сохраняем ответ, чтобы не зависеть от состояния сессии в конце
             response_data = {
@@ -170,6 +191,7 @@ async def upload_inspection_archive(
             if inspection_data_dict and isinstance(inspection_data_dict, dict):
                 has_vessel_data = (
                     inspection_data_dict.get("documents")
+                    or (os.path.isdir(photos_dir) and os.listdir(photos_dir))
                     or inspection_data_dict.get("vessel_name")
                     or inspection_data_dict.get("factory_plate_photo")
                     or inspection_data_dict.get("control_scheme_image")
@@ -195,20 +217,19 @@ async def upload_inspection_archive(
                         created_by=created_by_id,
                     )
                     db.add(new_questionnaire)
-                    await db.commit()
+                    await db.flush()
                     await db.refresh(new_questionnaire)
                     questionnaire_id = str(new_questionnaire.id)
                     try:
                         new_inspection.questionnaire_id = new_questionnaire.id
-                        await db.commit()
+                        await db.flush()
                         await db.refresh(new_inspection)
                         create_ndt_methods_from_mobile(
                             db, new_inspection, new_questionnaire, equipment_id, inspection_data_dict
                         )
-                        await db.commit()
+                        await db.flush()
                     except Exception:
-                        await db.rollback()
-                        questionnaire_id = None
+                        raise
             assignment_id = None
             if inspection_data.get("assignment_id"):
                 try:
@@ -242,7 +263,7 @@ async def upload_inspection_archive(
                 status=inspection_data.get("status", "DRAFT"),
             )
             db.add(history_entry)
-            await db.commit()
+            await db.flush()
             if assignment_id:
                 try:
                     assignment_result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
@@ -250,18 +271,18 @@ async def upload_inspection_archive(
                     if assignment and (inspection_data.get("status") or "").upper() == "SIGNED":
                         assignment.status = "COMPLETED"
                         assignment.completed_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    await db.flush()
                 except Exception:
-                    await db.rollback()
+                    raise
             # Обновляем equipment.attributes при SIGNED (независимо от наличия assignment)
             if (inspection_data.get("status") or "").upper() == "SIGNED":
                 try:
                     data_dict = inspection_data.get("data") or {}
                     if data_dict and isinstance(data_dict, dict):
                         await update_equipment_attributes_from_inspection(db, equipment_id, data_dict)
-                        await db.commit()
+                        await db.flush()
                 except Exception:
-                    await db.rollback()
+                    raise
             # Создаём связи InspectionEquipment из verification_equipment_ids (приборы и поверки)
             ve_ids = inspection_data.get("verification_equipment_ids") or manifest.get("verification_equipment_ids") or checklist_payload.get("verification_equipment_ids") or []
             if isinstance(ve_ids, list) and ve_ids and new_inspection.id:
@@ -279,14 +300,14 @@ async def upload_inspection_archive(
                     except (ValueError, TypeError):
                         pass
                 try:
-                    await db.commit()
+                    await db.flush()
                 except Exception:
-                    await db.rollback()
+                    raise
             path_map = {}
             uploaded_object_photo_paths = []
             if questionnaire_id and os.path.isdir(photos_dir):
                 q_uuid = uuid_lib.UUID(questionnaire_id)
-                documents_dir = Path("/app/uploads/questionnaire_documents") / str(q_uuid)
+                documents_dir = Path(os.getenv('UPLOADS_DIR', '/app/uploads')) / 'questionnaire_documents' / str(q_uuid)
                 documents_dir.mkdir(parents=True, exist_ok=True)
                 for fn in os.listdir(photos_dir):
                     if fn.startswith("."):
@@ -317,19 +338,19 @@ async def upload_inspection_archive(
                         uploaded_object_photo_paths.append(
                             f"/api/questionnaires/{q_uuid}/documents/{doc_num}/view"
                         )
-                    mime = "image/jpeg" if (ext or "").lower() in (".jpg", ".jpeg") else "image/png"
+                    mime = mimetypes.guess_type(fn)[0] or "application/octet-stream"
                     qdf = QuestionnaireDocumentFile(
                         questionnaire_id=q_uuid,
                         document_number=doc_num,
                         file_name=fn,
                         file_path=str(stored_path),
                         file_size=os.path.getsize(stored_path),
-                        file_type="image",
+                        file_type="image" if mime.startswith("image/") else "document",
                         mime_type=mime,
                         uploaded_by=created_by_id,
                     )
                     db.add(qdf)
-                await db.commit()
+                await db.flush()
                 if path_map and new_inspection.data is not None and isinstance(new_inspection.data, dict):
                     def replace_paths(obj):
                         if isinstance(obj, dict):
@@ -341,16 +362,18 @@ async def upload_inspection_archive(
                         return obj
                     try:
                         new_inspection.data = replace_paths(dict(new_inspection.data))
-                        await db.commit()
+                        new_questionnaire.data = replace_paths(dict(new_questionnaire.data or {}))
+                        history_entry.data = replace_paths(dict(history_entry.data or {}))
+                        await db.flush()
                         await db.refresh(new_inspection)
                     except Exception:
-                        await db.rollback()
+                        raise
             if uploaded_object_photo_paths:
                 try:
                     eq_result = await db.execute(select(Equipment).where(Equipment.id == equipment_id))
                     eq = eq_result.scalar_one_or_none()
                     if eq:
-                        attrs = eq.attributes or {}
+                        attrs = dict(eq.attributes or {})
                         if not isinstance(attrs, dict):
                             attrs = {}
                         current = attrs.get("object_photos")
@@ -360,10 +383,11 @@ async def upload_inspection_archive(
                                 photos.append(p)
                         attrs["object_photos"] = photos
                         eq.attributes = attrs
-                        await db.commit()
+                        await db.flush()
                 except Exception:
-                    await db.rollback()
+                    raise
             response_data["questionnaire_id"] = questionnaire_id
+            await db.commit()
         finally:
             try:
                 shutil.rmtree(tmpdir, ignore_errors=True)
@@ -371,7 +395,11 @@ async def upload_inspection_archive(
                 pass
         return response_data
     except HTTPException:
+        await db.rollback()
         raise
+    except (zipfile.BadZipFile, ValueError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=f"Некорректный архив: {exc}") from exc
     except Exception as e:
         await db.rollback()
         _traceback.print_exc()

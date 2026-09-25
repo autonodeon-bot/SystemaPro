@@ -1,0 +1,109 @@
+00:00 +0: loading C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart
+00:00 +0: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — конфигурация baseUrl использует HTTPS
+00:00 +1: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — конфигурация baseUrl указывает на neftcontrol.ru
+00:00 +2: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — конфигурация baseUrl не содержит завершающий слэш
+00:00 +3: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — конфигурация requestTimeout находится в разумных пределах (5–300 сек)
+00:00 +4: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — конфигурация requestTimeout равен 120 секунд
+00:00 +5: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — экземпляр создаётся без ошибок
+00:00 +6: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — экземпляр несколько экземпляров независимы
+00:00 +7: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют login доступен
+00:00 +8: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют ensureValidToken доступен
+00:00 +9: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют getEquipmentList доступен
+00:00 +10: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют getAssignments доступен
+00:00 +11: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют checkConnection доступен
+00:00 +12: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют submitInspection доступен
+00:00 +13: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — публичные методы существуют checkAppUpdate доступен
+00:00 +14: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — формирование URL URL для API оборудования корректен
+00:00 +15: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — формирование URL URL для авторизации корректен
+00:00 +16: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — формирование URL URL для обследований корректен
+00:00 +17: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — формирование URL URL для заданий корректен
+00:00 +18: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — формирование URL URL для health-check корректен
+00:00 +19: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/api_service_test.dart: ApiService — формирование URL URL проверки связи (mobile/version) корректен
+00:00 +20: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment fromJson парсинг полного JSON
+00:00 +21: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment fromJson парсинг с минимальными обязательными полями
+00:00 +22: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment fromJson парсинг некорректной даты возвращает fallback
+00:00 +23: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment fromJson парсинг null created_at использует DateTime.now()
+00:00 +24: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment toJson сериализация полного объекта
+00:00 +25: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment toJson null даты сериализуются как null
+00:00 +26: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment fromJson → toJson roundtrip roundtrip сохраняет данные
+00:00 +27: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment typeLabel DIAGNOSTICS → Диагностика
+00:00 +28: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment typeLabel EXPERTISE → Экспертиза ПБ
+00:00 +29: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment typeLabel INSPECTION → Обследование
+00:00 +30: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment typeLabel CHTO → ЧТО
+00:00 +31: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment typeLabel NVO_GI → НВО и ГИ
+00:00 +32: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment typeLabel неизвестный тип возвращает код
+00:00 +33: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment statusLabel PENDING → Ожидает
+00:00 +34: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment statusLabel IN_PROGRESS → В работе
+00:00 +35: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment statusLabel COMPLETED → Завершено
+00:00 +36: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment statusLabel CANCELLED → Отменено
+00:00 +37: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/assignment_test.dart: Assignment statusLabel неизвестный статус возвращает код
+00:01 +38: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг полного JSON
+00:01 +39: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг минимального JSON
+00:01 +40: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг с null полями
+00:01 +41: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг type_id как int
+00:01 +42: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг type_id как String
+00:01 +43: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг с пустым id возвращает пустую строку
+00:01 +44: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson парсинг с пустым name возвращает пустую строку
+00:01 +45: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment toJson сериализация полного объекта
+00:01 +46: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment toJson null-поля сериализуются как null
+00:01 +47: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/equipment_test.dart: Equipment fromJson → toJson roundtrip roundtrip сохраняет данные
+00:01 +48: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/report_data_roundtrip_test.dart: compressor restores every common field without losing report data
+00:01 +49: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/models/report_data_roundtrip_test.dart: mobile chooses specific equipment forms
+00:02 +50: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService учётные данные (saveCredentials / getStoredCredentials) пустой username — ничего не сохраняется
+00:02 +51: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService учётные данные (saveCredentials / getStoredCredentials) сохранение и чтение логина и пароля
+00:02 +52: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService учётные данные (saveCredentials / getStoredCredentials) hasStoredCredentials true после saveCredentials
+00:02 +53: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService учётные данные (saveCredentials / getStoredCredentials) hasStoredCredentials false без сохранения
+00:02 +54: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService офлайн-пароль (verifyPasswordOffline) verifyPasswordOffline true после saveCredentials
+00:02 +55: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService офлайн-пароль (verifyPasswordOffline) verifyPasswordOffline false без хеша
+00:02 +56: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService сессия после входа (saveUser / токен) getCurrentUser читает сохранённого пользователя
+00:02 +57: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService сессия после входа (saveUser / токен) токен сохраняется и отдаётся getToken
+00:02 +58: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService сессия после входа (saveUser / токен) isAuthenticated true при пользователе и токене
+00:02 +59: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService сессия после входа (saveUser / токен) isAuthenticated false без токена
+00:02 +60: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService logout удаляет токен и пароль из хранилищ
+00:02 +61: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService logout после logout пользователь в prefs остаётся
+00:02 +62: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService биометрия (флаги в SharedPreferences) setBiometricEnabled / isBiometricEnabled
+00:02 +63: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService PIN setPin / verifyPin / clearPin
+00:02 +64: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auth_service_test.dart: AuthService getOfflineUsername возвращает username после saveCredentials
+00:03 +65: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: (setUpAll)
+00:03 +65: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService saveDraft записывает в БД и last_auto_save_time в prefs
+00:03 +66: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService saveDraft с inspectionId использует его как ключ черновика
+00:03 +67: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService getDraftForEquipment возвращает черновик по draft_equipmentId
+00:03 +68: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService getDrafts возвращает карту по id
+00:03 +69: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService deleteDraft удаляет из БД
+00:03 +70: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService restoreFromBackup читает файл после saveDraft
+00:03 +71: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: AutoSaveService cleanOldDrafts делегирует в DatabaseService
+00:03 +72: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/auto_save_service_test.dart: (tearDownAll)
+00:03 +72: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: (setUpAll)
+00:03 +72: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — assignments saveAssignments и getAssignments
+00:03 +73: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — equipment saveEquipment и getEquipment
+00:03 +74: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — pending_inspections savePendingInspection, getPendingInspections, markInspectionSynced
+00:03 +75: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — sync_metadata setSyncMeta и getSyncMeta
+00:03 +76: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — engineers saveEngineers пропускает запись без id
+00:03 +77: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — engineers saveEngineers, getEngineers, clearEngineers
+00:04 +78: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — verification_equipment saveVerificationEquipment и clearVerificationEquipment
+00:04 +79: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — opos saveOpos и clearOpos
+00:04 +80: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — opo_surveys saveOpoSurvey, getOpoSurveys, deleteOpoSurvey, clearOpoSurveys
+00:04 +81: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — drafts saveDraft, getDraft, deleteDraft
+00:04 +82: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — drafts getAllDrafts сортирует по updated_at DESC
+00:04 +83: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — drafts clearDrafts
+00:04 +84: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — drafts clearOldDrafts удаляет устаревшие записи
+00:04 +85: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: DatabaseService — clearAllCaches очищает кэш-таблицы
+00:04 +86: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/database_service_test.dart: (tearDownAll)
+00:04 +86: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: SyncResult значения по умолчанию
+00:04 +87: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: SyncResult изменение полей
+00:04 +88: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: SyncResultFull значения по умолчанию
+00:04 +89: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: SyncResultFull изменение полей
+00:04 +90: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: LocalAssignmentInspectionState none() создаёт пустое состояние
+00:04 +91: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: LocalAssignmentInspectionState copyWith обновляет hasDraft
+00:04 +92: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: LocalAssignmentInspectionState copyWith обновляет hasSigned
+00:04 +93: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: LocalAssignmentInspectionState copyWith обновляет оба поля
+00:04 +94: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: LocalAssignmentInspectionState copyWith без параметров сохраняет значения
+00:04 +95: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/services/sync_service_test.dart: LocalAssignmentInspectionState конструктор с именованными параметрами
+00:05 +96: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/assignment_card_test.dart: отображает код, название и метку статуса
+00:05 +97: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/assignment_card_test.dart: при hasDraft показывает иконку облака
+00:05 +98: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/assignment_card_test.dart: строка срока при наличии dueDate
+00:05 +99: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/assignment_card_test.dart: onTap вызывается
+00:05 +100: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/inspection_report_fields_test.dart: supplement remains editable on a narrow screen with large text
+00:06 +101: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/inspection_report_fields_test.dart: supplement remains editable on a narrow screen with large text
+00:06 +102: C:/RUSTAM/DIATEKS/sys/SystemaPro/mobile/test/widgets/inspection_report_fields_test.dart: supplement remains editable on a narrow screen with large text
+00:06 +103: All tests passed!

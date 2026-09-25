@@ -33,6 +33,15 @@ class TestHasValue:
 
 class TestGenerateReportNumber:
     @pytest.mark.asyncio
+    async def test_canonical_technical_type_uses_technical_prefix(self):
+        mock_db = AsyncMock()
+        res = MagicMock()
+        res.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = res
+        num = await ru.generate_report_number(mock_db, "TECHNICAL_REPORT")
+        assert num == f"ТР-{datetime.now().year}-0001"
+
+    @pytest.mark.asyncio
     async def test_generate_report_number_should_start_sequence_when_no_prior(self):
         mock_db = AsyncMock()
         res = MagicMock()

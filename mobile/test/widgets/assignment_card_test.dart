@@ -41,7 +41,7 @@ void main() {
     expect(find.text('Сосуд тестовый'), findsOneWidget);
     expect(find.text('Ожидает'), findsOneWidget);
     expect(find.text('Диагностика'), findsOneWidget);
-    expect(find.text('HIGH'), findsOneWidget);
+    expect(find.text('Высокий'), findsOneWidget);
   });
 
   testWidgets('при hasDraft показывает иконку облака', (tester) async {

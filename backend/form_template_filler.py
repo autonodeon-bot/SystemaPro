@@ -20,7 +20,7 @@ from docx.enum.section import WD_ORIENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt, RGBColor
+from docx.shared import Cm, Pt, RGBColor, Inches
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
@@ -699,12 +699,72 @@ def fill_vessel_form_to1(
     _fill_appendix_8_calculation(doc, ctx)
     _fill_appendix_9_hydraulic_act(doc, ctx)
 
+    for paragraph in _iter_all_paragraphs(doc):
+        if _paragraph_plain_text(paragraph).strip() == "1. Основания для проведения работ":
+            # A leading manual break plus the inherited heading break produced
+            # an empty sheet between the contents and the first section.
+            for br in list(paragraph._p.iter(qn("w:br"))):
+                if br.get(qn("w:type")) == "page":br.getparent().remove(br)
+            paragraph.paragraph_format.page_break_before=True
+
     finalize_official_form(doc, "to-1")
+    _refresh_vessel_contents(doc)
     _insert_schemes_and_photos(doc, ctx)
+
+    from vessel_control_plan import method_rows
+    welds = (ctx.get("data") or {}).get("weld_inspections") or []
+    if method_rows(welds, "PVK") and not method_rows(welds, "MPK"):
+        # The common surface-control appendix must identify the actual method.
+        for paragraph in _iter_all_paragraphs(doc):
+            original = _paragraph_plain_text(paragraph)
+            if re.search(r'\b(?:ГОСТ|СТО|РД|СО)\s',original):
+                if 'магнитопорошков' in original.lower():
+                    _set_paragraph_text(paragraph,str(ctx['g']('pvk_normative','ndt_normative',default='Нормативная документация ПВК не указана.')))
+                continue  # Do not rename published standards or their subjects.
+            updated = re.sub("магнитопорошкового", "капиллярного", original, flags=re.IGNORECASE)
+            updated = updated.replace("МПК", "ПВК")
+            if updated != original:
+                _set_paragraph_text(paragraph, updated)
 
     doc.save(str(out))
     logger.info("Форма to-1 заполнена: %s", out)
     return str(out)
+
+
+def _refresh_vessel_contents(doc: Document) -> None:
+    """Keep contents page references tied to the generated, variable-length report."""
+    paragraphs=list(_iter_all_paragraphs(doc))
+    toc_start=next((i for i,p in enumerate(paragraphs) if _paragraph_plain_text(p).strip()=='СОДЕРЖАНИЕ'),None)
+    if toc_start is None:return
+    body_start=next((i for i in range(toc_start+1,len(paragraphs))
+        if _paragraph_plain_text(paragraphs[i]).strip()=='1. Основания для проведения работ'),None)
+    if body_start is None:return
+    def key(text):
+        match=re.match(r'^(\d+)\.\s',text)
+        if match:return 'section'+match[1]
+        match=re.match(r'^ПРИЛОЖЕНИЕ\s*№\s*(\d+)',text,re.I)
+        return 'appendix'+match[1] if match else None
+    targets={}
+    for p in paragraphs[body_start:]:
+        if any(el.tag==qn('w:tc') for el in p._p.iterancestors()):continue
+        text=_paragraph_plain_text(p).strip();k=key(text)
+        if k and k not in targets:targets[k]=p
+    for i,p in enumerate(paragraphs[toc_start+1:body_start]):
+        text=_paragraph_plain_text(p).strip();k=key(text)
+        if not k or k not in targets:continue
+        target=targets[k];bookmark='vessel_toc_'+k
+        start=OxmlElement('w:bookmarkStart');start.set(qn('w:id'),str(9000+i));start.set(qn('w:name'),bookmark)
+        end=OxmlElement('w:bookmarkEnd');end.set(qn('w:id'),str(9000+i))
+        target._p.insert(0,start);target._p.append(end)
+        title=re.sub(r'\s*\d+\s*$','',text).strip().rstrip('.')
+        for child in list(p._p):
+            if child.tag!=qn('w:pPr'):p._p.remove(child)
+        p.add_run(title+'\t')
+        field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),f'PAGEREF {bookmark} \\h');p._p.append(field)
+        p.paragraph_format.keep_with_next=False
+        p.paragraph_format.space_before=Pt(0);p.paragraph_format.space_after=Pt(3)
+        _set_paragraph_font_size(p,10)
+    update=OxmlElement('w:updateFields');update.set(qn('w:val'),'true');doc.settings.element.append(update)
 
 
 # ---------------------------------------------------------------------------
@@ -717,6 +777,15 @@ def _enrich_inspection_data(
 ) -> Dict[str, Any]:
     """Свести мобильные ключи и данные методов НК к единому словарю для формы."""
     out = dict(data or {})
+    # Explicit profile inputs take precedence over operator-supplied fallback data.
+    additional = out.get("additional_data")
+    profile_values = additional.get("profile_values") if isinstance(additional, dict) else None
+    if isinstance(profile_values, dict):
+        from report_schema import schema_for_form
+        for field in schema_for_form(out.get("report_form_id") or "to-1")["fields"]:
+            value = profile_values.get(field["key"])
+            if value is not None and str(value).strip():
+                out[field["key"]] = value
 
     # Материал корпуса из элементов сосуда
     elements = out.get("vessel_elements") or out.get("elements") or []
@@ -2411,6 +2480,11 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     if len(main_tables) > 1:
         report_no = str(g("protocol_number", "report_number", default="") or "")
         if report_no:
+            row = main_tables[1].rows[0]
+            # The source form reserves separate narrow boxes for digits. A report
+            # identifier may also contain letters, so use the entire value area.
+            if len(row.cells) > 2:
+                row.cells[1].merge(row.cells[-1])
             _set(main_tables[1], 0, 1, report_no, nowrap=True)
 
     # --- Таблица 2: заказчик ---
@@ -3753,8 +3827,10 @@ def _fill_hardness_matrix(table: Table, ctx: Dict[str, Any]) -> None:
     tests = g("hardness_tests", "hardnessTests", default=[])
     if not isinstance(tests, list) or not tests:
         return
-    # Строки 3.. — Т1..Т6; колонки 2..6 — значения 1..5
-    for i, t in enumerate(tests[:6]):
+    # The number of sections is source-driven, not the six blank template rows.
+    _ensure_rows(table,3+len(tests))
+    for row in list(table.rows)[3+len(tests):]:table._tbl.remove(row._tr)
+    for i, t in enumerate(tests):
         if not isinstance(t, dict):
             continue
         r = 3 + i
@@ -3956,6 +4032,9 @@ def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
             if len(table.rows[1].cells) > 7:
                 _set(table, 1, 7, "Дефектов не обнаружено")
         return
+    from vessel_control_plan import method_rows
+    if any(w.get("control_method") or w.get("method") for w in welds if isinstance(w, dict)):
+        welds = method_rows(welds, "UZK")
     start = 1
     _ensure_rows(table, start + len(welds))
     for i, w in enumerate(welds):
@@ -4010,12 +4089,20 @@ def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
 def _fill_mpk_results(table: Table, ctx: Dict[str, Any]) -> None:
     g = ctx["g"]
     items = g("mpk_results", "magnetic_results", default=[])
+    if not items:
+        from vessel_control_plan import method_rows
+        welds = g("weld_inspections", default=[]) or []
+        rows = method_rows(welds, "MPK") or method_rows(welds, "PVK")
+        items = [{"object": r.get("weld_number") or r.get("location"), "zone": r.get("area_number"),
+                  "scope": r.get("scope") or r.get("volume"), "description": r.get("defect_description") or r.get("description"),
+                  "assessment": r.get("conclusion")} for r in rows]
+
     if not isinstance(items, list) or not items:
         if len(table.rows) > 1:
             _set(table, 1, 0, "Сварные соединения")
-            _set(table, 1, 2, "100%")
-            _set(table, 1, 3, "Дефектов не обнаружено")
-            _set(table, 1, 4, "Годен")
+            _set(table, 1, 2, "—")
+            _set(table, 1, 3, "Результаты контроля не предоставлены")
+            _set(table, 1, 4, "—")
         return
     start = 1
     _ensure_rows(table, start + len(items))
@@ -4095,6 +4182,8 @@ def _fill_hardness_steel_heading(doc: Document, ctx: Dict[str, Any]) -> None:
 
     def _sub(text: str) -> str:
         if "для стали" not in (text or "").lower():
+            return text
+        if re.search(r"для стали\s*" + re.escape(steel), text, re.IGNORECASE):
             return text
         return pat.sub(rf"\g<1>{steel} ", text)
 
@@ -4181,6 +4270,8 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
             continue
         new_text = text
         stripped = text.strip()
+        if stripped.upper().startswith("ПРИЛОЖЕНИЕ"):
+            continue
 
         # «№ _____ от _____ г.» — дату подставляем всегда; номер — если есть
         if stripped.startswith("№") and "от" in stripped and "г." in stripped:
@@ -4246,7 +4337,7 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
             )
         elif "недопустимых дефектов не обнаружено" in text.lower() or (
             "объект контроля соответствует" in text.lower() and "сварн" in text.lower()
-        ) or ("магнитопорошкового контроля" in text.lower() and "заключен" not in stripped.lower()[:20]):
+        ) or ("магнитопорошкового контроля" in text.lower() and "дефект" in text.lower()):
             low = text.lower()
             if "магнитопорошков" in low:
                 new_text = mpk_concl
@@ -4527,10 +4618,33 @@ def insert_ndt_layer_schemes(
     """Сгенерировать и вставить 5 слоёв карт контроля в приложения 3–7 (и generic)."""
     tmp_files = tmp_files if tmp_files is not None else []
     generated: List[Dict[str, Any]] = []
+    from scheme_equipment_catalog import get_kind
+    from vessel_scheme_renderer import VESSEL_LIKE_KINDS
+    meta = get_kind(data.get('report_form_id') or data.get('equipment_kind') or kind)
+    kind = str(meta['code']) if meta else kind
+    has_geometry = bool(data.get('base_vessel_scheme') or data.get('scheme_geometry'))
     try:
-        generated = render_all_layer_pngs(data)
+        # Without authored geometry, a generic form must never receive a default vessel drawing.
+        if kind in VESSEL_LIKE_KINDS or has_geometry:
+            generated = render_all_layer_pngs({**data, 'equipment_kind': kind})
     except Exception:
         logger.exception("Не удалось сгенерировать слои схем НК")
+
+    # to-1 stores the five reference maps as image-only paragraphs, without
+    # searchable captions. Replace those images in their original appendices.
+    # Appending new maps left the original vessel's geometry in the report.
+    if str(data.get("report_form_id") or "") == "to-1" and len(generated) == 5:
+        image_paragraphs = [el for el in doc.element.body
+            if el.tag == qn("w:p") and not _element_plain_text(el)
+            and (list(el.iter(qn("w:drawing"))) or list(el.iter(qn("w:pict"))))]
+        if len(image_paragraphs) == 5:
+            from io import BytesIO
+            for el,item in zip(image_paragraphs,generated):
+                for image in list(el.iter(qn("w:drawing"))) + list(el.iter(qn("w:pict"))):
+                    image.getparent().remove(image)
+                p=Paragraph(el,doc)
+                p.add_run().add_picture(BytesIO(item['png']),width=Inches(6.7))
+            return 5
 
     anchors = find_all_paragraphs_containing(doc, "Схема контроля")
     extra = find_all_paragraphs_containing(doc, "Схема оборудования")

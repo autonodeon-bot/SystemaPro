@@ -476,7 +476,12 @@ class VesselChecklist {
   }
   
   factory VesselChecklist.fromJson(Map<String, dynamic> json) {
-    final checklist = VesselChecklist();
+    return VesselChecklist()..loadJson(json);
+  }
+
+  /// Restore all shared fields, including report data, for every equipment type.
+  void loadJson(Map<String, dynamic> json) {
+    final checklist = this;
 
     checklist.inspectionDate = json['inspection_date'] as String?;
     checklist.inspectionType = json['inspection_type'] as String?;
@@ -518,6 +523,7 @@ class VesselChecklist {
           return MapEntry(
             k.toString(),
             {
+              ...mv.map((key, value) => MapEntry(key, value?.toString() ?? '')),
               'number': (mv['number'] ?? mv['doc_number'] ?? '').toString(),
               'date': (mv['date'] ?? mv['doc_date'] ?? '').toString(),
             },
@@ -776,7 +782,6 @@ class VesselChecklist {
       checklist.additionalData = Map<String, dynamic>.from(adRaw);
     }
 
-    return checklist;
   }
 
   static List<T> _parseList<T>(

@@ -2,6 +2,7 @@
 
 import os
 import io
+import asyncio
 import time
 import zipfile
 import json as _json
@@ -10,7 +11,7 @@ from pathlib import Path, Path as _Path
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_, func
@@ -352,6 +353,32 @@ async def validate_report_inspection(
         }
 
 
+@router.post("/api/reports/jobs")
+async def create_report_job(payload: dict, background: BackgroundTasks, username: str = Depends(verify_token)):
+    from report_jobs import JobStore, run_report_job
+    from report_request import normalize_report_options
+    try:
+        job_id = str(uuid_lib.UUID(str(payload.get('job_id'))))
+        request = payload.get('request')
+        if not isinstance(request, dict):
+            raise ValueError('Не указаны параметры отчета')
+        normalize_report_options(request)
+        uuid_lib.UUID(str(request.get('inspection_id')))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    job, created = JobStore().create(job_id, username, request)
+    if created or job['status'] in {'queued', 'running'}:
+        background.add_task(run_report_job, job_id, username)
+    return {key: value for key, value in job.items() if key not in {'request', 'owner'}}
+
+
+@router.get("/api/reports/jobs/{job_id}")
+async def get_report_job(job_id: str, username: str = Depends(verify_token)):
+    from report_jobs import JobStore
+    job = JobStore().read(job_id, username)
+    return {key: value for key, value in job.items() if key not in {'request', 'owner'}}
+
+
 @router.post("/api/reports/generate")
 async def generate_report(
     report_data: dict,
@@ -360,11 +387,30 @@ async def generate_report(
 ):
     """Generate technical report or expertise"""
     try:
+        from report_request import normalize_report_options
+        try:
+            report_type, output_format = normalize_report_options(report_data)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         # Текущий пользователь
-        user_result = await db.execute(select(User).where(User.username == username))
+        user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
         current_user = user_result.scalar_one_or_none()
         if not current_user:
             raise HTTPException(status_code=404, detail="User not found")
+
+        from report_jobs import current_report_job_id
+        job_report_id = current_report_job_id()
+        if job_report_id:
+            existing_report = await db.get(Report, uuid_lib.UUID(job_report_id))
+            if existing_report:
+                if existing_report.created_by != current_user.id:
+                    raise HTTPException(status_code=403, detail='Нет доступа к результату задания')
+                if not existing_report.file_path or not Path(existing_report.file_path).is_file():
+                    raise HTTPException(status_code=409, detail='Файл ранее созданного отчета отсутствует. Создайте новое задание генерации.')
+                return {'id': str(existing_report.id), 'report_number': existing_report.report_number,
+                    'registration_number': existing_report.registration_number,
+                    'file_path': existing_report.file_path, 'file_size': existing_report.file_size,
+                    'format': output_format, 'status': 'generated'}
 
         inspection_id = None
         if report_data.get("inspection_id"):
@@ -393,15 +439,21 @@ async def generate_report(
                 if not own:
                     raise HTTPException(status_code=403, detail="Нет прав на генерацию отчёта по этому обследованию")
 
-            report_type_req = (report_data.get("report_type") or "TECHNICAL_REPORT").strip().upper()
+            if getattr(current_user, "role", None) == "client":
+                if not await client_user_can_access_equipment(db, current_user, inspection.equipment_id):
+                    raise HTTPException(status_code=403, detail="Нет доступа к оборудованию обследования")
+
+            source_report = None
+            report_type_req = report_type
             if report_type_req == "EXPERTISE":
                 to_check = await db.execute(
-                    select(Report.id).where(
+                    select(Report).where(
                         Report.inspection_id == inspection_id,
                         Report.report_type == "TECHNICAL_REPORT",
-                    ).limit(1)
+                    ).order_by(Report.created_at.desc()).limit(1)
                 )
-                if not to_check.scalar_one_or_none():
+                source_report = to_check.scalar_one_or_none()
+                if not source_report:
                     raise HTTPException(
                         status_code=400,
                         detail="Сначала необходимо сгенерировать технический отчёт по этому обследованию",
@@ -719,13 +771,11 @@ async def generate_report(
                 print(f"Warning: Could not merge manual verification equipment: {e}")
             
             # Generate report
-            reports_dir = Path("/app/reports")
-            reports_dir.mkdir(exist_ok=True)
+            reports_dir = Path(os.getenv("REPORTS_DIR", "/app/reports"))
+            reports_dir.mkdir(parents=True, exist_ok=True)
             
-            report_type = report_data.get("report_type", "TECHNICAL_REPORT")
             # pdf или docx (поддерживаем также WORD/DOC)
-            output_format = (report_data.get("format") or "pdf").strip().lower()
-            is_docx = output_format in ["docx", "doc", "word"]
+            is_docx = output_format == "docx"
 
             # Подключаем макет отчета (definition) из report_templates.json (MVP без миграций БД)
             template_definition = None
@@ -791,12 +841,12 @@ async def generate_report(
                 # Генерация Word документа
                 from word_generator import WordGenerator
                 word_generator = WordGenerator()
-                filename = f"{report_type}_{inspection.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+                filename = f"{report_type}_{inspection.id}_{uuid_lib.uuid4().hex}.docx"
                 file_path = reports_dir / filename
             else:
                 # Генерация PDF
                 generator = ReportGenerator()
-                filename = f"{report_type}_{inspection.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                filename = f"{report_type}_{inspection.id}_{uuid_lib.uuid4().hex}.pdf"
                 file_path = reports_dir / filename
             
             # Проверяем, что ndt_methods не None и является списком
@@ -1175,24 +1225,52 @@ async def generate_report(
                 client=client_data,
                 enterprise_name=enterprise_name,
             )
+            equipment_payload = {
+                "id": str(equipment.id), "name": equipment.name,
+                "serial_number": equipment.serial_number, "location": equipment.location,
+                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
+                "attributes": equipment.attributes or {}, "type_code": equipment_type_code,
+                "type_name": equipment_type_name,
+            }
+            if source_report is not None:
+                from report_snapshot import load_technical_report_snapshot
+                try:
+                    source = load_technical_report_snapshot(source_report.file_path, source_report.json_file_path)
+                except (ValueError, OSError) as exc:
+                    raise HTTPException(status_code=409, detail=str(exc)) from exc
+                inspection_payload = source["inspection"]
+                equipment_payload = source["equipment"]
+                from pressure_device_labels import is_pressure_device
+                if not is_pressure_device(equipment_payload):
+                    raise HTTPException(status_code=400, detail='Формирование ЭПБ по этому образцу поддерживается только для сосудов')
+
+                ndt_methods_data = source.get("ndt_methods") or []
+                document_files = source.get("document_files") or []
+                specialist_docs = source.get("specialist_docs") or []
+                verification_equipment_list = source.get("verification_equipment") or []
+                template_definition = source.get("template_definition")
+                org_settings = source.get("org_settings") or org_settings
+                inspection_payload["data"] = dict(inspection_payload.get("data") or {})
+                inspection_payload["data"]["source_report_number"] = source_report.report_number
+                inspection_payload["data"]["source_report_id"] = str(source_report.id)
+            from report_utils import generate_report_number, generate_registration_number
+            report_number = await generate_report_number(db, report_type)
+            registration_number = await generate_registration_number(db)
+            inspection_payload["data"] = dict(inspection_payload.get("data") or {})
+            inspection_payload["data"]["report_number"] = report_number
+            inspection_payload["report_number"] = report_number
+            inspection_payload["registration_number"] = registration_number
+            from report_jobs import report_stage
+            report_stage('Заполнение официальной формы')
             if is_docx:
                 # Генерация Word документа во временный файл, затем перемещение (восстановление после сбоя)
                 import tempfile as _tf
                 _fd, _tmp_path = _tf.mkstemp(suffix=".docx", prefix="report_", dir=str(reports_dir))
                 try:
                     os.close(_fd)
-                    word_generator.generate_report_word(
+                    await asyncio.to_thread(word_generator.generate_report_word,
                         inspection_payload,
-                        {
-                            "id": str(equipment.id),
-                            "name": equipment.name,
-                            "serial_number": equipment.serial_number,
-                            "location": equipment.location,
-                            "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                            "attributes": equipment.attributes or {},
-                            "type_code": equipment_type_code,
-                            "type_name": equipment_type_name,
-                        },
+                        equipment_payload,
                         ndt_methods_data,
                         _tmp_path,
                         report_type,
@@ -1215,25 +1293,16 @@ async def generate_report(
                 from docx_to_pdf import convert_docx_to_pdf, libreoffice_available
 
                 used_official_pdf = False
-                if report_type not in ("EXPERTISE", "EPB", "ЭПБ") and libreoffice_available():
+                if libreoffice_available():
                     import tempfile as _tf
                     _fd, _tmp_docx = _tf.mkstemp(suffix=".docx", prefix="report_", dir=str(reports_dir))
                     try:
                         os.close(_fd)
                         from word_generator import WordGenerator
                         _wg = WordGenerator()
-                        _wg.generate_report_word(
+                        await asyncio.to_thread(_wg.generate_report_word,
                             inspection_payload,
-                            {
-                                "id": str(equipment.id),
-                                "name": equipment.name,
-                                "serial_number": equipment.serial_number,
-                                "location": equipment.location,
-                                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                                "attributes": equipment.attributes or {},
-                                "type_code": equipment_type_code,
-                                "type_name": equipment_type_name,
-                            },
+                            equipment_payload,
                             ndt_methods_data,
                             _tmp_docx,
                             report_type,
@@ -1243,7 +1312,8 @@ async def generate_report(
                             template_definition=template_definition,
                             org_settings=org_settings,
                         )
-                        pdf_ok = convert_docx_to_pdf(_tmp_docx, str(file_path))
+                        report_stage('Преобразование в PDF')
+                        pdf_ok = await asyncio.to_thread(convert_docx_to_pdf, _tmp_docx, str(file_path))
                         if pdf_ok:
                             used_official_pdf = True
                             # Сохраняем также docx рядом
@@ -1259,7 +1329,7 @@ async def generate_report(
                             if os.path.exists(_tmp_docx):
                                 os.unlink(_tmp_docx)
                     except Exception as _pdf_exc:
-                        print(f"Warning: official form PDF failed, fallback ReportLab: {_pdf_exc}")
+                        print(f"Official form PDF failed: {_pdf_exc}")
                         if os.path.exists(_tmp_docx):
                             try:
                                 os.unlink(_tmp_docx)
@@ -1267,51 +1337,31 @@ async def generate_report(
                                 pass
 
                 if not used_official_pdf:
-                    if report_type == "EXPERTISE":
-                        generator.generate_expertise_report(
-                            inspection_payload,
-                            {
-                                "id": str(equipment.id),
-                                "name": equipment.name,
-                                "serial_number": equipment.serial_number,
-                                "location": equipment.location,
-                                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                                "attributes": equipment.attributes or {},
-                            },
-                            resource_data,
-                            str(file_path),
-                            ndt_methods_data,
-                            document_files=document_files,
-                            specialist_docs=specialist_docs,
-                            verification_equipment=verification_equipment_list,
-                        )
-                    else:
-                        generator.generate_technical_report(
-                            inspection_payload,
-                            {
-                                "id": str(equipment.id),
-                                "name": equipment.name,
-                                "serial_number": equipment.serial_number,
-                                "location": equipment.location,
-                                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                                "attributes": equipment.attributes or {},
-                            },
-                            str(file_path),
-                            ndt_methods_data,
-                            document_files=document_files,
-                            specialist_docs=specialist_docs,
-                            verification_equipment=verification_equipment_list,
-                        )
+                    raise HTTPException(status_code=503, detail='Не удалось создать PDF из Word. Проверьте LibreOffice или сформируйте DOCX.')
             _metrics["report_generation_seconds_sum"] = _metrics.get("report_generation_seconds_sum", 0) + (time.time() - _report_gen_t0)
             _metrics["report_generation_count"] = _metrics.get("report_generation_count", 0) + 1
             
-            # Генерируем номера отчета
-            from report_utils import generate_report_number, generate_registration_number
-            report_number = await generate_report_number(db, report_type)
-            registration_number = await generate_registration_number(db)
+            if not file_path.is_file() or file_path.stat().st_size == 0:
+                raise RuntimeError("Генератор не создал непустой файл отчёта")
             
             # Save report record
+            report_stage('Сохранение отчета и исходных данных')
+            from report_snapshot import save_report_snapshot
+            snapshot_path = save_report_snapshot(
+                file_path, actor=current_user.id,
+                form_id=inspection_payload.get("data", {}).get("report_form_id"),
+                inputs={
+                    "inspection": inspection_payload,
+                    "equipment": equipment_payload,
+                    "ndt_methods": ndt_methods_data, "document_files": document_files,
+                    "specialist_docs": specialist_docs,
+                    "verification_equipment": verification_equipment_list,
+                    "template_definition": template_definition, "org_settings": org_settings,
+                    "report_type": report_type,
+                },
+            )
             new_report = Report(
+                id=uuid_lib.UUID(job_report_id) if job_report_id else uuid_lib.uuid4(),
                 inspection_id=inspection_id,
                 report_type=report_type,
                 report_number=report_number,
@@ -1319,6 +1369,7 @@ async def generate_report(
                 file_path=str(file_path),
                 file_size=file_path.stat().st_size if file_path.exists() else 0,
                 created_by=current_user.id,
+                json_file_path=str(snapshot_path),
                 is_archived=False  # Явно устанавливаем значение
             )
             # Для DOCX также заполняем word_* поля (для единообразия и будущего расширения)
@@ -1361,197 +1412,8 @@ async def bulk_export_reports(
     db: AsyncSession = Depends(get_db),
 ):
     """Пакетная выгрузка отчётов: по списку inspection_ids генерируются DOCX и возвращаются в ZIP (макс. 15 шт)."""
-    import tempfile
-    inspection_ids = body.get("inspection_ids") or []
-    if not isinstance(inspection_ids, list):
-        raise HTTPException(status_code=400, detail="inspection_ids должен быть массивом")
-    inspection_ids = [str(x).strip() for x in inspection_ids if x][:15]
-    report_type = (body.get("report_type") or "TECHNICAL_REPORT").strip().upper()
-    if not inspection_ids:
-        raise HTTPException(status_code=400, detail="Укажите хотя бы один inspection_id")
-
-    user_result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
-    current_user = user_result.scalar_one_or_none()
-    if not current_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    from word_generator import WordGenerator
-    word_generator = WordGenerator()
-    temp_dir = tempfile.mkdtemp(prefix="bulk_report_")
-    generated = []
-    try:
-        for insp_id in inspection_ids:
-            try:
-                insp_uuid = uuid_lib.UUID(insp_id)
-            except (ValueError, TypeError):
-                continue
-            insp_result = await db.execute(select(Inspection).where(Inspection.id == insp_uuid))
-            inspection = insp_result.scalar_one_or_none()
-            if not inspection:
-                continue
-            if current_user.role == "engineer" and getattr(inspection, "inspector_id", None) != current_user.id and getattr(inspection, "performed_by", None) != current_user.id:
-                continue
-            eq_result = await db.execute(select(Equipment).where(Equipment.id == inspection.equipment_id))
-            equipment = eq_result.scalar_one_or_none()
-            if not equipment:
-                continue
-            inspection_payload_bulk = {
-                "id": str(inspection.id),
-                "questionnaire_id": (
-                    str(inspection.questionnaire_id)
-                    if getattr(inspection, "questionnaire_id", None)
-                    else None
-                ),
-                "status": getattr(inspection, "status", "DRAFT"),
-                "conclusion": getattr(inspection, "conclusion", None),
-                "date_performed": inspection.date_performed.isoformat() if getattr(inspection, "date_performed", None) else None,
-                "data": inspection.data if isinstance(getattr(inspection, "data", None), dict) else {},
-            }
-            equipment_data = {
-                "id": str(equipment.id),
-                "name": equipment.name,
-                "serial_number": getattr(equipment, "serial_number", None),
-                "location": getattr(equipment, "location", None),
-                "commissioning_date": str(equipment.commissioning_date) if getattr(equipment, "commissioning_date", None) else None,
-                "attributes": equipment.attributes or {},
-                "type_code": None,
-                "type_name": None,
-            }
-            if equipment.type_id:
-                t_res = await db.execute(select(EquipmentType).where(EquipmentType.id == equipment.type_id))
-                t = t_res.scalar_one_or_none()
-                if t:
-                    equipment_data["type_code"] = t.code
-                    equipment_data["type_name"] = t.name
-            ndt_res = await db.execute(select(NDTMethod).where(NDTMethod.inspection_id == inspection.id))
-            ndt_list = ndt_res.scalars().all()
-
-            q_for_files_b = None
-            if getattr(inspection, "questionnaire_id", None):
-                q_res = await db.execute(select(Questionnaire).where(Questionnaire.id == inspection.questionnaire_id))
-                q_for_files_b = q_res.scalar_one_or_none()
-            if not q_for_files_b and getattr(inspection, "assignment_id", None):
-                q_res2 = await db.execute(
-                    select(Questionnaire)
-                    .where(Questionnaire.assignment_id == inspection.assignment_id)
-                    .order_by(Questionnaire.created_at.desc())
-                    .limit(1)
-                )
-                q_for_files_b = q_res2.scalar_one_or_none()
-            q_bulk_scope = str(q_for_files_b.id) if q_for_files_b else None
-            inspection_scope_b = str(inspection.id)
-            if q_bulk_scope and not inspection_payload_bulk.get("questionnaire_id"):
-                inspection_payload_bulk["questionnaire_id"] = q_bulk_scope
-
-            def _bulk_attachment_path(local_path: Optional[str]) -> Optional[str]:
-                if not local_path or not isinstance(local_path, str):
-                    return local_path
-                return resolve_report_file_path(
-                    local_path,
-                    inspection_id=inspection_scope_b,
-                    questionnaire_id=q_bulk_scope,
-                ) or local_path
-
-            ndt_methods_data = []
-            for m in ndt_list:
-                _ph = getattr(m, "photos", None) or []
-                if isinstance(_ph, list):
-                    _ph_res = [
-                        resolve_report_file_path(
-                            ph,
-                            inspection_id=inspection_scope_b,
-                            questionnaire_id=q_bulk_scope,
-                        )
-                        or ph
-                        for ph in _ph
-                        if isinstance(ph, str)
-                    ]
-                else:
-                    _ph_res = _ph
-                ndt_methods_data.append({
-                    "method_code": getattr(m, "method_code", None),
-                    "method_name": getattr(m, "method_name", None),
-                    "is_performed": bool(getattr(m, "is_performed", False)),
-                    "standard": getattr(m, "standard", None),
-                    "equipment": getattr(m, "equipment", None),
-                    "inspector_name": getattr(m, "inspector_name", None),
-                    "inspector_level": getattr(m, "inspector_level", None),
-                    "results": getattr(m, "results", None),
-                    "defects": getattr(m, "defects", None),
-                    "conclusion": getattr(m, "conclusion", None),
-                    "photos": _ph_res,
-                    "additional_data": getattr(m, "additional_data", None) or {},
-                    "performed_date": m.performed_date.isoformat() if getattr(m, "performed_date", None) else None,
-                })
-            document_files = []
-            if q_for_files_b:
-                f_res = await db.execute(
-                    select(QuestionnaireDocumentFile).where(
-                        QuestionnaireDocumentFile.questionnaire_id == q_for_files_b.id
-                    )
-                )
-                for f in f_res.scalars().all():
-                    document_files.append({
-                        "document_number": f.document_number,
-                        "file_name": f.file_name,
-                        "file_path": _bulk_attachment_path(f.file_path) or f.file_path,
-                        "file_size": int(f.file_size or 0),
-                    })
-            _bulk_data = inspection_payload_bulk.get("data") if isinstance(inspection_payload_bulk.get("data"), dict) else {}
-            document_files = enrich_document_files_from_inspection(
-                document_files,
-                _bulk_data,
-                resolve_fn=_bulk_attachment_path,
-                questionnaire_id=q_bulk_scope,
-            )
-            try:
-                document_files = await enrich_scheme_from_equipment_templates(
-                    document_files,
-                    str(equipment.id),
-                    db,
-                    resolve_fn=_bulk_attachment_path,
-                    inspection_data=_bulk_data,
-                )
-            except Exception:
-                pass
-            out_path = os.path.join(temp_dir, f"report_{insp_id}.docx")
-            try:
-                word_generator.generate_report_word(
-                    inspection_payload_bulk,
-                    equipment_data,
-                    ndt_methods_data,
-                    out_path,
-                    report_type,
-                    document_files=document_files,
-                    specialist_docs=[],
-                    verification_equipment=[],
-                    template_definition=None,
-                    org_settings=load_report_org_settings(),
-                )
-                generated.append((insp_id, out_path))
-            except Exception as e:
-                print(f"Bulk export: skip inspection {insp_id}: {e}")
-        if not generated:
-            raise HTTPException(status_code=400, detail="Не удалось сгенерировать ни одного отчёта")
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for _id, p in generated:
-                zf.write(p, os.path.basename(p))
-        buf.seek(0)
-        return StreamingResponse(
-            buf,
-            media_type="application/zip",
-            headers={"Content-Disposition": "attachment; filename=reports.zip"},
-        )
-    finally:
-        try:
-            for _id, p in generated:
-                if os.path.exists(p):
-                    os.unlink(p)
-            if os.path.exists(temp_dir):
-                os.rmdir(temp_dir)
-        except OSError:
-            pass
+    from bulk_report_export import export_reports
+    return await export_reports(body, username, db)
 
 
 # Report Templates endpoints (работа с БД)
@@ -1766,6 +1628,12 @@ async def sign_report(
         if not report:
             raise HTTPException(status_code=404, detail="Отчет не найден")
         
+        if current_user.role not in {"admin", "chief_operator", "operator", "engineer"}:
+            raise HTTPException(status_code=403, detail="Нет права подписывать отчеты")
+        if current_user.role == "engineer" and report.created_by != current_user.id:
+            raise HTTPException(status_code=403, detail="Можно подписывать только свои отчеты")
+        if report.is_signed:
+            raise HTTPException(status_code=409, detail="Отчет уже подписан. Создайте новую редакцию")
         report.is_signed = True
         report.signed_at = datetime.now(timezone.utc)
         report.signed_by = current_user.id
@@ -1824,8 +1692,11 @@ async def delete_report(
         if not allowed:
             raise HTTPException(status_code=403, detail="Доступ запрещен")
 
+        if report.is_signed:
+            raise HTTPException(status_code=409, detail="Подписанный отчет можно архивировать. Для исправлений создайте новую редакцию")
+
         # Удаляем файлы
-        for p in [report.file_path, getattr(report, "word_file_path", None)]:
+        for p in [report.file_path, getattr(report, "word_file_path", None), getattr(report, "json_file_path", None)]:
             if p:
                 try:
                     fp = Path(p)
@@ -1893,8 +1764,10 @@ async def bulk_delete_reports(
                 if not allowed:
                     continue
                 
+                if report.is_signed:
+                    continue
                 # Удаляем файлы
-                for p in [report.file_path, getattr(report, "word_file_path", None)]:
+                for p in [report.file_path, getattr(report, "word_file_path", None), getattr(report, "json_file_path", None)]:
                     if p:
                         try:
                             fp = Path(p)
@@ -2032,8 +1905,10 @@ async def cleanup_reports(
 
         deleted = 0
         for report in reports:
+            if report.is_signed:
+                continue
             # удаляем файлы
-            for p in [report.file_path, getattr(report, "word_file_path", None)]:
+            for p in [report.file_path, getattr(report, "word_file_path", None), getattr(report, "json_file_path", None)]:
                 if p:
                     try:
                         fp = Path(p)

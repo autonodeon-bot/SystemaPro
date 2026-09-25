@@ -43,6 +43,11 @@ class TestEquipmentCreateSchema:
 
 
 class TestEquipmentUpdateSchema:
+    @pytest.mark.parametrize('patch', [{'name': '  '}, {'type_id': 'broken'}, {'commissioning_date': '2025-02-31'}])
+    def test_invalid_values_are_rejected_instead_of_silently_ignored(self, patch):
+        with pytest.raises(ValidationError):
+            EquipmentUpdate(**patch)
+
     def test_equipment_update_should_allow_empty_patch(self):
         m = EquipmentUpdate()
         assert m.model_dump(exclude_unset=True) == {}

@@ -46,7 +46,8 @@ async def update_equipment_attributes_from_inspection(db, equipment_id, inspecti
     if not equipment:
         return
     attrs = dict(equipment.attributes or {})
-    attrs.update(updates)
+    from equipment_merge import fill_missing_attributes
+    attrs, _conflicts = fill_missing_attributes(attrs, updates)
     equipment.attributes = attrs
 
 

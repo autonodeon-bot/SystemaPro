@@ -29,6 +29,7 @@ export interface EquipmentType {
   id: string;
   name: string;
   code?: string;
+  description?: string;
 }
 
 export interface Equipment {

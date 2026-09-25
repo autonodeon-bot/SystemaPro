@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -49,6 +48,7 @@ from form_template_filler_common import (
 )
 from report_forms_registry import get_form, resolve_form_path
 from report_org_settings import load_report_org_settings
+from report_template_loader import load_report_template
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +109,7 @@ def fill_generic_official_form(
 
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(template, out)
-    doc = Document(str(out))
+    doc = load_report_template(template)
 
     if org_settings is None:
         org_settings = load_report_org_settings()
@@ -120,7 +119,7 @@ def fill_generic_official_form(
     raw_data = inspection_data.get("data")
     if not isinstance(raw_data, dict):
         raw_data = {}
-    data = _enrich_inspection_data(raw_data, ndt_methods or [])
+    data = _enrich_inspection_data({**raw_data, "report_form_id": fid}, ndt_methods or [])
     inspection_data["data"] = data
 
     attrs = equipment_data.get("attributes") or {}
@@ -167,6 +166,8 @@ def fill_generic_official_form(
         "name": device,
         "serial_number": serial,
         "reg_number": reg_no,
+        "opo_reg_number": str(g("opo_reg_number", default=MISSING)),
+        "opo_hazard_class": str(g("opo_hazard_class", default=MISSING)),
         "inventory_number": inv_no,
         "inv_number": inv_no,
         "location": location,
@@ -368,6 +369,12 @@ def _match_label(label: str) -> Optional[Tuple[str, ...]]:
     lab = (label or "").lower().strip()
     if not lab:
         return None
+    if lab == "наименование":
+        return ("vessel_name", "equipment_device_name", "name")
+    if "опо" in lab and "регистрацион" in lab:
+        return ("opo_reg_number",)
+    if "опо" in lab and "класс опасности" in lab:
+        return ("opo_hazard_class",)
     # давление: отдельные правила
     if "давлен" in lab:
         if "расчет" in lab or "расчёт" in lab:
@@ -402,14 +409,29 @@ def _fill_kv_tables(doc: Document, values: Dict[str, Any]) -> None:
         ):
             continue
         for r_idx, row in enumerate(table.rows):
-            if len(row.cells) < 2:
+            cells = row.cells
+            if len(cells) < 2:
                 continue
-            label = (row.cells[0].text or "").strip()
+            label = (cells[0].text or "").strip()
+            # Merged labels occur repeatedly in cells; never write into
+            # another grid position pointing to the same XML cell.
+            distinct = [i for i in range(1, len(cells)) if cells[i]._tc is not cells[0]._tc]
+            if not distinct:
+                continue
+            target_col = distinct[0]
+            if len(cells) > target_col + 1:
+                mid = (cells[target_col].text or "").strip().lower()
+                if mid in ("рабочее", "расчетное", "расчётное", "пробное"):
+                    next_cells = [i for i in range(target_col + 1, len(cells)) if cells[i]._tc is not cells[target_col]._tc]
+                    if not next_cells:
+                        continue
+                    target_col = next_cells[0]
+                    label = f"{label} {mid}"
             keys = _match_label(label)
             if not keys:
                 continue
             # уже заполнено?
-            cur = (row.cells[1].text or "").strip()
+            cur = (cells[target_col].text or "").strip()
             if cur and cur not in ("", "—", "-", "–") and "_" not in cur:
                 continue
             val = MISSING
@@ -417,14 +439,8 @@ def _fill_kv_tables(doc: Document, values: Dict[str, Any]) -> None:
                 if values.get(k) not in (None, "", MISSING):
                     val = values[k]
                     break
-            if val is MISSING:
+            if val == MISSING:
                 continue
-            # если 3+ колонки и 2-я — подзаголовок (как давление/рабочее)
-            target_col = 1
-            if len(row.cells) >= 3:
-                mid = (row.cells[1].text or "").lower()
-                if mid.strip() in ("рабочее", "расчетное", "расчётное", "пробное"):
-                    target_col = 2
             try:
                 _set(table, r_idx, target_col, str(val))
             except Exception:
@@ -464,12 +480,14 @@ def _fill_uzt_tables(
             if r >= len(table.rows):
                 break
             cols = len(table.rows[r].cells)
+            def present(*keys):
+                return next((p[key] for key in keys if p.get(key) not in (None, '')), '')
             vals = [
                 str(i + 1),
                 str(p.get("element") or p.get("zone") or p.get("area") or ""),
                 str(p.get("point_number") or p.get("point") or i + 1),
-                str(p.get("nominal") or p.get("s_nom") or ""),
-                str(p.get("thickness") or p.get("value") or ""),
+                str(present("nominal", "s_nom")),
+                str(present("thickness", "value")),
             ]
             for c, v in enumerate(vals):
                 if c < cols and v:
@@ -498,8 +516,8 @@ def _fill_paragraph_blanks(
             new = _replace_underscores(new, [contract])
         if ("с «" in low or "с __" in low or "по «" in low or "202_" in low) and date_ru:
             if "____" in new or "202_" in new:
-                new = new.replace("202__", date_ru[-2:] if len(date_ru) >= 2 else "26")
-                new = new.replace("202_", date_ru[-2:] if len(date_ru) >= 2 else "26")
+                new = new.replace("202__", date_ru[-4:])
+                new = new.replace("202_", date_ru[-4:])
         if device and device != MISSING and "наименован" in low and _BLANK_RE.search(text):
             new = _replace_underscores(new, [device])
         if org_name and org_name != MISSING and "заказчик" in low and _BLANK_RE.search(text):

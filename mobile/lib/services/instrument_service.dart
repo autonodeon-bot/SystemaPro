@@ -3,8 +3,6 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 /// Сервис для интеграции с измерительными приборами через Bluetooth
 class InstrumentService {
-  static const String _serviceUuid = '0000fff0-0000-1000-8000-00805f9b34fb';
-  static const String _characteristicUuid = '0000fff1-0000-1000-8000-00805f9b34fb';
   
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _characteristic;

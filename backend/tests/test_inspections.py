@@ -6,6 +6,21 @@ from unittest.mock import MagicMock
 from conftest import make_mock_user
 
 
+@pytest.mark.asyncio
+async def test_signed_inspection_cannot_be_reopened_as_draft(client, mock_db):
+    import uuid
+    from types import SimpleNamespace
+    user = make_mock_user(role='admin')
+    inspection = SimpleNamespace(id=uuid.uuid4(), status='SIGNED')
+    first = MagicMock(); first.scalar_one_or_none.return_value = user
+    second = MagicMock(); second.scalar_one_or_none.return_value = inspection
+    mock_db.execute.side_effect = [first, second]
+    response = await client.patch(f'/api/inspections/{inspection.id}/status', json={'status': 'DRAFT'})
+    assert response.status_code == 409
+    assert inspection.status == 'SIGNED'
+    mock_db.commit.assert_not_awaited()
+
+
 def _setup_user_mock(mock_db, role="admin"):
     """Настраивает мок для запроса текущего пользователя из БД."""
     mock_user = make_mock_user(role=role)

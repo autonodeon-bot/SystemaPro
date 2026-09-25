@@ -9,6 +9,7 @@
 **/.DS_Store
 **/node_modules
 **/dist
+!dist
 **/build
 **/__pycache__
 **/*.pyc
@@ -36,3 +37,8 @@ coverage
 .pytest_cache
 .ruff_cache
 .mypy_cache
+.venv*
+tools/flutter
+tools/libreoffice
+tools/*.msi
+docs

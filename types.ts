@@ -109,6 +109,11 @@ export interface EquipmentAttributes {
   tempWork?: number; // C
   medium?: string; // Рабочая среда
   material?: string; // Марка стали
+  materialGost?: string;
+  yieldStrength?: number;
+  tensileStrength?: number;
+  elongation?: number;
+  orientation?: string;
 
   // Pipeline
   diameter?: number; // мм

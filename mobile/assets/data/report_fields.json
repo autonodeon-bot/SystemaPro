@@ -1,0 +1,690 @@
+{
+  "version": "2026-09-18.2",
+  "forms": {
+    "to-1": "vessel",
+    "to-2": "crane",
+    "to-3": "crane",
+    "to-4": "pipeline",
+    "to-5": "electrical",
+    "to-6": "electrical",
+    "to-7": "electrical",
+    "to-8": "machinery",
+    "to-9": "station",
+    "to-10": "generic",
+    "to-11": "machinery",
+    "to-12": "machinery",
+    "to-13": "pipeline",
+    "to-14": "generic",
+    "to-15": "station",
+    "to-16": "electrical",
+    "to-17": "machinery",
+    "to-18": "pipeline",
+    "to-19": "pipeline",
+    "to-20": "pipeline",
+    "to-21": "pipeline",
+    "to-22": "pipeline",
+    "to-23": "machinery",
+    "to-24": "valve",
+    "to-25": "tank",
+    "to-26": "pipeline",
+    "to-27": "valve",
+    "to-28": "boiler",
+    "to-29": "machinery",
+    "to-30": "boiler",
+    "to-31": "pipeline",
+    "to-32": "pipeline",
+    "to-33": "pipeline",
+    "to-34": "generic",
+    "to-35": "station",
+    "to-36": "station",
+    "to-37": "station",
+    "to-38": "generic",
+    "to-39": "tower",
+    "to-40": "station",
+    "to-41": "generic",
+    "to-42": "electrical",
+    "to-43": "tank",
+    "to-44": "tower"
+  },
+  "profiles": {
+    "vessel": [
+      {
+        "key": "shell_material",
+        "label": "Материал корпуса",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "wall_thickness",
+        "label": "Номинальная толщина стенки",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "design_pressure",
+        "label": "Расчётное давление",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      },
+      {
+        "key": "body_length_mm",
+        "label": "Длина цилиндрического корпуса",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "shell_course_length_mm",
+        "label": "Длина стандартной обечайки (по умолчанию 2000 мм)",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "uzk_sections",
+        "label": "ТЗ: количество участков УЗК",
+        "type": "number",
+        "unit": "шт.",
+        "min": 0
+      },
+      {
+        "key": "mpk_sections",
+        "label": "ТЗ: количество участков МК",
+        "type": "number",
+        "unit": "шт.",
+        "min": 0
+      },
+      {
+        "key": "pvk_sections",
+        "label": "ТЗ: количество участков ПВК",
+        "type": "number",
+        "unit": "шт.",
+        "min": 0
+      },
+      {
+        "key": "hardness_sections",
+        "label": "ТЗ: количество участков твердометрии",
+        "type": "number",
+        "unit": "шт.",
+        "min": 0
+      },
+      {
+        "key": "epb_conclusion",
+        "label": "Вывод эксперта ЭПБ",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "epb_conditions",
+        "label": "Условия дальнейшей эксплуатации",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "pipeline": [
+      {
+        "key": "pipeline_length",
+        "label": "Протяжённость участка",
+        "type": "number",
+        "unit": "м",
+        "min": 0
+      },
+      {
+        "key": "pipe_diameter",
+        "label": "Диаметр трубопровода",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "wall_thickness",
+        "label": "Номинальная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "design_pressure",
+        "label": "Расчётное давление",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      }
+    ],
+    "crane": [
+      {
+        "key": "lifting_capacity",
+        "label": "Грузоподъёмность",
+        "type": "number",
+        "unit": "т",
+        "min": 0
+      },
+      {
+        "key": "lifting_height",
+        "label": "Высота подъёма",
+        "type": "number",
+        "unit": "м",
+        "min": 0
+      },
+      {
+        "key": "span",
+        "label": "Пролёт",
+        "type": "number",
+        "unit": "м",
+        "min": 0
+      },
+      {
+        "key": "safety_devices_result",
+        "label": "Результат проверки устройств безопасности",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "tank": [
+      {
+        "key": "volume",
+        "label": "Вместимость",
+        "type": "number",
+        "unit": "м³",
+        "min": 0
+      },
+      {
+        "key": "diameter",
+        "label": "Диаметр",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "height",
+        "label": "Высота",
+        "type": "number",
+        "unit": "м",
+        "min": 0
+      },
+      {
+        "key": "wall_thickness",
+        "label": "Номинальная толщина стенки",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "settlement",
+        "label": "Максимальная осадка",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      }
+    ],
+    "electrical": [
+      {
+        "key": "rated_power",
+        "label": "Номинальная мощность",
+        "type": "number",
+        "unit": "кВА",
+        "min": 0
+      },
+      {
+        "key": "rated_voltage",
+        "label": "Номинальное напряжение",
+        "type": "number",
+        "unit": "кВ",
+        "min": 0
+      },
+      {
+        "key": "insulation_resistance",
+        "label": "Сопротивление изоляции",
+        "type": "number",
+        "unit": "МОм",
+        "min": 0
+      },
+      {
+        "key": "ground_resistance",
+        "label": "Сопротивление заземления",
+        "type": "number",
+        "unit": "Ом",
+        "min": 0
+      },
+      {
+        "key": "electrical_test_result",
+        "label": "Заключение по электроизмерениям",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "machinery": [
+      {
+        "key": "power_rating",
+        "label": "Мощность",
+        "type": "number",
+        "unit": "кВт",
+        "min": 0
+      },
+      {
+        "key": "rotation_speed",
+        "label": "Частота вращения",
+        "type": "number",
+        "unit": "об/мин",
+        "min": 0
+      },
+      {
+        "key": "vibration_velocity",
+        "label": "Виброскорость",
+        "type": "number",
+        "unit": "мм/с",
+        "min": 0
+      },
+      {
+        "key": "flow_rate",
+        "label": "Производительность",
+        "type": "number",
+        "unit": "м³/ч",
+        "min": 0
+      },
+      {
+        "key": "bearing_state",
+        "label": "Состояние подшипников",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "boiler": [
+      {
+        "key": "design_pressure",
+        "label": "Расчётное давление",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      },
+      {
+        "key": "heating_surface",
+        "label": "Площадь нагрева",
+        "type": "number",
+        "unit": "м²",
+        "min": 0
+      },
+      {
+        "key": "thermal_power",
+        "label": "Тепловая мощность",
+        "type": "number",
+        "unit": "МВт",
+        "min": 0
+      },
+      {
+        "key": "boiler_safety_result",
+        "label": "Проверка автоматики безопасности",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "valve": [
+      {
+        "key": "nominal_diameter",
+        "label": "Условный проход",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "nominal_pressure",
+        "label": "Номинальное давление",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      },
+      {
+        "key": "tightness_class",
+        "label": "Класс герметичности",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "tightness_result",
+        "label": "Результат проверки герметичности",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "tower": [
+      {
+        "key": "height",
+        "label": "Высота",
+        "type": "number",
+        "unit": "м",
+        "min": 0
+      },
+      {
+        "key": "wall_thickness",
+        "label": "Толщина стенки",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "vertical_deviation",
+        "label": "Отклонение от вертикали",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "foundation_state",
+        "label": "Состояние фундамента",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "station": [
+      {
+        "key": "capacity",
+        "label": "Производительность",
+        "type": "number",
+        "unit": "м³/ч",
+        "min": 0
+      },
+      {
+        "key": "design_pressure",
+        "label": "Расчётное давление",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      },
+      {
+        "key": "automation_result",
+        "label": "Результат проверки автоматики",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "generic": [
+      {
+        "key": "purpose",
+        "label": "Назначение",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "material",
+        "label": "Материал",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "technical_state",
+        "label": "Техническое состояние",
+        "type": "text",
+        "unit": ""
+      }
+    ]
+  },
+  "measurements": {
+    "vessel": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "nominal",
+        "label": "Номинальная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "actual",
+        "label": "Измеренная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      }
+    ],
+    "pipeline": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "station",
+        "label": "Участок / пикет",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "actual",
+        "label": "Измеренная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      }
+    ],
+    "tank": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "belt",
+        "label": "Пояс",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "actual",
+        "label": "Измеренная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "deviation",
+        "label": "Отклонение",
+        "type": "number",
+        "unit": "мм"
+      }
+    ],
+    "crane": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "load",
+        "label": "Испытательная нагрузка",
+        "type": "number",
+        "unit": "т",
+        "min": 0
+      },
+      {
+        "key": "result",
+        "label": "Результат",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "electrical": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "voltage",
+        "label": "Испытательное напряжение",
+        "type": "number",
+        "unit": "В",
+        "min": 0
+      },
+      {
+        "key": "insulation",
+        "label": "Сопротивление изоляции",
+        "type": "number",
+        "unit": "МОм",
+        "min": 0
+      },
+      {
+        "key": "ground",
+        "label": "Сопротивление заземления",
+        "type": "number",
+        "unit": "Ом",
+        "min": 0
+      }
+    ],
+    "machinery": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "speed",
+        "label": "Частота вращения",
+        "type": "number",
+        "unit": "об/мин",
+        "min": 0
+      },
+      {
+        "key": "vibration",
+        "label": "Виброскорость",
+        "type": "number",
+        "unit": "мм/с",
+        "min": 0
+      },
+      {
+        "key": "temperature",
+        "label": "Температура подшипника",
+        "type": "number",
+        "unit": "°C"
+      }
+    ],
+    "boiler": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "actual",
+        "label": "Измеренная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      },
+      {
+        "key": "result",
+        "label": "Результат",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "valve": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "pressure",
+        "label": "Давление испытания",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      },
+      {
+        "key": "tightness",
+        "label": "Результат проверки герметичности",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "tower": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "deviation",
+        "label": "Отклонение от вертикали",
+        "type": "number",
+        "unit": "мм"
+      },
+      {
+        "key": "actual",
+        "label": "Измеренная толщина",
+        "type": "number",
+        "unit": "мм",
+        "min": 0
+      }
+    ],
+    "station": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "pressure",
+        "label": "Давление",
+        "type": "number",
+        "unit": "МПа",
+        "min": 0
+      },
+      {
+        "key": "flow",
+        "label": "Расход",
+        "type": "number",
+        "unit": "м³/ч",
+        "min": 0
+      },
+      {
+        "key": "result",
+        "label": "Результат",
+        "type": "text",
+        "unit": ""
+      }
+    ],
+    "generic": [
+      {
+        "key": "point",
+        "label": "Точка / элемент",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "indicator",
+        "label": "Показатель",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "value",
+        "label": "Значение",
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "key": "unit",
+        "label": "Единица измерения",
+        "type": "text",
+        "unit": ""
+      }
+    ]
+  }
+}

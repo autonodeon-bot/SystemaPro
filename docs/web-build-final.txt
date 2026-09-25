@@ -1,0 +1,97 @@
+
+> es-td-ngo-platform@3.7.31 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 2579 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                             1.95 kB │ gzip:   1.16 kB
+dist/assets/index-D7yPzYNo.css                             90.45 kB │ gzip:  16.62 kB
+dist/assets/check-C5RQw6ad.js                               0.29 kB │ gzip:   0.24 kB
+dist/assets/chevron-down-Bf80KteM.js                        0.30 kB │ gzip:   0.24 kB
+dist/assets/chevron-up-Boc9KlNF.js                          0.30 kB │ gzip:   0.25 kB
+dist/assets/plus-BFSdgcES.js                                0.32 kB │ gzip:   0.25 kB
+dist/assets/pen-B6PGbMlL.js                                 0.32 kB │ gzip:   0.27 kB
+dist/assets/filter-Cb78I41A.js                              0.33 kB │ gzip:   0.26 kB
+dist/assets/arrow-left-B3eHeuxH.js                          0.33 kB │ gzip:   0.27 kB
+dist/assets/search-C8lqtU79.js                              0.34 kB │ gzip:   0.27 kB
+dist/assets/clock-BqP0F91K.js                               0.35 kB │ gzip:   0.27 kB
+dist/assets/check-circle-CvdljJBA.js                        0.36 kB │ gzip:   0.28 kB
+dist/assets/pen-line-DIMGNkN8.js                            0.36 kB │ gzip:   0.28 kB
+dist/assets/pencil-BehQGMUZ.js                              0.37 kB │ gzip:   0.28 kB
+dist/assets/user-OkG3ucZm.js                                0.37 kB │ gzip:   0.29 kB
+dist/assets/eye-Cya3ruBW.js                                 0.37 kB │ gzip:   0.28 kB
+dist/assets/rotate-ccw-DCR7cho_.js                          0.37 kB │ gzip:   0.29 kB
+dist/assets/trending-up-FUYcxIA_.js                         0.37 kB │ gzip:   0.28 kB
+dist/assets/map-pin-CLasJ1b2.js                             0.37 kB │ gzip:   0.30 kB
+dist/assets/info-DQRVB0X1.js                                0.37 kB │ gzip:   0.28 kB
+dist/assets/x-circle-CB0YcWgv.js                            0.38 kB │ gzip:   0.28 kB
+dist/assets/mail-D8MT0Gzs.js                                0.38 kB │ gzip:   0.30 kB
+dist/assets/target-CZdCYX_J.js                              0.40 kB │ gzip:   0.27 kB
+dist/assets/bar-chart-3-LqRGlRYO.js                         0.40 kB │ gzip:   0.29 kB
+dist/assets/history-BWAPeozg.js                             0.41 kB │ gzip:   0.30 kB
+dist/assets/arrow-up-down-mNtlVtOh.js                       0.41 kB │ gzip:   0.29 kB
+dist/assets/camera-DLG3IxyA.js                              0.42 kB │ gzip:   0.31 kB
+dist/assets/alert-circle-BAN7V3x3.js                        0.42 kB │ gzip:   0.29 kB
+dist/assets/square-pen-r-WpALnz.js                          0.42 kB │ gzip:   0.31 kB
+dist/assets/archive-CvBK28qG.js                             0.42 kB │ gzip:   0.31 kB
+dist/assets/calendar-DJSuGafi.js                            0.43 kB │ gzip:   0.30 kB
+dist/assets/upload-CMCXBzYy.js                              0.43 kB │ gzip:   0.32 kB
+dist/assets/download-BNi_tjpF.js                            0.43 kB │ gzip:   0.32 kB
+dist/assets/save-BpTFYkhK.js                                0.45 kB │ gzip:   0.32 kB
+dist/assets/printer-C7aNJfSD.js                             0.47 kB │ gzip:   0.33 kB
+dist/assets/factory-SCTxrPL3.js                             0.47 kB │ gzip:   0.31 kB
+dist/assets/box-RCj4ULCZ.js                                 0.48 kB │ gzip:   0.32 kB
+dist/assets/refresh-cw-LOx5ea5i.js                          0.49 kB │ gzip:   0.32 kB
+dist/assets/layout-grid-RHWXGwoU.js                         0.51 kB │ gzip:   0.30 kB
+dist/assets/list-BLWBa9IE.js                                0.58 kB │ gzip:   0.31 kB
+dist/assets/arrow-up-DiyxMiL8.js                            0.61 kB │ gzip:   0.31 kB
+dist/assets/calculator-DfAs6PwW.js                          0.70 kB │ gzip:   0.39 kB
+dist/assets/useConfirmation-D-UTFwR_.js                     1.80 kB │ gzip:   0.92 kB
+dist/assets/SearchSelect-CiZ1p5Io.js                        1.98 kB │ gzip:   1.07 kB
+dist/assets/Glossary-9oBOAKSx.js                            2.59 kB │ gzip:   1.45 kB
+dist/assets/TechSpecs-CWajoDy8.js                           3.05 kB │ gzip:   1.07 kB
+dist/assets/equipmentProfiles-5_aQvpIo.js                   3.68 kB │ gzip:   1.81 kB
+dist/assets/EnterpriseCards-Dh32NkaO.js                     4.11 kB │ gzip:   1.87 kB
+dist/assets/DiagnosticMenuManager-D3kN1vL0.js               4.38 kB │ gzip:   1.85 kB
+dist/assets/OpoRegistry-I2OWsr0v.js                         5.87 kB │ gzip:   1.95 kB
+dist/assets/ReportOrgSettings-BVormyzJ.js                   5.89 kB │ gzip:   2.22 kB
+dist/assets/InspectionsTrash-CbLMbMlF.js                    6.32 kB │ gzip:   2.41 kB
+dist/assets/InspectionObjectTemplatesManager-DpZHOrLR.js    6.37 kB │ gzip:   2.41 kB
+dist/assets/PipelineMap-TrwfrfP1.js                         7.17 kB │ gzip:   3.23 kB
+dist/assets/VerificationsCalendar-BsFAZiVb.js               7.58 kB │ gzip:   2.51 kB
+dist/assets/MobileApp-dIxZsd0D.js                           8.38 kB │ gzip:   2.65 kB
+dist/assets/ClientPortal-B-VR9r3b.js                        9.45 kB │ gzip:   3.27 kB
+dist/assets/ReportTemplates-ZD_8257o.js                    10.38 kB │ gzip:   3.65 kB
+dist/assets/ReportViewer-D3MdoFFj.js                       11.38 kB │ gzip:   3.31 kB
+dist/assets/RegulatoryDocuments-DyoyDGkI.js                13.05 kB │ gzip:   4.05 kB
+dist/assets/VesselSchemeConstructor-f7XNiS4Q.js            16.60 kB │ gzip:   5.50 kB
+dist/assets/ResourceManagement-zGCQ96Hi.js                 16.84 kB │ gzip:   4.96 kB
+dist/assets/DefectStatement-CTX-C6iq.js                    17.05 kB │ gzip:   5.40 kB
+dist/assets/EngineerPanel-CpLd_syJ.js                      19.37 kB │ gzip:   4.80 kB
+dist/assets/AdminPanel-C6BFVQJ1.js                         21.90 kB │ gzip:   5.54 kB
+dist/assets/DrawingTemplatesManager-CCHw0qJP.js            22.50 kB │ gzip:   7.71 kB
+dist/assets/UsersManagement-DEloh2yi.js                    22.57 kB │ gzip:   5.24 kB
+dist/assets/InstrumentRegistry-BjuwQUQu.js                 23.60 kB │ gzip:   6.86 kB
+dist/assets/ProjectsManagement-Cu_fSW5e.js                 25.08 kB │ gzip:   5.66 kB
+dist/assets/VerificationsManagement-CniWqLAm.js            29.10 kB │ gzip:   7.45 kB
+dist/assets/ProtocolConstructor-8H9sBMZf.js                30.18 kB │ gzip:   8.04 kB
+dist/assets/EquipmentDetails-DDaqinMI.js                   30.44 kB │ gzip:   8.27 kB
+dist/assets/CompetenciesManagement-BJ4xNSKz.js             30.62 kB │ gzip:   8.17 kB
+dist/assets/InspectionsList-CI2NPC3w.js                    33.92 kB │ gzip:   9.63 kB
+dist/assets/DynamicInspection-9n3xIM1z.js                  35.19 kB │ gzip:  10.61 kB
+dist/assets/BillingOverview-BTOUCDkA.js                    35.19 kB │ gzip:   8.33 kB
+dist/assets/ReportGeneration-1rbyLVsd.js                   40.59 kB │ gzip:  11.29 kB
+dist/assets/ReportsAndExpertise-U0ww1G0L.js                42.21 kB │ gzip:  10.80 kB
+dist/assets/EquipmentManagement-BQN4lrll.js                45.44 kB │ gzip:  11.70 kB
+dist/assets/AssignmentsManagement-6k62Clmr.js              58.40 kB │ gzip:  14.20 kB
+dist/assets/Changelog-CYxgsmtu.js                          62.00 kB │ gzip:  23.74 kB
+dist/assets/index-BIegqJqu.js                             240.35 kB │ gzip:  77.43 kB
+dist/assets/Dashboard-CCDMHSYV.js                         382.77 kB │ gzip: 106.40 kB
+✓ built in 5.51s

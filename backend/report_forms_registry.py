@@ -140,6 +140,8 @@ def resolve_form_path(form_id: str) -> Optional[Path]:
     fid = (form_id or "").strip().lower()
     if not fid or not FORMS_DIR.is_dir():
         return None
+    if fid not in FILLABLE_FORM_IDS:
+        return None
 
     # 1) Прямой ASCII-алиас to-1.docx / to-1.doc
     for ext in (".docx", ".doc", ".DOCX", ".DOC"):
@@ -194,12 +196,19 @@ def suggest_form_id(
     type_name = (equipment_type_name or "").lower()
     blob = f"{name} {type_name} {code.lower()}"
 
+    # Точный специализированный тип важнее слов в наименовании (подкрановые
+    # пути не являются краном). Общий PIPELINE уточняем по наименованию.
+    if code in EQUIPMENT_TYPE_TO_FORM and code != "PIPELINE":
+        return EQUIPMENT_TYPE_TO_FORM[code]
+
     # Специализации до общей карты (PIPELINE+подземн → to-33, а не to-13)
     if code == "UNDERGROUND_PIPELINE" or (
         ("трубопровод" in blob or "pipeline" in blob or code == "PIPELINE")
         and "подземн" in blob
     ):
         return "to-33"
+    if "подкранов" in blob:
+        return "to-2"
     if code in ("CRANE", "GPM", "LIFTING") or (
         "кран" in blob
         or "грузоподъем" in blob
@@ -231,6 +240,14 @@ def suggest_form_id(
         return "to-8"
     if "арматур" in blob and "фонтан" not in blob:
         return "to-24"
+    if "фонтан" in blob:
+        return "to-27"
+    if "факел" in blob:
+        return "to-44"
+    if "дымов" in blob:
+        return "to-39"
+    if "грс" in blob:
+        return "to-9"
     return "to-1"
 
 

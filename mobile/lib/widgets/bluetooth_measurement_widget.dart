@@ -165,8 +165,6 @@ class _BluetoothMeasurementWidgetState
           icon: const Icon(Icons.refresh, size: 16),
           label: const Text('Повторить'),
         );
-      default:
-        return const SizedBox.shrink();
     }
   }
 }

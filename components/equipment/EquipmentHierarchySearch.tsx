@@ -17,12 +17,13 @@ const EquipmentHierarchySearch: React.FC<EquipmentHierarchySearchProps> = ({
       style={{ color: 'var(--text-muted)' }}
     />
     <input
-      type="text"
-      placeholder="Поиск по названию..."
+      type="search"
+      aria-label="Поиск оборудования"
+      placeholder="Название, заводской номер или расположение…"
       value={searchTerm}
       onChange={(e) => onSearchTermChange(e.target.value)}
       className="ind-input"
-      style={{ paddingLeft: '36px', height: '40px' }}
+      style={{ paddingLeft: '36px', height: '48px' }}
     />
   </div>
 );

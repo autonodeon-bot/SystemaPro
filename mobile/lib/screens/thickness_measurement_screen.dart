@@ -40,7 +40,6 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   File? _schemeImage;
   Size? _imageSize; // размер изображения для координат при зуме/сдвиге
   List<ThicknessMeasurement> _measurements = [];
-  ThicknessMeasurement? _selectedPoint;
   bool _loadingTemplate = false;
   Offset? _pendingTapPosition;
   int? _activePointIndex;

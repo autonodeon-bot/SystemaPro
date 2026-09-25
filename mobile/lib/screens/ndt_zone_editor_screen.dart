@@ -517,32 +517,26 @@ class _NdtZoneEditorScreenState extends State<NdtZoneEditorScreen> {
 class _WeldZoneItem {
   final String label;
   final String kind;
-  bool enabled;
-  double extentStart;
-  double extentEnd;
-  double bandWidth;
+  bool enabled = false;
+  double extentStart = 0;
+  double extentEnd = 1;
+  double bandWidth = 6;
 
   _WeldZoneItem({
     required this.label,
     required this.kind,
-    this.enabled = false,
-    this.extentStart = 0,
-    this.extentEnd = 1,
-    this.bandWidth = 6,
   });
 }
 
 class _NozzleZoneItem {
   final String label;
   final String purpose;
-  bool enabled;
-  double radiusPercent;
+  bool enabled = false;
+  double radiusPercent = 2.5;
 
   _NozzleZoneItem({
     required this.label,
     this.purpose = '',
-    this.enabled = false,
-    this.radiusPercent = 2.5,
   });
 }
 

@@ -56,7 +56,7 @@ def backup_db(output_path: Path, db: dict) -> bool:
         return True
     except FileNotFoundError:
         print("  БД: pg_dump не найден, пропуск дампа. Установите PostgreSQL client.")
-        return True  # не считаем фатальной ошибкой
+        return False
     except subprocess.CalledProcessError as e:
         err = e.stderr.decode(errors="replace") if e.stderr else str(e)
         print(f"  БД: ошибка pg_dump: {err}")
@@ -89,9 +89,9 @@ def main():
     args = parser.parse_args()
 
     out_root = Path(args.output_dir)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     backup_dir_path = out_root / f"backup_{stamp}"
-    backup_dir_path.mkdir(parents=True, exist_ok=True)
+    backup_dir_path.mkdir(parents=True, exist_ok=False)
     print(f"Бэкап: {backup_dir_path}")
 
     ok = True

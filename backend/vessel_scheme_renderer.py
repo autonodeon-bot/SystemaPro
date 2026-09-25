@@ -689,7 +689,7 @@ def _draw_layer_overlays(
             return None
         x = width * _f(xp) / 100.0
         y = height * _f(yp) / 100.0
-        if body is not None:
+        if body is not None and "днищ" not in str(p.get("element") or "").lower():
             bx0, by0, bx1, by1 = body
             inset = 14
             x = min(max(x, bx0 + inset), bx1 - inset)
@@ -871,6 +871,8 @@ def render_vessel_scheme(
 
         if layer in ("vik", "uzt", "hardness", "uzk", "mpk"):
             geo["title"] = _layer_title(layer, equipment_kind=kind)
+            if layer=='mpk' and (overlays or {}).get('surface_method')=='PVK':
+                geo['title']=geo['title'].replace('магнитопорошкового','капиллярного')
     except Exception:
         pass
 
@@ -1200,7 +1202,8 @@ def _build_legend_lines(geo: Dict[str, Any], ov: Dict[str, Any], layer: str) -> 
     elif layer == "uzk":
         lines.append("Зона ультразвукового контроля сварных соединений элементов сосуда")
     elif layer == "mpk":
-        lines.append("Зона магнитопорошкового контроля сварных соединений элементов сосуда")
+        method='капиллярного' if ov.get('surface_method')=='PVK' else 'магнитопорошкового'
+        lines.append(f"Зона {method} контроля сварных соединений элементов сосуда")
     return lines
 
 

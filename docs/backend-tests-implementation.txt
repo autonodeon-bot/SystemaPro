@@ -1,0 +1,71 @@
+........................................................................ [ 18%]
+........................................................................ [ 37%]
+........................................................................ [ 56%]
+........................................................................ [ 75%]
+........................................................................ [ 94%]
+.....................                                                    [100%]
+============================== warnings summary ===============================
+..\.venv-audit\Lib\site-packages\reportlab\lib\rl_safe_eval.py:11
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\Lib\site-packages\reportlab\lib\rl_safe_eval.py:11: DeprecationWarning: ast.NameConstant is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    haveNameConstant = hasattr(ast,'NameConstant')
+
+main.py:175
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\main.py:175: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+..\.venv-audit\Lib\site-packages\fastapi\applications.py:4495
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_encode_sub_and_exp
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_default_to_configured_ttl
+tests/test_auth.py::TestVerifyToken::test_verify_token_should_return_username_when_valid
+tests/test_auth.py::TestVerifyTokenOptional::test_verify_token_optional_should_return_username_when_valid
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\auth.py:91: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_encode_sub_and_exp
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_use_custom_expires_delta
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_default_to_configured_ttl
+tests/test_auth.py::TestVerifyToken::test_verify_token_should_return_username_when_valid
+tests/test_auth.py::TestVerifyToken::test_verify_token_should_raise_when_sub_missing
+tests/test_auth.py::TestVerifyTokenOptional::test_verify_token_optional_should_return_username_when_valid
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\Lib\site-packages\jose\jwt.py:311: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = timegm(datetime.utcnow().utctimetuple())
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_use_custom_expires_delta
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\auth.py:89: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expire = datetime.utcnow() + expires_delta
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_use_custom_expires_delta
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\tests\test_auth.py:37: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    exp = datetime.utcfromtimestamp(payload["exp"])
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_use_custom_expires_delta
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\tests\test_auth.py:38: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_default_to_configured_ttl
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\tests\test_auth.py:44: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    exp = datetime.utcfromtimestamp(payload["exp"])
+
+tests/test_auth.py::TestCreateAccessToken::test_create_access_token_should_default_to_configured_ttl
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\tests\test_auth.py:45: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+tests/test_auth.py::TestVerifyToken::test_verify_token_should_raise_when_sub_missing
+  C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\tests\test_auth.py:64: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    {"exp": datetime.utcnow() + timedelta(hours=1)},
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+381 passed, 19 warnings in 8.64s

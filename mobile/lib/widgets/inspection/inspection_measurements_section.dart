@@ -289,7 +289,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
           // Фото/схема
           if (fileExists)
             GestureDetector(
-              onTap: () => _showFullImage(context, schemeFile!),
+              onTap: () => _showFullImage(context, schemeFile),
               child: Container(
                 height: 150,
                 width: double.infinity,
@@ -300,7 +300,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(schemeFile!, fit: BoxFit.cover),
+                  child: Image.file(schemeFile, fit: BoxFit.cover),
                 ),
               ),
             ),

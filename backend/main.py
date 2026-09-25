@@ -198,6 +198,8 @@ async def startup():
         await _ensure_equipment_types_seed()
         await _ensure_report_templates_seed()
         await _ensure_employee_locations_table()
+        from report_jobs import recover_pending_report_jobs
+        recover_pending_report_jobs()
 
     except Exception as e:
         print(f"❌ Database connection failed: {e}")

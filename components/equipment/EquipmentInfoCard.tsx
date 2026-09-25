@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
 import {
-  X,
   Users,
   Settings,
   FileText,
@@ -8,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE } from '../../constants';
+import EquipmentChangeHistory from './EquipmentChangeHistory';
+import Modal from '../ui/Modal';
 import type { AssignedEngineerRecord, HierarchyInfoType, InfoModalState } from './types';
 
 export interface EquipmentInfoCardProps {
@@ -115,31 +116,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
 
   if (modal.type !== 'equipment') {
     return (
-      <div
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-        onClick={onClose}
-        role="presentation"
-      >
-        <div
-          className="bg-app-panel rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-app-text">
-              {modal.type === 'enterprise'
-                ? 'Предприятие'
-                : modal.type === 'branch'
-                  ? 'Филиал'
-                  : 'Цех'}
-              : {modal.name}
-            </h2>
-            <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
-              <X size={24} />
-            </button>
-          </div>
-
+      <Modal title={`${modal.type === 'enterprise' ? 'Предприятие' : modal.type === 'branch' ? 'Филиал' : 'Цех'}: ${modal.name}`} onClose={onClose}>
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
@@ -155,7 +132,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
                       key={engineer.user_id}
                       className="bg-app-deep rounded-lg p-3 border border-app-line"
                     >
-                      <div className="text-white font-medium">
+                      <div className="text-app-text font-medium break-words">
                         {engineer.full_name || engineer.username}
                       </div>
                       {engineer.email && (
@@ -172,7 +149,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -193,37 +170,17 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      </div>
+      </Modal>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="bg-app-panel rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-app-text flex items-center gap-2">
-            <Settings className="text-accent" size={24} />
-            {modal.name}
-          </h2>
-          <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
-            <X size={24} />
-          </button>
-        </div>
-
+    <Modal title={modal.name} onClose={onClose}>
         {loading ? (
           <div className="text-center text-app-text3 py-10">Загрузка...</div>
         ) : (
           <div className="space-y-6">
+            <EquipmentChangeHistory equipmentId={modal.id} />
             {equipmentData && (
               <div className="bg-app-deep rounded-lg p-4 border border-app-line">
                 <h3 className="text-lg font-semibold text-app-text mb-3 flex items-center gap-2">
@@ -447,8 +404,7 @@ const EquipmentInfoCard: React.FC<EquipmentInfoCardProps> = ({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 };
 

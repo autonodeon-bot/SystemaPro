@@ -46,6 +46,26 @@ void main() {
   });
 
   group('AutoSaveService', () {
+    test('queue keeps signed revisions, separate forms and only replaces matching drafts', () async {
+      Map<String, dynamic> item(String id, String form, String status) => {
+        'id': id, 'equipment_id': 'eq', 'assignment_id': 'job', 'status': status,
+        'data': {'report_form_id': form}, 'timestamp': id,
+      };
+      await DatabaseService.enqueueInspection(item('signed', 'to-1', 'SIGNED'));
+      await DatabaseService.enqueueInspection(item('other', 'to-12', 'DRAFT'));
+      await Future.wait([
+        DatabaseService.enqueueInspection(item('draft', 'to-1', 'DRAFT')),
+        DatabaseService.enqueueInspection(item('independent', 'to-3', 'DRAFT')),
+      ]);
+      await DatabaseService.enqueueInspection(item('new', 'to-1', 'DRAFT'));
+      expect((await DatabaseService.getPendingInspections()).map((e) => e['id']),
+        unorderedEquals(['signed', 'other', 'independent', 'new']));
+      await DatabaseService.recordInspectionSyncError(item('new', 'to-1', 'DRAFT'), 'Нет сети');
+      final pending = await DatabaseService.getPendingInspections();
+      expect(pending.singleWhere((e) => e['id'] == 'new')['sync_error'], 'Нет сети');
+      await DatabaseService.recordInspectionSyncError({...item('new', 'to-1', 'DRAFT'), 'timestamp': 'old'}, 'Устаревшая ошибка');
+      expect((await DatabaseService.getPendingInspections()).singleWhere((e) => e['id'] == 'new')['sync_attempts'], 1);
+    });
     test('saveDraft записывает в БД и last_auto_save_time в prefs', () async {
       final service = AutoSaveService();
       await service.saveDraft(
@@ -54,7 +74,7 @@ void main() {
         assignmentId: 'asg-1',
       );
 
-      final draft = await DatabaseService.getDraft('draft_eq-99');
+      final draft = await DatabaseService.getDraft(AutoSaveService.draftKey(equipmentId: 'eq-99', assignmentId: 'asg-1'));
       expect(draft, isNotNull);
       expect(draft!['equipment_id'], 'eq-99');
       expect(draft['assignment_id'], 'asg-1');
@@ -126,6 +146,27 @@ void main() {
 
       await service.cleanOldDrafts(maxAge: const Duration(days: 30));
       expect(await DatabaseService.getDraft('draft_e-old'), isNull);
+    });
+
+    test('upload acknowledgement preserves new edits and other forms', () async {
+      final sent = <String, dynamic>{'id': 'revision', 'equipment_id': 'eq', 'assignment_id': 'job',
+        'timestamp': '2026-09-18T10:00:00', 'data': {'report_form_id': 'to-1'}};
+      final edited = <String, dynamic>{...sent, 'timestamp': '2026-09-18T10:01:00'};
+      await DatabaseService.savePendingInspection('revision', edited);
+      for (final entry in {'old': 'to-1', 'other-form': 'to-12', 'new': 'to-1'}.entries) {
+        await DatabaseService.saveDraft(entry.key, 'inspection', {
+          'equipment_id': 'eq', 'assignment_id': 'job',
+          'checklist_data': {'report_form_id': entry.value},
+          'saved_at': entry.key == 'new' ? '2026-09-18T10:01:00' : '2026-09-18T09:59:00',
+        });
+      }
+      await DatabaseService.acknowledgeInspectionUpload(sent);
+      expect((await DatabaseService.getPendingInspections()).single['timestamp'], edited['timestamp']);
+      expect(await DatabaseService.getDraft('old'), isNull);
+      expect(await DatabaseService.getDraft('new'), isNotNull);
+      expect(await DatabaseService.getDraft('other-form'), isNotNull);
+      await DatabaseService.acknowledgeInspectionUpload(edited);
+      expect(await DatabaseService.getPendingInspections(), isEmpty);
     });
   });
 }

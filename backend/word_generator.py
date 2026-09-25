@@ -2907,6 +2907,12 @@ class WordGenerator:
             "to-33": fill_underground_pipeline_form_to33,
         }
         filler = fillers.get(form_id)
+        from report_schema import validate_profile_values, schema_for_form
+        data = {**data, "report_form_id": form_id}
+        inspection_data = {**inspection_data, "data": data}
+        profile_errors = validate_profile_values(data)
+        if profile_errors:
+            raise ValueError("; ".join(item["message"] for item in profile_errors))
         try:
             if filler is not None:
                 kwargs = dict(
@@ -2936,6 +2942,13 @@ class WordGenerator:
                     find_image=self._find_image_path,
                     ndt_methods=ndt_methods,
                 )
+            from report_supplement import append_report_fields
+            supplement_doc = Document(filled)
+            supplement_doc.core_properties.version = schema_for_form(form_id)["version"]
+            if append_report_fields(supplement_doc, data):
+                from form_template_filler import finalize_official_form
+                finalize_official_form(supplement_doc, form_id)
+            supplement_doc.save(filled)
             print(f"ТО сгенерирован по официальной форме {form_id}: {filled}")
             return filled
         except Exception as exc:
@@ -2959,8 +2972,12 @@ class WordGenerator:
         Генерация технического отчета для сосудов/ресиверов по образцу reciver.md и rabota.md
         Структура: титульный лист -> содержание -> разделы 1-15 -> приложения
         """
-        doc = Document()
-        self._setup_styles(doc)
+        if str(report_type or inspection_data.get("report_type") or "").strip().upper() in ("EXPERTISE", "EPB", "ЭПБ"):
+            from epb_layout import new_epb_document
+            doc = new_epb_document()
+        else:
+            doc = Document()
+            self._setup_styles(doc)
         if org_settings is None:
             org_settings = load_report_org_settings()
         
@@ -3080,6 +3097,13 @@ class WordGenerator:
         rt = (report_type or inspection_data.get("report_type") or "TECHNICAL_REPORT")
         rt = str(rt).strip().upper()
         is_epb = rt in ("EXPERTISE", "EPB", "ЭПБ")
+        if is_epb:
+            from vessel_control_plan import control_scope
+            profile = (data.get("additional_data") or {}).get("profile_values") or {}
+            data = {**profile, **{k: v for k, v in data.items() if v not in (None, "")}}
+            shells, scope, issues = control_scope(g)
+            data = {**data, "epb_control_issues": issues}
+
         
         # --------------- ТИТУЛЬНЫЙ ЛИСТ ---------------
         # Логотип
@@ -3109,6 +3133,7 @@ class WordGenerator:
 
         if is_epb:
             p = doc.add_paragraph("ЗАКЛЮЧЕНИЕ ЭКСПЕРТИЗЫ")
+            p.paragraph_format.space_before = Pt(90)
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             try:
                 p.runs[0].bold = True
@@ -3124,10 +3149,12 @@ class WordGenerator:
                 pass
             doc.add_paragraph("")
             epb_tbl = doc.add_table(rows=6, cols=2)
-            epb_tbl.style = "Table Grid"
+            epb_tbl.autofit = False
+            epb_tbl.columns[0].width = Cm(6.2)
+            epb_tbl.columns[1].width = Cm(11.5)
             epb_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
             epb_rows = [
-                ("Техническое устройство:", f"зав.№ {serial}, рег.№ {reg_no}"),
+                ("Техническое устройство:", f"{device_name}, зав.№ {serial}, рег.№ {reg_no}"),
                 ("Опасный производственный объект (ОПО):", str(opo_name)),
                 ("Регистрационный номер ОПО:", str(opo_reg)),
                 ("Класс опасности ОПО:", str(opo_class)),
@@ -3142,7 +3169,10 @@ class WordGenerator:
                 "epb_registry_date",
                 default=(org_settings or {}).get("epb_registry_date") or "«____» _______________20____г.",
             )
-            doc.add_paragraph(f"Дата внесения в реестр: {registry_date}")
+            doc.add_paragraph("Рег. № __________________________________________________")
+            p = doc.add_paragraph(f"Дата внесения в реестр: {registry_date}")
+            p.paragraph_format.space_before = Pt(18)
+            p.paragraph_format.space_after = Pt(40)
         else:
             # Заголовок технического отчёта
             title_table = doc.add_table(rows=1, cols=1)
@@ -3281,9 +3311,13 @@ class WordGenerator:
             return ""
 
         def _appendix_heading(title: str, level: int = 1, fixed_no: Optional[int] = None) -> None:
-            nonlocal app_no
             if is_epb:
-                letter = epb_appendix_letter(app_no)
+                letter = {
+                    "Акт о проведении работ по техническому диагностированию": "А",
+                    "Акты по результатам неразрушающего контроля": "Б",
+                    "Схема проведения неразрушающего контроля": "В",
+                    "Акт проведения гидравлического испытания сосуда": "Д",
+                }.get(title, epb_appendix_letter(app_no))
                 doc.add_heading(f"Приложение {letter} {title}", level=level)
             else:
                 num = fixed_no if fixed_no is not None else app_no
@@ -3319,6 +3353,7 @@ class WordGenerator:
                 equipment_data=equipment_data,
                 inspection_data=inspection_data,
                 ndt_methods=ndt_methods or [],
+                org_settings=org_settings,
                 performed_codes=performed_codes,
                 inspectors=inspectors_epb,
                 inspection_engineers=inspection_engineers if isinstance(inspection_engineers, list) else [],
@@ -3326,12 +3361,35 @@ class WordGenerator:
                 docs_info=docs_info if isinstance(docs_info, dict) else {},
                 doc_meta_fn=_doc_meta,
                 scheme_index=str(g("scheme_index", default="ОГ-13" if equipment_preset == "oil_settler" else "")),
-                residual_life_years=str(g("residual_life_years", default="10")),
+                residual_life_years=str(g("residual_life_years", default="—")),
                 residual_life_until=str(g("residual_life_until", default="")),
-                allowed_pressure=str(g("allowed_pressure", "working_pressure", default="1,0")),
-                allowed_temperature=str(g("allowed_temperature", default="плюс 80")),
+                allowed_pressure=str(g("allowed_pressure", "working_pressure", default="—")),
+                allowed_temperature=str(g("allowed_temperature", default="—")),
             )
             build_epb_main_body(doc, epb_ctx)
+            from vessel_epb_appendices import append_vessel_epb
+            append_vessel_epb(doc, epb_ctx, add_picture_if_exists)
+            doc.add_page_break()
+            doc.add_heading("Перечень нормативной, технической и методической документации", level=1)
+            for item in normative_bullets(org_settings, g, normative_base_default):
+                doc.add_paragraph(str(item))
+            for specialist in specialist_docs or []:
+                doc.add_heading(f"Документы специалиста: {specialist.get('inspector_name') or '—'}", level=2)
+                for cert in specialist.get('certifications') or []:
+                    doc.add_paragraph(f"{cert.get('certification_type') or 'Удостоверение'} № {cert.get('certificate_number') or '—'}")
+                    if cert.get('scan_file_path'):
+                        add_picture_if_exists('', cert['scan_file_path'])
+            for instrument in verification_equipment or []:
+                doc.add_paragraph(f"Средство контроля: {instrument.get('name') or '—'}; поверка № {instrument.get('verification_certificate_number') or '—'}")
+            append_all_inspection_attachments(doc, attachments, attachment_names, add_picture_if_exists,
+                document_names=TO_DOCUMENT_NAMES, rendered=_rendered_media)
+            if issues or not g("epb_conclusion") or not g("calculation_data") or (inspection_data.get("status") or "").upper() == "DRAFT":
+                self._add_draft_watermark(doc)
+            from epb_layout import finalize_epb
+            finalize_epb(doc)
+            doc.save(output_path)
+            return
+
         if not is_epb:
             # 1. Основания для проведения работ
             doc.add_heading("1. Основания для проведения работ", level=1)
@@ -3708,11 +3766,12 @@ class WordGenerator:
             append_epb_appendix_act(doc, epb_ctx)
             app_no += 1
             doc.add_page_break()
-            _appendix_heading("Отчет по анализу технической документации")
+            _appendix_heading("Акты по результатам неразрушающего контроля")
+            doc.add_heading("Анализ технической документации", level=2)
             append_epb_appendix_doc_analysis(doc, epb_ctx)
             app_no += 1
             doc.add_page_break()
-            _appendix_heading("Результаты технического диагностирования")
+            doc.add_heading("Результаты технического диагностирования", level=2)
             epb_protocol_section_open = True
             app_no += 1
 
@@ -4226,7 +4285,8 @@ class WordGenerator:
         if not isinstance(welds_all, list):
             welds_all = []
         if is_epb:
-            mpk_welds = _filter_welds(welds_all, "MPK")
+            from vessel_control_plan import method_rows
+            mpk_welds = method_rows(welds_all, "MPK")
             append_epb_protocol_weld_control(
                 doc,
                 5,
@@ -4235,7 +4295,7 @@ class WordGenerator:
                 mpk_welds,
                 "По результатам магнитопорошкового контроля недопустимых дефектов в сварных соединениях не обнаружено.",
             )
-            uzk_welds = _filter_welds(welds_all, "UZK")
+            uzk_welds = method_rows(welds_all, "UZK")
             append_epb_protocol_weld_control(
                 doc,
                 6,
@@ -4244,6 +4304,10 @@ class WordGenerator:
                 uzk_welds,
                 "По результатам ультразвукового контроля недопустимых дефектов в сварных соединениях не обнаружено.",
             )
+            pvk_welds = method_rows(welds_all, "PVK")
+            if pvk_welds:
+                append_epb_protocol_weld_control(doc, 7, "капиллярный контроль сварных соединений (ПВК)",
+                    _add_protocol_header_block, pvk_welds, "")
             app_no += 2
         
         # Техотчёт: приложение № 5 — УЗК, № 6 — твердометрия (как в образце и оглавлении)

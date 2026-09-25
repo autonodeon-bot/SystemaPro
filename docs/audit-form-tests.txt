@@ -1,0 +1,11 @@
+OK to-5: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to-5.docx size= 154926
+OK to-12: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to-12.docx size= 158626
+OK to-28: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to-28.docx size= 169146
+OK to-9: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to-9.docx size= 1194325
+OK to-44: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to-44.docx size= 1075717
+OK to-1: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to1.docx images= 12
+OK to-13: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to13.docx size= 73713
+OK to-25: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to25.docx size= 67143
+OK to-33: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to33.docx size= 531901
+OK to-3: C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\report_forms\_test_generated_to3.docx size= 394000
+ALL PASSED

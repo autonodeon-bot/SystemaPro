@@ -1,4 +1,5 @@
 ﻿import React from 'react';
+import Modal from './ui/Modal';
 import { AlertTriangle, Trash2, FileCheck } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -35,11 +36,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const Icon = variant === 'danger' ? Trash2 : variant === 'warning' ? AlertTriangle : FileCheck;
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-      <div
-        className="bg-secondary rounded-xl border border-app-line shadow-xl max-w-md w-full p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal title={title} onClose={onClose} busy={loading}>
         <div className="flex items-start gap-3 mb-4">
           <div
             className={`p-2 rounded-lg ${
@@ -49,13 +46,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <Icon size={24} className={variant === 'danger' ? 'text-red-400' : variant === 'warning' ? 'text-yellow-400' : 'text-accent'} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-app-text">{title}</h3>
+
             <p className="text-app-text3 mt-1">{message}</p>
           </div>
         </div>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onClose}
+            disabled={loading}
             className="px-4 py-2 rounded-lg bg-app-softer hover:bg-app-soft text-app-text font-medium"
           >
             {cancelText}
@@ -65,10 +63,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             disabled={loading}
             className={`px-4 py-2 rounded-lg text-white font-medium disabled:opacity-50 ${variantStyles[variant]}`}
           >
-            {loading ? '...' : confirmText}
+            {loading ? 'Выполняется…' : confirmText}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

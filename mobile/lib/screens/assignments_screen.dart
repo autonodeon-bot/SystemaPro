@@ -157,6 +157,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       _selectedSort = 'due_date';
       _sortAscending = false;
       _searchQuery = '';
+      _showOverdueOnly = false;
       _searchController.clear();
       _filterAssignments();
     });
@@ -930,6 +931,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   void _onClearSearch() {
     setState(() {
       _searchQuery = '';
+      _showOverdueOnly = false;
       _searchController.clear();
       _filterAssignments();
     });
@@ -1092,6 +1094,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           ),
         ),
         actions: [
+          IconButton(tooltip: 'Сбросить фильтры', icon: const Icon(Icons.filter_alt_off_outlined), onPressed: _resetFilters),
           // Переключатель вида списка
           PopupMenuButton<String>(
             icon: Icon(

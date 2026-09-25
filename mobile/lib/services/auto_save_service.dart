@@ -7,8 +7,12 @@ import 'database_service.dart';
 
 /// Сервис для автоматического сохранения черновиков
 class AutoSaveService {
+  static String draftKey({required String equipmentId, String? assignmentId, String? inspectionId, String? reportFormId}) {
+    if (inspectionId != null && inspectionId.isNotEmpty) return inspectionId;
+    if ((assignmentId ?? '').isEmpty && (reportFormId ?? '').isEmpty) return 'draft_$equipmentId';
+    return 'draft_${Uri.encodeComponent(equipmentId)}_${Uri.encodeComponent(assignmentId ?? "")}_${Uri.encodeComponent(reportFormId ?? "")}';
+  }
   static const String _prefsKeyLastSave = 'last_auto_save_time';
-  static const Duration _autoSaveInterval = Duration(seconds: 30);
   static const String _screenTypeInspection = 'inspection';
 
   // Типы экранов для черновиков
@@ -24,9 +28,10 @@ class AutoSaveService {
     String? inspectionId,
   }) async {
     try {
-      final draftKey = inspectionId ?? 'draft_$equipmentId';
+      final key = draftKey(equipmentId: equipmentId, assignmentId: assignmentId,
+          inspectionId: inspectionId, reportFormId: checklistData['report_form_id']?.toString());
       final draft = {
-        'id': draftKey,
+        'id': key,
         'equipment_id': equipmentId,
         'assignment_id': assignmentId,
         'checklist_data': checklistData,
@@ -34,7 +39,7 @@ class AutoSaveService {
         'version': 1,
       };
 
-      await DatabaseService.saveDraft(draftKey, _screenTypeInspection, draft);
+      await DatabaseService.saveDraft(key, _screenTypeInspection, draft);
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKeyLastSave, DateTime.now().toIso8601String());
@@ -42,6 +47,7 @@ class AutoSaveService {
       await _saveToFile(draft);
     } catch (e) {
       print('Ошибка автосохранения: $e');
+      rethrow;
     }
   }
 
@@ -63,14 +69,23 @@ class AutoSaveService {
   }
 
   /// Получить черновик для конкретного оборудования
-  Future<Map<String, dynamic>?> getDraftForEquipment(String equipmentId) async {
-    final draftKey = 'draft_$equipmentId';
-    final draft = await DatabaseService.getDraft(draftKey);
+  Future<Map<String, dynamic>?> getDraftForEquipment(String equipmentId, {
+    String? assignmentId, String? inspectionId, String? reportFormId,
+  }) async {
+    final key = draftKey(equipmentId: equipmentId, assignmentId: assignmentId,
+        inspectionId: inspectionId, reportFormId: reportFormId);
+    final draft = await DatabaseService.getDraft(key);
     if (draft != null) return draft;
 
     final drafts = await getDrafts();
-    for (var d in drafts.values) {
-      if (d['equipment_id'] == equipmentId) {
+    final candidates = drafts.values.toList()
+      ..sort((a, b) => (b['saved_at'] ?? '').toString().compareTo((a['saved_at'] ?? '').toString()));
+    for (var d in candidates) {
+      final data = d['checklist_data'];
+      final sameForm = reportFormId == null || (data is Map && data['report_form_id'] == reportFormId);
+      if (d['equipment_id'] == equipmentId &&
+          (d['assignment_id'] ?? '') == (assignmentId ?? '') && sameForm &&
+          (inspectionId == null || d['id'] == inspectionId)) {
         return d;
       }
     }

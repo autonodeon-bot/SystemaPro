@@ -14,9 +14,10 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from epb_report_builder import EpbReportContext, device_type_label
 from equipment_profiles import passport_elements_for_equipment
 from equipment_presets import preset_from_equipment_data
+from vessel_control_plan import vessel_shells, shell_points, method_rows
 
 MISSING = "Данные в паспорте отсутствуют"
-POINTS_PER_UZT_ROW = 5
+POINTS_PER_UZT_ROW = 4
 
 
 def _cell(row, idx: int, text: str, bold: bool = False) -> None:
@@ -105,7 +106,7 @@ def append_appendix_b_tables(doc: Document, ctx: EpbReportContext) -> None:
     doc.add_paragraph("Таблица Б1. Сведения об основных элементах сосуда")
     elements = _as_list(g, "vessel_elements", "passport_elements")
     if not elements:
-        elements = _default_oil_settler_elements(g)
+        elements = vessel_shells(g) or [{"name": "Сведения об элементах не предоставлены"}]
     tbl = doc.add_table(rows=len(elements) + 1, cols=7)
     tbl.style = "Table Grid"
     _header_row(
@@ -329,8 +330,8 @@ def append_epb_protocol_hardness(
     for i, h in enumerate(hardness, 3):
         row = tbl.rows[i]
         _cell(row, 0, h.get("location") or h.get("weld_number") or f"Участок {i - 2}")
-        _cell(row, 1, h.get("allowed_hardness_base") or "120-180")
-        _cell(row, 2, h.get("allowed_hardness_weld") or "225")
+        _cell(row, 1, h.get("allowed_hardness_base") or "—")
+        _cell(row, 2, h.get("allowed_hardness_weld") or "—")
         _cell(row, 3, h.get("hardness_base_t1") or h.get("hardness_base") or "—")
         _cell(row, 4, h.get("hardness_base_t5") or h.get("hardness_base") or "—")
         _cell(row, 5, h.get("hardness_weld") or "—")
@@ -338,11 +339,8 @@ def append_epb_protocol_hardness(
         _cell(row, 7, h.get("hardness_haz_t4") or h.get("hardness_haz") or "—")
 
     doc.add_paragraph()
-    doc.add_paragraph(
-        "Вывод: в результате контроля твердости металла элементов сосуда отклонений твердости "
-        "металла от указанного в нормативной документации не выявлено."
-    )
-    doc.add_paragraph()
+    doc.add_paragraph(str(g("hardness_conclusion", default="Заключение по твердометрии не внесено.")))
+
 
 
 def _group_thickness(measurements: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
@@ -352,7 +350,7 @@ def _group_thickness(measurements: List[Dict[str, Any]]) -> Dict[str, List[Dict[
         grouped[loc].append(m)
     for loc in grouped:
         grouped[loc].sort(
-            key=lambda x: int(str(x.get("section_number") or x.get("point_number") or "0") or 0)
+            key=lambda x: str(x.get("point_number") or x.get("section_number") or "")
         )
     return grouped
 
@@ -370,11 +368,16 @@ def append_epb_protocol_uzt(
     doc.add_paragraph()
     header_block()
     doc.add_paragraph("Результаты контроля:")
-    if not thickness:
+    shells = vessel_shells(g)
+    grouped, other = shell_points(shells, thickness)
+    for name, points in grouped.items():
+        present = {str(p.get("point_number") or p.get("section_number")) for p in points}
+        points.extend({"point_number": i, "thickness": None} for i in range(1, 13) if str(i) not in present)
+        points.sort(key=lambda p: (str(p.get("point_number") or p.get("section_number")).zfill(5)))
+    grouped.update(other)
+    if not grouped:
         doc.add_paragraph("Данные ультразвуковой толщинометрии не предоставлены.")
         return
-
-    grouped = _group_thickness(thickness)
     cols = 2 + POINTS_PER_UZT_ROW * 2
     for element_name, points in grouped.items():
         nominal = "—"
@@ -413,12 +416,8 @@ def append_epb_protocol_uzt(
                     _cell(row, col_base + 1, "")
         doc.add_paragraph()
 
-    doc.add_paragraph(
-        "Вывод: в соответствии с п.1 Приложения 8 приказа Ростехнадзора от 15.12.2020 №536 "
-        "уменьшения толщины стенки сосуда вследствие коррозионного и эрозионного износа сверх "
-        "минимального значения, установленного расчётом на прочность, не выявлено."
-    )
-    doc.add_paragraph()
+    doc.add_paragraph(str(g("uzt_conclusion", default="Заключение по УЗТ не внесено. Прочерк означает отсутствие измерения.")))
+
 
 
 def append_epb_protocol_weld_control(
@@ -436,9 +435,10 @@ def append_epb_protocol_weld_control(
     doc.add_paragraph()
     header_block()
     doc.add_paragraph("Результаты контроля")
-    rows = welds if welds else [
-        {"weld_number": "Пересечение сварного шва К1+П1*", "defect_description": "дефектов не обнаружено", "conclusion": "годен"},
-    ]
+    if not welds:
+        doc.add_paragraph("Результаты контроля не предоставлены.")
+        return
+    rows = welds
     tbl = doc.add_table(rows=len(rows) + 1, cols=4)
     tbl.style = "Table Grid"
     _header_row(
@@ -448,12 +448,12 @@ def append_epb_protocol_weld_control(
     for i, w in enumerate(rows, 1):
         row = tbl.rows[i]
         _cell(row, 0, w.get("weld_number") or w.get("name") or f"Шов {i}")
-        defect = w.get("defect_description") or w.get("defect_number") or "дефектов не обнаружено"
+        defect = w.get("defect_description") or w.get("defect_number") or "—"
         _cell(row, 1, defect)
         _cell(row, 2, w.get("description") or defect)
-        _cell(row, 3, w.get("conclusion") or "годен")
+        _cell(row, 3, w.get("conclusion") or "—")
     doc.add_paragraph()
-    doc.add_paragraph(conclusion)
+    doc.add_paragraph("Заключения по участкам приведены в таблице результатов контроля.")
     doc.add_paragraph()
 
 
@@ -480,12 +480,12 @@ def append_epb_appendix_e(
     attrs: Dict[str, Any],
     equipment_data: Dict[str, Any],
 ) -> None:
-    """Приложение Е — расчёт остаточного ресурса и прочности."""
+    """Приложение Г — расчёт остаточного ресурса и прочности."""
     preset = preset_from_equipment_data(equipment_data)
     type_label = device_type_label(preset)
     doc.add_page_break()
     doc.add_heading(
-        "Приложение Е Расчетные и аналитические процедуры оценки и прогнозирования "
+        "Приложение Г Расчетные и аналитические процедуры оценки и прогнозирования "
         "технического состояния сосуда",
         level=1,
     )

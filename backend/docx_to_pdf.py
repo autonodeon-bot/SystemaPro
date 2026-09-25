@@ -61,6 +61,7 @@ def convert_docx_to_pdf(docx_path: str, pdf_path: Optional[str] = None) -> Optio
         tmp_dir = Path(tmp)
         cmd = [
             soffice,
+            "-env:UserInstallation=" + (tmp_dir / "profile").resolve().as_uri(),
             "--headless",
             "--nologo",
             "--nofirststartwizard",
@@ -94,6 +95,11 @@ def convert_docx_to_pdf(docx_path: str, pdf_path: Optional[str] = None) -> Optio
                     logger.error("soffice не создал PDF")
                     return None
                 produced = pdfs[0]
+            with produced.open("rb") as pdf_file:
+                valid_header = pdf_file.read(5) == b"%PDF-"
+            if not valid_header:
+                logger.error("soffice создал пустой или некорректный PDF")
+                return None
             shutil.copy2(produced, out)
             logger.info("DOCX→PDF: %s → %s", src, out)
             return str(out)

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'image_resize_service.dart';
@@ -26,8 +27,17 @@ class InspectionArchiveService {
     void addPath(String? filePath, String archiveName) {
       if (filePath == null || filePath.trim().isEmpty) return;
       final f = File(filePath);
-      if (!f.existsSync()) return;
-      pathToArcName[filePath] = archiveName;
+      if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('/api/') || filePath.startsWith('/app/')) return;
+      if (!f.existsSync()) throw Exception('Не найдено вложение: ${path.basename(filePath)}. Восстановите файл перед отправкой.');
+      final extension = path.extension(filePath).toLowerCase();
+      if (pathToArcName.containsKey(filePath)) return;
+      final stem = path.basenameWithoutExtension(archiveName);
+      var candidate = '$stem$extension';
+      var suffix = 1;
+      while (pathToArcName.containsValue(candidate)) {
+        candidate = '${stem}_${suffix++}$extension';
+      }
+      pathToArcName[filePath] = candidate;
     }
 
     addPath(data['factory_plate_photo'] as String?, 'factory_plate.jpg');
@@ -81,11 +91,23 @@ class InspectionArchiveService {
       }
     }
 
-    // Добавляем фото в архив (сжатые)
+    // Include every attached document, including PDF and equipment-specific protocols.
+    for (final entry in documentFiles.entries) {
+      final value = entry.value;
+      final filePath = value is Map ? value['file_path']?.toString() : value?.toString();
+      if (filePath != null && !pathToArcName.containsKey(filePath)) {
+        final key = entry.key.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+        addPath(filePath, 'doc_$key.jpg');
+      }
+    }
+    final checksums = <String, String>{};
+    // Resize JPEG only; retain the real format of PDF, PNG and other attachments.
     for (final entry in pathToArcName.entries) {
-      final resized = await ImageResizeService.resizeIfNeeded(entry.key);
+      final extension = path.extension(entry.key).toLowerCase();
+      final resized = ['.jpg', '.jpeg'].contains(extension) ? await ImageResizeService.resizeIfNeeded(entry.key) : entry.key;
       final bytes = await File(resized).readAsBytes();
       archive.addFile(ArchiveFile('$photosDir/${entry.value}', bytes.length, bytes));
+      checksums['$photosDir/${entry.value}'] = sha256.convert(bytes).toString();
     }
 
     // Копия data с путями, заменёнными на имена в архиве (photos/xxx)
@@ -145,6 +167,7 @@ class InspectionArchiveService {
     }
     // 1) Manifest
     final manifest = {
+      'client_revision': '${inspectionData['id'] ?? ''}|${inspectionData['timestamp'] ?? ''}',
       'equipment_id': inspectionData['equipment_id'],
       'assignment_id': inspectionData['assignment_id'],
       'status': inspectionData['status'] ?? 'DRAFT',
@@ -152,12 +175,15 @@ class InspectionArchiveService {
       'conclusion': inspectionData['conclusion'],
       'verification_equipment_ids': inspectionData['verification_equipment_ids'] ?? [],
     };
-    final manifestBytes = utf8.encode(json.encode(manifest));
-    archive.addFile(ArchiveFile(manifestName, manifestBytes.length, manifestBytes));
-
     // 2) Checklist
+    dynamic replaceAllPaths(dynamic value) {
+      if (value is Map) return value.map((key, item) => MapEntry(key, replaceAllPaths(item)));
+      if (value is List) return value.map(replaceAllPaths).toList();
+      if (value is String && pathToArcName.containsKey(value)) return '$photosDir/${pathToArcName[value]}';
+      return value;
+    }
     final checklistPayload = {
-      'data': dataCopy,
+      'data': replaceAllPaths(dataCopy),
       'equipment_id': inspectionData['equipment_id'],
       'conclusion': inspectionData['conclusion'],
       'status': inspectionData['status'],
@@ -167,6 +193,11 @@ class InspectionArchiveService {
     };
     final checklistBytes = utf8.encode(json.encode(checklistPayload));
     archive.addFile(ArchiveFile(checklistName, checklistBytes.length, checklistBytes));
+    checksums[checklistName] = sha256.convert(checklistBytes).toString();
+    manifest['version'] = 2;
+    manifest['checksums'] = checksums;
+    final manifestBytes = utf8.encode(json.encode(manifest));
+    archive.addFile(ArchiveFile(manifestName, manifestBytes.length, manifestBytes));
 
     final zipBytes = ZipEncoder().encode(archive);
     if (zipBytes == null) throw Exception('Не удалось создать архив');

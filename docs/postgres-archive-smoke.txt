@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "C:\RUSTAM\DIATEKS\sys\SystemaPro\backend\inspection_archive_api.py", line 335, in upload_inspection_archive
+    shutil.copy2(fp, stored_path)
+  File "C:\Users\Mariya\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Mariya\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Mariya\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+OSError: audit simulated disk full
+PASS: archive retry reuses inspection, PDF bytes preserved, failed attachment rolls back, retry recovers
+PASS: concurrent archive submissions produce exactly one inspection
+PASS: real PostgreSQL CRUD, role permissions, scoped search, conflict preservation and audit history

@@ -23,6 +23,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   bool _isSyncing = false;
   DateTime? _lastSyncTime;
   int _pendingCount = 0;
+  List<Map<String, dynamic>> _pendingItems = [];
   int _uploadReportIndex = 0;
   int _uploadReportTotal = 0;
   int _uploadBytesSent = 0;
@@ -66,7 +67,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       }
     }
     
+    if (!mounted) return;
     setState(() {
+      _pendingItems = pending;
       _pendingCount = pending.length +
           pendingStandalone.length +
           pendingQuestionnaires.length +
@@ -320,6 +323,26 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           _buildLastSyncRow(),
           const SizedBox(height: 20),
           _buildSyncButton(),
+          if (_pendingItems.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ExpansionTile(
+              title: Text('Обследования в очереди: ${_pendingItems.length}'),
+              children: _pendingItems.map((item) {
+                final data = item['data'] is Map ? item['data'] as Map : const {};
+                final error = item['sync_error']?.toString();
+                return ListTile(
+                  leading: Icon(error == null ? Icons.schedule : Icons.error_outline),
+                  title: Text('${data['vessel_name'] ?? item['equipment_id'] ?? 'Обследование'}'),
+                  subtitle: Text([
+                    '${item['status'] ?? 'DRAFT'} · ${data['report_form_id'] ?? ''}',
+                    if (error != null) 'Ошибка: $error',
+                    if (item['sync_attempts'] != null) 'Попыток отправки: ${item['sync_attempts']}',
+                    if (error != null) 'Кнопка синхронизации повторит отправку.',
+                  ].join('\n')),
+                );
+              }).toList(),
+            ),
+          ],
           if (_isSyncing && _uploadReportTotal > 0) ...[
             const SizedBox(height: 16),
             _buildUploadProgress(),
@@ -712,6 +735,5 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     );
   }
 }
-
 
 

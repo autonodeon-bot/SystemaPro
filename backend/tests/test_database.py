@@ -15,9 +15,19 @@ class TestDatabaseUrl:
 
 class TestSslContext:
     def test_get_ssl_context_should_disable_hostname_check(self):
-        ctx = db_module.get_ssl_context()
+        ctx = db_module.get_ssl_context("require")
         assert ctx.check_hostname is False
         assert ctx.verify_mode == ssl.CERT_NONE
+
+    def test_verify_full_checks_certificate_and_hostname(self):
+        ctx = db_module.get_ssl_context("verify-full")
+        assert ctx.check_hostname is True
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+
+    def test_verify_ca_checks_certificate(self):
+        ctx = db_module.get_ssl_context("verify-ca")
+        assert ctx.check_hostname is False
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
 
 
 class TestEngineAndConnect:
@@ -26,7 +36,10 @@ class TestEngineAndConnect:
         assert hasattr(db_module.engine, "dispose")
 
     def test_connect_args_should_define_ssl(self):
-        assert "ssl" in db_module.connect_args
+        if db_module.DB_SSLMODE in ("disable", "off", "false", "no", "none"):
+            assert "ssl" not in db_module.connect_args
+        else:
+            assert isinstance(db_module.connect_args["ssl"], ssl.SSLContext)
 
 
 class TestPoolSettingsInSource:

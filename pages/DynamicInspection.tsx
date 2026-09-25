@@ -1,6 +1,6 @@
 ﻿
 import React, { useState, useEffect, useCallback } from 'react';
-import { VESSEL_SCHEMA, HIERARCHY_TREE, inspectionSchemaForEquipment } from '../constants';
+import { HIERARCHY_TREE, inspectionSchemaForEquipment } from '../constants';
 import { FormField, ModuleSchema, HierarchyNode, NodeType, MaintenanceEvent, AttachedDocument, DocCategory, EquipmentAttributes } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import EquipmentProfilePassportPanel from '../components/inspection/EquipmentProfilePassportPanel';

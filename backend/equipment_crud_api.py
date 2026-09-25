@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, or_
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 import uuid as uuid_lib
 import os
@@ -15,13 +15,95 @@ from auth import verify_token
 from client_access import get_client_accessible_equipment_ids
 from models import (
     Equipment, EquipmentType, User, Workshop, Branch, Enterprise, Opo,
-    UserEquipmentAccess, HierarchyEngineerAssignment,
+    UserEquipmentAccess, HierarchyEngineerAssignment, AuditLog,
 )
 
 router = APIRouter(tags=["equipment"])
 
 
-class EquipmentCreate(BaseModel):
+@router.get('/api/equipment/{equipment_id}/change-history')
+async def equipment_change_history(equipment_id: str, username: str = Depends(verify_token), db: AsyncSession = Depends(get_db)):
+    try:
+        entity_id = uuid_lib.UUID(equipment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail='Некорректный идентификатор оборудования') from exc
+    await _authorize_equipment_write(db, username, equipment_id)
+    result = await db.execute(select(AuditLog, User.full_name, User.username).outerjoin(User, User.id == AuditLog.user_id)
+        .where(AuditLog.entity_type == 'equipment', AuditLog.entity_id == entity_id)
+        .order_by(AuditLog.created_at.desc()).limit(100))
+    return {'items': [{'id': str(row.id), 'actor': name or login or 'Пользователь удалён',
+        'created_at': row.created_at.isoformat() if row.created_at else None,
+        'details': row.details or {}} for row, name, login in result.all()]}
+
+
+async def _authorize_equipment_write(db, username, equipment_id=None):
+    result = await db.execute(select(User).where(or_(User.username == username, User.email == username)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
+    if user.role in {'admin', 'chief_operator', 'operator'}:
+        return user
+    if user.role == 'engineer' and equipment_id:
+        result = await db.execute(text('''
+            SELECT e.id FROM equipment e
+            LEFT JOIN workshops w ON w.id = e.workshop_id
+            LEFT JOIN branches b ON b.id = w.branch_id
+            WHERE e.id = CAST(:equipment_id AS uuid) AND (
+              EXISTS (SELECT 1 FROM user_equipment_access a
+                WHERE a.user_id = CAST(:user_id AS uuid) AND a.equipment_id = e.id
+                AND COALESCE(to_jsonb(a)->>'is_active', 'true') IN ('true', '1')
+                AND ((to_jsonb(a)->>'expires_at') IS NULL OR (to_jsonb(a)->>'expires_at')::timestamptz > NOW())
+                AND LOWER(a.access_type) IN ('write', 'read_write', 'full'))
+              OR EXISTS (SELECT 1 FROM assignments task
+                WHERE task.assigned_to = CAST(:user_id AS uuid) AND task.equipment_id = e.id
+                AND task.status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED'))
+              OR EXISTS (SELECT 1 FROM hierarchy_engineer_assignments h
+                WHERE h.user_id = CAST(:user_id AS uuid) AND COALESCE(to_jsonb(h)->>'is_active', 'true') IN ('true', '1')
+                AND (h.expires_at IS NULL OR h.expires_at > NOW())
+                AND (h.equipment_id = e.id OR h.workshop_id = e.workshop_id
+                  OR h.branch_id = w.branch_id OR h.enterprise_id = b.enterprise_id
+                  OR h.equipment_type_id = e.type_id)))
+        '''), {'equipment_id': str(equipment_id), 'user_id': str(user.id)})
+        if result.scalar_one_or_none():
+            return user
+    raise HTTPException(status_code=403, detail="Нет права изменять это оборудование")
+
+
+def _search_equipment(query, search):
+    if search and search.strip():
+        value = search.strip()
+        query = query.where(or_(
+            Equipment.name.icontains(value, autoescape=True),
+            Equipment.serial_number.icontains(value, autoescape=True),
+            Equipment.location.icontains(value, autoescape=True),
+        ))
+    return query.order_by(Equipment.name, Equipment.id)
+
+
+class EquipmentFields(BaseModel):
+    @field_validator('name', check_fields=False)
+    @classmethod
+    def valid_name(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError('Название не может быть пустым')
+        return value.strip() if value is not None else None
+
+    @field_validator('type_id', 'workshop_id', 'opo_id', check_fields=False)
+    @classmethod
+    def valid_id(cls, value):
+        if value:
+            uuid_lib.UUID(value)
+        return value
+
+    @field_validator('commissioning_date', check_fields=False)
+    @classmethod
+    def valid_date(cls, value):
+        if value:
+            datetime.fromisoformat(value.replace('Z', '+00:00'))
+        return value
+
+
+class EquipmentCreate(EquipmentFields):
     name: str
     type_id: Optional[str] = None
     serial_number: Optional[str] = None
@@ -32,7 +114,8 @@ class EquipmentCreate(BaseModel):
     attributes: Optional[dict] = None
 
 
-class EquipmentUpdate(BaseModel):
+class EquipmentUpdate(EquipmentFields):
+    fill_missing_only: bool = False
     name: Optional[str] = None
     type_id: Optional[str] = None
     serial_number: Optional[str] = None
@@ -48,6 +131,7 @@ async def get_equipment(
     offset: int = 0,
     limit: int = 100,
     workshop_id: Optional[str] = None,
+    search: Optional[str] = None,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
@@ -56,8 +140,8 @@ async def get_equipment(
     Параметры offset и skip взаимозаменяемы (offset приоритетнее).
     """
     try:
-        effective_offset = offset if offset > 0 else skip
-        effective_limit = min(limit, 1000)
+        effective_offset = max(0, offset if offset > 0 else skip)
+        effective_limit = max(1, min(limit, 1000))
 
         user_result = await db.execute(
             select(User).where(or_(User.username == username, User.email == username))
@@ -73,7 +157,7 @@ async def get_equipment(
                            equipment_type_id, equipment_id
                     FROM hierarchy_engineer_assignments
                     WHERE user_id = CAST(:user_id AS uuid)
-                      AND is_active = 1
+                      AND is_active::text IN ('true', '1')
                       AND (expires_at IS NULL OR expires_at > NOW())
                 """),
                 {"user_id": str(user.id)},
@@ -83,10 +167,10 @@ async def get_equipment(
             direct_access_result = await db.execute(
                 text("""
                     SELECT equipment_id
-                    FROM user_equipment_access
+                    FROM user_equipment_access a
                     WHERE user_id = CAST(:user_id AS uuid)
-                      AND is_active = 1
-                      AND (expires_at IS NULL OR expires_at > NOW())
+                      AND COALESCE(to_jsonb(a)->>'is_active', 'true') IN ('true', '1')
+                      AND ((to_jsonb(a)->>'expires_at') IS NULL OR (to_jsonb(a)->>'expires_at')::timestamptz > NOW())
                 """),
                 {"user_id": str(user.id)},
             )
@@ -146,7 +230,7 @@ async def get_equipment(
 
             if conditions:
                 query = query.where(or_(*conditions))
-                result = await db.execute(query.offset(effective_offset).limit(effective_limit))
+                result = await db.execute(_search_equipment(query, search).offset(effective_offset).limit(effective_limit))
                 equipment = result.scalars().all()
             else:
                 equipment = []
@@ -162,7 +246,7 @@ async def get_equipment(
                         query = query.where(Equipment.workshop_id == workshop_uuid)
                     except ValueError:
                         raise HTTPException(status_code=400, detail="Неверный формат workshop_id")
-                result = await db.execute(query.offset(effective_offset).limit(effective_limit))
+                result = await db.execute(_search_equipment(query, search).offset(effective_offset).limit(effective_limit))
                 equipment = result.scalars().all()
         else:
             query = select(Equipment)
@@ -172,7 +256,7 @@ async def get_equipment(
                     query = query.where(Equipment.workshop_id == workshop_uuid)
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Неверный формат workshop_id")
-            result = await db.execute(query.offset(effective_offset).limit(effective_limit))
+            result = await db.execute(_search_equipment(query, search).offset(effective_offset).limit(effective_limit))
             equipment = result.scalars().all()
 
         equipment_items = []
@@ -326,8 +410,9 @@ async def view_equipment_object_photo(
 
 
 @router.post("/api/equipment")
-async def create_equipment(equipment_data: EquipmentCreate, db: AsyncSession = Depends(get_db)):
+async def create_equipment(equipment_data: EquipmentCreate, db: AsyncSession = Depends(get_db), username: str = Depends(verify_token)):
     try:
+        await _authorize_equipment_write(db, username)
         commissioning_date = None
         if equipment_data.commissioning_date:
             try:
@@ -388,13 +473,23 @@ async def create_equipment(equipment_data: EquipmentCreate, db: AsyncSession = D
 
 @router.put("/api/equipment/{equipment_id}")
 async def update_equipment(
-    equipment_id: str, equipment_data: EquipmentUpdate, db: AsyncSession = Depends(get_db)
+    equipment_id: str, equipment_data: EquipmentUpdate, db: AsyncSession = Depends(get_db), username: str = Depends(verify_token)
 ):
     try:
-        result = await db.execute(select(Equipment).where(Equipment.id == equipment_id))
+        actor = await _authorize_equipment_write(db, username, equipment_id)
+        result = await db.execute(select(Equipment).where(Equipment.id == equipment_id).with_for_update())
         eq = result.scalar_one_or_none()
         if not eq:
             raise HTTPException(status_code=404, detail="Equipment not found")
+
+        before = {'name': eq.name, 'serial_number': eq.serial_number, 'location': eq.location, 'attributes': dict(eq.attributes or {})}
+        conflicts = []
+        if equipment_data.fill_missing_only:
+            from equipment_merge import fill_missing_attributes
+            equipment_data.attributes, conflicts = fill_missing_attributes(eq.attributes, equipment_data.attributes)
+            if eq.serial_number and equipment_data.serial_number and eq.serial_number != equipment_data.serial_number:
+                conflicts.append('serial_number')
+                equipment_data.serial_number = None
 
         if equipment_data.name is not None:
             eq.name = equipment_data.name
@@ -410,18 +505,22 @@ async def update_equipment(
         if equipment_data.attributes is not None:
             eq.attributes = equipment_data.attributes
         if equipment_data.commissioning_date is not None:
-            try:
-                eq.commissioning_date = datetime.fromisoformat(
+            eq.commissioning_date = (
+                datetime.fromisoformat(
                     equipment_data.commissioning_date.replace("Z", "+00:00")
                 ).date()
-            except Exception:
-                pass
+                if equipment_data.commissioning_date else None
+            )
         if equipment_data.type_id is not None:
             try:
                 eq.type_id = uuid_lib.UUID(equipment_data.type_id)
             except Exception:
                 pass
 
+        db.add(AuditLog(user_id=actor.id, action='UPDATE', entity_type='equipment', entity_id=eq.id,
+            details={'source': 'mobile_inspection' if equipment_data.fill_missing_only else 'equipment_card',
+                     'before': before, 'after': {'name': eq.name, 'serial_number': eq.serial_number, 'location': eq.location, 'attributes': eq.attributes},
+                     'conflicts': conflicts}))
         await db.commit()
         await db.refresh(eq)
         return {
@@ -433,6 +532,7 @@ async def update_equipment(
             "attributes": eq.attributes or {},
             "opo_id": str(eq.opo_id) if getattr(eq, "opo_id", None) else None,
             "status": "updated",
+            "conflicts": conflicts,
         }
     except HTTPException:
         raise
@@ -442,8 +542,9 @@ async def update_equipment(
 
 
 @router.delete("/api/equipment/{equipment_id}")
-async def delete_equipment(equipment_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_equipment(equipment_id: str, db: AsyncSession = Depends(get_db), username: str = Depends(verify_token)):
     try:
+        await _authorize_equipment_write(db, username)
         result = await db.execute(select(Equipment).where(Equipment.id == equipment_id))
         eq = result.scalar_one_or_none()
         if not eq:

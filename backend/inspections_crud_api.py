@@ -445,6 +445,8 @@ async def update_inspection_status(
         else:
             raise HTTPException(status_code=403, detail="Доступ запрещен")
 
+        if inspection.status in {'SIGNED', 'APPROVED'} and new_status == 'DRAFT':
+            raise HTTPException(status_code=409, detail='Подписанное обследование нельзя вернуть в черновик. Создайте новую редакцию.')
         inspection.status = new_status
         inspection.updated_by = current_user.id
         await db.commit()
@@ -792,6 +794,8 @@ async def delete_inspection(
             # Физическое удаление (только admin, принудительно)
             rep_result = await db.execute(select(Report).where(Report.inspection_id == inspection.id))
             related_reports = rep_result.scalars().all()
+            if inspection.status in {'SIGNED', 'APPROVED'} or any(report.is_signed for report in related_reports):
+                raise HTTPException(status_code=409, detail='Подписанные обследования и отчеты нельзя удалять окончательно')
             for report in related_reports:
                 for p in [report.file_path, getattr(report, "word_file_path", None)]:
                     if p:
@@ -909,9 +913,14 @@ async def purge_deleted_inspections(
 
     deleted_count = 0
     for inspection in to_purge:
+        if inspection.status in {'SIGNED', 'APPROVED'}:
+            continue
         # Удаляем связанные отчёты
         rep_result = await db.execute(select(Report).where(Report.inspection_id == inspection.id))
-        for report in rep_result.scalars().all():
+        related_reports = rep_result.scalars().all()
+        if any(report.is_signed for report in related_reports):
+            continue
+        for report in related_reports:
             for p in [report.file_path, getattr(report, "word_file_path", None)]:
                 if p:
                     try:
@@ -1024,9 +1033,13 @@ async def cleanup_inspections(
         deleted = 0
         reports_deleted = 0
         for inspection in inspections:
+            if inspection.status in {'SIGNED', 'APPROVED'}:
+                continue
             # связанные отчеты (сначала отчёты, иначе FK violation)
             rep_result = await db.execute(select(Report).where(Report.inspection_id == inspection.id))
             related_reports = rep_result.scalars().all()
+            if any(report.is_signed for report in related_reports):
+                continue
             for report in related_reports:
                 for p in [report.file_path, getattr(report, "word_file_path", None)]:
                     if p:
@@ -1370,7 +1383,7 @@ async def bulk_delete_inspections(
                 insp_result = await db.execute(select(Inspection).where(Inspection.id == insp_uuid))
                 inspection = insp_result.scalar_one_or_none()
                 
-                if not inspection:
+                if not inspection or inspection.status in {'SIGNED', 'APPROVED'}:
                     continue
                 
                 # Проверка прав

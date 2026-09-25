@@ -1,0 +1,8 @@
+PASS: real PostgreSQL CRUD, role permissions, scoped search, conflict preservation and audit history
+ТО сгенерирован по официальной форме to-5: C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\report-output\report_xe1jto3x.docx
+ТО сгенерирован по официальной форме to-5: C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\report-output\report_k1_b8p4b.docx
+ТО сгенерирован по официальной форме to-5: C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\report-output\report_9yha6y13.docx
+PASS: actual DOCX, PDF background job, measurement values, immutable snapshot and repeated job acknowledgement
+PASS: interrupted job resumes with same report ID; PDF conversion failure cannot fall back to another layout
+ТО сгенерирован по официальной форме to-5: C:\RUSTAM\DIATEKS\sys\SystemaPro\.venv-audit\report-output\report__33uirsz.docx
+PASS: bulk export includes official DOCX and input snapshot through the single generation path

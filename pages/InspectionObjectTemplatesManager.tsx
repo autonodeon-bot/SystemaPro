@@ -1,7 +1,7 @@
 /**
  * Шаблоны обследования объектов (мобильное приложение + акт ТД).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, RefreshCw, Save, Trash2, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../constants';
 import { useAuth } from '../contexts/AuthContext';

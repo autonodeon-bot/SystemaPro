@@ -1,5 +1,6 @@
-﻿import React from 'react';
-import { X, UserCheck } from 'lucide-react';
+﻿import React, { useState, useRef } from 'react';
+import Modal from '../ui/Modal';
+import { UserCheck } from 'lucide-react';
 import type { AssignedEngineerRecord, AssignModalState, EngineerUserListItem } from './types';
 
 export interface EquipmentAssignEngineersModalProps {
@@ -20,28 +21,18 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
   onClose,
   onSubmit,
   onSelectedEngineersChange,
-}) => (
-  <div
-    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-    onClick={onClose}
-    role="presentation"
-  >
-    <div
-      className="bg-app-panel rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
-      onClick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-app-text">Назначить инженеров: {modal.name}</h2>
-        <button type="button" onClick={onClose} className="text-app-text3 hover:text-app-text">
-          <X size={24} />
-        </button>
-      </div>
-
-      <form onSubmit={onSubmit} className="space-y-4">
+}) => {
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const filtered = usersList.filter(user => `${user.full_name ?? ''} ${user.username ?? ''}`.toLocaleLowerCase('ru').includes(query.trim().toLocaleLowerCase('ru')));
+  return <Modal title={`Назначить инженеров: ${modal.name}`} onClose={onClose} busy={busy} description="Найдите специалистов и отметьте нужных. Выбор сохраняется при поиске.">
+      <input data-initial-focus type="search" aria-label="Поиск инженеров" placeholder="ФИО или логин…" className="w-full mb-4 p-3 bg-app-deep border border-app-line" value={query} onChange={e => setQuery(e.target.value)} />
+      <p className="sp-hint mb-3">Выбрано: {selectedEngineers.length} · Найдено: {filtered.length}</p>
+      <form onSubmit={async e => { e.preventDefault(); if (pending.current) return; pending.current = true; setBusy(true); try { await onSubmit(e); } finally { pending.current = false; setBusy(false); } }} className="space-y-4">
         <div className="max-h-64 overflow-y-auto space-y-2">
-          {usersList.map((user) => {
+          {filtered.length === 0 && <p className="sp-empty">Специалисты не найдены</p>}
+          {filtered.map((user) => {
             const isSelected = selectedEngineers.includes(user.id);
             const isAlreadyAssigned = assignedEngineers.some((e) => e.user_id === user.id);
             return (
@@ -53,6 +44,7 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
               >
                 <input
                   type="checkbox"
+                  disabled={busy}
                   checked={isSelected}
                   onChange={(e) => {
                     if (e.target.checked) {
@@ -66,7 +58,7 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
                   className="w-4 h-4 text-accent rounded"
                 />
                 <div className="flex-1">
-                  <div className="text-white font-medium">
+                  <div className="text-app-text font-medium">
                     {user.full_name || user.username}
                   </div>
                   {isAlreadyAssigned && (
@@ -85,21 +77,20 @@ const EquipmentAssignEngineersModal: React.FC<EquipmentAssignEngineersModalProps
           <button
             type="submit"
             className="flex-1 bg-accent px-4 py-2 rounded-lg text-white font-bold hover:bg-blue-600"
-            disabled={selectedEngineers.length === 0}
+            disabled={busy || selectedEngineers.length === 0}
           >
             Назначить ({selectedEngineers.length})
           </button>
           <button
             type="button"
-            onClick={onClose}
+            disabled={busy} onClick={onClose}
             className="flex-1 bg-app-soft px-4 py-2 rounded-lg text-app-text font-bold hover:bg-app-softer"
           >
             Отмена
           </button>
         </div>
       </form>
-    </div>
-  </div>
-);
+  </Modal>;
+};
 
 export default EquipmentAssignEngineersModal;

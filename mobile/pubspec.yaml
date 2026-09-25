@@ -81,6 +81,7 @@ flutter:
   assets:
     - assets/images/vessel_template.png
     - assets/data/technical_report_forms.json
+    - assets/data/report_fields.json
     - assets/scheme_equipment_kinds.json
 
 

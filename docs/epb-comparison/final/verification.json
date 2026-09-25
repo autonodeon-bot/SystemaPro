@@ -1,0 +1,32 @@
+[
+  {
+    "variant": 1,
+    "body_length_mm": 11000,
+    "shells": 6,
+    "shell_points": 72,
+    "all_measurements": 96,
+    "task": {
+      "hardness_sections": 3,
+      "mpk_sections": 3,
+      "pvk_sections": 0,
+      "uzk_sections": 4
+    },
+    "all_source_measurements_match": true,
+    "sections_1_to_9_and_appendices_A_to_D": true
+  },
+  {
+    "variant": 2,
+    "body_length_mm": 5500,
+    "shells": 3,
+    "shell_points": 36,
+    "all_measurements": 60,
+    "task": {
+      "hardness_sections": 2,
+      "mpk_sections": 0,
+      "pvk_sections": 2,
+      "uzk_sections": 2
+    },
+    "all_source_measurements_match": true,
+    "sections_1_to_9_and_appendices_A_to_D": true
+  }
+]

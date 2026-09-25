@@ -101,6 +101,8 @@ def extract_geometry(data: Dict[str, Any]) -> Dict[str, Any]:
     if dims:
         existing = geo.get("dimensions") if isinstance(geo.get("dimensions"), dict) else {}
         geo["dimensions"] = {**dims, **existing}
+        if not geo.get("shell_count") and dims.get("shell_lengths_mm"):
+            geo["shell_count"] = len(dims["shell_lengths_mm"])
     return geo
 
 
@@ -154,6 +156,11 @@ def collect_scheme_overlays(data: Dict[str, Any]) -> Dict[str, Any]:
         "mpk_zones": _collect_weld_zones(data, methods=("MPK", "МПК", "МПД", "MK", "МК", "MPI")),
         "dimensions": _dimensions_from_elements(data),
     }
+    from vessel_control_plan import method_rows
+    welds=data.get('weld_inspections') or []
+    if method_rows(welds,'PVK') and not method_rows(welds,'MPK'):
+        overlays['mpk_zones']=_collect_weld_zones(data,methods=('PVK','ПВК'))
+        overlays['surface_method']='PVK'
     return overlays
 
 
@@ -228,7 +235,6 @@ def _collect_hardness_zones(
     seen_labels: set = set()
 
     def _add(label: str, xp: Any, yp: Any) -> None:
-        nonlocal zones
         if len(zones) >= max_n:
             return
         lab = (label or f"{prefixes[0]}{len(zones) + 1}").strip()
@@ -385,12 +391,7 @@ def _collect_weld_zones(data: Dict[str, Any], methods: Sequence[str]) -> List[Di
                 continue
             method = str(w.get("control_method") or w.get("method") or "").upper()
             if methods_u and method and method not in methods_u:
-                # УЗК-зона: пустой метод тоже берём, МПК — только явный
-                if "UZK" in methods_u or "УЗК" in methods_u:
-                    if method in ("MPK", "МПК", "МПД", "MK", "МК"):
-                        continue
-                else:
-                    continue
+                continue
             lab = str(w.get("weld_number") or w.get("joint") or w.get("seam") or "").strip()
             item: Dict[str, Any] = {}
             if lab:
@@ -554,6 +555,8 @@ def render_all_layer_pngs(
     items: List[Dict[str, Any]] = []
     for layer in LAYER_ORDER:
         title = layer_title(layer, equipment_kind=kind)
+        if layer==LAYER_MPK and overlays.get('surface_method')=='PVK':
+            title=title.replace('магнитопорошкового','капиллярного')
         geo_layer = dict(geo)
         geo_layer["title"] = title
         geo_layer["scheme_layer"] = layer

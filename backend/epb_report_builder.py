@@ -16,33 +16,21 @@ from equipment_presets import preset_from_equipment_data
 
 EPB_APPENDIX_LETTERS = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
 
-EPB_TOC_ITEMS: List[str] = [
+EPB_TOC_ITEMS = [
     "1. Вводная часть",
-    (
-        "2. Наименование объекта экспертизы, на которое распространяется "
-        "действие заключения экспертизы промышленной безопасности"
-    ),
-    "3. Сведения о заказчике",
+    "2. Наименование объекта экспертизы, на который распространяется действие заключения",
+    "3. Данные о заказчике",
     "4. Цель экспертизы",
     "5. Сведения о документах, рассмотренных в процессе экспертизы",
     "6. Назначение и краткая характеристика объекта экспертизы",
-    "7. Результаты проведённой экспертизы",
-    "8. Выводы заключения экспертизы",
-    "9. Регламент контроля технического состояния",
+    "7. Результаты проведённой экспертизы со ссылками на конкретные структурные единицы нормативных правовых актов в области промышленной безопасности",
+    "8. Сведения о проведенных мероприятиях и о результатах технического диагностирования технического устройства",
+    "9. Вывод заключения экспертизы",
     "Приложение А Акт о проведении работ по техническому диагностированию",
-    "Приложение Б Отчет по анализу технической документации",
-    "Приложение В Результаты технического диагностирования",
-    "Приложение Г Схема проведения неразрушающего контроля",
-    "Приложение Д Акт проведения гидравлического испытания сосуда",
-    (
-        "Приложение Е Расчетные и аналитические процедуры оценки "
-        "и прогнозирования технического состояния сосуда"
-    ),
-    "Приложение Ж Копия приказа экспертной организации о назначении эксперта",
-    (
-        "Приложение З Перечень использованной при экспертизе промышленной "
-        "безопасности нормативной, технической и методической документации"
-    ),
+    "Приложение Б Акты по результатам неразрушающего контроля",
+    "Приложение В Схема проведения неразрушающего контроля",
+    "Приложение Г Расчетные и аналитические процедуры оценки и прогнозирования технического состояния объекта экспертизы",
+    "Приложение Д Акт проведения гидравлических испытаний",
 ]
 
 EPB_NORMATIVE_BULLETS = [
@@ -167,6 +155,7 @@ class EpbReportContext:
     equipment_data: Dict[str, Any]
     inspection_data: Dict[str, Any]
     ndt_methods: List[Dict[str, Any]]
+    org_settings: Dict[str, Any] = field(default_factory=dict)
     performed_codes: Set[str] = field(default_factory=set)
     inspectors: List[str] = field(default_factory=list)
     inspection_engineers: List[Dict[str, Any]] = field(default_factory=list)
@@ -188,6 +177,8 @@ def _add_grid_table(doc: Document, rows: List[tuple[str, str]]) -> None:
     for i, (k, v) in enumerate(rows):
         tbl.rows[i].cells[0].text = k
         tbl.rows[i].cells[1].text = v
+    from epb_layout import format_table
+    format_table(tbl, widths=[6,11.7], header_rows=0, size=11)
 
 
 def _has_method(codes: Set[str], *aliases: str) -> bool:
@@ -204,500 +195,98 @@ def append_epb_toc(doc: Document) -> None:
 
 
 def build_epb_main_body(doc: Document, ctx: EpbReportContext) -> None:
-    """Разделы 1–9 заключения ЭПБ (образец 25-3173)."""
+    """Структура образца 26-2335; результаты берутся только из исходного отчёта."""
+    from vessel_control_plan import control_scope
+    from epb_layout import table as grid
     g = ctx.g
-    preset = preset_from_equipment_data(ctx.equipment_data)
-    type_label = device_type_label(preset)
-    obj_phrase = (
-        f"{type_label} зав.№ {ctx.serial}, рег.№ {ctx.reg_no}, "
-        f"эксплуатируемый {ctx.org}, установленный на {ctx.location}"
-    )
-    purpose = g("purpose", "vessel_purpose", default=ctx.purpose_default or "—")
-    construction = g("construction_type", default=ctx.construction_type)
-    contract = g(
-        "contract_number",
-        "basis",
-        default="договор на выполнение работ по экспертизе промышленной безопасности",
-    )
-
-    # --- 1. Вводная часть ---
-    doc.add_heading("Вводная часть", level=1)
-    doc.add_paragraph(
-        "1.1. Положение нормативных правовых актов в области промышленной "
-        "безопасности, устанавливающих требования к объекту экспертизы, и на "
-        "соответствие, которым проведена оценка соответствия объекта экспертизы:"
-    )
-    for bullet in EPB_NORMATIVE_BULLETS:
-        doc.add_paragraph(f"- {bullet}")
-    doc.add_paragraph(
-        f"Экспертиза промышленной безопасности проводилась в рамках {contract}, "
-        f"заключённого между {ctx.org} и {ctx.contractor}."
-    )
-    doc.add_paragraph()
-
-    doc.add_paragraph("1.2. Сведения об экспертной организации")
-    _add_grid_table(
-        doc,
-        [
-            (k, g(f"contractor_{k.lower().replace(' ', '_')}", default=v))
-            for k, v in EPB_EXPERT_ORG_ROWS
-        ],
-    )
-    director = g("director_name", default=ctx.director_name)
-    org_rows = doc.tables[-1].rows
-    if len(org_rows) >= 3:
-        org_rows[2].cells[1].text = (
-            f"Генеральный директор {director}" if director and director != "__________________" else director
-        )
-    doc.add_paragraph()
-
-    doc.add_paragraph("1.3. Сведения об экспертах и специалистах по неразрушающему контролю")
-    order_no = g("expert_order_number", default="250")
-    order_date = g("expert_order_date", default="08.09.2025")
-    doc.add_paragraph(
-        f"Для проведения экспертизы промышленной безопасности сосуда, работающего "
-        f"под давлением, приказом генерального директора № {order_no} от {order_date}г., "
-        "была назначена экспертная группа:"
-    )
-    if ctx.inspection_engineers:
-        for ie in ctx.inspection_engineers:
-            if not isinstance(ie, dict):
-                continue
-            name = ie.get("full_name") or ""
-            cert = ie.get("certificate_number") or ""
-            valid = ie.get("valid_until") or ""
-            role = ie.get("role") or ie.get("expert_area") or "эксперт"
-            if name:
-                line = f"{name} – {role}"
-                if cert:
-                    line += f", удостоверение № {cert}"
-                if valid:
-                    line += f" срок аттестации до {valid}"
-                doc.add_paragraph(line)
-    elif ctx.inspectors:
-        for name in ctx.inspectors:
-            doc.add_paragraph(f"{name} – эксперт в области промышленной безопасности.")
-    else:
-        doc.add_paragraph("Состав экспертной группы – по приказу экспертной организации (приложение Ж).")
-    doc.add_paragraph(
-        "К проведению технического диагностирования допускались специалисты, "
-        "имеющие квалификационные удостоверения по неразрушающим методам контроля."
-    )
-    doc.add_paragraph()
-
-    # --- 2. Объект экспертизы ---
-    doc.add_heading(
-        "Наименование объекта экспертизы, на которое распространяется действие "
-        "заключения экспертизы промышленной безопасности",
-        level=1,
-    )
-    doc.add_paragraph(
-        f"Объектом экспертизы промышленной безопасности является сосуд, "
-        f"работающий под давлением – {obj_phrase}."
-    )
-    doc.add_paragraph()
-
-    # --- 3. Заказчик ---
-    doc.add_heading("Данные о заказчике", level=1)
-    customer_rows = [
-        ("Наименование организации", g("customer_legal_name", default=ctx.org)),
-        ("Организационно-правовая форма", g("customer_legal_form", default="—")),
-        ("Место нахождения", g("customer_address", default=ctx.location)),
-        ("Телефон / факс", g("customer_phone", default="—")),
-        ("Руководитель", g("customer_director", default="—")),
-        ("Структурное подразделение", g("customer_department", default="—")),
-        ("Место нахождения подразделения", g("customer_department_address", default=ctx.location)),
-        ("Телефон / факс подразделения", g("customer_department_phone", default="—")),
-        ("Руководитель подразделения", g("customer_department_head", default="—")),
-    ]
-    _add_grid_table(doc, customer_rows)
-    doc.add_paragraph()
-
-    # --- 4. Цель ---
-    doc.add_heading("Цель экспертизы", level=1)
-    doc.add_paragraph("Целью проведения экспертизы промышленной безопасности является:")
-    for bullet in EPB_PURPOSE_BULLETS:
-        doc.add_paragraph(f"- {bullet}")
-    doc.add_paragraph()
-
-    # --- 5. Документы ---
-    doc.add_heading("Сведения о документах, рассмотренных в процессе экспертизы", level=1)
-    doc.add_paragraph(
-        "Перечень документации, рассмотренной в процессе экспертизы промышленной "
-        "безопасности с указанием объёма материалов, представлен в таблице:"
-    )
-    doc_keys: List[str] = []
-    if isinstance(ctx.docs_dict, dict):
-        doc_keys.extend(str(k) for k in ctx.docs_dict.keys())
-    if isinstance(ctx.docs_info, dict):
-        doc_keys.extend(str(k) for k in ctx.docs_info.keys())
-    doc_keys = sorted(set(doc_keys), key=lambda x: int(x) if x.isdigit() else 999)
-    if doc_keys and ctx.doc_meta_fn:
-        tbl = doc.add_table(rows=len(doc_keys) + 1, cols=2)
-        tbl.style = "Table Grid"
-        tbl.rows[0].cells[0].text = "Наименование документа"
-        tbl.rows[0].cells[1].text = "Шифр, индикация для идентификации"
-        for i, num in enumerate(doc_keys, 1):
-            meta = ctx.doc_meta_fn(num)
-            # doc_meta_fn может возвращать 3 или 4 значения (present, number, date[, pages])
-            present, doc_number, doc_date = meta[0], meta[1], meta[2]
-            if present is False:
-                continue
-            name = EPB_DOCUMENT_NAMES.get(num, f"Документ №{num}")
-            ident = doc_number or "—"
-            if doc_date:
-                ident = f"{ident} от {doc_date}" if ident != "—" else f"от {doc_date}"
-            tbl.rows[i].cells[0].text = name
-            tbl.rows[i].cells[1].text = ident
-    else:
-        doc.add_paragraph("Перечень документов – по данным чек-листа обследования.")
-    doc.add_paragraph(
-        "Сведения об информации автоматизированных систем мониторинга технического "
-        "состояния объекта экспертизы на опасном производственном объекте."
-    )
-    doc.add_paragraph(
-        g(
-            "asm_monitoring_info",
-            default="Автоматизированные системы мониторинга технического состояния "
-            "объекта экспертизы на опасном производственном объекте не применяются.",
-        )
-    )
-    doc.add_paragraph()
-
-    # --- 6. Характеристика ---
-    doc.add_heading("6. Назначение и краткая характеристика объекта экспертизы", level=1)
-    doc.add_paragraph(
-        f"{type_label} {ctx.device_name} выполнен как {construction}, "
-        "подводящими и отводящими патрубками, арматурой."
-    )
-    doc.add_paragraph(f"{type_label} предназначен для {purpose}.")
-    doc.add_paragraph(
-        "Регистрационные данные, эксплуатационные параметры и сведения об основных "
-        "частях сосуда представлены в Таблицах 6.1 и 6.2."
-    )
-
-    doc.add_paragraph("Таблица 6.1. Регистрационные данные сосуда")
-    reg_tbl = doc.add_table(rows=2, cols=7)
-    reg_tbl.style = "Table Grid"
-    reg_headers = [
-        "Наименование сосуда",
-        "Индекс по схеме",
-        "Заводской номер",
-        "Регистрационный номер",
-        "Завод-изготовитель",
-        "Год изготовления",
-        "Год ввода в эксплуатацию",
-    ]
-    for i, h in enumerate(reg_headers):
-        reg_tbl.rows[0].cells[i].text = h
-    reg_tbl.rows[1].cells[0].text = type_label
-    reg_tbl.rows[1].cells[1].text = g("scheme_index", default=ctx.scheme_index or "—")
-    reg_tbl.rows[1].cells[2].text = str(ctx.serial)
-    reg_tbl.rows[1].cells[3].text = str(ctx.reg_no)
-    reg_tbl.rows[1].cells[4].text = g("manufacturer", default="—")
-    reg_tbl.rows[1].cells[5].text = g("manufacturing_year", "manufacture_year", default="—")
-    reg_tbl.rows[1].cells[6].text = g("commissioning_year", default="—")
-    doc.add_paragraph()
-
-    doc.add_paragraph("Таблица 6.2. Паспортные характеристики сосуда")
-    passport_rows = [
-        ("Наименование частей сосуда", "Корпус"),
-        ("Рабочее давление по паспорту, МПа (кгс/см²)", g("working_pressure", default="—")),
-        ("Расчетное давление, МПа (кгс/см²)", g("design_pressure", default="—")),
-        ("Пробное гидравлическое давление, МПа (кгс/см²)", g("test_pressure", default="—")),
-        ("Максимально допустимая рабочая температура стенки, ℃", g("working_temperature", default="—")),
-        ("Минимально допустимая рабочая температура стенки, ℃", g("design_temperature", default="—")),
-        ("Наименование рабочей среды", g("working_medium", default="—")),
-        ("Характеристика рабочей среды — ядовитость", g("medium_toxicity", default="—")),
-        ("Характеристика рабочей среды — пожароопасность", g("medium_fire_hazard", default="да")),
-        ("Характеристика рабочей среды — взрывоопасность", g("medium_explosion_hazard", default="да")),
-        ("Характеристика рабочей среды — максимальная температура, ℃", g("medium_max_temp", default="—")),
-        ("Прибавка для компенсации коррозии (эрозии), мм", g("corrosion_allowance", default="—")),
-        ("Внутренний объём, м³", g("volume", "internal_volume", default="—")),
-        ("Расчетный срок службы сосуда, лет", g("design_service_life", default="20")),
-    ]
-    pass_tbl = doc.add_table(rows=len(passport_rows) + 1, cols=2)
-    pass_tbl.style = "Table Grid"
-    pass_tbl.rows[0].cells[0].text = "Наименование параметра, характеристики"
-    pass_tbl.rows[0].cells[1].text = "Значение, величина"
-    for i, (k, v) in enumerate(passport_rows, 1):
-        pass_tbl.rows[i].cells[0].text = k
-        pass_tbl.rows[i].cells[1].text = str(v)
-    doc.add_paragraph(
-        "Сведения об основных элементах сосуда представлены в Приложении Б отчёта "
-        "технической документации."
-    )
-    doc.add_paragraph()
-
-    # --- 7. Результаты экспертизы ---
-    codes = ctx.performed_codes
-    doc.add_heading("7. Результаты проведённой экспертизы", level=1)
-
-    doc.add_paragraph(
-        "7.1. Анализ технической документации проводился в соответствии с "
-        "Федеральным законом №116-ФЗ, приказом Ростехнадзора от 15.12.2020 №536 "
-        "и приказом Ростехнадзора от 15.12.2020 №534."
-    )
-    doc_analysis = g(
-        "doc_analysis_conclusion",
-        default=f"{type_label} эксплуатируется по назначению, в пределах паспортных "
-        "(разрешённых) характеристик и соответствует технической и эксплуатационной "
-        "документации. Замечания по наличию и ведению эксплуатационной документации отсутствуют.",
-    )
-    doc.add_paragraph(str(doc_analysis))
-    doc.add_paragraph(
-        "Предоставленная документация соответствует требованиям нормативных правовых актов."
-    )
-    doc.add_paragraph("Анализ технической документации представлен в Приложении Б.")
-    doc.add_paragraph()
-
-    doc.add_paragraph(
-        "7.2. Оперативное (функциональное) диагностирование проводилось в соответствии "
-        "с требованиями Р ИСО 17637-2024, приказа Ростехнадзора от 15.12.2020 №536."
-    )
-    func_concl = g(
-        "functional_diagnosis_conclusion",
-        default="В ходе оперативной (функциональной) диагностики сосуда и его элементов "
-        "повреждений и других неисправностей не обнаружено.",
-    )
-    doc.add_paragraph(str(func_concl))
-    doc.add_paragraph(
-        "Сосуд соответствует требованиям п.69, п.338–п.340, п.346, п.348, п.350 "
-        "приказа Ростехнадзора от 15.12.2020 №536."
-    )
-    doc.add_paragraph(
-        "Результаты оперативной (функциональной) диагностики оформлены "
-        "Протоколом № 1, Приложение В."
-    )
-    doc.add_paragraph()
-
-    doc.add_paragraph(
-        "7.3 Определение действующих повреждающих факторов, механизмов повреждения "
-        "и восприимчивости материала технического устройства к механизмам повреждения."
-    )
-    doc.add_paragraph(
-        "По результатам проведённого анализа документации и оперативного "
-        "(функционального) диагностирования определены действующие повреждающие факторы, "
-        "механизмы повреждения, параметры эксплуатации сосуда."
-    )
-    doc.add_paragraph("Для обследуемого сосуда характерны следующие механизмы повреждения:")
-    for m in EPB_DAMAGE_MECHANISMS:
-        doc.add_paragraph(f"- {m}")
-    doc.add_paragraph()
-
-    if _has_method(codes, "ВИК", "VIK"):
-        doc.add_paragraph(
-            "7.4 Визуальный и измерительный контроль выполнен в соответствии с "
-            "требованиями приказа Ростехнадзора от 15.12.2020 №536, ГОСТ 34347-2017."
-        )
-        vik_concl = g(
-            "vik_conclusion",
-            default="Сосуд соответствует требованиям п.65, п.68, п.154 приказа "
-            "Ростехнадзора от 15.12.2020 №536.",
-        )
-        doc.add_paragraph(str(vik_concl))
-        doc.add_paragraph(
-            "Результаты визуального и измерительного контроля оформлены "
-            "Протоколом № 2, Приложение В."
-        )
+    shells, scope, issues = control_scope(g)
+    for i, heading in enumerate(EPB_TOC_ITEMS[:9], 1):
+        doc.add_heading(heading, level=1)
+        if i == 1:
+            doc.add_paragraph("1.1. Основание проведения экспертизы")
+            doc.add_paragraph(f"Договор: {g('contract_number', 'basis', default='—')}. Исходный технический отчёт: {g('source_report_number', default='—')}. Дата диагностирования: {ctx.date_perf_ru}.")
+            doc.add_paragraph(str(g("normative_basis", default="Нормативная документация приведена в перечне в конце заключения.")))
+            doc.add_paragraph("1.2. Сведения об экспертной организации")
+            settings = ctx.org_settings.get('contractor') or {}
+            _add_grid_table(doc, [("Организационно-правовая форма и наименование", settings.get('legal_name') or ctx.contractor),
+                ("Юридический (почтовый) адрес", settings.get('postal_address') or settings.get('address') or g('contractor_address', default='—')),
+                ("Руководитель экспертной организации", f"{ctx.director_title} {ctx.director_name}"),
+                ("Лицензия", settings.get('license') or '—'), ("Свидетельство", settings.get('certificate') or '—')])
+            doc.add_paragraph("1.3. Сведения об экспертах, принимавших участие в проведении экспертизы")
+            for expert in ctx.inspection_engineers:
+                if isinstance(expert, dict):
+                    doc.add_paragraph(f"Эксперт: {expert.get('full_name') or '—'}; удостоверение: {expert.get('certificate_number') or '—'}")
+        elif i == 2:
+            doc.add_paragraph(f"{ctx.device_name}, зав. № {ctx.serial}, рег. № {ctx.reg_no}.")
+            doc.add_paragraph(f"Место эксплуатации: {ctx.location}. ОПО: {ctx.opo_name}; рег. № {ctx.opo_reg}; класс опасности: {ctx.opo_class}.")
+        elif i == 3:
+            _add_grid_table(doc, [("Заказчик", ctx.org), ("Адрес", str(g("customer_address", "organization_address", default="—")))])
+        elif i == 4:
+            doc.add_paragraph(str(g("expertise_purpose", default="Оценка соответствия технического устройства требованиям промышленной безопасности и определение возможности дальнейшей безопасной эксплуатации.")))
+        elif i == 5:
+            keys = sorted(set(ctx.docs_dict) | set(ctx.docs_info), key=str)
+            rows = []
+            for key in keys:
+                meta = ctx.doc_meta_fn(str(key)) if ctx.doc_meta_fn else (None, None, None)
+                info = ctx.docs_info.get(str(key)) or {}
+                ident = "Не предоставлен" if meta[0] is False else f"№ {meta[1] or '—'}, дата {meta[2] or '—'}"
+                rows.append([EPB_DOCUMENT_NAMES.get(str(key), str(key)), ident, info.get('pages') or '—'])
+            grid(doc, ["Наименование документа", "Шифр, номер, дата", "Объём материала, л."], rows or [["Перечень не предоставлен", "—", "—"]], [9, 5.7, 3])
+        elif i == 6:
+            doc.add_paragraph(f"{ctx.device_name} предназначен для {g('purpose', 'vessel_purpose', default=ctx.purpose_default or '—')}.")
+            doc.add_paragraph("Таблица 6.1. Регистрационные данные")
+            grid(doc, ["Наименование объекта", "Заводской номер", "Регистрационный номер", "Тех. №", "Изготовитель", "Год изготовления", "Год ввода"],
+                [[ctx.device_name, ctx.serial, ctx.reg_no, g('scheme_index'), g('manufacturer'), g('manufacturing_year', 'manufacture_year'), g('commissioning_year')]], [3.9,1.7,2,1.3,4.8,2,2])
+            doc.add_paragraph("Таблица 6.2. Паспортные характеристики и параметры")
+            labels = [("Наименование частей сосуда", "Корпус"), ("Рабочее давление, МПа", g('working_pressure')),
+                ("Расчётное давление, МПа", g('design_pressure')), ("Рабочая температура среды, °C", g('working_temperature')),
+                ("Расчётная температура стенки, °C", g('design_temperature')), ("Минимальная температура стенки, °C", g('min_wall_temperature')),
+                ("Пробное давление, МПа", g('test_pressure')), ("Рабочая среда", g('working_medium')),
+                ("Класс опасности рабочей среды", g('hazard_class')), ("Взрывоопасность среды", g('explosion_hazard')),
+                ("Пожароопасность среды", g('fire_hazard')), ("Прибавка на коррозию, мм", g('corrosion_allowance')),
+                ("Внутренний объём, м³", g('volume','internal_volume'))]
+            grid(doc,["Наименование параметра, характеристики", "Значение, величина"],labels,[11,6.7])
+            doc.add_paragraph("Таблица 6.3. Сведения об основных частях сосуда")
+            elements = g('vessel_elements','passport_elements',default=[]) or []
+            heads = [e for e in elements if 'обечай' not in str(e.get('name') or e.get('element_name') or '').lower()]
+            grid(doc,["Элемент", "Диаметр, мм", "Длина, мм", "Толщина, мм", "Материал", "ГОСТ (ТУ)", "Сварка"],
+                [[e.get('name') or e.get('element_name'), e.get('diameter_mm'), e.get('length_mm'),e.get('wall_thickness_mm'),e.get('material'),e.get('gost'),e.get('weld_data')] for e in shells+heads], [3.2,1.8,1.8,1.8,2.3,2.3,4.5])
+            doc.add_paragraph(f"Количество обечаек: {len(shells)}. Объём УЗТ обечаек: {12 * len(shells)} точек. Контроль днищ и штуцеров учитывается отдельно.")
+            doc.add_paragraph("Таблица 6.4. Сведения об основной арматуре, КИП и приборах безопасности")
+            fittings=g('fittings','vessel_fittings',default=[]) or []
+            grid(doc,["Наименование", "Количество, шт.", "Условный проход, мм", "Давление, МПа"],
+                [[r.get('name'),r.get('quantity'),r.get('dn'),r.get('pressure')] for r in fittings] or [["Сведения не предоставлены",'—','—','—']],[8.7,2,3.5,3.5])
+        elif i == 7:
+            for key, label in [("doc_analysis_conclusion", "Анализ документации"), ("operating_conditions_conclusion", "Условия эксплуатации"), ("epb_compliance_analysis", "Оценка соответствия со ссылками на структурные единицы нормативных актов")]:
+                doc.add_paragraph(f"{label}: {g(key, default='сведения не предоставлены')}")
+        elif i == 8:
+            table = doc.add_table(rows=1, cols=3); table.style = "Table Grid"
+            for c, text in zip(table.rows[0].cells, ["Метод", "Участков по ТЗ", "Записей в отчёте"]): c.text = text
+            for label, planned, actual in scope:
+                for c, text in zip(table.add_row().cells, [label, planned if planned is not None else "не задано", actual]): c.text = str(text)
+            for key, label in [("vik_conclusion", "ВИК"), ("uzt_conclusion", "УЗТ"), ("hardness_conclusion", "Твердометрия"), ("mpk_conclusion", "МК"), ("pvk_conclusion", "ПВК"), ("uzk_conclusion", "УЗК"), ("calculation_result", "Расчётные процедуры")]:
+                doc.add_paragraph(f"{label}: {g(key, default='заключение не внесено')}")
+            doc.add_paragraph("Результаты НК — Приложение Б; схема — Приложение В; расчёты — Приложение Г; гидравлическое испытание — Приложение Д.")
+            for issue in issues:
+                doc.add_paragraph(f"Неполнота исходных данных: {issue}.")
+        else:
+            conclusion = g("epb_conclusion", default=None)
+            if issues:
+                doc.add_paragraph("Итоговый вывод требует проверки полноты исходных данных, перечисленных в разделе 8.")
+            if conclusion:
+                doc.add_paragraph(str(conclusion))
+            else:
+                doc.add_paragraph("Вывод эксперта о соответствии требованиям промышленной безопасности не внесён.")
+            doc.add_paragraph(f"Назначенный срок дальнейшей эксплуатации, лет: {g('residual_life_years', default='—')}; до: {g('residual_life_until', default='—')}.")
+            doc.add_paragraph(f"Разрешённое давление, МПа: {g('allowed_pressure', default='—')}; температура, °C: {g('allowed_temperature', default='—')}.")
+            doc.add_paragraph(str(g("epb_conditions", default="Условия дальнейшей эксплуатации не внесены.")))
+            regulations=g('inspection_reglament',default=[]) or []
+            if regulations:
+                doc.add_paragraph("Регламент контроля технического состояния")
+                grid(doc,["Вид контроля", "Периодичность", "Исполнитель"],[[r.get('control_type'),r.get('periodicity'),r.get('executor')] for r in regulations],[7.7,4,6])
+            for expert in ctx.inspection_engineers:
+                if isinstance(expert, dict): doc.add_paragraph(f"Эксперт __________________ {expert.get('full_name') or '—'}")
         doc.add_paragraph()
-
-    hardness = g("hardness_tests", default=[])
-    if _has_method(codes, "ТВ", "TVI", "HARDNESS") or (isinstance(hardness, list) and hardness):
-        doc.add_paragraph(
-            "7.5. Оценка механических свойств элементов сосуда выполнена в соответствии "
-            "с требованиями приказа Ростехнадзора от 15.12.2020 №536, СО 153-34.17.439-2003."
-        )
-        doc.add_paragraph(
-            g(
-                "hardness_conclusion",
-                default="В результате контроля твердости металла элементов сосуда отклонений "
-                "твердости металла от указанного в нормативной документации не выявлено.",
-            )
-        )
-        doc.add_paragraph(
-            "Результаты контроля твердости оформлены Протоколом № 3, Приложение В."
-        )
-        doc.add_paragraph()
-
-    thickness = g("thickness_measurements", default=[])
-    if _has_method(codes, "УЗТ", "UZT") or (isinstance(thickness, list) and thickness):
-        doc.add_paragraph(
-            "7.6. Ультразвуковой контроль толщины стенок элементов сосуда выполнен "
-            "в соответствии с требованиями приказа Ростехнадзора от 15.12.2020 №536."
-        )
-        doc.add_paragraph(
-            g(
-                "uzt_conclusion",
-                default="В результате ультразвукового контроля толщины стенок элементов "
-                "сосуда утонений, вследствие коррозионного и эрозионного износа сверх "
-                "минимального значения, установленного расчётом на прочность, не выявлено.",
-            )
-        )
-        doc.add_paragraph(
-            "Результаты ультразвукового контроля толщины оформлены "
-            "Протоколом № 4, Приложение В."
-        )
-        doc.add_paragraph()
-
-    if _has_method(codes, "МПК", "МК", "MK", "MPD", "PVK"):
-        doc.add_paragraph(
-            "7.7. Магнитопорошковый контроль сварных соединений выполнен в соответствии "
-            "с требованиями приказа Ростехнадзора от 15.12.2020 №536, РД 13-05-2006."
-        )
-        doc.add_paragraph(
-            g(
-                "mpk_conclusion",
-                default="В результате магнитопорошкового контроля индикационных следов "
-                "удалённой формы не выявлено.",
-            )
-        )
-        doc.add_paragraph(
-            "Результаты магнитопорошкового контроля оформлены "
-            "Протоколом № 5, Приложение В."
-        )
-        doc.add_paragraph()
-
-    weld = g("weld_inspections", default=[])
-    if _has_method(codes, "УЗК", "UZK") or (isinstance(weld, list) and weld):
-        doc.add_paragraph(
-            "7.8. Ультразвуковой контроль сварных соединений выполнен в соответствии "
-            "с требованиями приказа Ростехнадзора от 15.12.2020 №536, ГОСТ Р ИСО 17640-2016."
-        )
-        doc.add_paragraph(
-            g(
-                "uzk_conclusion",
-                default="При контроле сварных соединений ультразвуковым методом дефектов, "
-                "превышающих браковочный уровень, не обнаружено.",
-            )
-        )
-        doc.add_paragraph(
-            "Результаты ультразвукового контроля сварных соединений оформлены "
-            "Протоколом № 6, Приложение В."
-        )
-        doc.add_paragraph()
-
-    doc.add_paragraph(
-        "7.9. Гидравлическое испытание выполнено эксплуатирующей организацией "
-        "в соответствии с требованиями приказа Ростехнадзора от 15.12.2020 №536."
-    )
-    doc.add_paragraph(
-        f"{type_label} зав.№ {ctx.serial} рег.№ {ctx.reg_no} прошёл гидравлические испытания."
-    )
-    doc.add_paragraph("Сосуд соответствует требованиям п.188 приказа Ростехнадзора от 15.12.2020 №536.")
-    doc.add_paragraph()
-
-    doc.add_paragraph(
-        "7.10. Расчётные и аналитические процедуры оценки и прогнозирования "
-        "технического состояния сосуда выполнены в соответствии с требованиями "
-        "ГОСТ 34233.1-2017, ГОСТ 34233.2-2017, приказа Ростехнадзора от 15.12.2020 №536."
-    )
-    doc.add_paragraph(
-        g(
-            "calculation_result",
-            default="Сосуд обладает необходимым запасом прочности для работы согласно "
-            "разрешённым характеристикам, так как допустимое давление больше рабочего.",
-        )
-    )
-    residual = g("residual_life_text", default=f"более {ctx.residual_life_years} лет")
-    doc.add_paragraph(f"Расчёт остаточного ресурса сосуда показал, что он может эксплуатироваться «{residual}».")
-    doc.add_paragraph(
-        "Результаты расчётных и аналитических процедур представлены в Приложении Е."
-    )
-    doc.add_paragraph()
-
-    # --- 8. Выводы ---
-    doc.add_heading("8. Выводы заключения экспертизы", level=1)
-    conclusion = (
-        ctx.inspection_data.get("conclusion")
-        or g(
-            "epb_conclusion",
-            "conclusion",
-            default=f"На основании результатов выполненного комплекса работ по экспертизе "
-            f"промышленной безопасности объект экспертизы {type_label} зав.№ {ctx.serial} "
-            f"рег.№ {ctx.reg_no} соответствует требованиям промышленной безопасности.",
-        )
-    )
-    doc.add_paragraph(f"8.1 {conclusion}")
-    until = ctx.residual_life_until or g("residual_life_until", default="—")
-    doc.add_paragraph(
-        f"По результатам расчётных и аналитических процедур установлен срок дальнейшей "
-        f"безопасной эксплуатации {ctx.residual_life_years} лет до {until}."
-    )
-    doc.add_paragraph("8.2 Дальнейшая безопасная эксплуатация объекта экспертизы должна осуществляться при обеспечении следующих условий:")
-    conditions = [
-        f"соблюдение рабочих параметров: разрешённое давление не более {ctx.allowed_pressure} МПа "
-        f"и разрешённая температура среды {ctx.allowed_temperature}°С;",
-        "соблюдение требований Федерального закона №116, приказа Ростехнадзора от 15.12.2020 №536 и №534;",
-        "внесение в реестр Ростехнадзора данного заключения экспертизы промышленной безопасности;",
-        "выполнение регламента контроля технического состояния объекта экспертизы, указанного в разделе 9.",
-    ]
-    for c in conditions:
-        doc.add_paragraph(f"- {c}")
-    doc.add_paragraph()
-
-    for ie in ctx.inspection_engineers[:2]:
-        if isinstance(ie, dict) and ie.get("full_name"):
-            area = ie.get("expert_area") or ie.get("role") or "Эксперт"
-            cert = ie.get("certificate_number") or ""
-            valid = ie.get("valid_until") or ""
-            doc.add_paragraph(f"{area}     {ie['full_name']}")
-            if cert:
-                doc.add_paragraph(f"Удостоверение № {cert}" + (f" до {valid}" if valid else ""))
-    doc.add_paragraph()
-
-    # --- 9. Регламент ---
-    doc.add_heading("9. Регламент контроля технического состояния", level=1)
-    doc.add_paragraph(
-        f"Регламент контроля технического состояния {type_label} зав.№ {ctx.serial}, "
-        f"рег.№ {ctx.reg_no} в течение назначенного срока эксплуатации приведён в таблице 9.1."
-    )
-    doc.add_paragraph("Таблица 9.1. Регламент контроля технического состояния")
-    reglament = g("inspection_reglament", default=None)
-    if isinstance(reglament, list) and reglament:
-        rt = doc.add_table(rows=len(reglament) + 1, cols=4)
-        rt.style = "Table Grid"
-        for i, h in enumerate(
-            ["Наименование вида контроля", "Периодичность контроля", "Исполнитель", "Дата"]
-        ):
-            rt.rows[0].cells[i].text = h
-        for i, row in enumerate(reglament, 1):
-            if isinstance(row, dict):
-                rt.rows[i].cells[0].text = str(row.get("control_type") or row.get("name") or "—")
-                rt.rows[i].cells[1].text = str(row.get("periodicity") or "—")
-                rt.rows[i].cells[2].text = str(row.get("executor") or "—")
-                rt.rows[i].cells[3].text = str(row.get("date") or "—")
-    else:
-        default_reg = [
-            (
-                "Техническое освидетельствование (наружный и внутренний осмотр, УЗТ)",
-                "1 раз в 2 года",
-                "Ответственное лицо за исправное состояние и безопасную эксплуатацию",
-                g("next_inspection_date", default="—"),
-            ),
-            (
-                "Гидравлическое испытание пробным давлением",
-                "через 8 лет",
-                "Ответственное лицо за исправное состояние и безопасную эксплуатацию",
-                g("next_hydrotest_date", default="—"),
-            ),
-            (
-                "Экспертиза промышленной безопасности",
-                f"через {ctx.residual_life_years} лет",
-                "Специализированная организация, имеющая лицензию на ЭПБ",
-                until,
-            ),
-        ]
-        rt = doc.add_table(rows=len(default_reg) + 1, cols=4)
-        rt.style = "Table Grid"
-        for i, h in enumerate(
-            ["Наименование вида контроля", "Периодичность контроля", "Исполнитель", "Дата"]
-        ):
-            rt.rows[0].cells[i].text = h
-        for i, row in enumerate(default_reg, 1):
-            for j, val in enumerate(row):
-                rt.rows[i].cells[j].text = val
-    doc.add_paragraph()
 
 
 def append_epb_appendix_act(doc: Document, ctx: EpbReportContext) -> None:

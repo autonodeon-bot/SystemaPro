@@ -1,0 +1,1 @@
+PASS: real PostgreSQL CRUD, role permissions, scoped search, conflict preservation and audit history

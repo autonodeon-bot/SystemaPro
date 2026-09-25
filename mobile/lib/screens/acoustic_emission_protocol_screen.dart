@@ -40,7 +40,7 @@ class _AcousticEmissionProtocolScreenState
     _dateCtrl.text = intl.DateFormat('dd.MM.yyyy').format(DateTime.now());
     final eq = widget.equipment;
     if (eq != null) {
-      _objectCtrl.text = eq.name ?? '';
+      _objectCtrl.text = eq.name;
       final loc = eq.location;
       if (loc != null && loc.isNotEmpty) {
         _locationCtrl.text = loc;

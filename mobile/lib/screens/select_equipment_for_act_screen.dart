@@ -59,15 +59,6 @@ class _SelectEquipmentForActScreenState
   final _searchCtrl = TextEditingController();
   String? _filterType;
 
-  // Типы оборудования, для которых есть акт ТД(ЭПБ)
-  static const _supportedTypes = [
-    'vessel',
-    'gas_separator',
-    'underground_tank',
-    'oil_settler',
-    'compressor',
-    'pipeline',
-  ];
   static const _typeLabels = {
     'vessel': 'Сосуд / Аппарат',
     'gas_separator': 'Газосепаратор',
@@ -220,7 +211,7 @@ class _SelectEquipmentForActScreenState
             backgroundColor: Colors.transparent,
             builder: (sheetCtx) => ExperienceBaseContextSheet(
               items: items,
-              equipmentName: eq.name ?? 'Объект',
+              equipmentName: eq.name,
               onContinue: () => Navigator.pop(sheetCtx),
             ),
           );
@@ -263,7 +254,7 @@ class _SelectEquipmentForActScreenState
               backgroundColor: Colors.transparent,
               builder: (sheetCtx) => InspectionTemplatePickerSheet(
                 templates: templates,
-                equipmentName: eq.name ?? 'Объект',
+                equipmentName: eq.name,
                 onConfirm: (t) => Navigator.pop(sheetCtx, t),
               ),
             );
@@ -498,7 +489,7 @@ class _SelectEquipmentForActScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      eq.name ?? 'Объект',
+                      eq.name,
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 3),

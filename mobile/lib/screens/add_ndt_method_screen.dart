@@ -121,7 +121,7 @@ class _AddNDTMethodScreenState extends State<AddNDTMethodScreen> {
 
   void _restoreMethodSpecificData() {
     final ad = widget.existingMethod?.additionalData;
-    if (ad == null || ad is! Map<String, dynamic>) return;
+    if (ad == null) return;
 
     final points = ad['measurement_points'] as List?;
     if (points != null) {

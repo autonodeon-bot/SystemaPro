@@ -1,4 +1,8 @@
-﻿import { useState, useEffect } from 'react';
+import { runReportJob } from '../utils/reportJobClient';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirmation } from '../components/ui/useConfirmation';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone } from 'lucide-react';
 import { API_BASE } from '../constants';
@@ -40,6 +44,13 @@ const standaloneKindRu = (kind?: string | null) => {
 
 const ReportGeneration = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const toast = useToast();
+  const { requestConfirmation, confirmationDialog } = useConfirmation();
+  const alert = (message: string) => toast.showToast(message, /ошиб/i.test(message) ? 'error' : 'info');
+  const generationController = useRef<AbortController | null>(null);
+  const [generationStage, setGenerationStage] = useState('');
+  useEffect(() => () => generationController.current?.abort(), []);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
@@ -297,6 +308,7 @@ const ReportGeneration = () => {
     format: string = 'pdf',
     skipValidation: boolean = false,
   ) => {
+    if (generationController.current) return;
     // Проверка полноты данных перед генерацией
     if (!skipValidation) {
       const validation = await validateReportData(inspectionId);
@@ -310,16 +322,22 @@ const ReportGeneration = () => {
             ? `\nПредупреждения:\n${validation.warnings.map((w) => `• ${w}`).join('\n')}`
             : '';
 
-        const shouldContinue = window.confirm(
+        const shouldContinue = await requestConfirmation(
           `Данные обследования неполные.${missingText}${warningsText}\n\nПродолжить генерацию отчета?`,
+          { title: 'Проверьте полноту данных', confirmLabel: 'Продолжить' },
         );
         if (!shouldContinue) {
           return;
         }
+        skipValidation = true;
       }
     }
 
+    if (generationController.current) return;
+    const controller = new AbortController();
+    generationController.current = controller;
     setGenerating(inspectionId);
+    setGenerationStage('Постановка в очередь');
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       const token = localStorage.getItem('token');
@@ -327,41 +345,20 @@ const ReportGeneration = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${API_BASE}/api/reports/generate`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          inspection_id: inspectionId,
-          report_type: reportType,
-          format: format,
-          skip_validation: skipValidation,
-          title: `${
-            reportType === 'DIAGNOSTICS'
-              ? 'Диагностический отчет'
-              : reportType === 'TECHNICAL_REPORT'
-                ? 'Технический отчет'
-                : 'Экспертиза ПБ'
-          }`,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const reportInfo = data.report_number
-          ? `\nНомер отчета: ${data.report_number}\nРегистрационный номер: ${data.registration_number}`
-          : '';
-        alert(`Отчет успешно сгенерирован в формате ${format.toUpperCase()}!${reportInfo}`);
-        await loadData();
-        setPreviewData(null);
-      } else {
-        const error = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-        alert(`Ошибка: ${error.detail || 'Не удалось сгенерировать отчет'}`);
-      }
+      const data = await runReportJob({ inspection_id: inspectionId, report_type: reportType, format,
+        skip_validation: skipValidation }, user?.id ?? '', headers, controller.signal, setGenerationStage);
+      const reportInfo = data.report_number ? ` Номер: ${data.report_number}` : '';
+      toast.success(`Отчет готов (${format.toUpperCase()}).${reportInfo}`);
+      await loadData();
+      setPreviewData(null);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       console.error('Ошибка генерации отчета:', error);
       alert(`Ошибка генерации отчета: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
+      generationController.current = null;
       setGenerating(null);
+      setGenerationStage('');
     }
   };
 
@@ -395,7 +392,7 @@ const ReportGeneration = () => {
   };
 
   const deleteInspection = async (inspectionId: string) => {
-    if (!window.confirm('Удалить чек-лист? Это действие нельзя отменить.')) {
+    if (!await requestConfirmation('Удалить чек-лист? Это действие нельзя отменить.')) {
       return;
     }
 
@@ -453,7 +450,7 @@ const ReportGeneration = () => {
   };
 
   const deleteReport = async (reportId: string) => {
-    const confirmDelete = window.confirm('Удалить отчет? Файл будет удален без возможности восстановления.');
+    const confirmDelete = await requestConfirmation('Удалить отчет? Файл будет удален без возможности восстановления.');
     if (!confirmDelete) return;
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -658,6 +655,8 @@ const ReportGeneration = () => {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {confirmationDialog}
+      {generating && <div role="status" className="sp-notice">{generationStage}</div>}
       <ReportGenerationToolbar
         navigate={navigate}
         showArchived={showArchived}

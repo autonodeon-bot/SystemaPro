@@ -270,6 +270,7 @@ class _CustomProtocolScreenState extends State<CustomProtocolScreen> {
           24 + MediaQuery.viewPaddingOf(context).bottom,
         ),
         children: [
+          if (_loadingInstruments) const LinearProgressIndicator(),
           ..._structure.map((block) => _buildBlock(block)),
           const SizedBox(height: 24),
         ],

@@ -1,7 +1,12 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
-import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, X, Camera, Phone, Briefcase, Save, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle, XCircle } from 'lucide-react';
+import { Users, User, Mail, Shield, Search, Edit, Trash2, Plus, Camera, Briefcase, Save, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
+import { useRef } from 'react';
+import Modal from '../components/ui/Modal';
+import SearchSelect, { type SelectOption } from '../components/ui/SearchSelect';
+import { useConfirmation } from '../components/ui/useConfirmation';
+import { useToast } from '../contexts/ToastContext';
 
 interface UserData {
   id: string;
@@ -18,6 +23,12 @@ interface UserData {
 }
 
 const UsersManagement = () => {
+  const toast = useToast();
+  const alert = (message: string) => message.startsWith('Ошибка') ? toast.error(message) : toast.success(message);
+  const { requestConfirmation, confirmationDialog } = useConfirmation();
+  const mutation = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [engineerOptions, setEngineerOptions] = useState<SelectOption[]>([]);
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +59,20 @@ const UsersManagement = () => {
   const textSecondaryClass = 'text-app-text3';
   const borderClass = 'border-app-line';
   const inputBgClass = 'bg-app-panel';
-  const cardBgClass = 'bg-app-panel';
+
+  useEffect(() => {
+    if (currentUser?.role !== 'admin') return;
+    const controller = new AbortController();
+    fetch(`${API_BASE}/api/engineers`, { signal: controller.signal,
+      headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
+    }).then(async response => {
+      if (!response.ok) throw new Error('Не удалось загрузить список инженеров');
+      const data = await response.json();
+      setEngineerOptions((data.items ?? []).map((item: {id: string; full_name: string; position?: string}) =>
+        ({value: item.id, label: item.full_name || item.id, description: item.position})));
+    }).catch(error => { if (!controller.signal.aborted) toast.error(String(error)); });
+    return () => controller.abort();
+  }, [currentUser?.role]);
 
   useEffect(() => {
     if (currentUser?.role === 'admin') {
@@ -92,6 +116,8 @@ const UsersManagement = () => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mutation.current) return;
+    mutation.current = true; setSaving(true);
     try {
       const token = localStorage.getItem('token');
       const formDataToSend = new FormData();
@@ -138,12 +164,16 @@ const UsersManagement = () => {
     } catch (error) {
       console.error('Ошибка создания сотрудника:', error);
       alert('Ошибка создания сотрудника');
+    } finally {
+      mutation.current = false; setSaving(false);
     }
   };
 
   const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
+    if (mutation.current) return;
+    mutation.current = true; setSaving(true);
 
     try {
       const token = localStorage.getItem('token');
@@ -193,11 +223,15 @@ const UsersManagement = () => {
     } catch (error) {
       console.error('Ошибка обновления сотрудника:', error);
       alert('Ошибка обновления сотрудника');
+    } finally {
+      mutation.current = false; setSaving(false);
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) return;
+    if (mutation.current || !await requestConfirmation('Удалить этого сотрудника?')) return;
+    if (mutation.current) return;
+    mutation.current = true; setSaving(true);
 
     try {
       const token = localStorage.getItem('token');
@@ -218,6 +252,8 @@ const UsersManagement = () => {
     } catch (error) {
       console.error('Ошибка удаления сотрудника:', error);
       alert('Ошибка удаления сотрудника');
+    } finally {
+      mutation.current = false; setSaving(false);
     }
   };
 
@@ -495,15 +531,8 @@ const UsersManagement = () => {
 
       {/* Модальное окно создания сотрудника */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className={`${cardBgClass} rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border ${borderClass}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className={`text-xl font-bold ${textClass}`}>Добавить сотрудника</h2>
-              <button onClick={() => setShowCreateModal(false)} className={textSecondaryClass}>
-                <X size={24} />
-              </button>
-            </div>
-
+        <Modal title="Добавить сотрудника" onClose={() => setShowCreateModal(false)} busy={saving}>
+          <fieldset disabled={saving}>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -587,14 +616,8 @@ const UsersManagement = () => {
                   </select>
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>ID инженера</label>
-                  <input
-                    type="text"
-                    value={formData.engineer_id}
-                    onChange={(e) => setFormData({ ...formData, engineer_id: e.target.value })}
-                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
-                    placeholder="UUID инженера (опционально)"
-                  />
+                  <SearchSelect label="Карточка инженера" value={formData.engineer_id} options={engineerOptions}
+                    onChange={engineer_id => setFormData({ ...formData, engineer_id })} disabled={saving} />
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -643,21 +666,14 @@ const UsersManagement = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </fieldset>
+        </Modal>
       )}
 
       {/* Модальное окно редактирования сотрудника */}
       {showEditModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className={`${cardBgClass} rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border ${borderClass}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className={`text-xl font-bold ${textClass}`}>Редактировать сотрудника</h2>
-              <button onClick={() => setShowEditModal(false)} className={textSecondaryClass}>
-                <X size={24} />
-              </button>
-            </div>
-
+        <Modal title="Редактировать сотрудника" onClose={() => setShowEditModal(false)} busy={saving}>
+          <fieldset disabled={saving}>
             <form onSubmit={handleEditUser} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -739,14 +755,8 @@ const UsersManagement = () => {
                   </select>
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium ${textSecondaryClass} mb-1`}>ID инженера</label>
-                  <input
-                    type="text"
-                    value={formData.engineer_id}
-                    onChange={(e) => setFormData({ ...formData, engineer_id: e.target.value })}
-                    className={`w-full px-3 py-2 ${inputBgClass} border ${borderClass} rounded-lg ${textClass} focus:outline-none focus:border-accent`}
-                    placeholder="UUID инженера (опционально)"
-                  />
+                  <SearchSelect label="Карточка инженера" value={formData.engineer_id} options={engineerOptions}
+                    onChange={engineer_id => setFormData({ ...formData, engineer_id })} disabled={saving} />
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -795,9 +805,10 @@ const UsersManagement = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </fieldset>
+        </Modal>
       )}
+      {confirmationDialog}
     </div>
   );
 };

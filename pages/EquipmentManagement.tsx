@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConfirmation } from '../components/ui/useConfirmation';
+import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../constants';
+import { equipmentPayload } from '../components/equipment/equipmentPayload';
+import EquipmentSearchResults from '../components/equipment/EquipmentSearchResults';
 import EquipmentHierarchySearch from '../components/equipment/EquipmentHierarchySearch';
 import EquipmentHierarchyTree from '../components/equipment/EquipmentHierarchyTree';
 import EquipmentCreateModal from '../components/equipment/EquipmentCreateModal';
@@ -49,6 +53,12 @@ const emptyFormData = (): CreateFormData => ({
 
 const EquipmentManagement = () => {
   const { getToken } = useAuth();
+  const toast = useToast();
+  const { requestConfirmation, confirmationDialog } = useConfirmation();
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const mutationPending = useRef(false);
+  const alert = (message: string) => toast.showToast(message, /ошиб|необходимо|истекла/i.test(message) ? 'error' : 'info');
   const navigate = useNavigate();
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [branches, setBranches] = useState<Record<string, Branch[]>>({});
@@ -57,6 +67,7 @@ const EquipmentManagement = () => {
   const [equipment, setEquipment] = useState<Record<string, Equipment[]>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchRevision, setSearchRevision] = useState(0);
   const [usersList, setUsersList] = useState<EngineerUserListItem[]>([]);
 
   const [showCreateModal, setShowCreateModal] = useState<CreateModalState | null>(null);
@@ -157,7 +168,7 @@ const EquipmentManagement = () => {
         return;
       }
 
-      console.log('Загрузка предприятий...', { API_BASE, token: `${token.substring(0, 20)}...` });
+      // Не выводим токен авторизации в консоль.
 
       const response = await fetch(`${API_BASE}/api/hierarchy/enterprises`, {
         headers: {
@@ -375,7 +386,7 @@ const EquipmentManagement = () => {
 
   const handleDeleteEnterprise = async (enterprise: Enterprise) => {
     if (
-      !confirm(
+      !await requestConfirmation(
         `Удалить предприятие «${enterprise.name}»?\n\nДействие необратимо для отображения в списке. Удаление возможно только если нет активных филиалов.`
       )
     ) {
@@ -422,7 +433,7 @@ const EquipmentManagement = () => {
 
   const handleDeleteBranch = async (branch: Branch) => {
     if (
-      !confirm(
+      !await requestConfirmation(
         `Удалить филиал «${branch.name}»?\n\nУдаление возможно только если нет активных цехов.`
       )
     ) {
@@ -454,7 +465,7 @@ const EquipmentManagement = () => {
 
   const handleDeleteWorkshop = async (workshop: Workshop) => {
     if (
-      !confirm(
+      !await requestConfirmation(
         `Удалить цех «${workshop.name}»?\n\nУдаление возможно только если в цехе нет оборудования.`
       )
     ) {
@@ -491,7 +502,7 @@ const EquipmentManagement = () => {
 
   const handleDeleteEquipmentType = async (type: EquipmentType) => {
     if (
-      !confirm(
+      !await requestConfirmation(
         `Удалить тип «${type.name}»?\n\nНельзя удалить, если к типу привязано активное оборудование.`
       )
     ) {
@@ -536,7 +547,11 @@ const EquipmentManagement = () => {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!showCreateModal) return;
+    if (!showCreateModal || mutationPending.current) return;
+    if (!formData.name.trim()) { setFormError('Введите название.'); return; }
+    mutationPending.current = true;
+    setSaving(true);
+    setFormError('');
 
     try {
       const token = getToken();
@@ -554,13 +569,13 @@ const EquipmentManagement = () => {
             endpoint = `${API_BASE}/api/hierarchy/enterprises`;
           }
           body = {
-            name: formData.name,
-            code: formData.code || undefined,
-            description: formData.description || undefined,
-            director: formData.director || undefined,
-            phone: formData.phone || undefined,
-            email: formData.email || undefined,
-            legal_address: formData.legal_address || undefined,
+            name: formData.name.trim(),
+            code: formData.code?.trim() || (isEdit ? '' : undefined),
+            description: formData.description?.trim() || (isEdit ? '' : undefined),
+            director: formData.director?.trim() || (isEdit ? '' : undefined),
+            phone: formData.phone?.trim() || (isEdit ? '' : undefined),
+            email: formData.email?.trim() || (isEdit ? '' : undefined),
+            legal_address: formData.legal_address?.trim() || (isEdit ? '' : undefined),
           };
           break;
         case 'branch':
@@ -572,15 +587,15 @@ const EquipmentManagement = () => {
           }
           body = isEdit
             ? {
-                name: formData.name,
-                code: formData.code || undefined,
-                description: formData.description || undefined,
+                name: formData.name.trim(),
+                code: formData.code?.trim() || (isEdit ? '' : undefined),
+                description: formData.description?.trim() || (isEdit ? '' : undefined),
               }
             : {
                 enterprise_id: showCreateModal.parentId,
-                name: formData.name,
-                code: formData.code || undefined,
-                description: formData.description || undefined,
+                name: formData.name.trim(),
+                code: formData.code?.trim() || (isEdit ? '' : undefined),
+                description: formData.description?.trim() || (isEdit ? '' : undefined),
               };
           break;
         case 'workshop':
@@ -592,15 +607,15 @@ const EquipmentManagement = () => {
           }
           body = isEdit
             ? {
-                name: formData.name,
-                code: formData.code || undefined,
-                description: formData.description || undefined,
+                name: formData.name.trim(),
+                code: formData.code?.trim() || (isEdit ? '' : undefined),
+                description: formData.description?.trim() || (isEdit ? '' : undefined),
               }
             : {
                 branch_id: showCreateModal.parentId,
-                name: formData.name,
-                code: formData.code || undefined,
-                description: formData.description || undefined,
+                name: formData.name.trim(),
+                code: formData.code?.trim() || (isEdit ? '' : undefined),
+                description: formData.description?.trim() || (isEdit ? '' : undefined),
               };
           break;
         case 'equipment_type':
@@ -611,9 +626,9 @@ const EquipmentManagement = () => {
             endpoint = `${API_BASE}/api/equipment-types`;
           }
           body = {
-            name: formData.name,
-            code: formData.code || undefined,
-            description: formData.description || undefined,
+            name: formData.name.trim(),
+            code: formData.code?.trim() || (isEdit ? '' : undefined),
+            description: formData.description?.trim() || (isEdit ? '' : undefined),
           };
           break;
         case 'equipment':
@@ -623,15 +638,7 @@ const EquipmentManagement = () => {
           } else {
             endpoint = `${API_BASE}/api/equipment`;
           }
-          body = {
-            name: formData.name,
-            type_id: formData.type_id || undefined,
-            serial_number: formData.serial_number || undefined,
-            location: formData.location || undefined,
-            commissioning_date: formData.commissioning_date || undefined,
-            attributes: {},
-            ...(isEdit ? {} : { workshop_id: showCreateModal.parentId }),
-          };
+          body = equipmentPayload(formData, Boolean(isEdit), showCreateModal.parentId);
           break;
       }
 
@@ -658,6 +665,7 @@ const EquipmentManagement = () => {
         alert(isEdit ? `${entityLabel} успешно обновлено` : `${entityLabel} успешно создано`);
         setShowCreateModal(null);
         setFormData(emptyFormData());
+        setSearchRevision(n => n + 1);
 
         if (showCreateModal.type === 'enterprise') {
           loadEnterprises();
@@ -675,11 +683,14 @@ const EquipmentManagement = () => {
         }
       } else {
         const error = await response.json();
-        alert(`Ошибка: ${parseApiDetail(error.detail) || 'Не удалось сохранить'}`);
+        setFormError(parseApiDetail(error.detail) || 'Не удалось сохранить');
       }
     } catch (error) {
       console.error('Ошибка создания:', error);
-      alert('Ошибка создания');
+      setFormError('Не удалось сохранить данные. Проверьте соединение и повторите попытку.');
+    } finally {
+      mutationPending.current = false;
+      setSaving(false);
     }
   };
 
@@ -755,7 +766,7 @@ const EquipmentManagement = () => {
   };
 
   const handleDeleteEquipment = async (id: string, workshopId?: string) => {
-    if (!confirm('Вы уверены, что хотите удалить это оборудование?')) return;
+    if (!await requestConfirmation('Вы уверены, что хотите удалить это оборудование?')) return;
 
     try {
       const token = getToken();
@@ -768,6 +779,7 @@ const EquipmentManagement = () => {
 
       if (response.ok) {
         alert('Оборудование удалено');
+        setSearchRevision(n => n + 1);
         if (workshopId) {
           loadEquipment(workshopId);
         } else {
@@ -793,15 +805,18 @@ const EquipmentManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {confirmationDialog}
+      <div className="sp-workspace-heading">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          Управление оборудованием
+          Оборудование и структура
         </h1>
+        <p>Предприятия, филиалы, цеха и оборудование — в одном рабочем пространстве.</p>
       </div>
 
       <EquipmentHierarchySearch searchTerm={searchTerm} onSearchTermChange={setSearchTerm} />
 
-      <EquipmentHierarchyTree
+      {searchTerm.trim() ? <EquipmentSearchResults key={`${searchTerm.trim()}:${searchRevision}`} query={searchTerm.trim()}
+        onEdit={handleEditEquipment} onDelete={handleDeleteEquipment} onOpen={id => navigate(`/equipment/${id}`)} /> : <EquipmentHierarchyTree
         enterprises={enterprises}
         branches={branches}
         workshops={workshops}
@@ -825,14 +840,17 @@ const EquipmentManagement = () => {
         onEditEquipmentType={handleEditEquipmentType}
         onDeleteEquipmentType={handleDeleteEquipmentType}
         onEditEquipment={handleEditEquipment}
-      />
+      />}
 
       {showCreateModal && (
         <EquipmentCreateModal
+          key={`${showCreateModal.mode}-${showCreateModal.type}-${showCreateModal.entityId ?? showCreateModal.parentId ?? "new"}`}
+          busy={saving}
+          error={formError}
           modal={showCreateModal}
           formData={formData}
           equipmentTypes={equipmentTypes}
-          onClose={() => setShowCreateModal(null)}
+          onClose={() => { if (!saving) { setShowCreateModal(null); setFormError(''); } }}
           onSubmit={handleCreateSubmit}
           onFormDataChange={setFormData}
         />

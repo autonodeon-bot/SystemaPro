@@ -126,10 +126,11 @@ mixin ApiEquipmentMixin on ApiServiceBase {
     }
   }
 
-  Future<void> updateEquipment({
+  Future<List<String>> updateEquipment({
     required String equipmentId,
     String? serialNumber,
     Map<String, dynamic>? attributes,
+    bool fillMissingOnly = false,
   }) async {
     try {
       final authService = AuthService();
@@ -143,7 +144,8 @@ mixin ApiEquipmentMixin on ApiServiceBase {
         body['attributes'] = attributes;
       }
 
-      if (body.isEmpty) return;
+      if (body.isEmpty) return [];
+      body['fill_missing_only'] = fillMissingOnly;
 
       final response = await http.put(
         Uri.parse('${ApiServiceBase.baseUrl}/api/equipment/$equipmentId'),
@@ -164,21 +166,19 @@ mixin ApiEquipmentMixin on ApiServiceBase {
         } catch (_) {}
         throw Exception(errorMessage);
       }
+      final payload = json.decode(response.body) as Map;
+      return (payload['conflicts'] as List? ?? []).map((v) => v.toString()).toList();
     } catch (e) {
       throw Exception('Error updating equipment: $e');
     }
   }
 
-  Future<void> updateEquipmentFromChecklist({
+  Future<List<String>> updateEquipmentFromChecklist({
     required String equipmentId,
     required VesselChecklist checklist,
   }) async {
     try {
-      final eq = await getEquipmentById(equipmentId);
       final attrs = <String, dynamic>{};
-      if (eq.attributes != null) {
-        attrs.addAll(eq.attributes!);
-      }
 
       void setAttrIfNotEmpty(String key, String? value) {
         final v = value?.trim();
@@ -198,7 +198,8 @@ mixin ApiEquipmentMixin on ApiServiceBase {
 
       final serial = checklist.serialNumber?.trim();
 
-      await updateEquipment(
+      return await updateEquipment(
+        fillMissingOnly: true,
         equipmentId: equipmentId,
         serialNumber: (serial != null && serial.isNotEmpty) ? serial : null,
         attributes: attrs,

@@ -37,7 +37,7 @@ def restore_db(backup_dir: Path, db: dict, dry_run: bool) -> bool:
         env["PGPASSWORD"] = db["password"]
     try:
         subprocess.run(
-            ["psql", "-h", db["host"], "-p", db["port"], "-U", db["user"], "-d", db["name"], "-f", str(sql_path)],
+            ["psql", "-X", "-v", "ON_ERROR_STOP=1", "--single-transaction", "-h", db["host"], "-p", db["port"], "-U", db["user"], "-d", db["name"], "-f", str(sql_path)],
             env=env,
             check=True,
         )
@@ -57,9 +57,25 @@ def restore_dir(backup_dir: Path, name: str, target: Path, dry_run: bool) -> boo
         print(f"  {name} (dry-run): копировать {src} -> {target}")
         return True
     try:
+        import uuid
+        target = target.resolve()
+        src = src.resolve()
+        if target == src or src in target.parents or target in src.parents or target == Path(target.anchor):
+            raise ValueError("Источник и целевой каталог должны быть раздельными")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        staging = target.with_name(target.name + '.restore-' + uuid.uuid4().hex)
+        previous = target.with_name(target.name + '.previous-' + uuid.uuid4().hex)
+        shutil.copytree(src, staging)
         if target.exists():
-            shutil.rmtree(target)
-        shutil.copytree(src, target)
+            target.rename(previous)
+        try:
+            staging.rename(target)
+        except Exception:
+            if previous.exists():
+                previous.rename(target)
+            raise
+        if previous.exists():
+            print(f"  Предыдущие данные сохранены: {previous}")
         print(f"  {name}: восстановлено в {target}")
         return True
     except Exception as e:

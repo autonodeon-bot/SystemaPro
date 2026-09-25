@@ -425,7 +425,7 @@ class TechnicalReportFormRegistry {
   /// Подбор формы ТО по типу и наименованию оборудования.
   static String suggestFormId(Equipment equipment) {
     final type = (equipment.typeCode ?? '').toUpperCase().trim();
-    if (type.isNotEmpty &&
+    if (type.isNotEmpty && type != 'PIPELINE' &&
         InspectionFormProfiles.equipmentTypeToForm.containsKey(type)) {
       return InspectionFormProfiles.equipmentTypeToForm[type]!;
     }
@@ -442,6 +442,7 @@ class TechnicalReportFormRegistry {
             blob.contains('подземн'))) {
       return 'to-33';
     }
+    if (blob.contains('подкранов')) return 'to-2';
     if (type == 'CRANE' ||
         type == 'GPM' ||
         type == 'LIFTING' ||
@@ -453,6 +454,7 @@ class TechnicalReportFormRegistry {
         typeName.contains('гпм')) {
       return 'to-3';
     }
+    if (type == 'PIPELINE') return 'to-13';
     if (type.contains('PIPELINE') ||
         name.contains('трубопровод') ||
         typeName.contains('трубопровод') ||
@@ -480,6 +482,7 @@ class TechnicalReportFormRegistry {
     if (name.contains('трансформатор')) return 'to-5';
     if (name.contains('электродвигател')) return 'to-8';
     if (name.contains('арматур') && !name.contains('фонтан')) return 'to-24';
+    if (blob.contains('фонтан')) return 'to-27';
     if (name.contains('факел')) return 'to-44';
     if (name.contains('дымов')) return 'to-39';
     if (name.contains('грс')) return 'to-9';

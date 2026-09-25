@@ -32,15 +32,12 @@ class SyncService {
     return s.isEmpty || s == 'null' ? null : s;
   }
 
-  static String _normalizedStatus(Map<String, dynamic> item) {
-    return (item['status']?.toString().trim().toUpperCase() ?? 'DRAFT');
-  }
-
   static String _queueKey(Map<String, dynamic> item) {
     final assignmentId = _nonEmptyString(item['assignment_id']) ?? '';
     final equipmentId = _nonEmptyString(item['equipment_id']) ?? '';
     final datePerformed = _nonEmptyString(item['date_performed']) ?? '';
-    return '$assignmentId|$equipmentId|$datePerformed';
+    final form = item['data'] is Map ? item['data']['report_form_id'] ?? '' : '';
+    return '$assignmentId|$equipmentId|$form|$datePerformed';
   }
 
   static String _normalizeIsoDateTime(String? value) {
@@ -52,22 +49,6 @@ class SyncService {
     } catch (_) {
       return DateTime.now().toIso8601String();
     }
-  }
-
-  static bool _sameAssignmentAndEquipment(
-    Map<String, dynamic> a,
-    Map<String, dynamic> b,
-  ) {
-    final aAssignmentId = _nonEmptyString(a['assignment_id']);
-    final bAssignmentId = _nonEmptyString(b['assignment_id']);
-    final aEquipmentId = _nonEmptyString(a['equipment_id']);
-    final bEquipmentId = _nonEmptyString(b['equipment_id']);
-    return aAssignmentId != null &&
-        bAssignmentId != null &&
-        aEquipmentId != null &&
-        bEquipmentId != null &&
-        aAssignmentId == bAssignmentId &&
-        aEquipmentId == bEquipmentId;
   }
 
   /// Сохранить диагностику в локальное хранилище для последующей синхронизации
@@ -83,8 +64,6 @@ class SyncService {
     String status = 'DRAFT', // DRAFT / SIGNED
   }) async {
     try {
-      final pendingInspections = await DatabaseService.getPendingInspections();
-
       final checklistJson = checklist.toJson();
       // Добавляем информацию о файлах документов (единый формат: docNumber -> {file_path, file_name})
       // Важно: этот формат должен совпадать с тем, как он читается в syncPendingInspections().
@@ -223,29 +202,9 @@ class SyncService {
         'verification_equipment_ids': verificationEquipmentIds ??
             [], // ID выбранного оборудования для поверок
       };
-      inspectionData['id'] = _queueKey(inspectionData);
-
-      final newStatus = _normalizedStatus(inspectionData);
-      final cleaned = pendingInspections.where((existing) {
-        final existingStatus = _normalizedStatus(existing);
-        final sameScope = _sameAssignmentAndEquipment(existing, inspectionData);
-        if (!sameScope) {
-          return true;
-        }
-
-        // Для SIGNED оставляем только последний подписанный вариант (удаляем и старые черновики).
-        if (newStatus == 'SIGNED') {
-          return false;
-        }
-        // Для DRAFT обновляем текущий черновик по этому же заданию/оборудованию.
-        if (newStatus == 'DRAFT' && existingStatus == 'DRAFT') {
-          return false;
-        }
-        return true;
-      }).toList();
-
-      cleaned.add(inspectionData);
-      await DatabaseService.replacePendingInspections(cleaned);
+      inspectionData['id'] = '${_queueKey(inspectionData)}|${status.toUpperCase()}'
+          '${status.toUpperCase() == 'SIGNED' ? '|${inspectionData['timestamp']}' : ''}';
+      await DatabaseService.enqueueInspection(inspectionData);
     } catch (e) {
       throw Exception('Ошибка сохранения в офлайн-режиме: $e');
     }
@@ -258,24 +217,6 @@ class SyncService {
     } catch (e) {
       return [];
     }
-  }
-
-  /// Ищет файл по имени в папке offline_documents (fallback при смене пути)
-  Future<String?> _findInOfflineDocuments(String fileName) async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final storageDir = Directory(Path.join(dir.path, 'offline_documents'));
-      if (!await storageDir.exists()) return null;
-      final baseName = Path.basename(fileName);
-      final entities = storageDir.listSync();
-      for (final e in entities) {
-        if (e is File) {
-          final name = Path.basename(e.path);
-          if (name == baseName || name.endsWith('_$baseName')) return e.path;
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   /// Локальный статус по заданиям:
@@ -446,6 +387,7 @@ class SyncService {
           final equipmentId = rawEqId != null ? rawEqId.toString().trim() : '';
           if (equipmentId.isEmpty) {
             result.lastFailureReason = 'Нет ID оборудования в сохранённых данных';
+            await DatabaseService.recordInspectionSyncError(inspectionData, result.lastFailureReason!);
             failedInspections.add(inspectionData);
             result.failedCount++;
             continue;
@@ -477,7 +419,8 @@ class SyncService {
               ? CompressorChecklist.fromJson(data)
               : VesselChecklist.fromJson(data);
           try {
-            await _apiService.updateEquipmentFromChecklist(equipmentId: equipmentId, checklist: checklist);
+            final conflicts = await _apiService.updateEquipmentFromChecklist(equipmentId: equipmentId, checklist: checklist);
+            if (conflicts.isNotEmpty) result.conflictCount += conflicts.length;
           } catch (e) {
             print('Ошибка обновления данных оборудования: $e');
           }
@@ -506,65 +449,17 @@ class SyncService {
             result.lastFailureReason = result.lastFailureReason!.substring('Exception: '.length);
           }
           print('Синхронизация: ошибка отправки обследования: $e');
+          await DatabaseService.recordInspectionSyncError(inspectionData, result.lastFailureReason ?? 'Ошибка отправки');
           failedInspections.add(inspectionData);
           result.failedCount++;
         }
         }
 
-        // Удаляем успешно отправленные инспекции из локального хранилища
-        // Оставляем только неудачные попытки и черновики (DRAFT)
-        final successfulKeys = successfulInspections.map(_queueKey).toSet();
-        final successfulAssignmentEquipment = successfulInspections
-            .where((s) => _nonEmptyString(s['assignment_id']) != null && _nonEmptyString(s['equipment_id']) != null)
-            .map((s) => '${_nonEmptyString(s['assignment_id'])}|${_nonEmptyString(s['equipment_id'])}')
-            .toSet();
-
-        final remainingInspections = pendingInspections.where((item) {
-          final key = _queueKey(item);
-          if (successfulKeys.contains(key)) {
-            return false;
-          }
-
-          // После успешной отправки подписанного отчета очищаем связанные локальные записи по тому же assignment/equipment.
-          final assignmentId = _nonEmptyString(item['assignment_id']);
-          final equipmentId = _nonEmptyString(item['equipment_id']);
-          if (assignmentId != null && equipmentId != null) {
-            final pair = '$assignmentId|$equipmentId';
-            if (successfulAssignmentEquipment.contains(pair)) {
-              return false;
-            }
-          }
-          return true;
-        }).toList();
-
-        // Сохраняем только неудачные попытки и черновики
-        await DatabaseService.replacePendingInspections(remainingInspections);
-
-        // Удаляем автосохранённые черновики обследований, которые успешно
-        // ушли на сервер — иначе в «Реестре протоколов» они продолжают
-        // отображаться как «не завершён»
-        try {
-          final successfulEquipmentIds = successfulInspections
-              .map((s) => _nonEmptyString(s['equipment_id']))
-              .whereType<String>()
-              .toSet();
-          if (successfulEquipmentIds.isNotEmpty) {
-            final allDrafts = await DatabaseService.getAllDrafts();
-            for (final draft in allDrafts) {
-              final screenType = draft['screen_type']?.toString();
-              if (screenType != null && screenType != 'inspection') continue;
-              final draftEq = _nonEmptyString(draft['equipment_id']);
-              if (draftEq != null && successfulEquipmentIds.contains(draftEq)) {
-                final draftId = draft['id']?.toString();
-                if (draftId != null) {
-                  await DatabaseService.deleteDraft(draftId);
-                }
-              }
-            }
-          }
-        } catch (e) {
-          print('Очистка черновиков после синхронизации: $e');
+        // Do not replace the entire queue from a stale pre-upload snapshot.
+        for (final uploaded in successfulInspections) {
+          await DatabaseService.acknowledgeInspectionUpload(uploaded);
         }
+
       }
 
       final standaloneFailed = await _syncPendingStandaloneProtocols(result);
@@ -619,7 +514,8 @@ class SyncService {
 
       result.success = true;
       result.message =
-          'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок';
+          'Синхронизация завершена: ${result.syncedCount} успешно, ${result.failedCount} ошибок'
+          '${result.conflictCount > 0 ? '. Расхождений с карточками: ${result.conflictCount}. Данные оператора сохранены; новые значения доступны в обследовании.' : ''}';
     } catch (e) {
       result.error = 'Ошибка синхронизации: $e';
     }
@@ -1171,7 +1067,7 @@ class SyncService {
   Future<int> prefetchDrawingTemplatesForAssignments(List<Assignment> assignments) async {
     final ids = assignments
         .map((a) => a.equipmentId)
-        .where((e) => e != null && e.isNotEmpty)
+        .where((e) => e.isNotEmpty)
         .cast<String>()
         .toSet()
         .toList();
@@ -1346,6 +1242,7 @@ class SyncService {
   Future<Map<String, dynamic>?> getLatestPendingInspection({
     required String equipmentId,
     String? assignmentId,
+    String? reportFormId,
   }) async {
     try {
       final pending = await getPendingInspections();
@@ -1354,11 +1251,10 @@ class SyncService {
       final matching = pending.where((item) {
         final eqId = item['equipment_id']?.toString();
         if (eqId != equipmentId) return false;
+        if (reportFormId != null && (item['data'] is! Map || item['data']['report_form_id'] != reportFormId)) return false;
 
-        if (assignmentId != null) {
-          final aId = item['assignment_id']?.toString();
-          if (aId != assignmentId) return false;
-        }
+          final aId = item['assignment_id']?.toString() ?? '';
+          if (aId != (assignmentId ?? '')) return false;
 
         return true;
       }).toList();
@@ -1383,6 +1279,7 @@ class SyncResult {
   bool success = false;
   int syncedCount = 0;
   int failedCount = 0;
+  int conflictCount = 0;
   String? message;
   String? error;
   /// Текст последней ошибки при отправке обследования (для показа пользователю).

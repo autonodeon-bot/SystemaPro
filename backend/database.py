@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 import ssl
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +19,19 @@ DB_SSLCERT = os.getenv("DB_SSLCERT", "/app/certs/root.crt")
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 
-def get_ssl_context():
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+def get_ssl_context(mode=None):
+    mode = mode or DB_SSLMODE
+    cafile = DB_SSLCERT if Path(DB_SSLCERT).is_file() else None
+    if os.getenv("DB_SSLCERT") and cafile is None:
+        raise ValueError("DB_SSLCERT указывает на отсутствующий сертификат")
+    ssl_context = ssl.create_default_context(cafile=cafile)
+    if mode in ("require", "prefer", "disable", "off", "false", "no", "none"):
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+    elif mode == "verify-ca":
+        ssl_context.check_hostname = False
+    elif mode != "verify-full":
+        raise ValueError(f"Неподдерживаемый DB_SSLMODE: {mode}")
     return ssl_context
 
 
@@ -29,12 +39,11 @@ connect_args: dict = {}
 if DB_SSLMODE in ("disable", "off", "false", "no", "none"):
     # Локальная БД без TLS и Alembic на машине разработчика
     logger.info("[DB] SSL: отключён (DB_SSLMODE=%s)", DB_SSLMODE)
-elif DB_SSLMODE in ("verify-full", "require", "prefer"):
+elif DB_SSLMODE in ("verify-full", "verify-ca", "require", "prefer"):
     connect_args["ssl"] = get_ssl_context()
-    logger.info("[DB] SSL: self-signed cert mode")
+    logger.info("[DB] SSL: %s", DB_SSLMODE)
 else:
-    connect_args["ssl"] = get_ssl_context()
-    logger.info("[DB] SSL: нестандартный DB_SSLMODE=%s, используется контекст по умолчанию", DB_SSLMODE)
+    raise ValueError(f"Неподдерживаемый DB_SSLMODE: {DB_SSLMODE}")
 
 engine = create_async_engine(
     DATABASE_URL,

@@ -1,0 +1,178 @@
+22036:
+2026-09-18 15:03:43
+Full thread dump OpenJDK 64-Bit Server VM (21.0.10+-14961533-b1163.108 mixed mode):
+
+Threads class SMR info:
+_java_thread_list=0x000002042e2be8c0, length=12, elements={
+0x000002040d82f800, 0x000002042c098970, 0x000002042c09adf0, 0x000002042c0b0870,
+0x000002042c0b9560, 0x000002042c0c2180, 0x000002042c0c27f0, 0x000002042c0c2e60,
+0x000002042c0c34d0, 0x000002042c0e3dc0, 0x000002042c26c030, 0x000002042e343800
+}
+
+"main" #1 [12248] prio=5 os_prio=0 cpu=11375.00ms elapsed=256.61s tid=0x000002040d82f800 nid=12248 runnable  [0x0000000a6b9fe000]
+   java.lang.Thread.State: RUNNABLE
+	at sun.nio.ch.WEPoll.wait(java.base@21.0.10/Native Method)
+	at sun.nio.ch.WEPollSelectorImpl.doSelect(java.base@21.0.10/Unknown Source)
+	at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@21.0.10/Unknown Source)
+	- locked <0x00000007155ab988> (a sun.nio.ch.Util$2)
+	- locked <0x00000007155ab790> (a sun.nio.ch.WEPollSelectorImpl)
+	at sun.nio.ch.SelectorImpl.select(java.base@21.0.10/Unknown Source)
+	at org.gradle.internal.remote.internal.inet.SocketConnection$SocketInputStream.read(SocketConnection.java:190)
+	at com.esotericsoftware.kryo.io.Input.fill(Input.java:146)
+	at com.esotericsoftware.kryo.io.Input.require(Input.java:178)
+	at com.esotericsoftware.kryo.io.Input.readVarInt(Input.java:355)
+	at com.esotericsoftware.kryo.io.Input.readInt(Input.java:350)
+	at org.gradle.internal.serialize.kryo.KryoBackedDecoder.readSmallInt(KryoBackedDecoder.java:133)
+	at org.gradle.internal.serialize.DefaultSerializerRegistry$TaggedTypeSerializer.read(DefaultSerializerRegistry.java:159)
+	at org.gradle.internal.serialize.Serializers$StatefulSerializerAdapter$1.read(Serializers.java:36)
+	at org.gradle.internal.remote.internal.inet.SocketConnection.receive(SocketConnection.java:86)
+	at org.gradle.launcher.daemon.client.DaemonClientConnection.receive(DaemonClientConnection.java:82)
+	at org.gradle.launcher.daemon.client.DaemonClient.monitorBuild(DaemonClient.java:246)
+	at org.gradle.launcher.daemon.client.DaemonClient.executeBuild(DaemonClient.java:209)
+	at org.gradle.launcher.daemon.client.SingleUseDaemonClient.execute(SingleUseDaemonClient.java:63)
+	at org.gradle.launcher.daemon.client.SingleUseDaemonClient.execute(SingleUseDaemonClient.java:37)
+	at org.gradle.launcher.cli.RunBuildAction.run(RunBuildAction.java:56)
+	at org.gradle.internal.Actions$RunnableActionAdapter.execute(Actions.java:167)
+	at org.gradle.launcher.cli.DefaultCommandLineActionFactory$ParseAndBuildAction.execute(DefaultCommandLineActionFactory.java:370)
+	at org.gradle.launcher.cli.DefaultCommandLineActionFactory$ParseAndBuildAction.execute(DefaultCommandLineActionFactory.java:334)
+	at org.gradle.launcher.cli.DebugLoggerWarningAction.execute(DebugLoggerWarningAction.java:74)
+	at org.gradle.launcher.cli.DebugLoggerWarningAction.execute(DebugLoggerWarningAction.java:30)
+	at org.gradle.launcher.cli.WelcomeMessageAction.execute(WelcomeMessageAction.java:97)
+	at org.gradle.launcher.cli.WelcomeMessageAction.execute(WelcomeMessageAction.java:40)
+	at org.gradle.launcher.cli.NativeServicesInitializingAction.execute(NativeServicesInitializingAction.java:50)
+	at org.gradle.launcher.cli.NativeServicesInitializingAction.execute(NativeServicesInitializingAction.java:27)
+	at org.gradle.launcher.cli.ExceptionReportingAction.execute(ExceptionReportingAction.java:41)
+	at org.gradle.launcher.cli.ExceptionReportingAction.execute(ExceptionReportingAction.java:26)
+	at org.gradle.launcher.cli.DefaultCommandLineActionFactory$WithLogging.execute(DefaultCommandLineActionFactory.java:482)
+	at org.gradle.launcher.Main.doAction(Main.java:35)
+	at org.gradle.launcher.bootstrap.EntryPoint.run(EntryPoint.java:52)
+	at java.lang.invoke.DirectMethodHandle$Holder.invokeVirtual(java.base@21.0.10/DirectMethodHandle$Holder)
+	at java.lang.invoke.LambdaForm$MH/0x00000008001d1800.invoke(java.base@21.0.10/LambdaForm$MH)
+	at java.lang.invoke.Invokers$Holder.invokeExact_MT(java.base@21.0.10/Invokers$Holder)
+	at jdk.internal.reflect.DirectMethodHandleAccessor.invokeImpl(java.base@21.0.10/Unknown Source)
+	at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(java.base@21.0.10/Unknown Source)
+	at java.lang.reflect.Method.invoke(java.base@21.0.10/Unknown Source)
+	at org.gradle.launcher.bootstrap.ProcessBootstrap.runNoExit(ProcessBootstrap.java:72)
+	at org.gradle.launcher.bootstrap.ProcessBootstrap.run(ProcessBootstrap.java:39)
+	at org.gradle.launcher.GradleMain.main(GradleMain.java:31)
+	at java.lang.invoke.DirectMethodHandle$Holder.invokeStatic(java.base@21.0.10/DirectMethodHandle$Holder)
+	at java.lang.invoke.LambdaForm$MH/0x00000008001c6c00.invoke(java.base@21.0.10/LambdaForm$MH)
+	at java.lang.invoke.Invokers$Holder.invokeExact_MT(java.base@21.0.10/Invokers$Holder)
+	at jdk.internal.reflect.DirectMethodHandleAccessor.invokeImpl(java.base@21.0.10/Unknown Source)
+	at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(java.base@21.0.10/Unknown Source)
+	at java.lang.reflect.Method.invoke(java.base@21.0.10/Unknown Source)
+	at org.gradle.wrapper.BootstrapMainStarter.start(BootstrapMainStarter.java:30)
+	at org.gradle.wrapper.WrapperExecutor.execute(WrapperExecutor.java:129)
+	at org.gradle.wrapper.GradleWrapperMain.main(GradleWrapperMain.java:61)
+
+"Common-Cleaner" #9 [10456] daemon prio=8 os_prio=1 cpu=0.00ms elapsed=256.58s tid=0x000002042c098970 nid=10456 waiting on condition  [0x0000000a6c1fe000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@21.0.10/Native Method)
+	- parking to wait for  <0x000000070d6001d0> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.ReferenceQueue.await(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.ReferenceQueue.remove0(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.ReferenceQueue.remove(java.base@21.0.10/Unknown Source)
+	at jdk.internal.ref.CleanerImpl.run(java.base@21.0.10/Unknown Source)
+	at java.lang.Thread.runWith(java.base@21.0.10/Unknown Source)
+	at java.lang.Thread.run(java.base@21.0.10/Unknown Source)
+	at jdk.internal.misc.InnocuousThread.run(java.base@21.0.10/Unknown Source)
+
+"Reference Handler" #10 [13264] daemon prio=10 os_prio=2 cpu=0.00ms elapsed=256.57s tid=0x000002042c09adf0 nid=13264 waiting on condition  [0x0000000a6c2ff000]
+   java.lang.Thread.State: RUNNABLE
+	at java.lang.ref.Reference.waitForReferencePendingList(java.base@21.0.10/Native Method)
+	at java.lang.ref.Reference.processPendingReferences(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.Reference$ReferenceHandler.run(java.base@21.0.10/Unknown Source)
+
+"Finalizer" #11 [29484] daemon prio=8 os_prio=1 cpu=0.00ms elapsed=256.57s tid=0x000002042c0b0870 nid=29484 in Object.wait()  [0x0000000a6c3ff000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait0(java.base@21.0.10/Native Method)
+	- waiting on <0x000000070d601098> (a java.lang.ref.NativeReferenceQueue$Lock)
+	at java.lang.Object.wait(java.base@21.0.10/Unknown Source)
+	at java.lang.Object.wait(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.NativeReferenceQueue.await(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.ReferenceQueue.remove0(java.base@21.0.10/Unknown Source)
+	at java.lang.ref.NativeReferenceQueue.remove(java.base@21.0.10/Unknown Source)
+	- locked <0x000000070d601098> (a java.lang.ref.NativeReferenceQueue$Lock)
+	at java.lang.ref.Finalizer$FinalizerThread.run(java.base@21.0.10/Unknown Source)
+
+"Signal Dispatcher" #12 [25840] daemon prio=9 os_prio=2 cpu=0.00ms elapsed=256.57s tid=0x000002042c0b9560 nid=25840 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Attach Listener" #13 [27216] daemon prio=5 os_prio=2 cpu=0.00ms elapsed=256.57s tid=0x000002042c0c2180 nid=27216 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Service Thread" #14 [11948] daemon prio=9 os_prio=0 cpu=0.00ms elapsed=256.57s tid=0x000002042c0c27f0 nid=11948 runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Monitor Deflation Thread" #15 [21824] daemon prio=9 os_prio=0 cpu=31.25ms elapsed=256.57s tid=0x000002042c0c2e60 nid=21824 runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread0" #16 [17360] daemon prio=9 os_prio=2 cpu=1750.00ms elapsed=256.57s tid=0x000002042c0c34d0 nid=17360 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+   No compile task
+
+"C1 CompilerThread0" #24 [29000] daemon prio=9 os_prio=2 cpu=359.38ms elapsed=256.57s tid=0x000002042c0e3dc0 nid=29000 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+   No compile task
+
+"Notification Thread" #28 [4636] daemon prio=9 os_prio=0 cpu=0.00ms elapsed=256.56s tid=0x000002042c26c030 nid=4636 runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"pool-1-thread-1" #45 [15164] prio=5 os_prio=0 cpu=250.00ms elapsed=185.11s tid=0x000002042e343800 nid=15164 waiting on condition  [0x0000000a6dbff000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@21.0.10/Native Method)
+	- parking to wait for  <0x000000070fe7d3e8> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@21.0.10/Unknown Source)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@21.0.10/Unknown Source)
+	at java.lang.Thread.runWith(java.base@21.0.10/Unknown Source)
+	at java.lang.Thread.run(java.base@21.0.10/Unknown Source)
+
+"GC Thread#10" os_prio=2 cpu=0.00ms elapsed=184.94s tid=0x000002042ddc22a0 nid=24724 runnable  
+
+"G1 Conc#2" os_prio=2 cpu=0.00ms elapsed=185.13s tid=0x000002042ddc1ef0 nid=8840 runnable  
+
+"G1 Conc#1" os_prio=2 cpu=0.00ms elapsed=185.13s tid=0x000002042ddc1b40 nid=17520 runnable  
+
+"GC Thread#9" os_prio=2 cpu=0.00ms elapsed=185.13s tid=0x000002042ddc13e0 nid=26060 runnable  
+
+"GC Thread#8" os_prio=2 cpu=0.00ms elapsed=185.13s tid=0x000002042ddc1790 nid=4724 runnable  
+
+"GC Thread#7" os_prio=2 cpu=0.00ms elapsed=253.66s tid=0x000002042d7c34e0 nid=28988 runnable  
+
+"GC Thread#6" os_prio=2 cpu=15.62ms elapsed=253.66s tid=0x000002042d7c1c50 nid=3664 runnable  
+
+"GC Thread#5" os_prio=2 cpu=15.62ms elapsed=253.66s tid=0x000002042d7c18a0 nid=29264 runnable  
+
+"GC Thread#4" os_prio=2 cpu=15.62ms elapsed=253.66s tid=0x000002042d2ec470 nid=19012 runnable  
+
+"GC Thread#3" os_prio=2 cpu=0.00ms elapsed=253.66s tid=0x000002042d2ec0c0 nid=25192 runnable  
+
+"GC Thread#2" os_prio=2 cpu=0.00ms elapsed=253.66s tid=0x000002042da0abf0 nid=20628 runnable  
+
+"GC Thread#1" os_prio=2 cpu=15.62ms elapsed=253.66s tid=0x000002042d6d33b0 nid=14104 runnable  
+
+"VM Thread" os_prio=2 cpu=0.00ms elapsed=256.59s tid=0x000002042c013080 nid=17744 runnable  
+
+"VM Periodic Task Thread" os_prio=2 cpu=125.00ms elapsed=256.61s tid=0x0000020427305fe0 nid=2852 waiting on condition  
+
+"G1 Service" os_prio=2 cpu=0.00ms elapsed=256.61s tid=0x00000204271dc0e0 nid=20724 runnable  
+
+"G1 Refine#0" os_prio=2 cpu=0.00ms elapsed=256.61s tid=0x000002040d8ee9e0 nid=24484 runnable  
+
+"G1 Conc#0" os_prio=2 cpu=0.00ms elapsed=256.61s tid=0x000002040d8a5500 nid=29792 runnable  
+
+"G1 Main Marker" os_prio=2 cpu=15.62ms elapsed=256.61s tid=0x000002040d89f9e0 nid=6228 runnable  
+
+"GC Thread#0" os_prio=2 cpu=15.62ms elapsed=256.61s tid=0x000002040d88f720 nid=8524 runnable  
+
+JNI global refs: 28, weak refs: 0
+
+JNI global refs memory usage: 835, weak refs: 833
+

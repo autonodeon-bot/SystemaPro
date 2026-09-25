@@ -195,7 +195,7 @@ class Assignment {
       case 'NVO_GI':
         return 'НВО и ГИ';
       default:
-        return 'Прочее';
+        return assignmentType;
     }
   }
 
@@ -210,11 +210,10 @@ class Assignment {
       case 'CANCELLED':
         return 'Отменено';
       default:
-        return 'Неизвестно';
+        return status;
     }
   }
 }
-
 
 
 

@@ -1,0 +1,20 @@
+Computing fixes in mobile...
+Applying fixes...
+
+lib\providers\theme_provider.dart
+  unused_import - 1 fix
+
+lib\screens\vessel_inspection_screen.dart
+  unnecessary_cast - 3 fixes
+  unnecessary_non_null_assertion - 2 fixes
+
+lib\services\sync_service.dart
+  unnecessary_null_comparison - 1 fix
+
+lib\widgets\inspection\inspection_general_info_section.dart
+  unused_import - 1 fix
+
+lib\widgets\inspection\inspection_measurements_section.dart
+  unnecessary_non_null_assertion - 2 fixes
+
+10 fixes made in 5 files.

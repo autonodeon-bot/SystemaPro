@@ -46,3 +46,12 @@ async def get_report_form(form_id: str, username: str = Depends(verify_token)):
     if not form:
         raise HTTPException(status_code=404, detail="Форма ТО не найдена")
     return form
+
+
+@router.get("/{form_id}/schema")
+async def get_report_field_schema(form_id: str, username: str = Depends(verify_token)):
+    from report_schema import schema_for_form
+    try:
+        return schema_for_form(form_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

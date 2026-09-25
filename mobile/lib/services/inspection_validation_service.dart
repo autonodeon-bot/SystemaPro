@@ -4,6 +4,8 @@ library;
 import 'dart:io';
 
 import '../models/vessel_checklist.dart';
+import '../data/report_field_schema.dart';
+import 'certificate_validity.dart';
 
 class InspectionValidationResult {
   final List<String> missingRequired;
@@ -22,12 +24,19 @@ InspectionValidationResult validateInspectionForSign({
   required VesselChecklist checklist,
   required List<String> selectedEquipmentIds,
   List<Map<String, dynamic>> manualVerificationEquipment = const [],
+  List<Map<String, dynamic>> selectedVerificationEquipment = const [],
   File? factoryPlatePhoto,
   File? controlSchemeImage,
   bool requireThickness = true,
 }) {
   final missing = <String>[];
   final warnings = <String>[];
+  final profileValues = checklist.additionalData?['profile_values'];
+  final measurements = checklist.additionalData?['profile_measurements'];
+  if (measurements is List) missing.addAll(ReportFieldSchema.validateMeasurements(checklist.reportFormId ?? 'to-1', measurements));
+  if (profileValues is Map) {
+    missing.addAll(ReportFieldSchema.validate(checklist.reportFormId ?? 'to-1', profileValues));
+  }
 
   if (checklist.inspectionDate == null || checklist.inspectionDate!.trim().isEmpty) {
     missing.add('Дата обследования');
@@ -76,9 +85,16 @@ InspectionValidationResult validateInspectionForSign({
   }
 
   for (final eng in checklist.inspectionEngineers) {
+    final validity = certificateDateWarning('Удостоверение ${eng.fullName ?? eng.method}', eng.validUntil, checklist.inspectionDate);
+    if (validity != null) warnings.add(validity);
     if ((eng.fullName ?? '').trim().isEmpty) {
       warnings.add('Не указано ФИО специалиста для метода ${eng.method}');
     }
+  }
+
+  for (final instrument in [...manualVerificationEquipment, ...selectedVerificationEquipment]) {
+    final validity = certificateDateWarning('Поверка ${instrument['name'] ?? 'прибора'}', instrument['next_verification_date']?.toString(), checklist.inspectionDate);
+    if (validity != null) warnings.add(validity);
   }
 
   if (checklist.vesselName == null || checklist.vesselName!.trim().isEmpty) {

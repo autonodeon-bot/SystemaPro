@@ -77,7 +77,7 @@ class InspectionPassportSection extends StatelessWidget {
           value: checklist.constructionType,
           onChanged: (v) {
             checklist.constructionType = v;
-            final s = (v ?? '').toLowerCase();
+            final s = v.toLowerCase();
             if (s.contains('горизонт')) checklist.orientation = 'horizontal';
             if (s.contains('вертикал')) checklist.orientation = 'vertical';
             onStateChanged();

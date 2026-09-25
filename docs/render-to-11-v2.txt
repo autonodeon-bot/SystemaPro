@@ -1,0 +1,2 @@
+[render_docx] NOTE: multiple section page sizes/orientations detected; DPI is computed from the first section only. Consider --dpi to override.
+Pages rendered to C:\RUSTAM\DIATEKS\sys\SystemaPro\docs\report-render-qa\render-to-11-v2

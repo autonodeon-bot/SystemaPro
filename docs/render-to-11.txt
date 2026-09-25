@@ -1,0 +1,7 @@
+[render_docx] NOTE: multiple section page sizes/orientations detected; DPI is computed from the first section only. Consider --dpi to override.
+[render_docx] $ C:\RUSTAM\DIATEKS\sys\SystemaPro\tools\libreoffice\program\soffice.exe -env:UserInstallation=file:///C:/Windows/Temp/soffice_profile_ru36vc08 --invisible --headless --norestore --convert-to pdf --outdir C:\Windows\Temp\soffice_convert_ojj6h67r C:\RUSTAM\DIATEKS\sys\SystemaPro\docs\report-render-qa\to-11.docx
+convert C:\RUSTAM\DIATEKS\sys\SystemaPro\docs\report-render-qa\to-11.docx as a Writer document -> C:\Windows\Temp\soffice_convert_ojj6h67r\to-11.pdf using filter : writer_pdf_Export
+
+Could not find platform independent libraries <prefix>
+
+Pages rendered to C:\RUSTAM\DIATEKS\sys\SystemaPro\docs\report-render-qa\render-to-11

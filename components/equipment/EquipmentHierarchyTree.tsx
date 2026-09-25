@@ -64,6 +64,8 @@ export interface EquipmentHierarchyTreeProps {
 
 const rowBase: React.CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '8px 10px',
@@ -97,7 +99,7 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
   onDeleteEquipmentType,
   onEditEquipment,
 }) => (
-  <div className="sp-surface" style={{ padding: '16px' }}>
+  <div className="sp-surface sp-equipment-tree" style={{ padding: '16px' }}>
     <div className="mb-3">
       <button
         type="button"
@@ -108,6 +110,7 @@ const EquipmentHierarchyTree: React.FC<EquipmentHierarchyTreeProps> = ({
       </button>
     </div>
 
+    {enterprises.length === 0 && <p className="sp-empty">Создайте первое предприятие, затем добавьте филиалы, цеха и оборудование.</p>}
     {enterprises.map((enterprise) => (
       <div key={enterprise.id} className="mb-3">
         <div
