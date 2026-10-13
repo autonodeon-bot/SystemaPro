@@ -6,6 +6,8 @@ scheme_equipment_catalog (to-1 … to-44).
 """
 from __future__ import annotations
 
+from vessel_elements import normalize_elements, draw_elements, ELEMENT_NAMES
+
 import io
 import math
 from typing import Any, Dict, List, Optional, Tuple
@@ -196,8 +198,7 @@ def _build_vessel_welds(
             welds.append(item)
         return welds, shell_count
 
-    if preset == "multi_shell" and shell_count < 2:
-        shell_count = 2
+    # A single shell remains a single shell for stable part ownership.
 
     # Кольцевые: только между обечайками + стыки с днищами (как К1..Кn на карте)
     # На карте ВИК кольцевые — внутренние стыки; торцы корпуса тоже стык с днищем
@@ -283,6 +284,11 @@ def _build_pipeline_welds(segment_count: int, raw_welds: List[Any], preset: str)
 def normalize_geometry(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Привести вход к каноническому виду и развернуть пресет швов."""
     data = dict(raw or {})
+    if data.get('schema_version') == 2:
+        from vessel_geometry_v2 import normalize_v2
+        return normalize_v2(data)
+    if data.get('schema_version', 1) != 1:
+        raise ValueError('Unsupported vessel geometry schema version')
     kind = normalize_equipment_kind(data.get("equipment_kind") or data.get("kind") or data.get("type") or data.get("form_id"))
     family = resolve_family(kind)
     defs = defaults_for_kind(kind)
@@ -421,6 +427,7 @@ def normalize_geometry(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         "segment_count": shell_count,
         "head_type": head_type,
         "heads": heads,
+        "elements": normalize_elements(data.get("elements") or [], shell_count),
         "nozzles": nozzles,
         "welds": welds,
         "weld_preset": preset,
@@ -558,9 +565,7 @@ def _draw_full_head_circle(
     # небольшой радиальный шов на днище (как П на эталоне)
     if draw_radial_weld:
         draw.line([(cx, cy - r + 4), (cx, cy + r - 4)], fill=weld_color, width=2)
-    # внутренний кружок (люк / патрубок условно)
-    ir = r * 0.22
-    draw.ellipse([cx - ir, cy - ir, cx + ir, cy + ir], outline=ink, width=2)
+    # Openings are drawn only when explicitly present in geometry.
     # Подпись сбоку от круга с выноской: над кругом она наезжает на кромку
     # корпуса развёртки, а снизу — на размер диаметра днища.
     try:
@@ -858,6 +863,10 @@ def render_vessel_scheme(
 ) -> Tuple[bytes, Dict[str, Any], List[Dict[str, Any]]]:
     """Рендер PNG. Возвращает (png_bytes, geometry, suggested_points)."""
     geo = normalize_geometry(raw_geometry)
+    if geo.get('schema_version') == 2:
+        from vessel_geometry_v2 import render_v2
+        layer = {'vik':'ВИК','uzt':'УЗТ','uzk':'УЗК','mpk':'МК','pvk':'ПВК','hardness':'ТВ'}.get(scheme_layer, scheme_layer)
+        return render_v2(geo, width, height, layer=layer)
     kind = geo.get("equipment_kind") or "vessel"
     family = geo.get("scheme_family") or resolve_family(kind)
     layer = str(scheme_layer or geo.get("scheme_layer") or "vik").lower()
@@ -1057,6 +1066,7 @@ def render_vessel_scheme(
                 # справа от корпуса идут метки кольцевых швов К1…Кn — уводим влево
                 draw.text((x0 - 78, y1 + 6), f"L={body_len:g}", fill=ink, font=font_tiny)
 
+        draw_elements(draw, geo.get("elements", []), layout, font_tiny, horiz)
         nozzle_xy: Dict[str, Tuple[float, float]] = {}
         for n in geo.get("nozzles") or []:
             place = str(n.get("place") or "body")
@@ -1184,6 +1194,11 @@ def _build_legend_lines(geo: Dict[str, Any], ov: Dict[str, Any], layer: str) -> 
     if p_labs:
         lines.append("Продольные швы: " + ", ".join(p_labs))
     lines.extend(_nozzle_legend_lines(geo.get("nozzles") or []))
+    for e in geo.get("elements") or []:
+        part = e['part_id'].replace('shell_', 'Обечайка ')
+        if part == 'head_top': part = 'Левое днище' if geo.get('orientation') == 'horizontal' else 'Верхнее днище'
+        if part == 'head_bottom': part = 'Правое днище' if geo.get('orientation') == 'horizontal' else 'Нижнее днище'
+        lines.append(f"{e['label']} — {ELEMENT_NAMES[e['kind']]}, {part}")
     if layer == "uzt":
         pts = ov.get("uzt_points") or []
         nmax = max((int(p.get("n") or 0) for p in pts), default=len(pts))

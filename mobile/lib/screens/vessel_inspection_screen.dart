@@ -11,6 +11,10 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:http/http.dart' as http;
+import '../services/auth_service.dart';
+import '../models/vessel_geometry.dart';
 import '../services/inspection_archive_service.dart';
 import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
@@ -25,6 +29,7 @@ import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import '../services/location_service.dart';
 import '../services/auto_save_service.dart';
+import '../services/database_service.dart';
 import '../services/photo_annotation_service.dart';
 import '../services/image_resize_service.dart';
 import '../services/last_values_service.dart';
@@ -44,6 +49,7 @@ import '../widgets/inspection/inspection_pipeline_extra_section.dart';
 import '../widgets/inspection/inspection_crane_safety_section.dart';
 import '../widgets/inspection/inspection_passport_section.dart';
 import 'vessel_scheme_constructor_screen.dart';
+import '../widgets/vessel_drawing.dart';
 import '../widgets/inspection/inspection_conclusion_section.dart';
 import '../widgets/inspection/inspection_report_fields_section.dart';
 import '../widgets/inspection/inspection_profile_fields_section.dart';
@@ -216,6 +222,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
       _prefillFromEquipment();
       _applyTemplateDefaults();
+      final openingSaved = widget.existingInspectionId != null && widget.initialChecklistJson != null && !_isCompressor;
+      if (openingSaved) {
+        _checklist = VesselChecklist.fromJson(widget.initialChecklistJson!);
+        final manual = widget.initialChecklistJson!['additional_data']?['manual_verification_equipment'];
+        if (manual is List) {
+          _manualVerificationEquipment = manual.whereType<Map>().map((e) => e.map((k,v) => MapEntry(k.toString(),v?.toString() ?? ''))).toList();
+        }
+      }
 
       Future.microtask(_loadEngineers);
       Future.microtask(_loadOpos);
@@ -224,8 +238,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       Future.microtask(_startAutoSaveTimer);
       
       Future.microtask(() async {
-        final hadLocal = await _loadLocalPendingIfExists();
-        if (!hadLocal) {
+        final hadLocal = openingSaved ? false : await _loadLocalPendingIfExists();
+        if (openingSaved) await _renderSavedGeometry();
+        if (!hadLocal && !openingSaved) {
           await _prefillFromPreviousInspections();
         }
         await _applyAssignmentMeta();
@@ -241,6 +256,56 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _checklist.documents[doc['number']!] = false;
       }
       print('Ошибка инициализации чек-листа: $e');
+    }
+  }
+
+  /// Server paths are not local files. Rebuild editable v2 snapshots on device.
+  Future<void> _renderSavedGeometry() async {
+    final raw = _checklist.baseVesselScheme?.geometry;
+    if (raw?['schema_version'] != 2) return;
+    try {
+      final model = VesselGeometry.load(raw);
+      final dir = await getApplicationDocumentsDirectory();
+      final folder = Directory('${dir.path}/vessel_saved_${widget.existingInspectionId}');
+      await folder.create(recursive: true);
+      final plate = _checklist.factoryPlatePhoto;
+      if (plate != null && (plate.startsWith('/app/uploads/') || plate.startsWith('/uploads/'))) {
+        final relative = plate.startsWith('/app/') ? plate.substring(4) : plate;
+        final token = await AuthService().getToken();
+        final response = await http.get(Uri.parse('${ApiService.baseUrl}$relative'), headers: {if (token != null) 'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 20));
+        if (response.statusCode == 200 && (response.headers['content-type'] ?? '').startsWith('image/')) {
+          final file=File('${folder.path}/factory_plate.png');
+          await file.writeAsBytes(response.bodyBytes);
+          _factoryPlatePhoto=file;_checklist.factoryPlatePhoto=file.path;
+        }
+      }
+      for (final partId in <String?>[null, ...model.parts.map((p) => p['id'] as String)]) {
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder)..scale(1.5);
+        VesselDrawingPainter(VesselDrawingLayout(model, const Size(1190,842), detail: partId)).paint(canvas,const Size(1190,842));
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(1785,1263);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        final file = File('${folder.path}/${partId ?? 'overview'}.png');
+        await file.writeAsBytes(bytes!.buffer.asUint8List());
+        image.dispose(); picture.dispose();
+        if (partId == null) {
+          _controlSchemeImage = file;
+          _checklist.controlSchemeImage = file.path;
+          _checklist.baseVesselScheme!.imagePath = file.path;
+        } else {
+          final doc = 'vessel_detail_$partId';
+          _documentFiles[doc] = file.path;
+          for (final view in raw!['views'] as List) {
+            if (view['part_id'] == partId) view['image_path'] = file.path;
+          }
+        }
+      }
+      syncVesselMeasurementProjection(_checklist);
+      if (mounted) setState(() {});
+      await _autoSaveDraft(force: true);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось восстановить изображения схемы: $error')));
     }
   }
 
@@ -1686,6 +1751,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         fileName: 'vessel_template.png',
         documentNumber: 'control_scheme_image',
       );
+
       setState(() {
         _controlSchemeImage = File(persistedPath);
         _checklist.controlSchemeImage = persistedPath;
@@ -1706,11 +1772,24 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   Future<void> _openSchemeConstructor() async {
     try {
+      await _syncService.saveEquipmentOffline([widget.equipment]);
+      await _autoSaveService.saveDraft(
+        equipmentId: widget.equipment.id,
+        checklistData: _checklist.toJson(),
+        assignmentId: widget.assignmentId,
+        inspectionId: widget.existingInspectionId,
+      );
+      if (!mounted) return;
       final typeCode = widget.equipment.typeCode?.toLowerCase().replaceAll('-', '_');
       final formId = (_checklist.reportFormId ?? _reportForm.id).toLowerCase();
       final result = await Navigator.of(context).push<VesselSchemeConstructorResult>(
         MaterialPageRoute(
           builder: (_) => VesselSchemeConstructorScreen(
+            draftKey: 'vessel_constructor_${widget.equipment.id}_${widget.existingInspectionId ?? widget.assignmentId ?? 'new'}',
+            measuredPointIds: _checklist.thicknessMeasurements.where((m) => m.thickness != null && m.schemePointId != null).map((m) => m.schemePointId!).toSet(),
+            measuredZoneIds: _checklist.weldInspections.where((w)=>w.schemeZoneId!=null&&w.toJson()['result_status']=='recorded').map((w)=>w.schemeZoneId!).toSet(),
+            legacyMeasurements: [for(var i=0;i<_checklist.thicknessMeasurements.length;i++) {..._checklist.thicknessMeasurements[i].toJson(),'source_index':i}],
+            initialGeometry: _checklist.baseVesselScheme?.geometry,
             initialOrientation: _checklist.orientation ?? _checklist.constructionType,
             initialEquipmentKind: typeCode,
             initialFormId: formId,
@@ -1723,6 +1802,16 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         fileName: 'vessel_scheme_constructor.png',
         documentNumber: 'control_scheme_image',
       );
+      if (result.geometry['schema_version'] == 2) {
+        for (final view in (result.geometry['views'] as List)) {
+          if (!['part_detail','section_detail'].contains(view['kind']) || view['image_path'] == null) continue;
+          final documentNumber = 'vessel_detail_${(view['part_ids'] as List).first}';
+          view['image_path'] = await _persistPickedFile(sourcePath: view['image_path'],
+            fileName: '$documentNumber.png', documentNumber: documentNumber);
+          view['document_number'] = documentNumber;
+          _documentFiles[documentNumber] = view['image_path'] as String;
+        }
+      }
       setState(() {
         _controlSchemeImage = File(persisted);
         _checklist.controlSchemeImage = persisted;
@@ -1733,6 +1822,73 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
           ..orientation = result.orientation
           ..geometry = result.geometry
           ..points = _checklist.baseVesselScheme?.points ?? [];
+        if (result.geometry['schema_version'] == 2) {
+          final bindings = result.geometry['legacy_point_bindings'] as Map? ?? {};
+          for(final binding in bindings.entries) {
+            final index=(binding.value['source_index'] as num?)?.toInt();
+            if(index!=null && index>=0 && index<_checklist.thicknessMeasurements.length) {
+              final row=_checklist.thicknessMeasurements[index];
+              final oldId=binding.value['old_point_id'];
+              if ((oldId!=null && row.schemePointId==oldId) ||
+                  (oldId==null && row.location==binding.value['source_location'] && row.sectionNumber==binding.value['source_number'])) {
+                row.schemePointId=binding.key.toString();
+              }
+            }
+          }
+          for(final id in bindings.keys) {
+            final duplicates=_checklist.thicknessMeasurements.where((m)=>m.schemePointId==id).toList();
+            if(duplicates.length>1) {
+              final keep=duplicates.firstWhere((m)=>m.thickness!=null,orElse:()=>duplicates.first);
+              _checklist.thicknessMeasurements.removeWhere((m)=>m.schemePointId==id && !identical(m,keep) && m.thickness==null && m.photos.isEmpty && (m.comment??'').isEmpty);
+            }
+          }
+          final entities = <String, Map>{
+            for (final e in [...result.geometry['parts'] as List, ...result.geometry['elements'] as List]) e['id'] as String: e as Map,
+          };
+          final welds = <String,Map>{for(final w in result.geometry['welds'] as List) w['id'] as String:w as Map};
+          for(final section in result.geometry['sections'] as List? ?? []) {
+            if(section['kind']=='weld_profile' && ['ТВ','ТВЕРДОМЕТРИЯ','ТВЁРДОМЕТРИЯ'].contains(section['method']?.toString().toUpperCase()) && !_checklist.hardnessTests.any((h)=>h.sectionProfileId==section['id'])) {
+              _checklist.hardnessTests.add(HardnessTest(weldNumber:welds[section['owner_id']]?['designation']??'')
+                ..sectionProfileId=section['id']..weldId=section['owner_id']..modelRevision=result.geometry['revision']..areaNumber=section['designation']);
+            }
+          }
+          for(final zone in result.geometry['control_zones'] as List) {
+            if(zone['archived']==true)continue;
+            for(final method in zone['planned_methods'] as List) {
+              final code={'УЗК':'UZK','МК':'MPK','ПВК':'PVK','ВИК':'VIK'}[method];
+              if(code==null)continue;
+              if(!_checklist.weldInspections.any((w)=>w.schemeZoneId==zone['id']&&w.controlMethod==code)) {
+                final coverage=zone['coverage'] as Map;
+                _checklist.weldInspections.add(WeldInspection(weldNumber:welds[zone['weld_id']]?['designation']??'')
+                  ..weldId=zone['weld_id']..schemeZoneId=zone['id']..modelRevision=result.geometry['revision']
+                  ..controlMethod=code..locationOnControlMap=(coverage['kind']=='whole'?'Весь шов':'${coverage['start']} → ${coverage['end']} ${coverage['unit']}'));
+              }
+            }
+          }
+          for (final point in result.geometry['control_points'] as List) {
+            if (point['archived'] == true) continue;
+            final id = point['id'] as String;
+            final ownerId = point['owner_id'] as String;
+            final ownerName = entities[ownerId]?['designation']?.toString() ?? ownerId;
+            final number = '${point['body_number'] ?? point['local_number']}';
+            final schemePoints = _checklist.baseVesselScheme!.points;
+            final existing = schemePoints.where((p) => p.id == id);
+            final p = existing.isEmpty ? SchemeControlPoint(id: id, number: number, controlType: 'uzt') : existing.first;
+            p.number = number;
+            p.ownerId = ownerId;
+            p.elementName = ownerName;
+            p.modelRevision = (result.geometry['revision'] as num).toInt();
+            if (existing.isEmpty) schemePoints.add(p);
+            final rows = _checklist.thicknessMeasurements.where((m) => m.schemePointId == id);
+            if (rows.isEmpty) {
+              _checklist.thicknessMeasurements.add(ThicknessMeasurement(location: ownerName, sectionNumber: number)..schemePointId = id);
+            } else {
+              rows.first.location = ownerName;
+              rows.first.sectionNumber = number;
+            }
+          }
+        }
+        syncVesselMeasurementProjection(_checklist);
         _hasUnsavedChanges = true;
       });
       if (mounted) {
@@ -1742,6 +1898,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
             backgroundColor: Colors.green,
           ),
         );
+      }
+      final saved = await _autoSaveDraft(force: true);
+      if (saved) {
+        await DatabaseService.deleteDraft('vessel_constructor_${widget.equipment.id}_${widget.existingInspectionId ?? widget.assignmentId ?? 'new'}');
       }
     } catch (e) {
       if (mounted) {
@@ -1756,6 +1916,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   }
 
   Future<void> _openNdtZoneEditor(String layer) async {
+    if (_checklist.baseVesselScheme?.geometry?['schema_version'] == 2) {
+      await _openSchemeConstructor();
+      return;
+    }
     try {
       final schemePath = _checklist.baseVesselScheme?.imagePath ??
           _checklist.controlSchemeImage ??
@@ -2470,8 +2634,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               ),
               PopupMenuButton<String>(
                 tooltip: 'Дополнительные действия',
-                onSelected: (value) => value == 'server-pdf' ? _previewServerPdf() : _exportToPdf(),
+                onSelected: (value) => value == 'constructor'
+                    ? _openSchemeConstructor()
+                    : value == 'server-pdf' ? _previewServerPdf() : _exportToPdf(),
                 itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'constructor', child: Text('Конструктор схемы')),
                   PopupMenuItem(value: 'server-pdf', child: Text('Сохранить на сервер и открыть PDF')),
                   PopupMenuItem(value: 'pdf', child: Text('Экспорт черновика в PDF')),
                 ],

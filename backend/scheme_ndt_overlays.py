@@ -572,7 +572,7 @@ def render_all_layer_pngs(
             logger.exception("Рендер слоя схемы %s", layer)
             continue
         extra: List[Tuple[str, bytes]] = []
-        if layer == LAYER_HARDNESS:
+        if layer == LAYER_HARDNESS and geo.get('schema_version') != 2:
             t_zones = overlays.get("hardness_T") or []
             u_zones = overlays.get("hardness_U") or []
             t_max = t_zones[-1]["label"] if t_zones else "Т20"

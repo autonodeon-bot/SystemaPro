@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Download, Save, RefreshCw, Plus, Trash2, ArrowLeft } from 'lucide-react';
 import { API_BASE } from '../constants';
+import VesselConstructorV2 from './VesselConstructorV2';
 
 type Orientation = 'horizontal' | 'vertical';
 type WeldPreset = 'ring_only' | 'long_plus_rings' | 'multi_shell' | 'custom';
@@ -390,6 +391,8 @@ const VesselSchemeConstructor: React.FC = () => {
       </div>
     );
   }
+
+  if (family === 'vessel_development') return <VesselConstructorV2 equipmentId={equipmentId} inspectionId={params.get('inspection_id') || ''} onBack={() => setStep('kind')} />;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">

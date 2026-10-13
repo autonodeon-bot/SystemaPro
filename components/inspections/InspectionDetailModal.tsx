@@ -1,5 +1,6 @@
 ﻿import React, { useMemo } from 'react';
 import { FileText, Package, MapPin, Calendar, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { checklistDocumentNames } from '../../pages/checklistDocumentNames';
 import { API_BASE } from '../../constants';
 import type { DocumentFile, Inspection, InspectionQuestionnaireInfo } from './types';
@@ -86,6 +87,11 @@ const InspectionDetailModal: React.FC<InspectionDetailModalProps> = ({
           </button>
         </div>
         <div className="p-6 space-y-6">
+          {(data.base_vessel_scheme as { geometry?: { schema_version?: number } } | undefined)?.geometry?.schema_version === 2 && (
+            <Link className="ind-btn ind-btn--primary" to={`/vessel-scheme-constructor?kind=vessel&inspection_id=${encodeURIComponent(insp.id)}`}>
+              Открыть конструктор сосуда
+            </Link>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-app-text3 mb-1 block">Оборудование</label>

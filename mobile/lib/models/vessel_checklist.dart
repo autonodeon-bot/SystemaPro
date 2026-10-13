@@ -1,6 +1,7 @@
 // Модель данных для чек-листа обследования сосуда
 
 class VesselChecklist {
+  bool testData = false;
   // Основная информация
   String? inspectionDate;
   String? inspectionType; // VISUAL, NDT, QUESTIONNAIRE, EXPERTISE
@@ -290,7 +291,9 @@ class VesselChecklist {
         if (num.isEmpty) continue;
         SchemeControlPoint? existing;
         for (final p in baseVesselScheme!.points) {
-          if (p.number == num && p.controlType == 'uzt') {
+          if (p.controlType == 'uzt' &&
+              (m.schemePointId != null ? p.id == m.schemePointId :
+                (baseVesselScheme!.geometry?['schema_version'] != 2 && p.number == num))) {
             existing = p;
             break;
           }
@@ -363,6 +366,7 @@ class VesselChecklist {
       }),
       'include_opo_data': includeOpoData,
       'vessel_name': vesselName,
+      'test_data': testData,
       'serial_number': serialNumber,
       'reg_number': regNumber,
       'inventory_number': inventoryNumber,
@@ -536,6 +540,7 @@ class VesselChecklist {
     }
 
     checklist.vesselName = json['vessel_name'] as String?;
+    checklist.testData = json['test_data'] == true;
     checklist.serialNumber = json['serial_number'] as String?;
     checklist.regNumber = json['reg_number'] as String?;
     checklist.inventoryNumber = (json['inventory_number'] ?? json['inv_number']) as String?;
@@ -1037,6 +1042,9 @@ class DeflectionMeasurement {
 }
 
 class HardnessTest {
+  String? sectionProfileId;
+  String? weldId;
+  int? modelRevision;
   String weldNumber;
   String? areaNumber;
   String? location;
@@ -1062,6 +1070,10 @@ class HardnessTest {
   
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
+    'section_profile_id': sectionProfileId,
+    'weld_id': weldId,
+    'model_revision': modelRevision,
+    if(sectionProfileId!=null) 'result_status': [hardnessBase,hardnessWeld,hardnessHaz,hardnessBaseT1,hardnessBaseT5,hardnessHazT2,hardnessHazT4].any((s)=>s!=null&&s.trim().isNotEmpty)?'recorded':'planned',
     'location': location ?? weldNumber,
     'element': elementName ?? location,
     'element_name': elementName ?? location,
@@ -1084,6 +1096,9 @@ class HardnessTest {
 
   factory HardnessTest.fromJson(Map<String, dynamic> json) {
     final t = HardnessTest(weldNumber: (json['weld_number'] ?? json['location'] ?? '').toString());
+    t.sectionProfileId=json['section_profile_id']?.toString();
+    t.weldId=json['weld_id']?.toString();
+    t.modelRevision=(json['model_revision'] as num?)?.toInt();
     t.areaNumber = json['area_number']?.toString();
     t.location = json['location']?.toString();
     t.elementName = (json['element_name'] ?? json['element'] ?? json['location'])?.toString();
@@ -1105,6 +1120,9 @@ class HardnessTest {
 }
 
 class WeldInspection {
+  String? weldId;
+  String? schemeZoneId;
+  int? modelRevision;
   String weldNumber;
   String? locationOnControlMap;
   String? controlMethod; // MPK | UZK
@@ -1125,6 +1143,10 @@ class WeldInspection {
   
   Map<String, dynamic> toJson() => {
     'weld_number': weldNumber,
+    'weld_id': weldId,
+    'scheme_zone_id': schemeZoneId,
+    'model_revision': modelRevision,
+    if(schemeZoneId!=null) 'result_status': [pvkDefect,uzkDefect,defectDescription,conclusion].any((s)=>s!=null&&s.trim().isNotEmpty)?'recorded':'planned',
     'joint': weldNumber,
     'location_on_control_map': locationOnControlMap,
     'control_method': controlMethod,
@@ -1147,6 +1169,9 @@ class WeldInspection {
 
   factory WeldInspection.fromJson(Map<String, dynamic> json) {
     final w = WeldInspection(weldNumber: (json['weld_number'] ?? json['joint'] ?? '').toString());
+    w.weldId = json['weld_id']?.toString();
+    w.schemeZoneId = json['scheme_zone_id']?.toString();
+    w.modelRevision = (json['model_revision'] as num?)?.toInt();
     w.locationOnControlMap = json['location_on_control_map']?.toString();
     w.controlMethod = json['control_method']?.toString() ?? json['method']?.toString();
     w.pvkDefect = json['pvk_defect']?.toString();
@@ -1589,6 +1614,9 @@ class FittingInstrument {
 
 /// Точка/зона контроля на базовой схеме сосуда (общая для всех методов НК).
 class SchemeControlPoint {
+  String? ownerId;
+  String? weldId;
+  int? modelRevision;
   String id;
   String number; // T1, Зона-1…
   String? elementName;
@@ -1610,7 +1638,10 @@ class SchemeControlPoint {
         'point_number': number,
         'element': elementName,
         'element_name': elementName,
-        'element_id': elementName,
+        'element_id': ownerId,
+        'owner_id': ownerId,
+        'weld_id': weldId,
+        'model_revision': modelRevision,
         'control_type': controlType,
         'x_percent': xPercent,
         'y_percent': yPercent,
@@ -1627,6 +1658,9 @@ class SchemeControlPoint {
     p.elementName =
         (json['element_name'] ?? json['element'] ?? json['element_id'])?.toString();
     p.xPercent = VesselChecklist._asDouble(json['x_percent']);
+    p.ownerId = json['owner_id']?.toString();
+    p.weldId = json['weld_id']?.toString();
+    p.modelRevision = (json['model_revision'] as num?)?.toInt();
     p.yPercent = VesselChecklist._asDouble(json['y_percent']);
     p.value = json['value']?.toString();
     p.comment = json['comment']?.toString();

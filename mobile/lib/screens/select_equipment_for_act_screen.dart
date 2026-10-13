@@ -302,6 +302,24 @@ class _SelectEquipmentForActScreenState
             ? inspectionTypeForDirection(widget.inspectionDirection!)
             : 'NDT');
 
+    Map<String, dynamic>? saved;
+    try {
+      final inspections = await _api.getInspections(eq.id);
+      final drafts = inspections.where((i) => i['status'] == 'DRAFT' &&
+          i['data']?['base_vessel_scheme']?['geometry']?['schema_version'] == 2).toList();
+      if (drafts.isNotEmpty && mounted) {
+        final choice = await showDialog<String>(context: context, builder: (c) => SimpleDialog(
+          title: const Text('Сохранённые обследования'),
+          children: [for (final i in drafts) SimpleDialogOption(
+            onPressed: () => Navigator.pop(c, i['id'].toString()),
+            child: Text('Открыть ${i['data']['inspection_date'] ?? ''} · ${(i['data']['thickness_measurements'] as List? ?? []).where((p) => p['thickness'] != null).length} замеров')),
+            SimpleDialogOption(onPressed: () => Navigator.pop(c, 'new'), child: const Text('Создать новое обследование'))]));
+        if (choice == null) return;
+        if (choice != 'new') saved = Map<String,dynamic>.from(drafts.firstWhere((i) => i['id'].toString() == choice));
+      }
+    } catch (_) { /* Offline work uses the existing local draft flow. */ }
+    if (!mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -310,7 +328,8 @@ class _SelectEquipmentForActScreenState
           assignmentId: widget.assignmentId,
           inspectionType: inspectionType,
           reportFormId: TechnicalReportFormRegistry.suggestFormId(eq),
-          initialChecklistJson: tpl?.defaultData,
+          existingInspectionId: saved?['id']?.toString(),
+          initialChecklistJson: saved == null ? tpl?.defaultData : Map<String,dynamic>.from(saved['data']),
         ),
       ),
     );

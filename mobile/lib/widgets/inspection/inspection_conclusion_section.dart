@@ -65,6 +65,9 @@ Widget buildInspectionProgressIndicator({
   required List<String> selectedEquipmentIds,
   required File? factoryPlatePhoto,
 }) {
+  final manualEquipment = checklist.additionalData?['manual_verification_equipment'];
+  final hasEquipment = selectedEquipmentIds.isNotEmpty ||
+      (manualEquipment is List && manualEquipment.isNotEmpty);
   int completed = 0;
   int total = 0;
 
@@ -80,7 +83,7 @@ Widget buildInspectionProgressIndicator({
   }
 
   total += 1;
-  if (selectedEquipmentIds.isNotEmpty) completed++;
+  if (hasEquipment) completed++;
 
   total += 5;
   if (checklist.vesselName != null && checklist.vesselName!.isNotEmpty) {
@@ -121,7 +124,7 @@ Widget buildInspectionProgressIndicator({
   if (checklist.organization == null || checklist.organization!.isEmpty) {
     missingRequired.add('Организация');
   }
-  if (selectedEquipmentIds.isEmpty) {
+  if (!hasEquipment) {
     missingRequired.add('Оборудование для поверок');
   }
   if (factoryPlatePhoto == null &&

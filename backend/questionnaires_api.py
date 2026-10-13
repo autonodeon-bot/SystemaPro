@@ -264,7 +264,7 @@ async def update_questionnaire(
         except Exception:
             raise HTTPException(status_code=400, detail="Неверный формат идентификатора")
 
-        q_row = (await db.execute(select(Questionnaire).where(Questionnaire.id == q_uuid))).scalar_one_or_none()
+        q_row = (await db.execute(select(Questionnaire).where(Questionnaire.id == q_uuid).with_for_update())).scalar_one_or_none()
         if not q_row:
             raise HTTPException(status_code=404, detail="Опросный лист не найден")
 
@@ -273,7 +273,8 @@ async def update_questionnaire(
             if data is not None and not isinstance(data, dict):
                 raise HTTPException(status_code=400, detail="Поле data должно быть объектом JSON")
             if data is not None:
-                q_row.data = data
+                from vessel_snapshot_guard import guard_vessel_update
+                q_row.data = guard_vessel_update(q_row.data or {}, data)
 
         if payload.get("status") is not None:
             s = payload.get("status")

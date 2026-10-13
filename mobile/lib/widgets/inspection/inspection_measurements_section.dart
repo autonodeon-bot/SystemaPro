@@ -10,6 +10,7 @@ import '../../services/image_resize_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as Path;
 import 'inspection_form_fields.dart';
+import '../vessel_drawing.dart';
 
 class InspectionMeasurementsSection extends StatelessWidget {
   final VesselChecklist checklist;
@@ -182,6 +183,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
         if (checklist.uztSchemes.isEmpty) ...[
           _buildControlSchemePhoto(context),
           buildAddItemButton('Открыть карту замеров', () async {
+            syncVesselMeasurementProjection(checklist);
             final result = await context.push<Map<String, dynamic>>(
               '/thickness-measurement',
               extra: {
@@ -840,8 +842,10 @@ class InspectionMeasurementsSection extends StatelessWidget {
                   items: const [
                     DropdownMenuItem(value: 'MPK', child: Text('МПК', style: TextStyle(color: Colors.white))),
                     DropdownMenuItem(value: 'UZK', child: Text('УЗК', style: TextStyle(color: Colors.white))),
+                    DropdownMenuItem(value: 'PVK', child: Text('ПВК', style: TextStyle(color: Colors.white))),
+                    DropdownMenuItem(value: 'VIK', child: Text('ВИК', style: TextStyle(color: Colors.white))),
                   ],
-                  onChanged: (v) => setInner(() => controlMethod = v ?? 'MPK'),
+                  onChanged: editWeld?.schemeZoneId != null ? null : (v) => setInner(() => controlMethod = v ?? 'MPK'),
                 ),
                 buildDialogTextField(pvk, 'Дефект (ПВК/МК)'),
                 buildDialogTextField(uzk, 'Дефект (УЗК)'),

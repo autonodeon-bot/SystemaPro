@@ -1,0 +1,3232 @@
+{
+  "schema_version": 2,
+  "model_id": "c32075b5-7668-520f-a6f2-9f35a75b0d49",
+  "revision": 0,
+  "units": "mm",
+  "equipment_kind": "vessel",
+  "orientation": "horizontal",
+  "coordinate_frame": {
+    "axis": "A_to_B",
+    "view_from": "A",
+    "clockwise": true,
+    "confirmed": true,
+    "zero_description": "Учебный пример: верхняя образующая, вид слева A"
+  },
+  "parts": [
+    {
+      "id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "head",
+      "designation": "Левое днище",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "side": "A",
+      "head_type": "elliptical"
+    },
+    {
+      "id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "kind": "head",
+      "designation": "Правое днище",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "side": "B",
+      "head_type": "elliptical"
+    },
+    {
+      "id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "kind": "shell",
+      "designation": "Обечайка 1",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12,
+        "length_mm": 1800
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные"
+    },
+    {
+      "id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "kind": "shell",
+      "designation": "Обечайка 2",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12,
+        "length_mm": 1800
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные"
+    },
+    {
+      "id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "kind": "shell",
+      "designation": "Обечайка 3",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12,
+        "length_mm": 1650
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные"
+    },
+    {
+      "id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "kind": "shell",
+      "designation": "Обечайка 4",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12,
+        "length_mm": 1100
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные"
+    },
+    {
+      "id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "kind": "shell",
+      "designation": "Обечайка 5",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12,
+        "length_mm": 1800
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные"
+    },
+    {
+      "id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "kind": "shell",
+      "designation": "Обечайка 6",
+      "dimensions": {
+        "diameter_mm": 2000,
+        "thickness_mm": 12,
+        "length_mm": 1900
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные"
+    },
+    {
+      "id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "kind": "cover",
+      "designation": "Крышка люка Т",
+      "dimensions": {
+        "diameter_mm": 600,
+        "thickness_mm": 12
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "parent_id": "9d2d6f38-1b0a-5747-99c4-67fbf14776c4"
+    }
+  ],
+  "elements": [
+    {
+      "id": "1abcdd3d-4fb0-54f0-a9fa-1e33e902a915",
+      "parent_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "kind": "nozzle",
+      "designation": "В",
+      "dn": 200,
+      "dimensions": {
+        "diameter_mm": 200,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 864.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "164e1b46-8043-5c12-b93f-0e979f1cd40d",
+      "parent_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "kind": "nozzle",
+      "designation": "Г",
+      "dn": 250,
+      "dimensions": {
+        "diameter_mm": 250,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 864.0,
+        "theta_deg": 280.8
+      }
+    },
+    {
+      "id": "c9ed4e0b-4c3f-56fd-b896-224142f4cd3f",
+      "parent_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "kind": "nozzle",
+      "designation": "Н1",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 396.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "7cd8c3a8-5af4-5f07-b771-1858b7710a3c",
+      "parent_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "kind": "nozzle",
+      "designation": "Н2",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 720.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "d1163cf0-fafe-5a95-b3b5-13f7b1f38d58",
+      "parent_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "kind": "nozzle",
+      "designation": "З1",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1260.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "afd3a30c-1561-5e9d-8127-e4b91b28879e",
+      "parent_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "kind": "nozzle",
+      "designation": "Л",
+      "dn": 150,
+      "dimensions": {
+        "diameter_mm": 150,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1170.0,
+        "theta_deg": 280.8
+      }
+    },
+    {
+      "id": "9d2d6f38-1b0a-5747-99c4-67fbf14776c4",
+      "parent_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "kind": "manway",
+      "designation": "Т",
+      "dn": 600,
+      "dimensions": {
+        "diameter_mm": 600,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 825.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "168fcf7f-9c5e-59e6-a6ad-3fb238999bcb",
+      "parent_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "kind": "nozzle",
+      "designation": "Е1",
+      "dn": 100,
+      "dimensions": {
+        "diameter_mm": 100,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 810.0,
+        "theta_deg": 61.2
+      }
+    },
+    {
+      "id": "99804688-86a9-5e42-bf9a-c8e4804f57c5",
+      "parent_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "kind": "nozzle",
+      "designation": "Е2",
+      "dn": 100,
+      "dimensions": {
+        "diameter_mm": 100,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 810.0,
+        "theta_deg": 93.60000000000001
+      }
+    },
+    {
+      "id": "cab0d3d2-e01a-5414-9e50-0d04a7c2fbeb",
+      "parent_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "kind": "nozzle",
+      "designation": "Д",
+      "dn": 100,
+      "dimensions": {
+        "diameter_mm": 100,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 990.0,
+        "theta_deg": 280.8
+      }
+    },
+    {
+      "id": "6e7284b0-fc1e-538b-890f-78651b989b7b",
+      "parent_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "kind": "nozzle",
+      "designation": "Б2",
+      "dn": 200,
+      "dimensions": {
+        "diameter_mm": 200,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 570.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "3337369b-501b-5e51-ad96-8a9b76a726e6",
+      "parent_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "kind": "nozzle",
+      "designation": "Б1",
+      "dn": 200,
+      "dimensions": {
+        "diameter_mm": 200,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1330.0,
+        "theta_deg": 79.2
+      }
+    },
+    {
+      "id": "c5d014e2-3ed1-5377-a922-a8425f0d99e7",
+      "parent_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "kind": "nozzle",
+      "designation": "Ж",
+      "dn": 250,
+      "dimensions": {
+        "diameter_mm": 250,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1045.0,
+        "theta_deg": 280.8
+      }
+    },
+    {
+      "id": "38d97e72-377a-5d5e-a243-6792cc4cd5f1",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "П1",
+      "dn": 100,
+      "dimensions": {
+        "diameter_mm": 100,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 733.485,
+        "theta_deg": 334.13364320590546
+      }
+    },
+    {
+      "id": "5520188c-6477-5737-8249-49d6c20a09cd",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "С1",
+      "dn": 100,
+      "dimensions": {
+        "diameter_mm": 100,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 751.798,
+        "theta_deg": 28.610459665965227
+      }
+    },
+    {
+      "id": "014c0763-cb05-5ecf-8269-51946bd75779",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "И1",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 734.302,
+        "theta_deg": 299.3577535427913
+      }
+    },
+    {
+      "id": "2adf1844-aebc-53f3-9f82-272457591c69",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "К1",
+      "dn": 120,
+      "dimensions": {
+        "diameter_mm": 120,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 727.186,
+        "theta_deg": 58.49573328079582
+      }
+    },
+    {
+      "id": "8a198a03-8419-57c5-bbcd-0c06581a7cd0",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "И2",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 751.798,
+        "theta_deg": 241.38954033403476
+      }
+    },
+    {
+      "id": "0d7b1ac1-7be3-522d-88d3-232d02077eee",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "К2",
+      "dn": 120,
+      "dimensions": {
+        "diameter_mm": 120,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 688.767,
+        "theta_deg": 115.82099197418928
+      }
+    },
+    {
+      "id": "6623d951-0209-5e83-95be-8bd2c7791ebc",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "Р",
+      "dn": 65,
+      "dimensions": {
+        "diameter_mm": 65,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 699.714,
+        "theta_deg": 210.96375653207352
+      }
+    },
+    {
+      "id": "c4bca3f9-146f-503e-bef6-30639dd38f85",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "С2",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 689.638,
+        "theta_deg": 150.46121774044192
+      }
+    },
+    {
+      "id": "1617988c-1470-5397-987a-e2ead6ca4840",
+      "parent_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "kind": "nozzle",
+      "designation": "М",
+      "dn": 80,
+      "dimensions": {
+        "diameter_mm": 80,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 740.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "2b962749-80cd-5cf9-b5fd-8194486e01d8",
+      "parent_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "kind": "nozzle",
+      "designation": "А",
+      "dn": 600,
+      "dimensions": {
+        "diameter_mm": 600,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 500.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "3c2db60e-7a7c-5514-bade-deae4be3f2fd",
+      "parent_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "kind": "nozzle",
+      "designation": "З2",
+      "dn": 100,
+      "dimensions": {
+        "diameter_mm": 100,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 138.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "418b2f1e-9a76-511b-a464-ee44723e136b",
+      "parent_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "kind": "nozzle",
+      "designation": "З3",
+      "dn": 150,
+      "dimensions": {
+        "diameter_mm": 150,
+        "thickness_mm": 10
+      },
+      "dimension_source": "ТЕСТ: условные размеры для демонстрации; не паспортные данные",
+      "attachment_to_vessel": "welded",
+      "end_connection": "flanged",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 132.0,
+        "theta_deg": 180.0
+      }
+    }
+  ],
+  "welds": [
+    {
+      "id": "8dec3bd9-32ec-5e44-87c0-bc554f516300",
+      "kind": "circumferential",
+      "designation": "К1",
+      "connected_part_ids": [
+        "b2ba07d4-c02e-538c-992d-a9e489340850",
+        "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5"
+      ],
+      "geometry": {
+        "boundary_index": 0
+      }
+    },
+    {
+      "id": "246ae1c4-88fc-5647-995d-379383b9c86f",
+      "kind": "circumferential",
+      "designation": "К2",
+      "connected_part_ids": [
+        "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+        "91471ce9-946f-54d3-a019-03e83b6ae106"
+      ],
+      "geometry": {
+        "boundary_index": 1
+      }
+    },
+    {
+      "id": "1f057a07-68a0-5a27-ae90-eff766abe367",
+      "kind": "circumferential",
+      "designation": "К3",
+      "connected_part_ids": [
+        "91471ce9-946f-54d3-a019-03e83b6ae106",
+        "cc7925a5-0d82-59f1-93f6-309358403b97"
+      ],
+      "geometry": {
+        "boundary_index": 2
+      }
+    },
+    {
+      "id": "c6ef09c1-510b-59f8-bca8-8f725490397a",
+      "kind": "circumferential",
+      "designation": "К4",
+      "connected_part_ids": [
+        "cc7925a5-0d82-59f1-93f6-309358403b97",
+        "fd60bdda-c028-54b5-aff6-787bcb160f0f"
+      ],
+      "geometry": {
+        "boundary_index": 3
+      }
+    },
+    {
+      "id": "a92528c3-3e27-550e-b081-15a40e3cb675",
+      "kind": "circumferential",
+      "designation": "К5",
+      "connected_part_ids": [
+        "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+        "edcf4a26-ab5a-5955-9540-8893072bea38"
+      ],
+      "geometry": {
+        "boundary_index": 4
+      }
+    },
+    {
+      "id": "3ee51de0-4eab-5c74-ad0a-5ecf7f8fdc02",
+      "kind": "circumferential",
+      "designation": "К6",
+      "connected_part_ids": [
+        "edcf4a26-ab5a-5955-9540-8893072bea38",
+        "d72cd10d-1812-5501-891a-ecbefff75541"
+      ],
+      "geometry": {
+        "boundary_index": 5
+      }
+    },
+    {
+      "id": "76f27138-bc88-5f68-83e0-edb8cd7b4e45",
+      "kind": "circumferential",
+      "designation": "К7",
+      "connected_part_ids": [
+        "d72cd10d-1812-5501-891a-ecbefff75541",
+        "0573afb9-f263-5c15-a8d0-39772a90b57c"
+      ],
+      "geometry": {
+        "boundary_index": 6
+      }
+    },
+    {
+      "id": "aa005958-103f-5843-9122-22f21df64f63",
+      "kind": "longitudinal",
+      "designation": "П1",
+      "connected_part_ids": [
+        "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5"
+      ],
+      "geometry": {
+        "theta_deg": 244
+      }
+    },
+    {
+      "id": "f122ffa6-c98d-5d43-93e9-dfd60e89b53a",
+      "kind": "longitudinal",
+      "designation": "П2",
+      "connected_part_ids": [
+        "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5"
+      ],
+      "geometry": {
+        "theta_deg": 110
+      }
+    },
+    {
+      "id": "91f8fd0f-478c-5503-b856-ecdaaf2f996a",
+      "kind": "longitudinal",
+      "designation": "П3",
+      "connected_part_ids": [
+        "91471ce9-946f-54d3-a019-03e83b6ae106"
+      ],
+      "geometry": {
+        "theta_deg": 220
+      }
+    },
+    {
+      "id": "580b70ff-a6b9-59f6-beba-a4f3819c823e",
+      "kind": "longitudinal",
+      "designation": "П4",
+      "connected_part_ids": [
+        "91471ce9-946f-54d3-a019-03e83b6ae106"
+      ],
+      "geometry": {
+        "theta_deg": 145
+      }
+    },
+    {
+      "id": "4d8f1404-f0a4-5bab-bc6f-bab892ac5ce2",
+      "kind": "longitudinal",
+      "designation": "П5",
+      "connected_part_ids": [
+        "cc7925a5-0d82-59f1-93f6-309358403b97"
+      ],
+      "geometry": {
+        "theta_deg": 245
+      }
+    },
+    {
+      "id": "7cd7e72f-68da-56d2-a778-3ae84dc1be66",
+      "kind": "longitudinal",
+      "designation": "П6",
+      "connected_part_ids": [
+        "cc7925a5-0d82-59f1-93f6-309358403b97"
+      ],
+      "geometry": {
+        "theta_deg": 112
+      }
+    },
+    {
+      "id": "1a05af0e-6711-583b-b5d7-de4ecbc22745",
+      "kind": "longitudinal",
+      "designation": "П7",
+      "connected_part_ids": [
+        "fd60bdda-c028-54b5-aff6-787bcb160f0f"
+      ],
+      "geometry": {
+        "theta_deg": 220
+      }
+    },
+    {
+      "id": "1d10d4ca-a206-54dd-809e-b080b34cac74",
+      "kind": "longitudinal",
+      "designation": "П8",
+      "connected_part_ids": [
+        "fd60bdda-c028-54b5-aff6-787bcb160f0f"
+      ],
+      "geometry": {
+        "theta_deg": 145
+      }
+    },
+    {
+      "id": "72731310-2b60-5ec1-9004-d3802b9d0913",
+      "kind": "longitudinal",
+      "designation": "П9",
+      "connected_part_ids": [
+        "edcf4a26-ab5a-5955-9540-8893072bea38"
+      ],
+      "geometry": {
+        "theta_deg": 245
+      }
+    },
+    {
+      "id": "7e276c13-8351-5d5d-9d11-2ac8c157b3ec",
+      "kind": "longitudinal",
+      "designation": "П10",
+      "connected_part_ids": [
+        "edcf4a26-ab5a-5955-9540-8893072bea38"
+      ],
+      "geometry": {
+        "theta_deg": 112
+      }
+    },
+    {
+      "id": "ac566fb2-e4e9-5dd7-8637-59f563799658",
+      "kind": "longitudinal",
+      "designation": "П11",
+      "connected_part_ids": [
+        "d72cd10d-1812-5501-891a-ecbefff75541"
+      ],
+      "geometry": {
+        "theta_deg": 220
+      }
+    },
+    {
+      "id": "ddfdcaf1-b609-52b7-b74c-93ede503d49c",
+      "kind": "longitudinal",
+      "designation": "П12",
+      "connected_part_ids": [
+        "d72cd10d-1812-5501-891a-ecbefff75541"
+      ],
+      "geometry": {
+        "theta_deg": 145
+      }
+    },
+    {
+      "id": "370a2956-30e5-5d60-bf43-01bcf2ad9b16",
+      "kind": "head_joint",
+      "designation": "П13",
+      "connected_part_ids": [
+        "b2ba07d4-c02e-538c-992d-a9e489340850"
+      ],
+      "geometry": {
+        "offset_mm": -320
+      }
+    },
+    {
+      "id": "db66f2f7-80c6-528f-87de-2bf0a9073219",
+      "kind": "head_joint",
+      "designation": "П14",
+      "connected_part_ids": [
+        "0573afb9-f263-5c15-a8d0-39772a90b57c"
+      ],
+      "geometry": {
+        "offset_mm": -320
+      }
+    },
+    {
+      "id": "56fae7c5-ee7d-5782-ab32-009cd4ff9abb",
+      "kind": "attachment",
+      "designation": "Шов З3",
+      "connected_part_ids": [
+        "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5"
+      ],
+      "geometry": {
+        "element_id": "418b2f1e-9a76-511b-a464-ee44723e136b"
+      }
+    }
+  ],
+  "control_points": [
+    {
+      "id": "66349a46-115d-56db-aca4-2a05f724d28a",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 1
+    },
+    {
+      "id": "3c6d3b96-2b91-5c57-a6c3-885d8a82b576",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 2
+    },
+    {
+      "id": "faab2643-1ba4-5277-9f64-51a5020cbfe9",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 3
+    },
+    {
+      "id": "76ed7938-02cc-56ea-af33-66570ae97fdf",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 4
+    },
+    {
+      "id": "6ae1fa85-bcf7-5e5b-96cf-f3b5b1390b4d",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 5
+    },
+    {
+      "id": "f84bf66e-9064-56a4-8f4b-dc0643f522d6",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 6
+    },
+    {
+      "id": "e308a4a4-b089-59bb-933f-cf95747b3289",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 7
+    },
+    {
+      "id": "87458899-1643-5578-a587-55bd754ddc0c",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 8
+    },
+    {
+      "id": "9a75ec07-03be-5ef5-af17-4ef9e09d966e",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 9
+    },
+    {
+      "id": "8e7989f9-e446-5931-9455-ff5c4cd54ead",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 10
+    },
+    {
+      "id": "d295e09d-7e94-5c62-9524-d32d6731e7e0",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 11
+    },
+    {
+      "id": "d7a511fc-439f-5e12-975e-4bbfa6af59ec",
+      "kind": "point",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 12
+    },
+    {
+      "id": "4f9d6eee-8207-55f3-b6fb-5aa557582e23",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 13
+    },
+    {
+      "id": "08953483-3f81-5f71-b905-feefc0321651",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 14
+    },
+    {
+      "id": "f77916b1-a1dc-5a2f-aa37-06365e8ffefd",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 15
+    },
+    {
+      "id": "c6ac9e0f-1517-5d85-b918-b825b80b12db",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 16
+    },
+    {
+      "id": "65f69501-d9ef-5df4-875a-1290aa9d50b5",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 17
+    },
+    {
+      "id": "33dc53e9-8b77-5787-b74b-2a8dff56afa0",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 18
+    },
+    {
+      "id": "4b417639-b038-5ff3-a1a8-39d2890db340",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 19
+    },
+    {
+      "id": "05aa364b-76c8-523b-a92a-e9763b7babc1",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 20
+    },
+    {
+      "id": "b8c8da88-c405-55dc-bb59-1a6c9aa302fd",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 21
+    },
+    {
+      "id": "be91d915-6a22-5159-b851-6c8e180f6df9",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 22
+    },
+    {
+      "id": "cfcf750b-ee2e-5536-b253-5e69b85fa019",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 23
+    },
+    {
+      "id": "6a77df84-c489-5457-8aaf-39349b934227",
+      "kind": "point",
+      "owner_id": "91471ce9-946f-54d3-a019-03e83b6ae106",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 24
+    },
+    {
+      "id": "29384fd3-bf94-579a-a7a0-ac85f03637bd",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 247.5,
+        "theta_deg": 36.0
+      },
+      "body_number": 25
+    },
+    {
+      "id": "3021a06d-b0f4-5d89-ad32-05dade2ba1c3",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 808.5,
+        "theta_deg": 36.0
+      },
+      "body_number": 26
+    },
+    {
+      "id": "05d02032-50ca-51c0-addf-5024ab59a398",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1369.5,
+        "theta_deg": 36.0
+      },
+      "body_number": 27
+    },
+    {
+      "id": "8eb69d3e-cc57-5c27-9902-e033f48aae5d",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 247.5,
+        "theta_deg": 122.4
+      },
+      "body_number": 28
+    },
+    {
+      "id": "fb494b7d-dc1f-5430-a4a4-89bc2a53f559",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 808.5,
+        "theta_deg": 122.4
+      },
+      "body_number": 29
+    },
+    {
+      "id": "dd27aa36-9b92-5f80-95ae-4242672a58e0",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1369.5,
+        "theta_deg": 122.4
+      },
+      "body_number": 30
+    },
+    {
+      "id": "05440e3f-03c9-5632-a23f-b96fc961f1c1",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 247.5,
+        "theta_deg": 234.0
+      },
+      "body_number": 31
+    },
+    {
+      "id": "8a77e001-6a7c-540a-a071-0413040dcdd8",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 808.5,
+        "theta_deg": 234.0
+      },
+      "body_number": 32
+    },
+    {
+      "id": "f135a119-0a5b-57fd-ac9e-d8454236eda1",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1369.5,
+        "theta_deg": 234.0
+      },
+      "body_number": 33
+    },
+    {
+      "id": "93658b24-f476-5f91-8d25-5c42e2d2466c",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 247.5,
+        "theta_deg": 327.6
+      },
+      "body_number": 34
+    },
+    {
+      "id": "a3dd1dd3-fdca-54d4-8e7a-a383d227b9d2",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 808.5,
+        "theta_deg": 327.6
+      },
+      "body_number": 35
+    },
+    {
+      "id": "de3c9719-5f85-5738-8b12-6a7409a31d9a",
+      "kind": "point",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1369.5,
+        "theta_deg": 327.6
+      },
+      "body_number": 36
+    },
+    {
+      "id": "393d5e96-f346-59b3-895c-7165a21010a1",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 165.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 37
+    },
+    {
+      "id": "3ff38a83-9202-5fd4-98ba-214b25269ccb",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 539.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 38
+    },
+    {
+      "id": "315d6f9d-d3c9-5177-993c-50232608d09d",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 913.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 39
+    },
+    {
+      "id": "240a5a82-439a-558e-871c-84a3f2475003",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 165.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 40
+    },
+    {
+      "id": "063c165e-5d29-55c1-b206-43de071cdc49",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 539.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 41
+    },
+    {
+      "id": "14b21360-6cdc-5759-b6c9-36f4fe14e666",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 913.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 42
+    },
+    {
+      "id": "de490ea9-ccf0-5793-9493-e0926f296f2b",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 165.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 43
+    },
+    {
+      "id": "89ba39e9-34b3-5ace-b54b-73b7c3b1d8b4",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 539.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 44
+    },
+    {
+      "id": "df7e80ff-2722-56cd-9c00-72f0ec8f3bef",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 913.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 45
+    },
+    {
+      "id": "3b341d11-0cd7-5b7d-aa29-994664cb3c25",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 165.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 46
+    },
+    {
+      "id": "c0bafb53-25bf-59f0-808a-3822fadeed96",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 539.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 47
+    },
+    {
+      "id": "39ad6954-feca-5650-aff8-8059ef7028d3",
+      "kind": "point",
+      "owner_id": "fd60bdda-c028-54b5-aff6-787bcb160f0f",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 913.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 48
+    },
+    {
+      "id": "fe6fe2a5-e88b-5c8f-ac0b-540ab4ac2d2c",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 49
+    },
+    {
+      "id": "e5fd8e80-8980-5613-b4bd-ff081eb1fdee",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 50
+    },
+    {
+      "id": "ea7385e1-9544-54a6-92b0-24361f90011f",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 51
+    },
+    {
+      "id": "b2abad82-61ba-593e-aeab-0c32a6f95c39",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 52
+    },
+    {
+      "id": "b4eac150-09a4-5f20-91e1-7648ab89a26d",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 53
+    },
+    {
+      "id": "32436ea5-a1b1-5d6a-a7f2-39afdb1eda94",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 54
+    },
+    {
+      "id": "f08a3955-1c51-5402-890d-380d20bab458",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 55
+    },
+    {
+      "id": "11a53dd2-1efd-5015-8a29-a261df8b8d4b",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 56
+    },
+    {
+      "id": "786569b1-9ef9-5a39-b0d4-ff441c5eea65",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 57
+    },
+    {
+      "id": "ff8a87d1-0269-5fb5-bf58-1b29bff19be4",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 270.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 58
+    },
+    {
+      "id": "535817e0-7692-505e-b100-d12c65930f43",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 882.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 59
+    },
+    {
+      "id": "4da67583-c230-5a4f-ac2c-98d61a94d095",
+      "kind": "point",
+      "owner_id": "edcf4a26-ab5a-5955-9540-8893072bea38",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1494.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 60
+    },
+    {
+      "id": "547c4909-3c77-5acb-8de3-34caad214438",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 285.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 61
+    },
+    {
+      "id": "bf55c16e-68fa-5ee3-8f8b-0d5468193b1a",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 931.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 62
+    },
+    {
+      "id": "3ec4ac96-20d6-53a0-abd5-cb756a7df9a6",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1577.0,
+        "theta_deg": 36.0
+      },
+      "body_number": 63
+    },
+    {
+      "id": "8b5fc21f-afd0-5d13-85a4-47b8d339da8d",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 285.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 64
+    },
+    {
+      "id": "c6d7bd20-65d8-5416-ab3e-9f66eb03a8be",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 931.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 65
+    },
+    {
+      "id": "af0f48d2-05cc-56a8-bd06-832cb42255ed",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1577.0,
+        "theta_deg": 122.4
+      },
+      "body_number": 66
+    },
+    {
+      "id": "c7ae36e5-5d32-581c-b4e7-798abb714cd2",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 285.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 67
+    },
+    {
+      "id": "41a08580-6fef-5a52-978d-81b924056f2f",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 931.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 68
+    },
+    {
+      "id": "2eabe5a2-8331-539e-851c-84678c2384b2",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1577.0,
+        "theta_deg": 234.0
+      },
+      "body_number": 69
+    },
+    {
+      "id": "e58c42ec-047f-5c85-82dc-e1da1dbb6aea",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 285.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 70
+    },
+    {
+      "id": "1659de48-248f-5dfa-b8cf-0290c770e35f",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 931.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 71
+    },
+    {
+      "id": "09cf01e6-bdab-5e98-a9f5-1023cfc21c10",
+      "kind": "point",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "z_local_mm": 1577.0,
+        "theta_deg": 327.6
+      },
+      "body_number": 72
+    },
+    {
+      "id": "e62867af-b18b-581a-98ee-6fa2af873f4c",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 800.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "3c3cfac3-23c6-5c9d-b037-de39c04740b2",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 480.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "7e1a0482-2e28-54d6-bd81-303a3c5c35e9",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 200.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "fec2f8d3-8547-5332-8c4e-f44ed9ee1543",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 200.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "d45d761a-5784-5556-a6ee-ff3e265cc261",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 480.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "85a8a2e2-da0f-5d4e-b7a4-110b198978e3",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 800.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "a06f2c7e-a110-5898-993d-7e4edf2b6b4a",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 840.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "2915b497-0888-526e-8f95-ae78f17f2b67",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 500.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "8f836f6f-c70a-59dd-a8f6-ecf45578164e",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 180.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "78e8a915-011d-5d34-b2f3-343e15059f01",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 200.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "bb54e601-f1c3-5bc5-b431-d6b28a125b06",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 500.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "36a77992-0da1-5647-9e0d-7dc944fcc013",
+      "kind": "point",
+      "owner_id": "b2ba07d4-c02e-538c-992d-a9e489340850",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 840.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "0df5944d-ff65-573e-9560-1878c73d953b",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 800.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "ce1be934-0434-5df8-98c4-23848f3103a8",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 480.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "89d7b785-afd0-5b19-810e-99b24013d63b",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 200.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "fec57a99-0689-54f2-9490-3b1be79d283b",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 200.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "691e2af7-04ed-582b-9fcd-083435a53853",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 480.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "24ce68f2-9a5b-5a57-944a-8cee37299ad2",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 800.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "7ce50200-0fbb-530a-aec4-00725994a404",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 7,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 840.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "e12748f8-f525-5485-b645-9e418e943a0d",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 8,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 500.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "636e8a80-6248-58ed-9feb-cc7152e29660",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 9,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 180.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "ec8ed660-aa62-50ef-9e12-805f4560458a",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 10,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 200.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "52e46559-9dbc-5ad1-b659-02d6e5af2373",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 11,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 500.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "2d9a7211-651a-5aa4-a483-699615368f9e",
+      "kind": "point",
+      "owner_id": "0573afb9-f263-5c15-a8d0-39772a90b57c",
+      "local_number": 12,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 840.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "993122da-b571-5a9b-b54f-da355ec0118d",
+      "kind": "point",
+      "owner_id": "164e1b46-8043-5c12-b93f-0e979f1cd40d",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "9b0b99aa-f826-50c7-9061-7a40d60e8bee",
+      "kind": "point",
+      "owner_id": "164e1b46-8043-5c12-b93f-0e979f1cd40d",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "0d09e665-8049-5bf5-b503-e817d550e290",
+      "kind": "point",
+      "owner_id": "164e1b46-8043-5c12-b93f-0e979f1cd40d",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "54113f31-dbb7-5d60-98cd-12817fa3c7da",
+      "kind": "point",
+      "owner_id": "164e1b46-8043-5c12-b93f-0e979f1cd40d",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "ef7f6b03-1042-5f28-aa24-212f5ae5ab6e",
+      "kind": "point",
+      "owner_id": "afd3a30c-1561-5e9d-8127-e4b91b28879e",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "2aed6922-827f-5824-9824-fce568db9a68",
+      "kind": "point",
+      "owner_id": "afd3a30c-1561-5e9d-8127-e4b91b28879e",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "4ca192a6-74a8-508c-972e-b653c532ffe9",
+      "kind": "point",
+      "owner_id": "afd3a30c-1561-5e9d-8127-e4b91b28879e",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "4460471d-e1b4-5e03-a16a-2a0d554fce5d",
+      "kind": "point",
+      "owner_id": "afd3a30c-1561-5e9d-8127-e4b91b28879e",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "1e15f4e8-02f2-578b-9c7c-d67a145ba91f",
+      "kind": "point",
+      "owner_id": "9d2d6f38-1b0a-5747-99c4-67fbf14776c4",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "165fcfc7-3892-5613-903f-d5836b2fea44",
+      "kind": "point",
+      "owner_id": "9d2d6f38-1b0a-5747-99c4-67fbf14776c4",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "e0f52cbb-2eaf-5d0e-bc89-79389918859c",
+      "kind": "point",
+      "owner_id": "9d2d6f38-1b0a-5747-99c4-67fbf14776c4",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "bddb7774-04f9-5e48-a1e5-96b313c7f102",
+      "kind": "point",
+      "owner_id": "9d2d6f38-1b0a-5747-99c4-67fbf14776c4",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "98872da9-c6cd-5a56-9762-e47fb7cea100",
+      "kind": "point",
+      "owner_id": "c5d014e2-3ed1-5377-a922-a8425f0d99e7",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "9b1b9c2e-91f1-5fcb-8c1b-a7979560ae37",
+      "kind": "point",
+      "owner_id": "c5d014e2-3ed1-5377-a922-a8425f0d99e7",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "5af27292-aeee-53ee-94f9-24f39480e34f",
+      "kind": "point",
+      "owner_id": "c5d014e2-3ed1-5377-a922-a8425f0d99e7",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "6a8865e4-c4cf-594d-841c-673b1a6272af",
+      "kind": "point",
+      "owner_id": "c5d014e2-3ed1-5377-a922-a8425f0d99e7",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 125.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "15b4532e-4e7e-563c-af79-87f19fdf1829",
+      "kind": "point",
+      "owner_id": "38d97e72-377a-5d5e-a243-6792cc4cd5f1",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "3636c521-3179-5c77-ae67-24d07fe168cb",
+      "kind": "point",
+      "owner_id": "38d97e72-377a-5d5e-a243-6792cc4cd5f1",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "b7941cca-a923-5088-a725-7ce6dbeb10b1",
+      "kind": "point",
+      "owner_id": "38d97e72-377a-5d5e-a243-6792cc4cd5f1",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "30a61f62-059e-5bfe-bd8a-d697433cdd07",
+      "kind": "point",
+      "owner_id": "38d97e72-377a-5d5e-a243-6792cc4cd5f1",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "8d2d5abe-6ed9-54a7-aa89-cb64ea9f4df3",
+      "kind": "point",
+      "owner_id": "5520188c-6477-5737-8249-49d6c20a09cd",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "c97962af-e9b8-5ec9-90fb-091a01fe33a9",
+      "kind": "point",
+      "owner_id": "5520188c-6477-5737-8249-49d6c20a09cd",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "67a011ad-6549-5328-92ee-3b930862ad83",
+      "kind": "point",
+      "owner_id": "5520188c-6477-5737-8249-49d6c20a09cd",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "3a3ee45c-01f4-58b7-8bee-208e6ceadc23",
+      "kind": "point",
+      "owner_id": "5520188c-6477-5737-8249-49d6c20a09cd",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "897a59bc-78d0-5d01-baf0-4653795927bc",
+      "kind": "point",
+      "owner_id": "2b962749-80cd-5cf9-b5fd-8194486e01d8",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "b906a4d1-d552-5ef5-85c7-56be1affb56c",
+      "kind": "point",
+      "owner_id": "2b962749-80cd-5cf9-b5fd-8194486e01d8",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "df2d1e7a-9bfc-5d71-b3aa-eab3ff31c496",
+      "kind": "point",
+      "owner_id": "2b962749-80cd-5cf9-b5fd-8194486e01d8",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "494f169a-b307-501f-8bed-e173f40088eb",
+      "kind": "point",
+      "owner_id": "2b962749-80cd-5cf9-b5fd-8194486e01d8",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 300.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "ae5938fe-7015-5e71-9513-c8501f7d2cd1",
+      "kind": "point",
+      "owner_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 240.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "268aa57c-d2d1-5e55-b9e9-c74c6aeab89f",
+      "kind": "point",
+      "owner_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 144.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "c8dc26aa-ebb0-55f5-ab26-0e9a0ce8122d",
+      "kind": "point",
+      "owner_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 60.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "f35b7a85-b966-553e-924d-439eea6f83cf",
+      "kind": "point",
+      "owner_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 60.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "d19f2f5c-f269-5205-9bdf-620becc90f04",
+      "kind": "point",
+      "owner_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "local_number": 5,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 144.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "182a5f61-e141-5f40-853d-4809121c4182",
+      "kind": "point",
+      "owner_id": "8838ad5f-1c76-5340-95e0-4b71bbc8a7c5",
+      "local_number": 6,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 240.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "bde71bb6-9598-5477-8932-a6e5585d7063",
+      "kind": "point",
+      "owner_id": "3c2db60e-7a7c-5514-bade-deae4be3f2fd",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "a01daa1d-cd5f-53e4-82da-2bedd99244e6",
+      "kind": "point",
+      "owner_id": "3c2db60e-7a7c-5514-bade-deae4be3f2fd",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "99adae29-6503-5e85-8c0d-c8764b0b0743",
+      "kind": "point",
+      "owner_id": "3c2db60e-7a7c-5514-bade-deae4be3f2fd",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "e431e5e3-74cb-54b9-80ee-d98095cbc83f",
+      "kind": "point",
+      "owner_id": "3c2db60e-7a7c-5514-bade-deae4be3f2fd",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 50.0,
+        "theta_deg": 180.0
+      }
+    },
+    {
+      "id": "60340680-db83-579c-bac9-b8c1e13ae642",
+      "kind": "point",
+      "owner_id": "418b2f1e-9a76-511b-a464-ee44723e136b",
+      "local_number": 1,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 270.0
+      }
+    },
+    {
+      "id": "28356341-e893-5544-8eb3-b6f2993c3479",
+      "kind": "point",
+      "owner_id": "418b2f1e-9a76-511b-a464-ee44723e136b",
+      "local_number": 2,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 90.0
+      }
+    },
+    {
+      "id": "be024389-4c2d-58c5-b04c-65ac22fda466",
+      "kind": "point",
+      "owner_id": "418b2f1e-9a76-511b-a464-ee44723e136b",
+      "local_number": 3,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 0.0
+      }
+    },
+    {
+      "id": "55370350-ecea-50be-80a4-ecfc9345178c",
+      "kind": "point",
+      "owner_id": "418b2f1e-9a76-511b-a464-ee44723e136b",
+      "local_number": 4,
+      "method": "УЗТ",
+      "planned_methods": [
+        "УЗТ"
+      ],
+      "status": "planned",
+      "placement": {
+        "mode": "physical",
+        "radius_projection_mm": 75.0,
+        "theta_deg": 180.0
+      }
+    }
+  ],
+  "control_zones": [
+    {
+      "id": "b4ac4d79-1b57-5672-96ab-e67fd99312cb",
+      "kind": "weld_zone",
+      "designation": "4 уч.",
+      "weld_id": "56fae7c5-ee7d-5782-ab32-009cd4ff9abb",
+      "planned_methods": [
+        "УЗК"
+      ],
+      "coverage": {
+        "kind": "whole"
+      }
+    },
+    {
+      "id": "75b209f5-1705-5f8b-8468-59072a9d545f",
+      "kind": "weld_zone",
+      "designation": "1 уч.",
+      "weld_id": "246ae1c4-88fc-5647-995d-379383b9c86f",
+      "planned_methods": [
+        "УЗК"
+      ],
+      "coverage": {
+        "kind": "sector",
+        "start": 263,
+        "end": 293
+      }
+    },
+    {
+      "id": "050dedd9-c089-5f5d-b5d3-7821354b78da",
+      "kind": "weld_zone",
+      "designation": "2 уч.",
+      "weld_id": "1f057a07-68a0-5a27-ae90-eff766abe367",
+      "planned_methods": [
+        "ПВК"
+      ],
+      "coverage": {
+        "kind": "sector",
+        "start": 268,
+        "end": 304
+      }
+    },
+    {
+      "id": "fafd89fe-c49b-543b-9c65-adc2a3469015",
+      "kind": "weld_zone",
+      "designation": "3 уч.",
+      "weld_id": "91f8fd0f-478c-5503-b856-ecdaaf2f996a",
+      "planned_methods": [
+        "МК"
+      ],
+      "coverage": {
+        "kind": "interval",
+        "start": 0.62,
+        "end": 0.82
+      }
+    }
+  ],
+  "sections": [
+    {
+      "id": "5863d86f-cb92-5a4e-9d9f-6c0253686c94",
+      "kind": "ovality",
+      "owner_id": "f46e4cf0-7f83-5d76-8dc3-dd79bdbc99a5",
+      "designation": "I–I",
+      "z_local_mm": 90.0
+    },
+    {
+      "id": "ce667354-554c-5ffd-91f1-f53bc4c54bca",
+      "kind": "ovality",
+      "owner_id": "cc7925a5-0d82-59f1-93f6-309358403b97",
+      "designation": "II–II",
+      "z_local_mm": 1485.0
+    },
+    {
+      "id": "d54f49c7-087d-5675-8349-a7b9c9ef59da",
+      "kind": "ovality",
+      "owner_id": "d72cd10d-1812-5501-891a-ecbefff75541",
+      "designation": "III–III",
+      "z_local_mm": 1767.0
+    },
+    {
+      "id": "9229760e-bfb4-5d96-998d-bfb5d89fc987",
+      "kind": "weld_profile",
+      "owner_id": "246ae1c4-88fc-5647-995d-379383b9c86f",
+      "designation": "А–А",
+      "method": "ТВ",
+      "positions": [
+        "Основной металл",
+        "ЗТВ",
+        "Шов",
+        "ЗТВ",
+        "Основной металл"
+      ]
+    }
+  ],
+  "control_templates": [],
+  "source_documents": [],
+  "source_note": "Компоновка по примеру Visio. Размеры и результаты синтетические.",
+  "views": [
+    {
+      "id": "cd5397ac-d85a-5802-a551-a89618a40752",
+      "kind": "development",
+      "cut_angle_deg": 0,
+      "label_overrides": {}
+    }
+  ]
+}

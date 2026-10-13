@@ -85,6 +85,21 @@ class SyncService {
       addAttachmentIfPresent('factory_plate_photo');
       addAttachmentIfPresent('control_scheme_image');
       addAttachmentIfPresent('connection_scheme_file');
+      final vesselBase = checklistJson['base_vessel_scheme'];
+      final geometry = vesselBase is Map ? vesselBase['geometry'] : null;
+      if (geometry is Map && geometry['schema_version'] == 2) {
+        for (final view in geometry['views'] as List? ?? []) {
+          if (view is! Map) continue;
+          final filePath = view['image_path']?.toString();
+          final documentNumber = view['document_number']?.toString();
+          if (filePath == null || filePath.isEmpty ||
+              documentNumber == null || documentNumber.isEmpty) continue;
+          structuredDocumentFiles[documentNumber] = {
+            'file_path': filePath,
+            'file_name': Path.basename(filePath),
+          };
+        }
+      }
       final additionalData = checklistJson['additional_data'];
       if (additionalData is Map) {
         final objectPhotos = additionalData['object_photos'];

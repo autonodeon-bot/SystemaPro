@@ -238,6 +238,14 @@ def collect_scheme_paths(
         if key.startswith("uzt_scheme_") and "_point_" not in key:
             if not any(it["path"] == path for it in items):
                 items.append({"label": f"Схема УЗТ ({key})", "path": path})
+    base = data.get('base_vessel_scheme') or {}
+    geo = base.get('geometry') or {} if isinstance(base, dict) else {}
+    if geo.get('schema_version') == 2:
+        for view in geo.get('views', []):
+            own_path = view.get('image_path')
+            path = own_path if own_path and Path(own_path).is_file() else attachments.get(view.get('document_number')) or own_path
+            if view.get('kind') in ('part_detail','section_detail') and path and not any(it['path'] == path for it in items):
+                items.append({'label':f"{view.get('designation', 'Деталь сосуда')} · рев. {view.get('revision', geo.get('revision'))}", 'path':path})
     # Схемы ТК / УЗК / МПК из мобильного приложения
     for key, label in (
         ("hardness_scheme_image", "Схема проведения ТК"),

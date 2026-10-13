@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/sync_service.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/auto_save_service.dart';
 import '../screens/equipment_list_screen.dart';
 import '../theme/app_colors.dart';
@@ -29,6 +30,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   int _uploadBytesSent = 0;
   int _uploadBytesTotal = 0;
   bool? _isOnline;
+  bool _needsLogin = false;
   int _signedReadyCount = 0;
   int _signedNeedsAttentionCount = 0;
 
@@ -87,9 +89,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _checkConnection() async {
     final hasConnection = await _apiService.checkConnection();
+    final token = await AuthService().getToken();
     if (!mounted) return;
     setState(() {
       _isOnline = hasConnection;
+      _needsLogin = token == null || token.isEmpty;
     });
   }
 
@@ -364,7 +368,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Widget _buildStatusStrip() {
     final online = _isOnline == true;
-    final color = online ? AppColors.success : AppColors.warning;
+    final color = online && !_needsLogin ? AppColors.success : AppColors.warning;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -397,7 +401,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           ),
           const Spacer(),
           Text(
-            online ? 'Готов к отправке' : 'Нет сети — данные в очереди',
+            online
+                ? (_needsLogin ? 'Для синхронизации войдите' : 'Готов к отправке')
+                : 'Нет сети — данные в очереди',
             style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
           ),
         ],

@@ -710,6 +710,20 @@ def fill_vessel_form_to1(
     finalize_official_form(doc, "to-1")
     _refresh_vessel_contents(doc)
     _insert_schemes_and_photos(doc, ctx)
+    geometry=((ctx.get('data') or {}).get('base_vessel_scheme') or {}).get('geometry') or {}
+    if geometry.get('schema_version') == 2:
+        # Template boilerplate is not an engineer's signed conclusion.
+        for paragraph in _iter_all_paragraphs(doc):
+            text_value=_paragraph_plain_text(paragraph).strip()
+            if text_value.startswith('Измеренная толщина стенок элементов сосуда'):
+                _set_paragraph_text(paragraph, str(ctx['g']('uzt_conclusion',default='Результаты измерений приведены в таблице. Заключение специалиста по УЗТ не задано.')))
+    if (ctx.get('data') or {}).get('test_data'):
+        for section in doc.sections:
+            for variant in (section.header, section.first_page_header, section.even_page_header):
+                header=variant.paragraphs[0]
+                if 'ТЕСТОВЫЕ ДАННЫЕ' not in header.text:
+                    run=header.add_run('ТЕСТОВЫЕ ДАННЫЕ — НЕ ДЛЯ ЭКСПЛУАТАЦИИ')
+                    run.font.size=Pt(10);run.font.color.rgb=RGBColor(170,0,0)
 
     from vessel_control_plan import method_rows
     welds = (ctx.get("data") or {}).get("weld_inspections") or []
@@ -4573,6 +4587,43 @@ def _insert_schemes_and_photos(doc: Document, ctx: Dict[str, Any]) -> None:
         doc, data, attachments, find_image, kind=kind, tmp_files=tmp_files
     )
     logger.info("Вставлено схем: %s", n_schemes)
+    # Detail sheets are part of the authored revision, not optional photo attachments.
+    # The five legacy overview slots must never discard covers and individual shells.
+    geometry = (data.get('base_vessel_scheme') or {}).get('geometry') or {}
+    if geometry.get('schema_version') == 2:
+        from io import BytesIO
+        from docx.enum.section import WD_SECTION_START
+        from vessel_geometry_v2 import render_v2, render_profile
+        section = doc.add_section(WD_SECTION_START.NEW_PAGE)
+        section.orientation = WD_ORIENT.LANDSCAPE
+        section.page_width, section.page_height = Cm(29.7), Cm(21)
+        section.top_margin = section.bottom_margin = Cm(1.2)
+        section.left_margin = section.right_margin = Cm(1.2)
+        section.header_distance = Cm(0.3)
+        section.footer_distance = Cm(0.5)
+        sheets = [(p['designation'], render_v2(geometry,1190,842,detail=p['id'])[0]) for p in geometry['parts']]
+        sheets += [(s['designation'], render_profile(geometry,s)) for s in geometry.get('sections',[]) if s.get('kind')=='weld_profile']
+        if any('ПВК' in z['planned_methods'] for z in geometry['control_zones']):
+            sheets.append(('ПВК — отдельная схема',render_v2(geometry,1190,842,layer='ПВК')[0]))
+        for index,(title,png) in enumerate(sheets):
+            if index: doc.add_page_break()
+            paragraph=doc.add_paragraph(f'{title} · ревизия {geometry["revision"]}')
+            paragraph.paragraph_format.space_after=Pt(3)
+            paragraph.runs[0].font.size=Pt(12)
+            doc.add_picture(BytesIO(png),width=Cm(24.2))
+        from vessel_control_plan import method_rows
+        pvk_rows=method_rows(data.get('weld_inspections') or [],'PVK')
+        if pvk_rows:
+            doc.add_page_break()
+            doc.add_paragraph('Результаты капиллярного контроля (ПВК) — отдельный метод')
+            table=doc.add_table(rows=1,cols=3)
+            table.style='Table Grid'
+            for cell,title in zip(table.rows[0].cells,['Шов / зона','Результат ПВК','Заключение специалиста']):cell.text=title
+            for row in pvk_rows:
+                cells=table.add_row().cells
+                cells[0].text=str(row.get('weld_number') or row.get('scheme_zone_id') or '—')
+                cells[1].text=str(row.get('defects') or row.get('defect_description') or row.get('result') or 'Не задан')
+                cells[2].text=str(row.get('conclusion') or 'Не задано')
 
     uzt_photos = [p for p in photos if "УЗТ" in (p.get("label") or "")]
     other_photos = [p for p in photos if p not in uzt_photos]

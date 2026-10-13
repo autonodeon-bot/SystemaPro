@@ -34,6 +34,7 @@ class AutoSaveService {
         'id': key,
         'equipment_id': equipmentId,
         'assignment_id': assignmentId,
+        'inspection_id': inspectionId,
         'checklist_data': checklistData,
         'saved_at': DateTime.now().toIso8601String(),
         'version': 1,

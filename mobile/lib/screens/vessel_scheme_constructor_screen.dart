@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'vessel_constructor_v2_screen.dart';
+import 'dart:math' as math;
+import '../widgets/vessel_elements_editor.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -31,12 +34,22 @@ class VesselSchemeConstructorResult {
 
 /// Мастер: тип (44 формы ТО) → параметры → превью → применить.
 class VesselSchemeConstructorScreen extends StatefulWidget {
+  final String? draftKey;
+  final Set<String> measuredPointIds;
+  final Set<String> measuredZoneIds;
+  final List<Map<String, dynamic>> legacyMeasurements;
+  final Map<String, dynamic>? initialGeometry;
   final String? initialOrientation;
   final String? initialEquipmentKind;
   final String? initialFormId;
 
   const VesselSchemeConstructorScreen({
     super.key,
+    this.draftKey,
+    this.measuredPointIds = const {},
+    this.measuredZoneIds = const {},
+    this.legacyMeasurements = const [],
+    this.initialGeometry,
     this.initialOrientation,
     this.initialEquipmentKind,
     this.initialFormId,
@@ -63,6 +76,7 @@ class _VesselSchemeConstructorScreenState
   int _shellCount = 3;
   String _headType = 'elliptical';
   final List<Map<String, dynamic>> _nozzles = [];
+  final List<Map<String, dynamic>> _elements = [];
   int? _dragNozzleIndex;
   bool _busy = false;
   String? _error;
@@ -79,15 +93,26 @@ class _VesselSchemeConstructorScreenState
     } else if (o.contains('гориз')) {
       _orientation = 'horizontal';
     }
-    _nozzles.add({
-      'id': 'N1',
-      'dn': 50,
-      'position': 0.35,
-      'side': 'body',
-      'label': 'Пт1',
-      'purpose': 'вход нефти',
-    });
+    final initial = widget.initialGeometry;
+    if (initial != null) {
+      _restoreGeometry(initial);
+    }
     _loadKinds();
+  }
+
+  void _restoreGeometry(Map<String, dynamic> g) {
+    _orientation = g['orientation'] == 'horizontal' ? 'horizontal' : 'vertical';
+    _shellCount = ((g['shell_count'] as num?)?.toInt() ?? 3).clamp(1, 20);
+    _headType = (g['head_type'] as String?) ?? 'elliptical';
+    _weldPreset = (g['weld_preset'] as String?) ?? 'multi_shell';
+    _nozzles
+      ..clear()
+      ..addAll(((g['nozzles'] as List?) ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map)));
+    _elements
+      ..clear()
+      ..addAll(((g['elements'] as List?) ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map)));
   }
 
   @override
@@ -106,9 +131,11 @@ class _VesselSchemeConstructorScreenState
       final groups = SchemeEquipmentCatalog.instance.groups;
       SchemeEquipmentKind? pre;
       pre = SchemeEquipmentCatalog.instance.findByCodeOrForm(
-            widget.initialEquipmentKind,
+            widget.initialGeometry?['equipment_kind'] as String? ??
+                widget.initialEquipmentKind,
           ) ??
-          SchemeEquipmentCatalog.instance.findByCodeOrForm(widget.initialFormId);
+          SchemeEquipmentCatalog.instance
+              .findByCodeOrForm(widget.initialFormId);
       if (!mounted) return;
       setState(() {
         _kinds = items;
@@ -118,6 +145,9 @@ class _VesselSchemeConstructorScreenState
         _loadingKinds = false;
         if (pre != null) {
           _applyKind(pre, advance: true);
+          if (widget.initialGeometry != null) {
+            _restoreGeometry(widget.initialGeometry!);
+          }
         }
       });
     } catch (e) {
@@ -133,7 +163,8 @@ class _VesselSchemeConstructorScreenState
     _selected = k;
     final d = k.defaults;
     if (d['orientation'] is String) {
-      _orientation = d['orientation'] == 'horizontal' ? 'horizontal' : 'vertical';
+      _orientation =
+          d['orientation'] == 'horizontal' ? 'horizontal' : 'vertical';
     } else if (k.family == 'pipeline' || k.family == 'crane') {
       _orientation = 'horizontal';
     } else {
@@ -156,8 +187,7 @@ class _VesselSchemeConstructorScreenState
     if (advance) _step = 1;
   }
 
-  bool get _isVesselFamily =>
-      (_selected?.family ?? '') == 'vessel_development';
+  bool get _isVesselFamily => (_selected?.family ?? '') == 'vessel_development';
   bool get _isPipelineFamily => (_selected?.family ?? '') == 'pipeline';
   bool get _showCount => [
         'vessel_development',
@@ -228,12 +258,14 @@ class _VesselSchemeConstructorScreenState
   }
 
   Map<String, dynamic> get _geometry => {
+        ...?widget.initialGeometry,
         'equipment_kind': _selected?.code ?? 'vessel',
         'form_id': _selected?.formId,
         'orientation': _orientation,
         'shell': {'length': 1.0, 'diameter': 0.5, 'count': _shellCount},
         'shell_count': _shellCount,
         'segment_count': _shellCount,
+        'elements': _isVesselFamily ? _elements : [],
         'head_type': _headType,
         'weld_preset': _weldPreset,
         'nozzles': (_isVesselFamily || _isPipelineFamily) ? _nozzles : [],
@@ -244,7 +276,8 @@ class _VesselSchemeConstructorScreenState
     try {
       final token = await AuthService().getToken();
       if (token == null || token.isEmpty) return null;
-      final uri = Uri.parse('${ApiService.baseUrl}/api/vessel-scheme/render');
+      final uri = Uri.parse(
+          '${ApiService.baseUrl}/api/vessel-scheme/render?as_json=true');
       final res = await http
           .post(
             uri,
@@ -253,6 +286,7 @@ class _VesselSchemeConstructorScreenState
               'Content-Type': 'application/json',
             },
             body: jsonEncode({
+              'geometry': _geometry,
               'equipment_kind': _selected?.code ?? 'vessel',
               'form_id': _selected?.formId,
               'orientation': _orientation,
@@ -273,7 +307,17 @@ class _VesselSchemeConstructorScreenState
       final dir = await getTemporaryDirectory();
       final file = File(
           '${dir.path}/scheme_${DateTime.now().millisecondsSinceEpoch}.png');
-      await file.writeAsBytes(res.bodyBytes);
+      final payload =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final renderedGeometry = payload['geometry'] as Map<String, dynamic>?;
+      // Older servers do not understand attachments: use the local painter then.
+      if (_isVesselFamily &&
+          _elements.isNotEmpty &&
+          (renderedGeometry?['elements'] as List?)?.length !=
+              _elements.length) {
+        return null;
+      }
+      await file.writeAsBytes(base64Decode(payload['png_base64'] as String));
       return file.path;
     } catch (_) {
       return null;
@@ -331,6 +375,19 @@ class _VesselSchemeConstructorScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (!_loadingKinds && _isVesselFamily && _step > 0) {
+      return VesselConstructorV2Screen(
+        initialGeometry: widget.initialGeometry,
+        orientation: _orientation,
+        equipmentKind: _selected!.code,
+        formId: _selected!.formId,
+        draftKey: widget.draftKey ??
+            'vessel_constructor_${widget.initialGeometry?['model_id'] ?? 'new'}',
+        measuredPointIds: widget.measuredPointIds,
+        measuredZoneIds: widget.measuredZoneIds,
+        legacyMeasurements: widget.legacyMeasurements,
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
       appBar: AppBar(
@@ -363,7 +420,13 @@ class _VesselSchemeConstructorScreenState
                       const SizedBox(height: 12),
                       if (_step == 0) _stepKind(),
                       if (_step == 1) _stepParams(),
-                      if (_step == 2) _stepPreview(),
+                      if (_step == 2 && _isVesselFamily)
+                        VesselElementsEditor(
+                            shellCount: _shellCount,
+                            orientation: _orientation,
+                            elements: _elements,
+                            onChanged: () => setState(() {})),
+                      if (_step == (_isVesselFamily ? 3 : 2)) _stepPreview(),
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 12),
@@ -380,9 +443,8 @@ class _VesselSchemeConstructorScreenState
                 children: [
                   if (_step > 0)
                     TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () => setState(() => _step -= 1),
+                      onPressed:
+                          _busy ? null : () => setState(() => _step -= 1),
                       child: const Text('Назад'),
                     ),
                   const Spacer(),
@@ -393,10 +455,12 @@ class _VesselSchemeConstructorScreenState
                           : () => setState(() => _step = 1),
                       child: const Text('Далее'),
                     )
-                  else if (_step == 1)
+                  else if (_step < (_isVesselFamily ? 3 : 2))
                     ElevatedButton(
-                      onPressed: () => setState(() => _step = 2),
-                      child: const Text('Превью'),
+                      onPressed: () => setState(() => _step += 1),
+                      child: Text(_isVesselFamily && _step == 1
+                          ? 'Элементы'
+                          : 'Общий чертёж'),
                     )
                   else
                     ElevatedButton(
@@ -419,13 +483,18 @@ class _VesselSchemeConstructorScreenState
   }
 
   Widget _stepHeader() {
-    const labels = ['Тип (ТО)', 'Параметры', 'Готово'];
+    final labels = [
+      'Тип (ТО)',
+      'Параметры',
+      if (_isVesselFamily) 'Элементы по частям',
+      'Готово'
+    ];
     final forms = SchemeEquipmentCatalog.instance.formsCount;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Шаг ${_step + 1}/3: ${labels[_step]}',
+          'Шаг ${_step + 1}/${labels.length}: ${labels[_step]}',
           style: const TextStyle(
               color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
         ),
@@ -487,12 +556,14 @@ class _VesselSchemeConstructorScreenState
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                     title: Text(k.title,
-                        style: const TextStyle(color: Colors.white, fontSize: 14)),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14)),
                     subtitle: Text('${k.formId} · ${k.familyTitle ?? k.family}',
                         style: const TextStyle(
                             color: Colors.white54, fontSize: 11)),
                     trailing: selected
-                        ? const Icon(Icons.check_circle, color: Colors.blueAccent)
+                        ? const Icon(Icons.check_circle,
+                            color: Colors.blueAccent)
                         : null,
                     onTap: () => setState(() => _applyKind(k)),
                   );
@@ -518,7 +589,7 @@ class _VesselSchemeConstructorScreenState
           _radioTile('vertical', 'Вертикальный'),
           _radioTile('horizontal', 'Горизонтальный'),
           const SizedBox(height: 8),
-          _buildNozzleEditor(),
+          if (_nozzles.isNotEmpty) _buildNozzleEditor(),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _headType,
@@ -529,7 +600,8 @@ class _VesselSchemeConstructorScreenState
             ),
             style: const TextStyle(color: Colors.white),
             items: const [
-              DropdownMenuItem(value: 'elliptical', child: Text('Эллиптические')),
+              DropdownMenuItem(
+                  value: 'elliptical', child: Text('Эллиптические')),
               DropdownMenuItem(
                   value: 'hemispherical', child: Text('Полусферические')),
               DropdownMenuItem(value: 'flat', child: Text('Плоские')),
@@ -547,8 +619,16 @@ class _VesselSchemeConstructorScreenState
               ),
               const Spacer(),
               IconButton(
-                onPressed: () => setState(
-                    () => _shellCount = (_shellCount - 1).clamp(1, 20)),
+                onPressed: () => setState(() {
+                  if (_elements
+                      .any((e) => e['part_id'] == 'shell_$_shellCount')) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text(
+                            'Сначала удалите элементы последней обечайки')));
+                    return;
+                  }
+                  _shellCount = (_shellCount - 1).clamp(1, 20);
+                }),
                 icon: const Icon(Icons.remove_circle_outline,
                     color: Colors.white70),
               ),
@@ -557,8 +637,8 @@ class _VesselSchemeConstructorScreenState
               IconButton(
                 onPressed: () => setState(
                     () => _shellCount = (_shellCount + 1).clamp(1, 20)),
-                icon: const Icon(Icons.add_circle_outline,
-                    color: Colors.white70),
+                icon:
+                    const Icon(Icons.add_circle_outline, color: Colors.white70),
               ),
             ],
           ),
@@ -597,7 +677,8 @@ class _VesselSchemeConstructorScreenState
         Row(
           children: [
             const Text('Патрубки / легенда',
-                style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    color: Colors.white70, fontWeight: FontWeight.w600)),
             const Spacer(),
             TextButton(
               onPressed: () {
@@ -605,7 +686,8 @@ class _VesselSchemeConstructorScreenState
                   _nozzles.add({
                     'id': 'N${_nozzles.length + 1}',
                     'dn': 50,
-                    'position': (0.15 + _nozzles.length * 0.14).clamp(0.08, 0.92),
+                    'position':
+                        (0.15 + _nozzles.length * 0.14).clamp(0.08, 0.92),
                     'circ': (0.2 + (_nozzles.length % 4) * 0.2).clamp(0.1, 0.9),
                     'side': 'body',
                     'place': 'body',
@@ -633,7 +715,8 @@ class _VesselSchemeConstructorScreenState
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           labelText: 'Обозн.',
-                          labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white54, fontSize: 12),
                         ),
                         onChanged: (v) => n['label'] = v,
                       ),
@@ -642,24 +725,30 @@ class _VesselSchemeConstructorScreenState
                     Expanded(
                       flex: 2,
                       child: DropdownButtonFormField<String>(
-                        value: ReportFormulationOptions.nozzlePurposes.contains(n['purpose'])
+                        value: ReportFormulationOptions.nozzlePurposes
+                                .contains(n['purpose'])
                             ? n['purpose'] as String
                             : ReportFormulationOptions.nozzlePurposes.first,
                         dropdownColor: const Color(0xFF1e293b),
                         decoration: const InputDecoration(
                           labelText: 'Назначение',
-                          labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white54, fontSize: 12),
                         ),
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 13),
                         items: ReportFormulationOptions.nozzlePurposes
-                            .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                            .map((p) =>
+                                DropdownMenuItem(value: p, child: Text(p)))
                             .toList(),
-                        onChanged: (v) => setState(() => n['purpose'] = v ?? ''),
+                        onChanged: (v) =>
+                            setState(() => n['purpose'] = v ?? ''),
                       ),
                     ),
                     IconButton(
                       onPressed: () => setState(() => _nozzles.removeAt(i)),
-                      icon: const Icon(Icons.delete_outline, color: Colors.white54),
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.white54),
                     ),
                   ],
                 ),
@@ -672,7 +761,8 @@ class _VesselSchemeConstructorScreenState
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           labelText: 'DN, мм',
-                          labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white54, fontSize: 12),
                         ),
                         onChanged: (v) => n['dn'] = int.tryParse(v) ?? v,
                       ),
@@ -684,13 +774,20 @@ class _VesselSchemeConstructorScreenState
                         dropdownColor: const Color(0xFF1e293b),
                         decoration: const InputDecoration(
                           labelText: 'Место',
-                          labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white54, fontSize: 12),
                         ),
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 13),
                         items: const [
-                          DropdownMenuItem(value: 'body', child: Text('Корпус')),
-                          DropdownMenuItem(value: 'head_top', child: Text('Верх/лево днище')),
-                          DropdownMenuItem(value: 'head_bottom', child: Text('Низ/право днище')),
+                          DropdownMenuItem(
+                              value: 'body', child: Text('Корпус')),
+                          DropdownMenuItem(
+                              value: 'head_top',
+                              child: Text('Верх/лево днище')),
+                          DropdownMenuItem(
+                              value: 'head_bottom',
+                              child: Text('Низ/право днище')),
                         ],
                         onChanged: (v) => setState(() {
                           n['place'] = v ?? 'body';
@@ -706,26 +803,32 @@ class _VesselSchemeConstructorScreenState
                     Expanded(
                       child: TextFormField(
                         initialValue: '${n['position'] ?? 0.5}',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           labelText: 'Ось 0–1',
-                          labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white54, fontSize: 12),
                         ),
-                        onChanged: (v) => n['position'] = double.tryParse(v.replaceAll(',', '.')) ?? 0.5,
+                        onChanged: (v) => n['position'] =
+                            double.tryParse(v.replaceAll(',', '.')) ?? 0.5,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextFormField(
                         initialValue: '${n['circ'] ?? 0.55}',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                           labelText: 'Окруж. 0–1',
-                          labelStyle: TextStyle(color: Colors.white54, fontSize: 12),
+                          labelStyle:
+                              TextStyle(color: Colors.white54, fontSize: 12),
                         ),
-                        onChanged: (v) => n['circ'] = double.tryParse(v.replaceAll(',', '.')) ?? 0.55,
+                        onChanged: (v) => n['circ'] =
+                            double.tryParse(v.replaceAll(',', '.')) ?? 0.55,
                       ),
                     ),
                   ],
@@ -756,7 +859,8 @@ class _VesselSchemeConstructorScreenState
       value: value,
       groupValue: _weldPreset,
       activeColor: Colors.blue,
-      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+      title: Text(label,
+          style: const TextStyle(color: Colors.white, fontSize: 13)),
       onChanged: (v) {
         if (v == null) return;
         setState(() => _weldPreset = v);
@@ -791,21 +895,24 @@ class _VesselSchemeConstructorScreenState
                   },
                   onPanUpdate: (d) {
                     final i = _dragNozzleIndex;
-                    if (i == null || body == null || i >= _nozzles.length) return;
+                    if (i == null || body == null || i >= _nozzles.length) {
+                      return;
+                    }
                     final n = _nozzles[i];
                     final place = (n['place'] as String?) ?? 'body';
-                    if (place != 'body') {
-                      // на превью днища упрощены — двигаем по корпусу
-                      n['place'] = 'body';
-                      n['side'] = 'body';
-                    }
+                    if (place != 'body') return;
                     final circ = ((d.localPosition.dx - body.left) / body.width)
                         .clamp(0.08, 0.92);
                     final pos = ((d.localPosition.dy - body.top) / body.height)
                         .clamp(0.08, 0.92);
                     setState(() {
-                      n['circ'] = double.parse(circ.toStringAsFixed(3));
-                      n['position'] = double.parse(pos.toStringAsFixed(3));
+                      n['circ'] = double.parse(
+                          (_orientation == 'horizontal' ? pos : circ)
+                              .toStringAsFixed(3));
+                      n['position'] = double.parse(
+                          (_orientation == 'horizontal' ? circ : pos)
+                              .toStringAsFixed(3));
+                      n['axial'] = n['position'];
                     });
                   },
                   onPanEnd: (_) => setState(() => _dragNozzleIndex = null),
@@ -815,6 +922,7 @@ class _VesselSchemeConstructorScreenState
                       weldPreset: _weldPreset,
                       shellCount: _shellCount,
                       nozzles: _nozzles,
+                      elements: _elements,
                       family: _selected?.family ?? 'vessel_development',
                       title: _selected?.title ?? 'Карта контроля',
                       highlightIndex: _dragNozzleIndex,
@@ -828,7 +936,7 @@ class _VesselSchemeConstructorScreenState
         ),
         const SizedBox(height: 8),
         const Text(
-          'Превью: перетащите патрубок пальцем. При применении — API-рендер.',
+          'Общий чертёж. Для размещения элементов вернитесь на предыдущий шаг. Без сети сохраняется локальная схема.',
           style: TextStyle(color: Colors.white54, fontSize: 11),
           textAlign: TextAlign.center,
         ),
@@ -839,24 +947,24 @@ class _VesselSchemeConstructorScreenState
   Rect? _previewBodyRect(Size size) {
     final family = _selected?.family ?? 'vessel_development';
     if (family != 'vessel_development' && family != 'tank') return null;
-    final cx = size.width / 2;
-    final headR = size.width * 0.14;
-    const gap = 10.0;
-    final topCy = 28 + headR;
-    final botCy = size.height - 20 - headR;
-    final bodyTop = topCy + headR + gap;
-    final bodyBot = botCy - headR - gap;
-    final bodyW = size.width * 0.62;
-    return Rect.fromLTRB(cx - bodyW / 2, bodyTop, cx + bodyW / 2, bodyBot);
+    return _vesselPreviewLayout(size, _orientation)['body'];
   }
 
   int? _hitNozzleIndex(Offset local, Rect body) {
     for (var i = _nozzles.length - 1; i >= 0; i--) {
       final n = _nozzles[i];
+      if ((n['place'] ?? 'body') != 'body' ||
+          ['top', 'bottom', 'left', 'right'].contains(n['side'])) {
+        continue;
+      }
       final t = (n['position'] as num?)?.toDouble() ?? 0.5;
       final circ = (n['circ'] as num?)?.toDouble() ?? 0.55;
-      final x = body.left + body.width * circ.clamp(0.08, 0.92);
-      final y = body.top + body.height * t.clamp(0.08, 0.92);
+      final x = body.left +
+          body.width *
+              (_orientation == 'horizontal' ? t : circ).clamp(0.08, 0.92);
+      final y = body.top +
+          body.height *
+              (_orientation == 'horizontal' ? circ : t).clamp(0.08, 0.92);
       if ((Offset(x, y) - local).distance <= 22) return i;
     }
     return null;
@@ -868,6 +976,7 @@ class _VesselSchemePainter extends CustomPainter {
   final String weldPreset;
   final int shellCount;
   final List<Map<String, dynamic>> nozzles;
+  final List<Map<String, dynamic>> elements;
   final String family;
   final String title;
   final int? highlightIndex;
@@ -877,6 +986,7 @@ class _VesselSchemePainter extends CustomPainter {
     required this.weldPreset,
     required this.shellCount,
     required this.nozzles,
+    required this.elements,
     required this.family,
     required this.title,
     this.highlightIndex,
@@ -892,6 +1002,7 @@ class _VesselSchemePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.drawColor(Colors.white, BlendMode.src);
     final ink = Paint()
       ..color = const Color(0xFF1e1e1e)
       ..style = PaintingStyle.stroke
@@ -951,8 +1062,8 @@ class _VesselSchemePainter extends CustomPainter {
         final y = size.height * 0.35;
         canvas.drawLine(Offset(40, y), Offset(size.width - 40, y), ink);
         canvas.drawLine(Offset(40, y), Offset(40, size.height - 50), ink);
-        canvas.drawLine(
-            Offset(size.width - 40, y), Offset(size.width - 40, size.height - 50), ink);
+        canvas.drawLine(Offset(size.width - 40, y),
+            Offset(size.width - 40, size.height - 50), ink);
         for (var i = 1; i < n; i++) {
           final x = 40 + (size.width - 80) * (i / n);
           canvas.drawLine(Offset(x, y - 8), Offset(x, y + 8), weld);
@@ -962,7 +1073,8 @@ class _VesselSchemePainter extends CustomPainter {
       }
       if (family == 'machinery' || family == 'boiler' || family == 'valve') {
         final body = Rect.fromLTRB(50, 50, size.width - 50, size.height - 50);
-        canvas.drawRRect(RRect.fromRectAndRadius(body, const Radius.circular(12)), ink);
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(body, const Radius.circular(12)), ink);
         for (var i = 0; i < n; i++) {
           final x = body.left + body.width * ((i + 0.5) / n);
           canvas.drawCircle(Offset(x, body.center.dy), 10, nozzle);
@@ -978,7 +1090,9 @@ class _VesselSchemePainter extends CustomPainter {
         for (var c = 0; c < cols; c++) {
           final x0 = body.left + body.width * (c / cols);
           final x1 = body.left + body.width * ((c + 1) / cols);
-          canvas.drawRect(Rect.fromLTRB(x0 + 4, body.top + 8, x1 - 4, body.bottom - 8), ink);
+          canvas.drawRect(
+              Rect.fromLTRB(x0 + 4, body.top + 8, x1 - 4, body.bottom - 8),
+              ink);
           canvas.drawCircle(Offset((x0 + x1) / 2, body.center.dy), 6, nozzle);
         }
         return;
@@ -988,53 +1102,139 @@ class _VesselSchemePainter extends CustomPainter {
       canvas.drawRect(body, ink);
       for (var i = 0; i < n; i++) {
         final y = body.top + body.height * ((i + 0.5) / n);
-        canvas.drawLine(Offset(body.left + 10, y), Offset(body.right - 10, y), weld);
+        canvas.drawLine(
+            Offset(body.left + 10, y), Offset(body.right - 10, y), weld);
         canvas.drawCircle(Offset(body.center.dx, y), 5, nozzle);
       }
       return;
     }
 
-    // Развёртка сосуда / резервуара
-    final cx = size.width / 2;
-    final headR = size.width * 0.14;
-    const gap = 10.0;
-    final topCy = 28 + headR;
-    final botCy = size.height - 20 - headR;
-    final bodyTop = topCy + headR + gap;
-    final bodyBot = botCy - headR - gap;
-    final bodyW = size.width * 0.62;
-    final body = Rect.fromLTRB(cx - bodyW / 2, bodyTop, cx + bodyW / 2, bodyBot);
-
-    canvas.drawCircle(Offset(cx, topCy), headR, ink);
-    canvas.drawCircle(Offset(cx, botCy), headR, ink);
-    canvas.drawLine(
-        Offset(cx, topCy - headR + 3), Offset(cx, topCy + headR - 3), weld);
-    canvas.drawLine(
-        Offset(cx, botCy - headR + 3), Offset(cx, botCy + headR - 3), weld);
-    canvas.drawRect(body, ink);
-
+    final layout = _vesselPreviewLayout(size, orientation);
+    final body = layout['body']!;
+    final top = layout['head_top']!;
+    final bottom = layout['head_bottom']!;
+    final horizontal = orientation == 'horizontal';
     final n = shellCount < 1 ? 1 : shellCount;
-    for (var i = 0; i <= n; i++) {
-      final y = body.top + body.height * (i / n);
-      canvas.drawLine(Offset(body.left, y), Offset(body.right, y), weld);
+    canvas.drawOval(top, ink);
+    canvas.drawOval(bottom, ink);
+    canvas.drawRect(body, ink);
+    void labelAt(String value, Offset point) {
+      final text = TextPainter(
+          text: TextSpan(
+              text: value,
+              style: const TextStyle(color: Colors.black87, fontSize: 9)),
+          textDirection: TextDirection.ltr)
+        ..layout();
+      text.paint(canvas, point);
     }
-    if (weldPreset != 'ring_only') {
-      for (var s = 0; s < n; s++) {
-        final dual = n >= 3 && s > 0 && s < n - 1 && s.isOdd;
-        final y0 = body.top + body.height * (s / n) + 2;
-        final y1 = body.top + body.height * ((s + 1) / n) - 2;
-        for (final circ in _longPositions(s, dual: dual)) {
-          final x = body.left + body.width * circ.clamp(0.06, 0.94);
-          canvas.drawLine(Offset(x, y0), Offset(x, y1), weld);
+
+    labelAt(horizontal ? 'Левое днище' : 'Верхнее днище',
+        top.topLeft - const Offset(0, 12));
+    labelAt(horizontal ? 'Правое днище' : 'Нижнее днище',
+        bottom.bottomLeft + const Offset(0, 2));
+    for (var i = 0; i <= n; i++) {
+      if (horizontal) {
+        final x = body.left + body.width * i / n;
+        canvas.drawLine(Offset(x, body.top), Offset(x, body.bottom), weld);
+      } else {
+        final y = body.top + body.height * i / n;
+        canvas.drawLine(Offset(body.left, y), Offset(body.right, y), weld);
+      }
+    }
+    for (var i = 0; i < n; i++) {
+      final part = horizontal
+          ? Rect.fromLTWH(body.left + body.width * i / n, body.top,
+              body.width / n, body.height)
+          : Rect.fromLTWH(body.left, body.top + body.height * i / n, body.width,
+              body.height / n);
+      labelAt('Об.${i + 1}', part.topLeft + const Offset(3, 3));
+      if (weldPreset != 'ring_only') {
+        final dual = weldPreset == 'multi_shell' &&
+            n >= 3 &&
+            i > 0 &&
+            i < n - 1 &&
+            i.isOdd;
+        for (final circ in _longPositions(i, dual: dual)) {
+          if (horizontal) {
+            final y = part.top + part.height * circ;
+            canvas.drawLine(Offset(part.left, y), Offset(part.right, y), weld);
+          } else {
+            final x = part.left + part.width * circ;
+            canvas.drawLine(Offset(x, part.top), Offset(x, part.bottom), weld);
+          }
         }
+      }
+    }
+    for (final e in elements) {
+      final part = e['part_id'] as String;
+      final ex = (e['x'] as num).toDouble();
+      final ey = (e['y'] as num).toDouble();
+      Offset p;
+      if (part.startsWith('head')) {
+        final region = layout[part]!;
+        p = Offset(
+            region.left + region.width * ex, region.top + region.height * ey);
+      } else {
+        final index = (int.tryParse(part.replaceFirst('shell_', '')) ?? 1) - 1;
+        p = horizontal
+            ? Offset(body.left + body.width * (index + ey) / n,
+                body.top + body.height * ex)
+            : Offset(body.left + body.width * ex,
+                body.top + body.height * (index + ey) / n);
+      }
+      paintVesselElement(canvas, p, e['kind'] as String, radius: 6);
+      final label = TextPainter(
+          text: TextSpan(
+              text: '${e['label']}',
+              style: const TextStyle(color: Colors.blue, fontSize: 10)),
+          textDirection: TextDirection.ltr)
+        ..layout();
+      label.paint(canvas, p + const Offset(8, -10));
+      final count = (e['control_points'] as num?)?.toInt() ?? 0;
+      for (var k = 0; k < count; k++) {
+        final delta = [
+          const Offset(0, -12),
+          const Offset(0, 12),
+          const Offset(-12, 0),
+          const Offset(12, 0)
+        ][k];
+        canvas.drawCircle(p + delta, 2, Paint()..color = Colors.red);
+        final number = TextPainter(
+            text: TextSpan(
+                text: '${k + 1}',
+                style: const TextStyle(color: Colors.red, fontSize: 8)),
+            textDirection: TextDirection.ltr)
+          ..layout();
+        number.paint(canvas, p + delta + const Offset(3, -4));
       }
     }
     for (var i = 0; i < nozzles.length; i++) {
       final nzz = nozzles[i];
       final t = (nzz['position'] as num?)?.toDouble() ?? 0.5;
       final circ = (nzz['circ'] as num?)?.toDouble() ?? 0.55;
-      final x = body.left + body.width * circ.clamp(0.08, 0.92);
-      final y = body.top + body.height * t.clamp(0.08, 0.92);
+      var x =
+          body.left + body.width * (horizontal ? t : circ).clamp(0.08, 0.92);
+      var y =
+          body.top + body.height * (horizontal ? circ : t).clamp(0.08, 0.92);
+      final place = nzz['place'] ?? nzz['side'] ?? 'body';
+      if (['head_top', 'head_left', 'top', 'left'].contains(place)) {
+        x = top.center.dx +
+            top.width / 2 * .55 * math.cos(-math.pi / 2 + circ * 2 * math.pi);
+        y = top.center.dy +
+            top.height / 2 * .55 * math.sin(-math.pi / 2 + circ * 2 * math.pi);
+      } else if (['head_bottom', 'head_right', 'bottom', 'right']
+          .contains(place)) {
+        x = bottom.center.dx +
+            bottom.width /
+                2 *
+                .55 *
+                math.cos(-math.pi / 2 + circ * 2 * math.pi);
+        y = bottom.center.dy +
+            bottom.height /
+                2 *
+                .55 *
+                math.sin(-math.pi / 2 + circ * 2 * math.pi);
+      }
       final r = i == highlightIndex ? 11.0 : 7.0;
       final paint = Paint()
         ..color = i == highlightIndex
@@ -1066,4 +1266,27 @@ class _VesselSchemePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _VesselSchemePainter oldDelegate) => true;
+}
+
+Map<String, Rect> _vesselPreviewLayout(Size size, String orientation) {
+  if (orientation == 'horizontal') {
+    final r = size.width * .10;
+    final cy = size.height * .5;
+    return {
+      'body': Rect.fromLTRB(2 * r + 20, cy - size.height * .3,
+          size.width - 2 * r - 20, cy + size.height * .3),
+      'head_top': Rect.fromCircle(center: Offset(r + 8, cy), radius: r),
+      'head_bottom':
+          Rect.fromCircle(center: Offset(size.width - r - 8, cy), radius: r),
+    };
+  }
+  final cx = size.width / 2;
+  final r = size.width * .14;
+  return {
+    'body': Rect.fromLTRB(cx - size.width * .31, 38 + 2 * r,
+        cx + size.width * .31, size.height - 30 - 2 * r),
+    'head_top': Rect.fromCircle(center: Offset(cx, 28 + r), radius: r),
+    'head_bottom':
+        Rect.fromCircle(center: Offset(cx, size.height - 20 - r), radius: r),
+  };
 }

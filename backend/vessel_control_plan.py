@@ -12,6 +12,10 @@ def number(value):
 
 
 def vessel_shells(g):
+    snapshot = (g('base_vessel_scheme', default={}) or {}).get('geometry') or {}
+    if snapshot.get('schema_version') == 2:
+        return [{'id': p['id'], 'name': p['designation'], **p.get('dimensions', {})}
+                for p in snapshot.get('parts', []) if p.get('kind') == 'shell']
     elements = g('vessel_elements', 'passport_elements', default=[]) or []
     shells = [dict(e) for e in elements if isinstance(e, dict)
               and 'обечай' in str(e.get('name') or e.get('element_name') or '').lower()]
@@ -49,10 +53,17 @@ def method_code(value):
 def method_rows(rows, method):
     # An untagged weld cannot serve as evidence for two different methods.
     return [r for r in rows if isinstance(r, dict)
+            and r.get('result_status') != 'planned'
             and method_code(r.get('control_method') or r.get('method')) == method_code(method)]
 
 
 def planned_count(g, code):
+    snapshot = (g('base_vessel_scheme', default={}) or {}).get('geometry') or {}
+    if snapshot.get('schema_version') == 2:
+        if code == 'HARDNESS':
+            return sum(1 for s in snapshot.get('sections', []) if s.get('kind')=='weld_profile' and str(s.get('method') or '').upper() in ('ТВ','ТВЕРДОМЕТРИЯ','ТВЁРДОМЕТРИЯ'))
+        return sum(1 for z in snapshot.get('control_zones', []) if not z.get('archived')
+                   and code in [method_code(m) for m in z.get('planned_methods', [])])
     key = {'UZK': 'uzk_sections', 'MPK': 'mpk_sections', 'PVK': 'pvk_sections',
            'HARDNESS': 'hardness_sections'}[code]
     task = g('technical_task', default={}) or {}
@@ -88,6 +99,18 @@ def control_scope(g):
     issues = []
     if not shells:
         issues.append('Не задана длина корпуса или состав обечаек')
+    snapshot = (g('base_vessel_scheme', default={}) or {}).get('geometry') or {}
+    if snapshot.get('schema_version') == 2:
+        rows = g('thickness_measurements', default=[]) or []
+        planned = [p for p in snapshot.get('control_points', []) if not p.get('archived')]
+        for shell in shells:
+            ids = {p['id'] for p in planned if p.get('owner_id') == shell['id']}
+            measured = {r.get('scheme_point_id') for r in rows if number(r.get('thickness')) is not None and number(r.get('thickness')) > 0} & ids
+            if len(measured) != len(ids):
+                issues.append(f'{shell["name"]}: заполнено {len(measured)} из {len(ids)} запланированных точек УЗТ')
+        if any(r.get('scheme_point_id') not in {p['id'] for p in snapshot.get('control_points', [])} for r in rows):
+            issues.append('Есть результаты УЗТ без однозначной привязки к точке v2')
+        grouped = {}  # v2 uses IDs and its template, not the legacy local 1..12 rule.
     for name, points in grouped.items():
         valid = set()
         for p in points:
@@ -108,7 +131,7 @@ def control_scope(g):
     for code, label in [('UZK', 'УЗК'), ('MPK', 'МК'), ('PVK', 'ПВК'), ('HARDNESS', 'Твердометрия')]:
         planned = planned_count(g, code)
         rows = g('hardness_tests', default=[]) or [] if code == 'HARDNESS' else method_rows(welds, code)
-        actual = len(rows)
+        actual = len([r for r in rows if r.get('result_status') != 'planned'])
         scope.append((label, planned, actual))
         if planned is None:
             issues.append(f'{label}: объём по техническому заданию не указан')

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import 'equipment_list_screen.dart';
 import 'assignments_screen.dart';
@@ -38,7 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _downloadProgress = 0.0;
   BuildContext? _progressDialogContext;
   int _pendingCount = 0;
-  bool _isOffline = false;
+  bool _isOffline = true;
   Map<String, dynamic>? _continueDraft;
 
   @override
@@ -63,7 +64,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final bd = b['saved_at']?.toString() ?? '';
           return bd.compareTo(ad);
         });
-      if (mounted) setState(() => _continueDraft = list.first);
+      var latest = list.first;
+      if (latest['screen_type'] == 'vessel_constructor') {
+        final match = RegExp(r'^vessel_constructor_([^_]+)_(.+)$')
+            .firstMatch(latest['id']?.toString() ?? '');
+        if (match != null) {
+          final parents = list.where((d) =>
+              d['screen_type'] == 'inspection' &&
+              d['equipment_id'] == match.group(1) &&
+              (match.group(2) == 'new' ||
+                  d['assignment_id'] == match.group(2) ||
+                  d['id'] == match.group(2)));
+          latest = parents.isNotEmpty
+              ? parents.first
+              : <String, dynamic>{
+                  'screen_type': 'inspection',
+                  'equipment_id': match.group(1),
+                  'checklist_data': {'object_name': 'Черновик схемы сосуда'},
+                };
+        }
+      }
+      if (mounted) setState(() => _continueDraft = latest);
     } catch (_) {
       if (mounted) setState(() => _continueDraft = null);
     }
@@ -139,7 +160,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           await context.push('/inspection', extra: {
             'equipment': equipment,
             'assignmentId': assignmentId,
-            'existingInspectionId': draft['id'],
+            'existingInspectionId': draft['inspection_id'] ??
+                (RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(draft['id']?.toString() ?? '')
+                    ? draft['id'] : null),
             'inspectionType': 'NDT',
           });
         } catch (e) {
@@ -164,6 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final pendingQuestionnaireNdt =
           await _syncService.getPendingQuestionnaireNdt();
       final offlineMode = await _syncService.isOfflineMode();
+      final offlineSession = await AuthService().hasOfflineSession();
       final hasConnection = await _apiService.checkConnection();
       if (mounted) {
         setState(() {
@@ -171,7 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               pendingStandalone.length +
               pendingQuestionnaires.length +
               pendingQuestionnaireNdt.length;
-          _isOffline = offlineMode || !hasConnection;
+          _isOffline = offlineMode || offlineSession || !hasConnection;
         });
       }
     } catch (_) {

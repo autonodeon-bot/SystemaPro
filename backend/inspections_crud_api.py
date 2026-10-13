@@ -69,6 +69,13 @@ async def _log_audit(
 def _validate_create_inspection(data: dict) -> None:
     """Валидация тела запроса создания обследования. При ошибках бросает HTTPException с списком errors."""
     err = []
+    geometry = (((data.get('data') or {}).get('base_vessel_scheme') or {}).get('geometry') or {}) if isinstance(data.get('data'), dict) else {}
+    if geometry.get('schema_version') == 2:
+        from vessel_geometry_v2 import normalize_v2
+        try:
+            normalize_v2(geometry)
+        except (ValueError, KeyError, TypeError) as exc:
+            err.append({'field':'base_vessel_scheme.geometry','message':str(exc)})
     eq_id = data.get("equipment_id")
     if not eq_id:
         err.append({"field": "equipment_id", "message": "equipment_id обязателен"})

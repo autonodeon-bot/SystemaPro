@@ -33,6 +33,16 @@ from vessel_scheme_renderer import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+from vessel_snapshot_api import router as snapshot_router
+router.include_router(snapshot_router)
+
+
+@router.get('/api/vessel-scheme/capabilities')
+async def vessel_capabilities(current_user: str = Depends(verify_token)):
+    return {'schema_versions': [1, 2], 'render': ['png', 'svg', 'pdf'],
+            'physical_coordinates': True, 'shared_welds': True,
+            'limits': {'shells': 20, 'elements': 250, 'points': 500},
+            'editing_v2_requires_client': 2}
 
 UPLOAD_DIR = Path("/app/uploads/equipment_drawings")
 FALLBACK_UPLOAD_DIR = Path.cwd() / "uploads" / "equipment_drawings"
@@ -78,10 +88,13 @@ class VesselSchemeRenderRequest(BaseModel):
     segment_count: Optional[int] = None
     head_type: str = "elliptical"
     weld_preset: Optional[str] = None
+    elements: List[Dict[str, Any]] = Field(default_factory=list)
     nozzles: List[NozzleIn] = Field(default_factory=list)
     welds: List[WeldIn] = Field(default_factory=list)
     title: Optional[str] = None
     scheme_layer: Optional[str] = None
+    detail_id: Optional[str] = None
+    exterior_b: bool = False
     width: int = Field(default=1200, ge=400, le=2400)
     height: int = Field(default=1050, ge=300, le=1800)
     geometry: Optional[Dict[str, Any]] = None
@@ -121,6 +134,7 @@ def _to_geometry(req: VesselSchemeRenderRequest) -> Dict[str, Any]:
         "segment_count": count,
         "head_type": req.head_type,
         "weld_preset": req.weld_preset or defs.get("weld_preset") or "long_plus_rings",
+        "elements": req.elements,
         "nozzles": [n.model_dump(exclude_none=True) for n in req.nozzles],
         "welds": [w.model_dump(exclude_none=True) for w in req.welds],
         "title": req.title or KIND_TITLES.get(kind),
@@ -145,8 +159,11 @@ async def normalize_vessel_scheme(
     req: VesselSchemeRenderRequest,
     current_user: str = Depends(verify_token),
 ):
-    geo = normalize_geometry(_to_geometry(req))
-    return {"geometry": geo}
+    try:
+        geo = normalize_geometry(_to_geometry(req))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"geometry": geo, "diagnostics": geo.get("diagnostics", [])}
 
 
 @router.post("/api/vessel-scheme/render")
@@ -186,6 +203,20 @@ async def render_vessel_scheme_endpoint(
             "X-Form-Id": geo.get("form_id") or "",
         },
     )
+
+
+@router.post('/api/vessel-scheme/export')
+async def export_vessel(req: VesselSchemeRenderRequest, format: str = Query('pdf', pattern='^(pdf|svg)$'),
+                        current_user: str = Depends(verify_token)):
+    from vessel_geometry_v2 import normalize_v2, render_v2
+    from vessel_vector import export_pdf
+    try:
+        geo = normalize_v2(_to_geometry(req))
+        content = export_pdf(geo) if format == 'pdf' else render_v2(geo, 1190, 842, detail=req.detail_id, layer=req.scheme_layer, exterior_b=req.exterior_b, svg=True)[0]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    return Response(content, media_type='application/pdf' if format == 'pdf' else 'image/svg+xml',
+                    headers={'Content-Disposition': f'attachment; filename="vessel-r{geo["revision"]}.{format}"'})
 
 
 @router.post("/api/vessel-scheme/save-template")

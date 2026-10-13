@@ -54,7 +54,7 @@ android {
 
     defaultConfig {
         applicationId "com.es_td_ngo.mobile"
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion 23
         targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName

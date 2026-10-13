@@ -691,8 +691,11 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   }
 
   Widget _buildZoomableScheme() {
-    final w = _imageSize?.width ?? MediaQuery.of(context).size.width - 32;
-    final h = _imageSize?.height ?? (MediaQuery.of(context).size.height - 200) * 0.6;
+    return LayoutBuilder(builder: (context, constraints) {
+    final fitted = applyBoxFit(BoxFit.contain,
+        _imageSize ?? constraints.biggest, constraints.biggest).destination;
+    final w = fitted.width;
+    final h = fitted.height;
     final imageSize = Size(w, h);
 
     Widget content = Stack(
@@ -732,14 +735,15 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
               : isOk
                   ? const Color(0xFF3b82f6)
                   : Colors.grey;
-          final left = point.xPercent != null ? (point.xPercent! / 100) * w - 12 : 0.0;
-          final top = point.yPercent != null ? (point.yPercent! / 100) * h - 12 : 0.0;
+          final left = point.xPercent != null ? (point.xPercent! / 100) * w - 22 : 0.0;
+          final top = point.yPercent != null ? (point.yPercent! / 100) * h - 22 : 0.0;
           return Positioned(
-            left: left.clamp(0.0, w - 24),
-            top: top.clamp(0.0, h - 24),
+            left: left.clamp(0.0, math.max(0, w - 44)),
+            top: top.clamp(0.0, math.max(0, h - 44)),
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => _editPoint(point),
-              child: Container(
+              child: SizedBox(width: 44, height: 44, child: Center(child: Container(
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
@@ -757,7 +761,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                     ),
                   ),
                 ),
-              ),
+              ))),
             ),
           );
         }),
@@ -776,7 +780,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
       content = content;
     }
 
-    return content;
+    return Center(child: SizedBox(width: w, height: h, child: content));
+    });
   }
 
   @override

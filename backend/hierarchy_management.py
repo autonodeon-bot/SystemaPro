@@ -581,7 +581,7 @@ async def assign_engineers_to_enterprise(
                     and_(
                         HierarchyEngineerAssignment.user_id == user_uuid,
                         HierarchyEngineerAssignment.enterprise_id == enterprise_uuid,
-                        text("hierarchy_engineer_assignments.is_active = 1")
+                        HierarchyEngineerAssignment.is_active.is_(True)
                     )
                 )
             )
@@ -638,7 +638,7 @@ async def assign_engineers_to_branch(
                     and_(
                         HierarchyEngineerAssignment.user_id == user_uuid,
                         HierarchyEngineerAssignment.branch_id == branch_uuid,
-                        text("hierarchy_engineer_assignments.is_active = 1")
+                        HierarchyEngineerAssignment.is_active.is_(True)
                     )
                 )
             )
@@ -693,7 +693,7 @@ async def assign_engineers_to_workshop(
                     and_(
                         HierarchyEngineerAssignment.user_id == user_uuid,
                         HierarchyEngineerAssignment.workshop_id == workshop_uuid,
-                        text("hierarchy_engineer_assignments.is_active = 1")
+                        HierarchyEngineerAssignment.is_active.is_(True)
                     )
                 )
             )
@@ -748,7 +748,7 @@ async def assign_engineers_to_equipment_type(
                     and_(
                         HierarchyEngineerAssignment.user_id == user_uuid,
                         HierarchyEngineerAssignment.equipment_type_id == equipment_type_uuid,
-                        text("hierarchy_engineer_assignments.is_active = 1")
+                        HierarchyEngineerAssignment.is_active.is_(True)
                     )
                 )
             )
@@ -803,7 +803,7 @@ async def assign_engineers_to_equipment(
                     and_(
                         HierarchyEngineerAssignment.user_id == user_uuid,
                         HierarchyEngineerAssignment.equipment_id == equipment_uuid,
-                        text("hierarchy_engineer_assignments.is_active = 1")
+                        HierarchyEngineerAssignment.is_active.is_(True)
                     )
                 )
             )
@@ -846,7 +846,7 @@ async def get_user_assignments(
             select(HierarchyEngineerAssignment).where(
                 and_(
                     HierarchyEngineerAssignment.user_id == user_uuid,
-                    text("hierarchy_engineer_assignments.is_active = 1"),
+                    HierarchyEngineerAssignment.is_active.is_(True),
                     or_(
                         HierarchyEngineerAssignment.expires_at.is_(None),
                         HierarchyEngineerAssignment.expires_at > datetime.now()
@@ -890,7 +890,7 @@ async def get_enterprise_assigned_engineers(
             ).where(
                 and_(
                     HierarchyEngineerAssignment.enterprise_id == enterprise_uuid,
-                    text("hierarchy_engineer_assignments.is_active = 1"),
+                    HierarchyEngineerAssignment.is_active.is_(True),
                     or_(
                         HierarchyEngineerAssignment.expires_at.is_(None),
                         HierarchyEngineerAssignment.expires_at > datetime.now()
@@ -933,7 +933,7 @@ async def get_branch_assigned_engineers(
             ).where(
                 and_(
                     HierarchyEngineerAssignment.branch_id == branch_uuid,
-                    text("hierarchy_engineer_assignments.is_active = 1"),
+                    HierarchyEngineerAssignment.is_active.is_(True),
                     or_(
                         HierarchyEngineerAssignment.expires_at.is_(None),
                         HierarchyEngineerAssignment.expires_at > datetime.now()
@@ -976,7 +976,7 @@ async def get_workshop_assigned_engineers(
             ).where(
                 and_(
                     HierarchyEngineerAssignment.workshop_id == workshop_uuid,
-                    text("hierarchy_engineer_assignments.is_active = 1"),
+                    HierarchyEngineerAssignment.is_active.is_(True),
                     or_(
                         HierarchyEngineerAssignment.expires_at.is_(None),
                         HierarchyEngineerAssignment.expires_at > datetime.now()
@@ -1019,7 +1019,7 @@ async def get_equipment_assigned_engineers(
             ).where(
                 and_(
                     HierarchyEngineerAssignment.equipment_id == equipment_uuid,
-                    text("hierarchy_engineer_assignments.is_active = 1"),
+                    HierarchyEngineerAssignment.is_active.is_(True),
                     or_(
                         HierarchyEngineerAssignment.expires_at.is_(None),
                         HierarchyEngineerAssignment.expires_at > datetime.now()

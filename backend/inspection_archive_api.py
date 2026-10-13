@@ -119,6 +119,8 @@ async def upload_inspection_archive(
                 "verification_equipment_ids": checklist_payload.get("verification_equipment_ids") or manifest.get("verification_equipment_ids") or [],
             }
             _validate_create_inspection(inspection_data)
+            from vessel_snapshot_guard import guard_vessel_update
+            inspection_data['data'] = guard_vessel_update({}, inspection_data['data'])
             equipment_id = uuid_lib.UUID(str(inspection_data["equipment_id"]))
             from equipment_crud_api import _authorize_equipment_write
             await _authorize_equipment_write(db, username, str(equipment_id))
