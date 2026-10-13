@@ -11,6 +11,28 @@ String vesselPaper(VesselGeometry model) {
   return model.shells.length>5||model.elements.length>16||model.points.length>100?'A3':'A4';
 }
 
+void paintControlBand(Canvas c, Offset a, Offset b, double start, double span, String label, bool cross) {
+  final alongX=(b.dx-a.dx).abs()>(b.dy-a.dy).abs();
+  final ranges=[[start,math.min(1.0,start+span)],if(start+span>1)[0.0,start+span-1]];
+  for(final range in ranges) {
+    final lo=Offset.lerp(a,b,range[0])!,hi=Offset.lerp(a,b,range[1])!;
+    final rect=Rect.fromPoints(lo,hi).inflate(0);
+    final band=alongX?Rect.fromLTRB(rect.left,rect.top-6,rect.right,rect.bottom+6):Rect.fromLTRB(rect.left-6,rect.top,rect.right+6,rect.bottom);
+    c.drawRect(band,Paint()..color=const Color(0xffeeeeee));
+    c.drawRect(band,Paint()..color=Colors.black..style=PaintingStyle.stroke..strokeWidth=1);
+  }
+  final step=7/math.max(1,(b-a).distance);
+  for(var i=0;i*step<=span;i++) {
+    final p=Offset.lerp(a,b,(start+i*step)%1)!;
+    c.drawLine(p-const Offset(5,5),p+const Offset(5,5),Paint()..color=Colors.black..strokeWidth=1.5);
+    if(cross)c.drawLine(p+const Offset(-5,5),p+const Offset(5,-5),Paint()..color=Colors.black);
+  }
+  final mid=Offset.lerp(a,b,(start+span/2)%1)!;
+  final at=mid+(alongX?const Offset(-48,-36):const Offset(14,-20));
+  c.drawLine(mid+(alongX?const Offset(0,-7):Offset.zero),at+const Offset(8,13),Paint()..color=Colors.black);
+  final tp=TextPainter(text:TextSpan(text:label,style:const TextStyle(color:Colors.black,fontSize:11)),textDirection:TextDirection.ltr)..layout();tp.paint(c,at);
+}
+
 /// Project stable constructor point IDs onto the exported overview for the UZT map.
 void syncVesselMeasurementProjection(VesselChecklist checklist) {
   final data = checklist.baseVesselScheme?.geometry;
@@ -252,7 +274,6 @@ class VesselDrawingPainter extends CustomPainter {
                 ..color = Colors.grey
                 ..strokeWidth = 1.5);
           text(c, w['designation'], horizontal ? Offset((a.dx+b.dx)/2-10, q>.65 ? a.dy+4 : a.dy-18) : Offset(a.dx+4,(a.dy+b.dy)/2), size: 11);
-          var offset = 0.0;
           for (final z in m.zones.where((z) => z['weld_id'] == w['id'])) {
             final methods = (z['planned_methods'] as List).join('/');
             if (layer != 'Все' && !methods.contains(layer)) continue;
@@ -263,17 +284,7 @@ class VesselDrawingPainter extends CustomPainter {
             final end = coverage['kind'] == 'whole'
                 ? 1.0
                 : (coverage['end'] as num).toDouble();
-            final shift = Offset(4 + offset, 4 + offset);
-            for (var i = 0; i <= 40; i++) {
-              final f = i / 40;
-              if (f < start || f > end) continue;
-              final point = Offset.lerp(a, b, f)! + shift;
-              c.drawLine(point-const Offset(3,3),point+const Offset(3,3),Paint()..color=Colors.black);
-              if(methods.contains('ПВК')||methods.contains('МК')) c.drawLine(point+const Offset(-3,3),point+const Offset(3,-3),Paint()..color=Colors.black);
-            }
-            text(c, methods, Offset.lerp(a, b, (start + end) / 2)! + shift,
-                size: 11);
-            offset += 12;
+            paintControlBand(c,a,b,start,end-start,'${z['designation']} · $methods',methods.contains('ПВК')||methods.contains('МК'));
           }
         }
       }
@@ -310,7 +321,6 @@ class VesselDrawingPainter extends CustomPainter {
             ..color = Colors.black
             ..strokeWidth = 2);
       text(c, w['designation'], a + const Offset(2, -17), size: 11);
-      var zoneOffset = 0.0;
       for (final z in m.zones.where((z) => z['weld_id'] == w['id'])) {
         final methods = (z['planned_methods'] as List).join('/');
         if (layer != 'Все' && !methods.contains(layer)) continue;
@@ -324,23 +334,7 @@ class VesselDrawingPainter extends CustomPainter {
                     (coverage['start'] as num).toDouble(),
                     (coverage['end'] as num).toDouble()) /
                 360;
-        text(
-            c,
-            '$methods ${whole ? '100%' : '${coverage['start']}–${coverage['end']}°'}',
-            Offset.lerp(a,b,(start+span/2)%1)! + Offset(10+zoneOffset,0),
-            size: 11);
-        for (var i = 0; i < 40; i++) {
-          if (i / 40 > span) break;
-          final f = (start + i / 40) % 1;
-          final mark = Offset.lerp(a, b, f)! + Offset(zoneOffset, zoneOffset);
-          c.drawLine(
-              mark - const Offset(3, 3),
-              mark + const Offset(3, 3),
-              Paint()
-                ..color = Colors.black
-                ..strokeWidth = 2);
-        }
-        zoneOffset += 10;
+        paintControlBand(c,a,b,start,span,'${z['designation']} · $methods',methods.contains('ПВК')||methods.contains('МК'));
       }
     }
     final occupied = <Rect>[];

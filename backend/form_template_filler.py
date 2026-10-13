@@ -3233,6 +3233,10 @@ def _fill_materials(table: Table, ctx: Dict[str, Any]) -> None:
                         "specimen_type": el.get("specimen_type") or "",
                     }
                 )
+    if ((ctx.get('data') or {}).get('base_vessel_scheme') or {}).get('geometry', {}).get('schema_version') == 2:
+        from vessel_sheet import main_element_rows
+        material_rows = [{**m, 'name':m.get('element') or m.get('name') or '', 'material':m.get('grade') or m.get('material') or ''} for m in materials if isinstance(m,dict)]
+        materials = [{**m, 'element':m['name']} for m in main_element_rows(material_rows, ctx.get('data') or {})]
     if isinstance(materials, list) and materials:
         start = 2
         _ensure_rows(table, start + len(materials))

@@ -36,10 +36,10 @@ def main_element_rows(elements, data):
         if not shell and not head: continue
         if head: heads.append(e);continue
         # Unknown material/size does not justify merging different rows.
-        fields=('diameter','diameter_mm','outer_diameter','wall_thickness_mm','nominal_thickness','thickness','wall_thickness','calc_thickness','steel_grade','material','gost','material_gost','weld_type','weld_data','electrodes')
+        fields=('diameter','diameter_mm','outer_diameter','wall_thickness_mm','nominal_thickness','thickness','wall_thickness','calc_thickness','steel_grade','material','gost','material_gost','weld_type','weld_data','electrodes','yield_strength','tensile_strength','elongation','reduction','impact','temperature','test_temperature','specimen_type')
         key=tuple(str(e.get(k) or '') for k in fields)
         if not any(key):key=key+(str(e.get('id') or name),)
-        if key not in groups:groups[key]={**e,'name':'Обечайки','quantity':0,'length_mm':'','length':'','height':''}
+        if key not in groups:groups[key]={**e,'name':'Обечайка','quantity':0,'length_mm':'','length':'','height':''}
         groups[key]['quantity']+=int(e.get('quantity') or 1)
     rows=list(groups.values())
     if len(rows)==1:

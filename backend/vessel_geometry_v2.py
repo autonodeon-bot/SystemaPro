@@ -263,15 +263,26 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
             sector=coverage['kind']=='sector'
             start=0 if whole else ((coverage['start']-cut)%360/360 if sector else coverage['start'])
             span=1 if whole else ((coverage['end']-coverage['start'])%360/360 if sector else coverage['end']-coverage['start'])
-            for i in range(61):
-                if i/60>span:break
-                q=(start+i/60)%1
+            segments=[(start,min(1,start+span))]
+            if start+span>1:segments.append((0,start+span-1))
+            for lo,hi in segments:
+                ax,ay=a[0]+(b[0]-a[0])*lo,a[1]+(b[1]-a[1])*lo
+                bx,by=a[0]+(b[0]-a[0])*hi,a[1]+(b[1]-a[1])*hi
+                bounds=(ax,ay-6,bx,by+6) if abs(b[0]-a[0])>abs(b[1]-a[1]) else (ax-6,ay,bx+6,by)
+                d.rectangle(bounds,fill='#eeeeee',outline='black',width=1)
+            step=7/max(1,math.hypot(b[0]-a[0],b[1]-a[1]))
+            for i in range(int(span/step)+1):
+                q=(start+i*step)%1
                 x,y=a[0]+(b[0]-a[0])*q,a[1]+(b[1]-a[1])*q
-                d.line([(x-3,y-3),(x+3,y+3)],fill='black',width=2)
+                d.line([(x-5,y-5),(x+5,y+5)],fill='black',width=2)
                 if any(m in z['planned_methods'] for m in ('ПВК','МК')):
-                    d.line([(x-3,y+3),(x+3,y-3)],fill='black',width=1)
+                    d.line([(x-5,y+5),(x+5,y-5)],fill='black',width=1)
             mid=(start+span/2)%1
-            d.text((a[0]+(b[0]-a[0])*mid+6,a[1]+(b[1]-a[1])*mid+6),z['designation']+' · '+ '/'.join(z['planned_methods']),font=_font(9),fill='black')
+            mx,my=a[0]+(b[0]-a[0])*mid,a[1]+(b[1]-a[1])*mid
+            along_x=abs(b[0]-a[0])>abs(b[1]-a[1])
+            tx,ty=(mx-48,my-36) if along_x else (mx+14,my-20)
+            d.line([(mx,my-7 if along_x else my),(tx+8,ty+13)],fill='black',width=1)
+            d.text((tx,ty),z['designation']+' · '+ '/'.join(z['planned_methods']),font=_font(11),fill='black')
     marks={}
     label_boxes=[]
     for e in g['elements']+g['control_points']:

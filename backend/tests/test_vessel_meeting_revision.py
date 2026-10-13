@@ -54,3 +54,19 @@ def test_head_names_follow_orientation_without_changing_identity():
     assert data['thickness_measurements'][0]['location']=='Левое днище'
     g['orientation']='horizontal';orient_head_names(g)
     assert [p['designation'] for p in g['parts'] if p['kind']=='head']==['Левое днище','Правое днище']
+
+def test_materials_table_contains_only_grouped_shell_and_two_heads():
+    from docx import Document
+    from form_template_filler import _fill_materials
+    elements=[{'name':f'Обечайка {i}','material':'09Г2С','yield_strength':'345'} for i in range(1,7)]
+    elements += [{'name':name,'material':'09Г2С'} for name in ['Левое днище','Правое днище','Крышка люка Т','Штуцер Н1']]
+    data={'base_vessel_scheme':{'geometry':example()},'vessel_elements':elements}
+    def get(*keys,default=None):return next((data[k] for k in keys if k in data),default)
+    doc=Document();table=doc.add_table(rows=5,cols=10)
+    _fill_materials(table,{'data':data,'g':get})
+    assert [r.cells[0].text for r in table.rows[2:]]==['Обечайка','Левое днище','Правое днище']
+    assert table.rows[2].cells[3].text=='345'
+    # Explicit material rows use the same grouping; differing properties stay distinct.
+    data['materials']=[{'element':'Обечайка 1','grade':'09Г2С','yield_strength':'345'},{'element':'Обечайка 2','grade':'09Г2С','yield_strength':'300'},{'element':'Штуцер Н1','grade':'09Г2С'}]
+    doc=Document();table=doc.add_table(rows=4,cols=10);_fill_materials(table,{'data':data,'g':get})
+    assert [r.cells[3].text for r in table.rows[2:]]==['345','300']

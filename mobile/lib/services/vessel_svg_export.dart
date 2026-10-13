@@ -77,7 +77,6 @@ String exportVesselSvg(VesselGeometry model,
     }
     line(a, b);
     text(w['designation'], a.dx + 3, a.dy - 4);
-    var index = 0;
     for (final z in model.zones.where((z) => z['weld_id'] == w['id'])) {
       final methods = (z['planned_methods'] as List).join('/');
       if (layer != 'Все' && !methods.contains(layer)) continue;
@@ -95,17 +94,22 @@ String exportVesselSvg(VesselGeometry model,
                       (cov['end'] as num).toDouble()) /
                   360
               : ((cov['end'] as num) - (cov['start'] as num)).toDouble();
-      final delta = Offset(4 + index * 9, 4 + index * 9);
-      for (var i = 0; i < 80; i++) {
-        if (i / 80 > span) break;
-        final p = Offset.lerp(a, b, (start + i / 80) % 1)! + delta;
-        line(p - const Offset(3, 3), p + const Offset(3, 3));
+      final alongX=(b.dx-a.dx).abs()>(b.dy-a.dy).abs();
+      for(final range in [[start,math.min(1.0,start+span)],if(start+span>1)[0.0,start+span-1]]) {
+        final lo=Offset.lerp(a,b,range[0])!,hi=Offset.lerp(a,b,range[1])!;
+        out.write('<rect x="${lo.dx-(alongX?0:6)}" y="${lo.dy-(alongX?6:0)}" width="${hi.dx-lo.dx+(alongX?0:12)}" height="${hi.dy-lo.dy+(alongX?12:0)}" fill="#eeeeee"/>');
       }
-      text(
-          '$methods ${whole ? '100%' : '${cov['start']}–${cov['end']} ${cov['unit']}'}',
-          a.dx + 10,
-          a.dy + 20 + index * 16);
-      index++;
+      final step=7/math.max(1,(b-a).distance);
+      for(var i=0;i*step<=span;i++) {
+        final p=Offset.lerp(a,b,(start+i*step)%1)!;
+        line(p-const Offset(5,5),p+const Offset(5,5));
+        if(methods.contains('ПВК')||methods.contains('МК'))line(p+const Offset(-5,5),p+const Offset(5,-5));
+      }
+      final mid=Offset.lerp(a,b,(start+span/2)%1)!;
+      final at=mid+(alongX?const Offset(-48,-36):const Offset(14,-20));
+      line(mid+(alongX?const Offset(0,-7):Offset.zero),at+const Offset(8,13));
+      text('${z['designation']} · $methods',at.dx,at.dy,font:11);
+
     }
   }
   for (final mark in layout.marks.entries) {
