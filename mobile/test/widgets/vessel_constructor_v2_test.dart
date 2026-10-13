@@ -96,7 +96,7 @@ void main() {
       expect(find.textContaining('Обечаек: 2'), findsOneWidget);
       await tester.tap(find.text('Элемент'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Штуцер'));
+      await tester.tap(find.text('Штуцер ДУ ≥150 · УЗТ + ПВК/МК'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.runAsync(() async {

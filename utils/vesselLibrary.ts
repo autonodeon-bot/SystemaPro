@@ -1,0 +1,15 @@
+export const vesselLibrary: Record<string,string> = {
+  "nozzle_large": "Штуцер ДУ ≥150 · УЗТ + ПВК/МК",
+  "nozzle_small": "Штуцер ДУ <150 · УЗТ + ПВК/МК",
+  "nozzle_large_combined": "Штуцер ДУ ≥150 · УЗТ + УЗК + ПВК/МК",
+  "nozzle_small_combined": "Штуцер ДУ <150 · УЗТ + УЗК + ПВК/МК",
+  "nozzle_none": "Штуцер без измерений",
+  "point": "Точка УЗТ",
+  "longitudinal": "Продольный шов / шов днища",
+  "ring": "Кольцевой шов",
+  "zone_long": "Участок продольного шва · УЗК + ПВК/МК",
+  "zone_ring": "Участок кольцевого шва · УЗК + ПВК/МК",
+  "cover": "Крышка люка · 6 точек",
+  "support": "Опора",
+  "profile": "А–А · твердометрия"
+};

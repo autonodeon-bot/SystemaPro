@@ -8,10 +8,13 @@ class VectorDraw:
     def __init__(self, width, height, canvas=None):
         self.canvas = canvas
         self.width, self.height = width, height
-        self.svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="297mm" height="210mm">']
+        self.svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width/4}mm" height="{height/4}mm">']
         if canvas:
             canvas.saveState()
-            canvas.scale(841.8898/width, 595.2756/height)
+            pw,ph=canvas._pagesize
+            factor=min(pw/width,ph/height)
+            canvas.translate((pw-width*factor)/2,(ph-height*factor)/2)
+            canvas.scale(factor,factor)
             canvas.translate(0, height)
             canvas.scale(1, -1)
 
@@ -76,20 +79,16 @@ class VectorDraw:
 def export_pdf(geometry):
     from io import BytesIO
     from reportlab.pdfgen.canvas import Canvas
+    from reportlab.lib.units import mm
     from vessel_geometry_v2 import render_v2
-    stream=BytesIO();canvas=Canvas(stream,pagesize=(841.8898,595.2756),pageCompression=1)
-    canvas.setTitle(f"Сосуд • ревизия {geometry['revision']}")
-    for detail in [None]+[p['id'] for p in geometry['parts']]:
-        render_v2(geometry,1190,842,detail=detail,vector_canvas=canvas)
+    from vessel_sheet import sheet_spec
+    spec=sheet_spec(geometry)
+    stream=BytesIO();canvas=Canvas(stream,pagesize=(spec['width_mm']*mm,spec['height_mm']*mm),pageCompression=1)
+    canvas.setTitle(f"Сосуд • общая схема • ревизия {geometry['revision']}")
+    details=[None]+list(dict.fromkeys((geometry.get('print_settings') or {}).get('detail_ids',[])))
+    valid={p['id'] for p in geometry['parts']}
+    for detail in details:
+        if detail is not None and detail not in valid:continue
+        render_v2(geometry,spec['width'],spec['height'],detail=detail,vector_canvas=canvas)
         canvas.showPage()
-    for section in geometry.get('sections',[]):
-        if section.get('kind')!='weld_profile':continue
-        from vessel_scheme_renderer import _font
-        d=VectorDraw(1190,842,canvas)
-        d.text((40,35),f"{section['designation']} • профиль пяти позиций • рев. {geometry['revision']}",font=_font(22))
-        d.text((40,75),f"Метод: {section.get('method') or 'не задан'}. План контроля, не результаты.",font=_font(16))
-        d.line([(100,420),(1090,420)])
-        for i,name in enumerate(section.get('positions') or ['Основной металл','ЗТВ','Шов','ЗТВ','Основной металл']):
-            x=150+i*210;d.ellipse((x-5,415,x+5,425),fill='black');d.text((x-65,450),f'{i+1}. {name}',font=_font(16))
-        d.finish();canvas.showPage()
     canvas.save();return stream.getvalue()

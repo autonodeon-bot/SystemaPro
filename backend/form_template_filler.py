@@ -3087,6 +3087,9 @@ def _fill_elements_table(table: Table, ctx: Dict[str, Any]) -> None:
     elements = g("vessel_elements", "elements", default=[])
     if not isinstance(elements, list):
         elements = []
+    if ((ctx.get("data") or {}).get("base_vessel_scheme") or {}).get("geometry", {}).get("schema_version") == 2:
+        from vessel_sheet import main_element_rows
+        elements = main_element_rows(elements, ctx.get("data") or {})
     # Строки 0–1 заголовки; данные с 2
     data_start = 2
     if not elements:
@@ -4587,30 +4590,8 @@ def _insert_schemes_and_photos(doc: Document, ctx: Dict[str, Any]) -> None:
         doc, data, attachments, find_image, kind=kind, tmp_files=tmp_files
     )
     logger.info("Вставлено схем: %s", n_schemes)
-    # Detail sheets are part of the authored revision, not optional photo attachments.
-    # The five legacy overview slots must never discard covers and individual shells.
     geometry = (data.get('base_vessel_scheme') or {}).get('geometry') or {}
     if geometry.get('schema_version') == 2:
-        from io import BytesIO
-        from docx.enum.section import WD_SECTION_START
-        from vessel_geometry_v2 import render_v2, render_profile
-        section = doc.add_section(WD_SECTION_START.NEW_PAGE)
-        section.orientation = WD_ORIENT.LANDSCAPE
-        section.page_width, section.page_height = Cm(29.7), Cm(21)
-        section.top_margin = section.bottom_margin = Cm(1.2)
-        section.left_margin = section.right_margin = Cm(1.2)
-        section.header_distance = Cm(0.3)
-        section.footer_distance = Cm(0.5)
-        sheets = [(p['designation'], render_v2(geometry,1190,842,detail=p['id'])[0]) for p in geometry['parts']]
-        sheets += [(s['designation'], render_profile(geometry,s)) for s in geometry.get('sections',[]) if s.get('kind')=='weld_profile']
-        if any('ПВК' in z['planned_methods'] for z in geometry['control_zones']):
-            sheets.append(('ПВК — отдельная схема',render_v2(geometry,1190,842,layer='ПВК')[0]))
-        for index,(title,png) in enumerate(sheets):
-            if index: doc.add_page_break()
-            paragraph=doc.add_paragraph(f'{title} · ревизия {geometry["revision"]}')
-            paragraph.paragraph_format.space_after=Pt(3)
-            paragraph.runs[0].font.size=Pt(12)
-            doc.add_picture(BytesIO(png),width=Cm(24.2))
         from vessel_control_plan import method_rows
         pvk_rows=method_rows(data.get('weld_inspections') or [],'PVK')
         if pvk_rows:
@@ -4667,6 +4648,9 @@ def insert_ndt_layer_schemes(
     tmp_files: Optional[List[str]] = None,
 ) -> int:
     """Сгенерировать и вставить 5 слоёв карт контроля в приложения 3–7 (и generic)."""
+    geometry = (data.get('base_vessel_scheme') or {}).get('geometry') or {}
+    if geometry.get('schema_version') == 2:
+        return insert_unified_vessel_sheet(doc, geometry, data)
     tmp_files = tmp_files if tmp_files is not None else []
     generated: List[Dict[str, Any]] = []
     from scheme_equipment_catalog import get_kind
@@ -4775,3 +4759,40 @@ def insert_ndt_layer_schemes(
                 doc, "Схема контроля", [s], find_image=find_image, width_inches=w, max_items=1
             )
     return n_schemes
+
+
+def insert_unified_vessel_sheet(doc, geometry, data):
+    """One dedicated adaptive sheet; references replace template maps, never photos."""
+    from io import BytesIO
+    from docx.enum.section import WD_SECTION_START
+    from vessel_sheet import sheet_spec
+    from vessel_geometry_v2 import render_v2
+    # Known TO-1 template has exactly five image-only map paragraphs.
+    # Only this exact template signature authorizes removing those drawings.
+    image_only=[el for el in doc.element.body if el.tag==qn('w:p') and not _element_plain_text(el)
+        and (list(el.iter(qn('w:drawing'))) or list(el.iter(qn('w:pict'))))]
+    if str(data.get('report_form_id') or '')=='to-1' and len(image_only)==5:
+        for el in image_only:
+            for image in list(el.iter(qn('w:drawing')))+list(el.iter(qn('w:pict'))):image.getparent().remove(image)
+            Paragraph(el,doc).add_run('См. приложение «Общая схема сосуда».')
+    for p in find_all_paragraphs_containing(doc,'Схема контроля'):
+        p.text='Схема контроля — см. приложение «Общая схема сосуда».'
+    spec=sheet_spec(geometry)
+    previous=doc.sections[-1]
+    saved={k:getattr(previous,k) for k in ('page_width','page_height','orientation','top_margin','bottom_margin','left_margin','right_margin')}
+    sheets=[None]+list(dict.fromkeys(i for i in (geometry.get('print_settings') or {}).get('detail_ids',[]) if i in {p['id'] for p in geometry['parts']}))
+    for detail in sheets:
+        sec=doc.add_section(WD_SECTION_START.NEW_PAGE)
+        sec.orientation=WD_ORIENT.LANDSCAPE if spec['width_mm']>spec['height_mm'] else WD_ORIENT.PORTRAIT
+        sec.page_width=Cm(spec['width_mm']/10);sec.page_height=Cm(spec['height_mm']/10)
+        sec.top_margin=sec.bottom_margin=sec.left_margin=sec.right_margin=Cm(1)
+        sec.header_distance=sec.footer_distance=Cm(.3)
+        p=doc.add_paragraph('Общая схема сосуда' if detail is None else 'Детальный вид сосуда')
+        p.paragraph_format.space_after=Pt(0);p.runs[0].font.size=Pt(10)
+        image=render_v2(geometry,spec['width'],spec['height'],detail=detail)[0]
+        available_w=spec['width_mm']-20;available_h=spec['height_mm']-32
+        width=min(available_w,available_h*spec['width']/spec['height'])
+        doc.add_picture(BytesIO(image),width=Cm(width/10))
+    sec=doc.add_section(WD_SECTION_START.NEW_PAGE)
+    for key,value in saved.items():setattr(sec,key,value)
+    return len(sheets)

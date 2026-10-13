@@ -282,9 +282,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       for (final partId in <String?>[null, ...model.parts.map((p) => p['id'] as String)]) {
         final recorder = ui.PictureRecorder();
         final canvas = Canvas(recorder)..scale(1.5);
-        VesselDrawingPainter(VesselDrawingLayout(model, const Size(1190,842), detail: partId)).paint(canvas,const Size(1190,842));
+        final size=vesselSheetSize(model);
+        VesselDrawingPainter(VesselDrawingLayout(model, size, detail: partId)).paint(canvas,size);
         final picture = recorder.endRecording();
-        final image = await picture.toImage(1785,1263);
+        final image = await picture.toImage((size.width*1.5).round(),(size.height*1.5).round());
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         final file = File('${folder.path}/${partId ?? 'overview'}.png');
         await file.writeAsBytes(bytes!.buffer.asUint8List());

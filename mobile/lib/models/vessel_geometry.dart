@@ -65,6 +65,7 @@ class VesselGeometry {
       'units': 'mm',
       'equipment_kind': 'vessel',
       'orientation': orientation,
+      'print_settings': {'paper':'auto'},
       'coordinate_frame': {
         'axis': 'A_to_B',
         'view_from': 'A',
@@ -307,6 +308,50 @@ class VesselGeometry {
     return e;
   }
 
+  static int? recommendedNozzlePoints(num? dn) => dn == null || dn <= 0 ? null : dn < 150 ? 2 : 4;
+
+  String applyLibrary(String preset, String ownerId) {
+    final owner=entity(ownerId)!;
+    if (preset.startsWith('nozzle_') || preset=='support') {
+      final e=addElement(ownerId,preset=='support'?'support':'nozzle');
+      e['library_preset']=preset;
+      if (preset!='support' && preset!='nozzle_none') {
+        final small=preset.contains('small');e['nominal_dn_mm']=small?100:150;
+        setPointTemplate(e['id'],small?2:4);
+        final w={'id':id(),'kind':'attachment','designation':'Шов ${e['designation']}','connected_part_ids':[ownerId],'geometry':{'element_id':e['id']}};
+        (data['welds'] as List).add(w);
+        (data['control_zones'] as List).add({'id':id(),'kind':'weld_zone','designation':'${zones.length+1} уч.','weld_id':w['id'],'planned_methods':[if(preset.endsWith('combined')) 'УЗК','ПВК'],'coverage':{'kind':'whole'}});
+      }
+      return e['id'];
+    }
+    if (preset=='cover') {
+      final man=owner['kind']=='manway'?owner:addElement(ownerId,'manway');
+      final cover=addCover(man['id']);setPointTemplate(cover['id'],6);
+      if(!elements.any((e)=>e['parent_id']==cover['id'])) {for(var i=0;i<2;i++){final n=applyLibrary(i==0?'nozzle_large':'nozzle_large_combined',cover['id']);entity(n)!['placement']={'mode':'schematic','u':.5,'v':i==0 ? .3 : .7};}}
+      return cover['id'];
+    }
+    if(preset=='point') {
+      final n=points.where((p)=>p['owner_id']==ownerId).length+1;
+      final point={'id':id(),'owner_id':ownerId,'local_number':n,'method':'УЗТ','status':'planned','placement':{'mode':'schematic','u':.5,'v':.5}};
+      (data['control_points'] as List).add(point);renumber();return point['id'] as String;
+    }
+    if(preset=='longitudinal') {
+      if(owner['kind']=='shell'){addLongWeld(ownerId,0);return welds.last['id'];}
+      final w={'id':id(),'kind':'head_joint','designation':'П${welds.where((w)=>w['kind']!='circumferential').length+1}','connected_part_ids':[ownerId],'geometry':{'offset_mm':0}};
+      (data['welds'] as List).add(w);return w['id'] as String;
+    }
+    final candidates=welds.where((w)=>(w['connected_part_ids'] as List).contains(ownerId));
+    final w=welds.contains(owner)?owner:candidates.where((w)=>preset.contains('ring')?w['kind']=='circumferential':w['kind']!='circumferential').firstOrNull;
+    if(w==null) throw StateError('Сначала выберите соответствующий шов');
+    if(preset=='ring') return w['id'];
+    if(preset=='profile') {
+      final section={'id':id(),'kind':'weld_profile','owner_id':w['id'],'designation':'А–А','method':'ТВ','positions':['Основной металл','ЗТВ','Шов','ЗТВ','Основной металл']};
+      (data.putIfAbsent('sections',()=>[]) as List).add(section);return w['id'];
+    }
+    final z={'id':id(),'kind':'weld_zone','designation':'${zones.length+1} уч.','weld_id':w['id'],'planned_methods':['УЗК','ПВК'],'coverage':w['kind']=='circumferential'?{'kind':'sector','start':270,'end':300}:{'kind':'interval','start':.2,'end':.4}};
+    (data['control_zones'] as List).add(z);return z['id'] as String;
+  }
+
   VesselEntity addCover(String manwayId) {
     final existing = parts.where((p) => p['parent_id'] == manwayId);
     if (existing.isNotEmpty) return existing.first;
@@ -341,6 +386,8 @@ class VesselGeometry {
       existing[i]['archived'] = i >= count;
     }
     final shell = entity(ownerId)?['kind'] == 'shell';
+    final nozzle = ['nozzle','manway'].contains(entity(ownerId)?['kind']);
+    const cardinal = [[.18,.5],[.82,.5],[.5,.18],[.5,.82]];
     for (var i = existing.length; i < count; i++) {
       (data['control_points'] as List).add({
         'id': id(),
@@ -353,10 +400,10 @@ class VesselGeometry {
           'mode': 'schematic',
           'u': shell
               ? (i ~/ 4 + 1) / ((count / 4).ceil() + 1)
-              : .5 + .3 * math.sin(i * 2 * math.pi / count),
+              : nozzle && count <= 4 ? cardinal[i][0] : .5 + .3 * math.sin(i * 2 * math.pi / count),
           'v': shell
               ? (i % 4 + .5) / 4
-              : .5 - .3 * math.cos(i * 2 * math.pi / count)
+              : nozzle && count <= 4 ? cardinal[i][1] : .5 - .3 * math.cos(i * 2 * math.pi / count)
         }
       });
     }
@@ -401,6 +448,10 @@ class VesselGeometry {
     final r = diameter == null
         ? 0
         : (p['radius_projection_mm'] as num).toDouble() / diameter;
+    if (p['angle_convention']=='visio-head-2026') {
+      final sign=owner?['side']=='A' ? -1 : 1;
+      return math.Point(.5+sign*r*math.cos(a*math.pi/180),.5-r*math.sin(a*math.pi/180));
+    }
     return math.Point(.5 + r * math.sin(a * math.pi / 180),
         .5 - r * math.cos(a * math.pi / 180));
   }

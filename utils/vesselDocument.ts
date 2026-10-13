@@ -34,7 +34,9 @@ export function pointTemplate(g: VesselDocument, owner: Entity, count: number) {
     const shell = owner.kind === 'shell';
     const u = shell ? (Math.floor(i / 4) + 1) / (Math.ceil(count / 4) + 1) : .5 + .32 * Math.sin(i * 2 * Math.PI / count);
     const v = shell ? (i % 4) / 4 : .5 - .32 * Math.cos(i * 2 * Math.PI / count);
-    g.control_points.push({ id: newId(), kind: 'point', owner_id: owner.id, local_number: i + 1, planned_methods: ['УЗТ'], status: 'planned', placement: { mode: 'schematic', u, v } });
+    const cardinal=[[.18,.5],[.82,.5],[.5,.18],[.5,.82]];
+    const pair=['nozzle','manway'].includes(owner.kind)&&count<=4?cardinal[i]:[u,v];
+    g.control_points.push({ id: newId(), kind: 'point', owner_id: owner.id, local_number: i + 1, planned_methods: ['УЗТ'], status: 'planned', placement: { mode: 'schematic', u:pair[0], v:pair[1] } });
   }
   let n = 1;
   g.parts.filter(p => p.kind === 'shell').forEach(p => g.control_points.filter(x => x.owner_id === p.id && !x.archived).forEach(x => { x.body_number = n++; }));
@@ -70,4 +72,25 @@ export function mergeVessel(base: VesselDocument, local: VesselDocument, remote:
 export function chooseConflict(g: VesselDocument, c: Conflict, value: any) {
   if (c.id) { const index = g[c.key].findIndex((e: Entity) => e.id === c.id); if (index >= 0) { if (value) g[c.key][index] = clone(value); else g[c.key].splice(index, 1); } else if (value) g[c.key].push(clone(value)); }
   else if (value === undefined) delete g[c.key]; else g[c.key] = clone(value);
+}
+
+export const recommendedNozzlePoints=(dn:number|null|undefined)=>dn && dn>0?(dn<150?2:4):null;
+export function applyLibrary(g:VesselDocument, preset:string, owner:Entity):string {
+ const add=(kind:string,parent=owner.id)=>{const e={id:newId(),kind,parent_id:parent,designation:`${kind==='manway'?'Л':'Э'}${g.elements.length+1}`,placement:{mode:'schematic',u:.5,v:.5},library_preset:preset} as Entity;g.elements.push(e);return e;};
+ if(preset.startsWith('nozzle_')||preset==='support') {
+  const e=add(preset==='support'?'support':'nozzle');
+  if(preset!=='support'&&preset!=='nozzle_none') {
+   e.nominal_dn_mm=preset.includes('small')?100:150;pointTemplate(g,e,recommendedNozzlePoints(e.nominal_dn_mm)!);
+   const w={id:newId(),kind:'attachment',designation:`Шов ${e.designation}`,connected_part_ids:[owner.id],geometry:{element_id:e.id}};g.welds.push(w);
+   g.control_zones.push({id:newId(),kind:'weld_zone',designation:`${g.control_zones.length+1} уч.`,weld_id:w.id,planned_methods:[...(preset.endsWith('combined')?['УЗК']:[]),'ПВК'],coverage:{kind:'whole'}});
+  } return e.id;
+ }
+ if(preset==='cover') {const man=owner.kind==='manway'?owner:add('manway');let cover=g.parts.find(p=>p.parent_id===man.id);if(!cover){cover={id:newId(),kind:'cover',parent_id:man.id,designation:`Крышка ${man.designation}`,dimensions:{}};g.parts.push(cover);}pointTemplate(g,cover,6);if(!g.elements.some(e=>e.parent_id===cover!.id)){for(let i=0;i<2;i++){const id=applyLibrary(g,i===0?'nozzle_large':'nozzle_large_combined',cover);g.elements.find(e=>e.id===id)!.placement={mode:'schematic',u:.5,v:i===0?.3:.7};}}return cover.id;}
+ if(preset==='point'){const p={id:newId(),kind:'point',owner_id:owner.id,local_number:g.control_points.filter(p=>p.owner_id===owner.id).length+1,planned_methods:['УЗТ'],placement:{mode:'schematic',u:.5,v:.5}};g.control_points.push(p);return p.id;}
+ if(preset==='longitudinal') {const shell=owner.kind==='shell';const w={id:newId(),kind:shell?'longitudinal':'head_joint',designation:`П${g.welds.filter(w=>w.kind!=='circumferential').length+1}`,connected_part_ids:[owner.id],geometry:shell?{theta_deg:0}:{offset_mm:0}};g.welds.push(w);return w.id;}
+ const w=g.welds.includes(owner)?owner:g.welds.find(w=>w.connected_part_ids.includes(owner.id)&&(preset.includes('ring')?w.kind==='circumferential':w.kind!=='circumferential'));
+ if(!w)throw Error('Сначала выберите соответствующий шов');
+ if(preset==='ring')return w.id;
+ if(preset==='profile'){(g.sections||=[]).push({id:newId(),kind:'weld_profile',owner_id:w.id,designation:'А–А',method:'ТВ',positions:['Основной металл','ЗТВ','Шов','ЗТВ','Основной металл']});return w.id;}
+ const z={id:newId(),kind:'weld_zone',designation:`${g.control_zones.length+1} уч.`,weld_id:w.id,planned_methods:['УЗК','ПВК'],coverage:{kind:'whole'}};g.control_zones.push(z);return z.id;
 }

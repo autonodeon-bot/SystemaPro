@@ -53,6 +53,14 @@ def normalize_v2(raw: dict) -> dict:
         if not p.get('dimension_source'):
             warn(p, 'dimensions', 'Источник размеров не подтверждён')
     part_ids = {p['id'] for p in g['parts']}
+    settings = g.get('print_settings', {})
+    if not isinstance(settings, dict) or settings.get('paper', 'auto') not in ('auto', 'A4', 'A3'):
+        raise ValueError('Invalid print settings')
+    details = settings.get('detail_ids', [])
+    if not isinstance(details, list) or any(not isinstance(i, str) or i not in part_ids for i in details):
+        raise ValueError('Print details must reference vessel parts')
+    settings['detail_ids'] = list(dict.fromkeys(details))
+    g['print_settings'] = settings
     for e in g['elements'] + g['control_points']:
         owner = ids.get(e.get('parent_id', e.get('owner_id')))
         if owner is None or owner is e:
@@ -141,6 +149,9 @@ def position(e: dict, owner: dict, cut: float = 0) -> tuple[float, float]:
     if owner['kind'] == 'shell':
         return p['z_local_mm']/owner['dimensions']['length_mm'], angle/360
     r = p['radius_projection_mm']/owner['dimensions']['diameter_mm']
+    if p.get('angle_convention') == 'visio-head-2026':
+        sign = -1 if owner.get('side') == 'A' else 1
+        return .5+sign*r*math.cos(math.radians(angle)), .5-r*math.sin(math.radians(angle))
     return .5+r*math.sin(math.radians(angle)), .5-r*math.cos(math.radians(angle))
 
 
@@ -168,22 +179,22 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
         shells = [p for p in g['parts'] if p['kind'] == 'shell']
         known = all(p.get('dimensions', {}).get('length_mm') for p in shells)
         lengths = [p['dimensions']['length_mm'] if known else 1 for p in shells]
-        body = (width*.18, 100, width*.80, 100+height*.68) if horizontal else (160, height*.24, width-160, height*.78)
+        body = (width*.18, 100, width*.80, 100+height*.68) if horizontal else (55, 100, width*.65, height-130)
         cursor = 0
         for p, length in zip(shells, lengths):
             a, b = cursor/sum(lengths), (cursor+length)/sum(lengths)
             x1,y1,x2,y2 = body
             rects[p['id']] = (x1+(x2-x1)*a,y1,x1+(x2-x1)*b,y2) if horizontal else (x1,y1+(y2-y1)*a,x2,y1+(y2-y1)*b)
             cursor += length
-        diameter = min(width*.15, (height-250)*.8) if horizontal else min(height*.14, width*.4)
+        diameter = min(width*.15, (height-250)*.8) if horizontal else min(width*.24, height*.18)
         for p in parts.values():
             if p['kind'] != 'head': continue
             a = p['side'] == 'A'
-            cx,cy = (width*(.09 if a else .90), height*(.46 if a else .37)) if horizontal else (width/2,height*(.14 if a else .88))
+            cx,cy = (width*(.09 if a else .90), height*(.46 if a else .37)) if horizontal else (width*.83,height*(.25 if a else .47))
             rects[p['id']] = (cx-diameter/2,cy-diameter/2,cx+diameter/2,cy+diameter/2)
         covers = [p for p in parts.values() if p['kind']=='cover']
         for i,p in enumerate(covers):
-            diameter=min(width*.15,height*.30/len(covers));cx=width*.90;cy=height*(.64+.30*(i+.5)/len(covers))
+            diameter=min(width*(.15 if horizontal else .24),height*.25/len(covers));cx=width*(.90 if horizontal else .83);cy=height*(.64+.24*(i+.5)/len(covers))
             rects[p['id']] = (cx-diameter/2,cy-diameter/2,cx+diameter/2,cy+diameter/2)
     def radius(e, rect):
         owner=entities[e['parent_id']]; dims=owner.get('dimensions',{})
@@ -204,7 +215,14 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
         if svg: d.begin_entity(id)
         if parts[id]['kind']=='shell': d.rectangle(r,outline='black',width=2)
         else: d.ellipse(r,outline='black',width=2)
-        d.text((r[0]+6,r[1]+6 if parts[id]['kind']=='shell' else r[3]+4),parts[id]['designation'],font=_font(10 if parts[id]['kind']=='shell' else 14),fill='black')
+        title=parts[id]['designation'];at=(r[0]+6,r[1]+6 if parts[id]['kind']=='shell' else r[3]+4)
+        if not horizontal and detail is None and parts[id]['kind']=='shell':title=title.replace('Обечайка','Об.');at=(5,(r[1]+r[3])/2)
+        d.text(at,title,font=_font(10 if parts[id]['kind']=='shell' else 14),fill='black')
+        if detail and parts[id]['kind'] in ('head','cover'):
+            modern=any(e.get('placement',{}).get('angle_convention')=='visio-head-2026' for e in g['elements']+g['control_points'] if e.get('parent_id',e.get('owner_id'))==id)
+            side=parts[id].get('side');labels=['90°','180°' if side=='A' else '0°','270°','0°' if side=='A' else '180°'] if modern else ['0°','90°','180°','270°']
+            cx=(r[0]+r[2])/2;cy=(r[1]+r[3])/2
+            for label,at in zip(labels,[(cx,r[1]-18),(r[2]+4,cy),(cx,r[3]-18),(r[0]-35,cy)]):d.text(at,label,font=_font(11),fill='black')
         if svg: d.end_entity()
     for section in g.get('sections',[]):
         if section.get('kind') != 'ovality' or section['owner_id'] not in rects:continue
@@ -213,7 +231,7 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
         a,b=((x1+(x2-x1)*q,y1),(x1+(x2-x1)*q,y2)) if horizontal else ((x1,y1+(y2-y1)*q),(x2,y1+(y2-y1)*q))
         for i in range(0,24,2):
             d.line([(a[0]+(b[0]-a[0])*i/24,a[1]+(b[1]-a[1])*i/24),(a[0]+(b[0]-a[0])*(i+1)/24,a[1]+(b[1]-a[1])*(i+1)/24)],fill='gray')
-        d.text((a[0]+4,a[1]+18),section['designation'],font=font,fill='black')
+        d.text((a[0]+4,a[1]+18) if horizontal else (b[0]+5,b[1]-15),section['designation'],font=_font(11),fill='black')
     for w in g['welds']:
         if w['kind']=='attachment':continue
         ids=[i for i in w['connected_part_ids'] if i in rects and parts[i]['kind']=='shell']
@@ -246,6 +264,10 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
                 q=(start+i/60)%1
                 x,y=a[0]+(b[0]-a[0])*q,a[1]+(b[1]-a[1])*q
                 d.line([(x-3,y-3),(x+3,y+3)],fill='black',width=2)
+                if any(m in z['planned_methods'] for m in ('ПВК','МК')):
+                    d.line([(x-3,y+3),(x+3,y-3)],fill='black',width=1)
+            mid=(start+span/2)%1
+            d.text((a[0]+(b[0]-a[0])*mid+6,a[1]+(b[1]-a[1])*mid+6),z['designation']+' · '+ '/'.join(z['planned_methods']),font=_font(9),fill='black')
     marks={}
     label_boxes=[]
     for e in g['elements']+g['control_points']:
@@ -269,6 +291,7 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
                 rr=radius(e,r);d.ellipse((x-rr,y-rr,x+rr,y+rr),outline='black',width=1)
                 if e['kind']=='manway':d.ellipse((x-rr*.87,y-rr*.87,x+rr*.87,y+rr*.87),outline='black',width=1)
                 d.line([(x-rr-4,y),(x+rr+4,y)],fill='gray');d.line([(x,y-rr-4),(x,y+rr+4)],fill='gray')
+            elif e['kind']=='support':d.rectangle((x-6,y-20,x+6,y+20),outline='black',fill='black',width=1)
             else:draw_symbol(d,x,y,e['kind'])
             label=e['designation']
             for w in g['welds']:
@@ -281,7 +304,9 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
                         if cov['kind']=='sector' and (angle-cov['start'])%360>(cov['end']-cov['start'])%360:continue
                         a=math.radians(angle)
                         d.line([(x+rr*math.sin(a),y-rr*math.cos(a)),(x+(rr+4)*math.sin(a+.03),y-(rr+4)*math.cos(a+.03))],fill='black')
-                    d.text((x+rr+8,y+rr),z['designation'],font=_font(10),fill='black')
+                        if any(m in z['planned_methods'] for m in ('ПВК','МК')):
+                            d.line([(x+rr*math.sin(a),y-rr*math.cos(a)),(x+(rr+4)*math.sin(a-.06),y-(rr+4)*math.cos(a-.06))],fill='black')
+                    d.text((x+rr+8,y+rr),z['designation']+' '+ '/'.join(z['planned_methods']),font=_font(9),fill='black')
         offset=(g.get('views') or [{}])[0].get('label_overrides',{}).get(e['id'],{})
         dx,dy=offset.get('dx',-3 if point else -20),offset.get('dy',-16 if point else -30)
         if point and owner['kind'] not in ('shell','head','cover') and not offset:
@@ -301,18 +326,15 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
     if detail is None:
         for section in g.get('sections',[]):
             if section['kind']!='weld_profile':continue
-            x=width*.83;y=110
-            d.text((x,y-24),section['designation']+' · профиль шва',font=_font(11),fill='black')
-            d.rectangle((x+60,y+8,x+90,y+28),outline='black')
-            d.line([(x,y+18),(x+155,y+18)],fill='black')
-            for i in range(5):
-                px=x+15+i*30;d.line([(px-2,y+15),(px+2,y+21)],fill='black');d.line([(px-2,y+21),(px+2,y+15)],fill='black');d.text((px-3,y-5),str(i+1),font=_font(9),fill='black')
-            d.text((x,y+36),'Металл · ЗТВ · шов · ЗТВ · металл',font=_font(9),fill='black')
+            from vessel_sheet import draw_profile
+            x=width*(.82 if horizontal else .70);y=90
+            d.text((x,y-18),section['designation']+' · твердометрия',font=_font(11),fill='black')
+            draw_profile(d,x,y,width=width*.18,scale=.75 if horizontal else .85)
             break
-        d.text((width*.20,height-72),'× Точка УЗТ    К — кольцевой шов    П — продольный / шов днища',font=_font(12),fill='black')
-        d.text((width*.20,height-52),'Штриховка — участок НК    I–III — сечения овальности    Крышка Т — отдельная деталь',font=_font(12),fill='black')
+        d.text((20,height-92),'× Точка УЗТ    К — кольцевой шов    П — продольный / шов днища',font=_font(12),fill='black')
+        d.text((20,height-72),'/ УЗК · × ПВК/МК · I–III овальность · А–А твердометрия · крышка — отдельный вид',font=_font(12),fill='black')
     methods=[layer] if layer else sorted({m for z in g['control_zones'] for m in z['planned_methods']})
-    d.text((20,height-38),'План контроля. Методы: '+(', '.join(methods) or 'не заданы')+'. Значения измерений не назначены.',font=font,fill='black')
+    d.text((20,height-46),'План контроля. Методы: '+(', '.join(methods) or 'не заданы')+'. Результаты — в таблицах протоколов.',font=font,fill='black')
     if vector_canvas is not None or svg:
         return d.finish(),g,[]
     out=io.BytesIO();img.save(out,format='PNG')
@@ -325,9 +347,6 @@ def render_profile(geometry, section):
     image=Image.new('RGB',(1190,842),'white');draw=ImageDraw.Draw(image)
     draw.text((35,30),f'{section["designation"]} • профиль пяти позиций • рев. {geometry["revision"]}',font=_font(24),fill='black')
     draw.text((35,75),f'Метод: {section.get("method") or "не задан"}. План контроля, не результаты.',font=_font(18),fill='black')
-    draw.line([(100,400),(1090,400)],fill='black',width=3)
-    for i,title in enumerate(section.get('positions') or ['Основной металл','ЗТВ','Шов','ЗТВ','Основной металл']):
-        x=150+i*210
-        draw.ellipse((x-5,395,x+5,405),fill='black')
-        draw.text((x-65,435),f'{i+1}. {title}',font=_font(16),fill='black')
+    from vessel_sheet import draw_profile
+    draw_profile(draw,260,180,width=600,scale=3.5)
     output=io.BytesIO();image.save(output,format='PNG');return output.getvalue()

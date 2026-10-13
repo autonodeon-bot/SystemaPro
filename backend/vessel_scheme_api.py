@@ -212,7 +212,9 @@ async def export_vessel(req: VesselSchemeRenderRequest, format: str = Query('pdf
     from vessel_vector import export_pdf
     try:
         geo = normalize_v2(_to_geometry(req))
-        content = export_pdf(geo) if format == 'pdf' else render_v2(geo, 1190, 842, detail=req.detail_id, layer=req.scheme_layer, exterior_b=req.exterior_b, svg=True)[0]
+        from vessel_sheet import sheet_spec
+        spec = sheet_spec(geo)
+        content = export_pdf(geo) if format == 'pdf' else render_v2(geo, spec['width'], spec['height'], detail=req.detail_id, layer=req.scheme_layer, exterior_b=req.exterior_b, svg=True)[0]
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(400, detail=str(exc)) from exc
     return Response(content, media_type='application/pdf' if format == 'pdf' else 'image/svg+xml',

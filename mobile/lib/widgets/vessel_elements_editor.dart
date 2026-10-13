@@ -22,6 +22,7 @@ void paintVesselElement(Canvas c, Offset p, String kind, {double radius = 10, bo
     c.drawLine(p - Offset(0, radius + 4), p + Offset(0, radius + 4), axis);
     return;
   }
+  if(engineering && kind=='support'){c.drawRect(Rect.fromCenter(center:p,width:12,height:40),Paint()..color=Colors.black..style=PaintingStyle.stroke);return;}
   final ink = Paint()
     ..color = const Color(0xff245a91)
     ..style = PaintingStyle.stroke

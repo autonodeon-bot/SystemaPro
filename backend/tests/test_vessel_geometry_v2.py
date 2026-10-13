@@ -51,7 +51,7 @@ def test_vector_pdf_and_svg(geometry):
     from vessel_vector import export_pdf
     from vessel_geometry_v2 import render_v2
     doc = fitz.open(stream=export_pdf(geometry), filetype='pdf')
-    assert len(doc) >= len(geometry['parts']) + 1
+    assert len(doc) == 1
     assert not doc[0].get_images()
     assert len(doc[0].get_drawings()) > 30
     assert 'Сосуд' in doc[0].get_text()
@@ -90,8 +90,8 @@ def test_v2_report_keeps_details_and_independent_pvk(geometry):
           'weld_inspections':[{'control_method':'PVK','weld_number':'К1','defects':'PVK-unique-result','result_status':'recorded'},
                               {'control_method':'MPK','weld_number':'К1','defects':'MPK-independent','result_status':'recorded'}]}
     _insert_schemes_and_photos(doc,{'data':data,'attachments':{},'find_image':lambda p:p})
-    assert len(doc.inline_shapes)>=len(geometry['parts'])+5
-    assert 'Крышка' in '\n'.join(p.text for p in doc.paragraphs)
+    assert len(doc.inline_shapes)==1
+    assert 'Общая схема сосуда' in '\n'.join(p.text for p in doc.paragraphs)
     assert 'PVK-unique-result' in '\n'.join(c.text for t in doc.tables for r in t.rows for c in r.cells)
 
 def test_revision_conflict_and_old_client_guard(geometry):

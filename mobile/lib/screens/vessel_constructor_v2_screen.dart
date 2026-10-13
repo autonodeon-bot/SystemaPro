@@ -1,3 +1,4 @@
+import '../models/vessel_library.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -351,15 +352,24 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
     final owner = g.entity(e['parent_id'] ?? e['owner_id']);
     final shell = owner?['kind'] == 'shell';
     final p = e['placement'] as Map;
-    final axis = shell ? 'От начала обечайки, мм' : 'Радиус проекции, мм';
+    final rings=shell ? g.welds.where((w)=>w['kind']=='circumferential' && (w['connected_part_ids'] as List).contains(owner!['id'])).toList() : <VesselEntity>[];
+    final startRing=rings.where((w)=>(w['connected_part_ids'] as List).last==owner!['id']).firstOrNull;
+    final reference=g.entity(p['reference_weld_id']) ?? startRing;
+    final length=(owner?['dimensions']?['length_mm'] as num?)?.toDouble();
+    final fromEnd=shell && reference!=null && (reference['connected_part_ids'] as List).first==owner!['id'];
+    final stored=p['z_local_mm'] as num?;
+    final distance= shell ? (fromEnd && length!=null && stored!=null ? length-stored : stored) : p['radius_projection_mm'];
+    final axis = shell ? 'До центра от шва, мм' : 'Радиус проекции, мм';
     final v = await fields(
         'Точное размещение',
         {
-          axis: '${p[shell ? 'z_local_mm' : 'radius_projection_mm'] ?? ''}',
+          if(shell) 'Базовый шов (${rings.map((w)=>w['designation']).join(', ')})': '${reference?['designation'] ?? ''}',
+          axis: '${distance ?? ''}',
+          if(!shell) 'Отсчёт: visio / legacy': '${p['angle_convention']=='visio-head-2026'?'visio':'legacy'}',
           'Угол, °': '${p['theta_deg'] ?? 0}'
         },
         hint:
-            '${owner?['designation']} • ноль: ${g.data['coordinate_frame']['zero_description'] ?? 'не задан'}. Для точного режима задайте размеры части.');
+            '${owner?['designation']} • ноль: ${g.data['coordinate_frame']['zero_description'] ?? 'не задан'}. Для днищ visio: A 0° слева, B 0° справа, 90° сверху. legacy сохраняет прежний отсчёт. Для точного режима задайте размеры части.');
     if (v == null) return;
     try {
       final dist = number(v[axis]), angle = number(v['Угол, °']);
@@ -374,10 +384,14 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
         throw const FormatException(
             'Задайте размер части и координату внутри неё.');
       }
+      final chosen=shell ? rings.where((w)=>w['designation']==v.entries.first.value).firstOrNull : null;
+      if(shell && chosen==null) throw const FormatException('Выберите обозначение одного из граничных швов');
       if (!await allowPhysicalMove(e)) return;
       edit((m) => m.entity(e['id'])!['placement'] = {
             'mode': 'physical',
-            shell ? 'z_local_mm' : 'radius_projection_mm': dist,
+            shell ? 'z_local_mm' : 'radius_projection_mm': shell && (chosen!['connected_part_ids'] as List).first==owner!['id'] ? extent-dist : dist,
+            if(shell) 'reference_weld_id': chosen!['id'],
+            if(!shell && v['Отсчёт: visio / legacy']=='visio') 'angle_convention':'visio-head-2026',
             'theta_deg': angle % 360
           });
     } catch (error) {
@@ -422,7 +436,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
           'Источник': e['source_ref'] ?? ''
         },
         hint:
-            'Сварное крепление к сосуду и фланец на конце патрубка задаются отдельно. DN не назначает число точек автоматически.');
+            'Сварное крепление к сосуду и фланец на конце патрубка задаются отдельно. По шаблону Visio: ДУ <150 — 2 точки, ≥150 — 4. Изменение ДУ не удаляет результаты; примените рекомендуемый шаблон отдельно.');
     if (v == null) return;
     try {
       final dn = number(v['DN, мм'], positive: true),
@@ -462,9 +476,9 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                   Expanded(
                       child: GridView.count(
                           crossAxisCount: 3,
-                          childAspectRatio: 1.3,
+                          childAspectRatio: .95,
                           children: [
-                        for (final e in vesselElementNames.entries)
+                        for (final e in {...vesselLibrary, ...vesselElementNames}.entries)
                           InkWell(
                               onTap: () => Navigator.pop(c, e.key),
                               child: Column(
@@ -479,17 +493,19 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                 ]))));
     if (kind != null) {
       edit((m) {
-        store.selection = m.addElement(id, kind)['id'];
+        store.selection = vesselLibrary.containsKey(kind) ? m.applyLibrary(kind, (kind.startsWith('zone_')||kind=='profile'||kind=='ring') && m.welds.any((w)=>w['id']==store.selection) ? store.selection! : id) : m.addElement(id, kind)['id'];
       });
     }
   }
 
-  Future<void> template(VesselEntity owner) async {
+  Future<bool> confirmPointArchive() async => await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Изменить число точек?'),content:const Text('Лишние точки будут архивированы. Их ID и результаты сохранятся.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Отмена')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Архивировать'))])) ?? false;
+
+  Future<void> template(VesselEntity owner, {int? recommended}) async {
     final v = await fields(
         'Точки контроля',
         {
           'Количество':
-              '${g.points.where((p) => p['owner_id'] == owner['id'] && p['archived'] != true).length}'
+              '${recommended ?? g.points.where((p) => p['owner_id'] == owner['id'] && p['archived'] != true).length}'
         },
         hint:
             'Вручную: 2 / 4 для штуцера, 6 для крышки, 12 для обечайки или другое число. Раскладка условная, уточните физические координаты. Уменьшение архивирует лишние точки и сохраняет их ID.');
@@ -499,6 +515,8 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
       message('Введите целое число от 0 до 100');
       return;
     }
+    final old=g.points.where((p)=>p['owner_id']==owner['id'] && p['archived']!=true).toList();
+    if(n<old.length && !await confirmPointArchive()) return;
     edit((m) => m.setPointTemplate(owner['id'], n));
   }
 
@@ -809,6 +827,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
             await zone(weld);
           }, child: const Text('Контроль шва приварки')),
         Text(vesselElementNames[e['kind']] ?? e['kind']),
+        if(e['kind']=='nozzle') TextButton(onPressed:() {final n=VesselGeometry.recommendedNozzlePoints(e['nominal_dn_mm'] as num?);if(n==null){message('Сначала задайте ДУ в свойствах');return;}template(e,recommended:n);},child:Text('По ДУ: ${VesselGeometry.recommendedNozzlePoints(e['nominal_dn_mm'] as num?) ?? '?'} точки')),
         TextButton(
             onPressed: () => elementProperties(e),
             child: const Text('Свойства элемента')),
@@ -1062,7 +1081,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
 
   Future<List<int>> png(
       {String? part, String? drawingLayer, Map? section}) async {
-    const size = Size(1190, 842);
+    final size = vesselSheetSize(g);
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder)..scale(1.5);
     if (section != null) {
@@ -1074,7 +1093,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
           .paint(canvas, size);
     }
     final pic = recorder.endRecording();
-    final image = await pic.toImage(1785, 1263);
+    final image = await pic.toImage((size.width*1.5).round(), (size.height*1.5).round());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     pic.dispose();
@@ -1086,30 +1105,12 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
     try {
       final doc = pw.Document();
       final font = pw.Font.ttf(await rootBundle.load('assets/fonts/NotoSans-Regular.ttf'));
-      for (final id in [null, ...g.parts.map((p) => p['id'] as String)]) {
-        doc.addPage(pw.Page(
-            pageFormat: PdfPageFormat.a4.landscape,
-            margin: const pw.EdgeInsets.all(12),
-            build: (_) => pw.Center(
-                child: pw.SvgImage(svg: exportVesselSvg(g, detail: id),
-                    customFontLookup: (_, __, ___) => font))));
-      }
-      for (final section in (g.data['sections'] as List? ?? [])
-          .where((s) => s['kind'] == 'weld_profile')) {
-        doc.addPage(pw.Page(
-            pageFormat: PdfPageFormat.a4.landscape,
-            margin: const pw.EdgeInsets.all(12),
-            build: (_) => pw.Column(children: [
-              pw.Text('${section['designation']} • Профиль пяти позиций', style: pw.TextStyle(font: font, fontSize: 18)),
-              pw.SizedBox(height: 30),
-              pw.Text('Метод: ${section['method'] ?? 'не задан'}. План контроля.', style: pw.TextStyle(font: font)),
-              pw.SizedBox(height: 100),
-              pw.Divider(),
-              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceAround, children: [
-                for (final text in ['1. Основной металл','2. ЗТВ','3. Шов','4. ЗТВ','5. Основной металл'])
-                  pw.Text(text, style: pw.TextStyle(font: font, fontSize: 10))
-              ])
-            ])));
+      final base=vesselPaper(g)=='A3'?PdfPageFormat.a3:PdfPageFormat.a4;
+      final format=g.data['orientation']=='horizontal'?base.landscape:base;
+      final details=(g.data['print_settings']?['detail_ids'] as List? ?? []).where((id)=>g.parts.any((p)=>p['id']==id));
+      for(final id in [null,...details]) {
+        doc.addPage(pw.Page(pageFormat:format,margin:const pw.EdgeInsets.all(12),
+          build:(_)=>pw.Center(child:pw.SvgImage(svg:exportVesselSvg(g,detail:id),customFontLookup:(_,__,___)=>font))));
       }
       await Printing.layoutPdf(onLayout: (_) async => doc.save());
     } catch (e) {
@@ -1276,6 +1277,8 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                         '${g.points.where((p) => p['archived'] != true).length} точек (план)')
                   ]),
                 if (store.step == 4)
+                  Wrap(children:[DropdownButton<String>(value:g.data['print_settings']?['paper'] ?? 'auto',items:const [DropdownMenuItem(value:'auto',child:Text('Лист: автоматически')),DropdownMenuItem(value:'A4',child:Text('А4')),DropdownMenuItem(value:'A3',child:Text('А3'))],onChanged:(v)=>edit((m)=>(m.data.putIfAbsent('print_settings',()=> <String,dynamic>{}) as Map)['paper']=v)),Text('${vesselPaper(g)} · ${g.data['orientation']=='horizontal'?'альбомный':'книжный'} · общая схема')]),
+                if (store.step == 4)
                   SizedBox(
                       height: 110,
                       child: ListView(
@@ -1362,7 +1365,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                       ]),
                       Expanded(child: LayoutBuilder(builder: (_, box) {
                         // One engineering sheet in every viewport; never distort the drawing on phones.
-                        const size = Size(1190, 842);
+                        final size = vesselSheetSize(g);
                         final drawing = VesselDrawingLayout(g, size,
                             detail: detail, exteriorB: exteriorB);
                         return ClipRect(
@@ -1416,7 +1419,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                       if (store.step == 4)
                         OutlinedButton(
                             onPressed: busy ? null : exportPdf,
-                            child: const Text('PDF A4')),
+                            child: Text('PDF ${vesselPaper(g)}')),
                       if (store.step == 4)
                         OutlinedButton(
                             onPressed: busy ? null : exportSvg,
@@ -1443,8 +1446,19 @@ class _Symbol extends CustomPainter {
   final String kind;
   _Symbol(this.kind);
   @override
-  void paint(Canvas canvas, Size size) =>
-      paintVesselElement(canvas, Offset(size.width / 2, size.height / 2), kind);
+  void paint(Canvas canvas, Size size) {
+    final center=Offset(size.width/2,size.height/2),ink=Paint()..color=Colors.black..style=PaintingStyle.stroke;
+    if(kind=='profile'){paintWeldProfile(canvas,Offset.zero,32,scale:.22);return;}
+    if(kind=='support'){canvas.drawRect(Rect.fromCenter(center:center,width:8,height:30),ink);return;}
+    if(kind=='point'){canvas.drawLine(center-const Offset(4,4),center+const Offset(4,4),ink);canvas.drawLine(center+const Offset(-4,4),center+const Offset(4,-4),ink);return;}
+    if(kind=='ring'||kind=='longitudinal'||kind.startsWith('zone_')) {final vertical=kind.contains('ring');canvas.drawLine(center-(vertical?const Offset(0,14):const Offset(14,0)),center+(vertical?const Offset(0,14):const Offset(14,0)),ink);if(kind.startsWith('zone_'))canvas.drawRect(Rect.fromCenter(center:center,width:vertical?8:22,height:vertical?22:8),ink);return;}
+    paintVesselElement(canvas,center,kind.startsWith('nozzle_')||kind=='cover'?'nozzle':kind,engineering:true);
+    if(kind.startsWith('nozzle_')&&kind!='nozzle_none') {
+      canvas.drawCircle(center,13,ink);
+      for(final offset in [const Offset(-10,0),const Offset(10,0),if(!kind.contains('small'))const Offset(0,-10),if(!kind.contains('small'))const Offset(0,10)])canvas.drawCircle(center+offset,2,Paint()..color=Colors.black);
+      if(kind.endsWith('combined'))canvas.drawCircle(center,15,ink..strokeWidth=2);
+    }
+  }
   @override
   bool shouldRepaint(covariant _Symbol oldDelegate) => false;
 }

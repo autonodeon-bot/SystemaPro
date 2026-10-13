@@ -6,7 +6,7 @@ import '../widgets/vessel_drawing.dart';
 /// Editable vector companion to the PNG snapshots used by existing reports.
 String exportVesselSvg(VesselGeometry model,
     {String? detail, String layer = 'Все', bool exteriorB = false}) {
-  const size = Size(1190, 842);
+  final size = vesselSheetSize(model);
   final layout =
       VesselDrawingLayout(model, size, detail: detail, exteriorB: exteriorB);
   String escape(Object? s) => '$s'
@@ -15,7 +15,7 @@ String exportVesselSvg(VesselGeometry model,
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;');
   final out = StringBuffer(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 1190 842"><rect width="1190" height="842" fill="white"/><g stroke="black" fill="none" stroke-width="1.5">');
+      '<svg xmlns="http://www.w3.org/2000/svg" width="${size.width/4}mm" height="${size.height/4}mm" viewBox="0 0 ${size.width} ${size.height}"><rect width="${size.width}" height="${size.height}" fill="white"/><g stroke="black" fill="none" stroke-width="1.5">');
   final labels = StringBuffer();
   void text(String value, double x, double y, {double font = 12}) => labels
       .write('<text x="$x" y="$y" font-size="$font">${escape(value)}</text>');
@@ -120,7 +120,9 @@ String exportVesselSvg(VesselGeometry model,
       line(p + const Offset(-3,3),p + const Offset(3,-3));
     } else if (e['kind'] == 'manway') {
       out.write('<circle cx="${p.dx}" cy="${p.dy}" r="$r"/><circle cx="${p.dx}" cy="${p.dy}" r="${r*.87}"/>');
-    } else if (['support', 'pad'].contains(e['kind'])) {
+    } else if (e['kind'] == 'support') {
+      out.write('<rect x="${p.dx - 6}" y="${p.dy - 20}" width="12" height="40" fill="black"/>');
+    } else if (e['kind'] == 'pad') {
       out.write(
           '<rect x="${p.dx - 9}" y="${p.dy - 6}" width="18" height="12"/>');
     } else {
@@ -149,9 +151,6 @@ String exportVesselSvg(VesselGeometry model,
       line(p - const Offset(8, 0), p + const Offset(8, 0));
       line(p - const Offset(0, 8), p + const Offset(0, 8));
     }
-    if (e['kind'] == 'support') {
-      line(p + const Offset(-12, 8), p + const Offset(12, 8));
-    }
     if (e['kind'] == 'lug') {
       out.write('<rect x="${p.dx - 8}" y="${p.dy}" width="16" height="12"/>');
     }
@@ -172,10 +171,22 @@ String exportVesselSvg(VesselGeometry model,
     text(point ? '${e['body_number'] ?? e['local_number']}' : e['designation'],
         label.dx, label.dy);
   }
+  if(detail==null) {
+    for(final section in (model.data['sections'] as List? ?? []).where((s)=>s['kind']=='weld_profile')) {
+      final x=size.width*(model.data['orientation']=='horizontal'? 0.82:.70),y=90.0;
+      final width=size.width*.18,scale=model.data['orientation']=='horizontal'? 0.75:.85,mid=y+60*scale,cx=x+width*.25;
+      text('${section['designation']} · твердометрия',x,y-6,font:11);
+      out.write('<rect x="$x" y="${mid-22*scale}" width="${width*.5}" height="${44*scale}" fill="#eeeeee"/><rect x="$x" y="${mid-7*scale}" width="${width*.5}" height="${14*scale}" fill="#aaaaaa"/>');
+      for(var i=0;i<5;i++) {final yy=mid+[-45,-17,0,17,45][i]*scale;line(Offset(cx-3,yy-3),Offset(cx+3,yy+3));line(Offset(cx-3,yy+3),Offset(cx+3,yy-3));text('${i+1}',cx+5,yy,font:9);text(['Осн. металл','ЗТВ','Шов','ЗТВ','Осн. металл'][i],x+width*.53,yy,font:8);}
+      break;
+    }
+    text('× Точка УЗТ · К кольцевой шов · П продольный шов',20,size.height-85);
+    text('/ УЗК · × ПВК/МК · I–III овальность · А–А твердометрия',20,size.height-63);
+  }
   text(
       'План контроля. Результаты измерений не назначены. Размеры сверить с источником.',
       20,
-      821,
+      size.height-24,
       font: 14);
   out.write(
       '</g><g font-family="Arial, sans-serif" fill="black">$labels</g></svg>');

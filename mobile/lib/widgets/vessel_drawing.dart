@@ -4,11 +4,18 @@ import '../models/vessel_geometry.dart';
 import '../models/vessel_checklist.dart';
 import 'vessel_elements_editor.dart';
 
+Size vesselSheetSize(VesselGeometry model) => model.data['orientation']=='horizontal' ? const Size(1190,842) : const Size(842,1190);
+String vesselPaper(VesselGeometry model) {
+  final paper=model.data['print_settings']?['paper'];
+  if(paper=='A3'||paper=='A4') return paper;
+  return model.shells.length>5||model.elements.length>16||model.points.length>100?'A3':'A4';
+}
+
 /// Project stable constructor point IDs onto the exported overview for the UZT map.
 void syncVesselMeasurementProjection(VesselChecklist checklist) {
   final data = checklist.baseVesselScheme?.geometry;
   if (data?['schema_version'] != 2) return;
-  const size = Size(1190, 842);
+  final size = vesselSheetSize(VesselGeometry.load(data));
   final layout = VesselDrawingLayout(VesselGeometry.load(data), size);
   for (final row in checklist.thicknessMeasurements) {
     final at = layout.marks[row.schemePointId];
@@ -47,8 +54,7 @@ class VesselDrawingLayout {
       final body = horizontal
           ? Rect.fromLTWH(
               size.width * .18, 100, size.width * .62, size.height * .68)
-          : Rect.fromLTWH(size.width * .2, size.height * .24, size.width * .6,
-              size.height * .54);
+          : Rect.fromLTWH(55,100,size.width*.65-55,size.height-230);
       final known =
           model.shells.every((s) => s['dimensions']?['length_mm'] != null);
       final total = model.shells.fold<double>(
@@ -70,21 +76,22 @@ class VesselDrawingLayout {
       }
       final diameter = horizontal
           ? math.min(size.width * .15, body.height * .8)
-          : math.min(size.height * .14, body.width * .8);
+          : math.min(size.width*.24,size.height*.18);
       for (final p in model.parts.where((p) => p['kind'] == 'head')) {
         final a = p['side'] == 'A';
         final center = horizontal
             ? Offset(a ? size.width * .09 : size.width * .90, size.height * (a ? .46 : .37))
-            : Offset(body.center.dx, a ? size.height * .14 : size.height * .88);
+            : Offset(size.width*.83,size.height*(a? 0.25:.47));
         parts[p['id']] = Rect.fromCircle(center: center, radius: diameter / 2);
       }
     }
     if (detail == null) {
       final covers = model.parts.where((p) => p['kind'] == 'cover').toList();
       for (var i = 0; i < covers.length; i++) {
-        final diameter = math.min(size.width * .15, size.height * .30 / covers.length);
+        final horizontal=model.data['orientation']=='horizontal';
+        final diameter = math.min(size.width * (horizontal? 0.15:.24), size.height * .25 / covers.length);
         parts[covers[i]['id']] = Rect.fromCircle(
-          center: Offset(size.width * .90, size.height * (.64 + .30 * (i + .5) / covers.length)),
+          center: Offset(size.width * (horizontal? 0.90:.83), size.height * (.64 + .24 * (i + .5) / covers.length)),
           radius: diameter / 2);
       }
     }
@@ -183,19 +190,18 @@ class VesselDrawingPainter extends CustomPainter {
         c.drawOval(r, ink);
         final mirrored = layout.exteriorB && p['side'] == 'B';
         if (layout.detail != null) {
-        text(c, '0°', Offset(r.center.dx + 3, r.top - 16), size: 11);
-        text(c, mirrored ? '270°' : '90°', Offset(r.right + 3, r.center.dy),
-            size: 11);
-        text(c, mirrored ? '90°' : '270°', Offset(r.left - 30, r.center.dy),
-            size: 11);
-        text(c, '180°', Offset(r.center.dx + 3, r.bottom - 16), size: 11);
+        final modern=[...m.elements,...m.points].any((e)=>(e['parent_id']??e['owner_id'])==p['id'] && e['placement']?['angle_convention']=='visio-head-2026');
+        final side=p['side'];
+        final values=modern?['90°',side=='A'?'180°':'0°','270°',side=='A'?'0°':'180°']:['0°',mirrored?'270°':'90°','180°',mirrored?'90°':'270°'];
+        for(var i=0;i<4;i++) {text(c,values[i],[Offset(r.center.dx,r.top-16),Offset(r.right+3,r.center.dy),Offset(r.center.dx,r.bottom-16),Offset(r.left-30,r.center.dy)][i],size:11);}
+
         }
       }
       text(
           c,
-          p['designation'].toString(),
+          p['kind']=='shell' && m.data['orientation']=='vertical' && layout.detail==null ? p['designation'].toString().replaceAll('Обечайка','Об.') : p['designation'].toString(),
           p['kind'] == 'shell'
-              ? Offset(r.left + 6, r.top + 6)
+              ? m.data['orientation']=='vertical' && layout.detail==null ? Offset(5,r.center.dy) : Offset(r.left + 6, r.top + 6)
               : Offset(r.left, r.bottom + 4),
           size: p['kind'] == 'shell' ? 10 : 12);
       final dims = p['dimensions'] as Map;
@@ -262,7 +268,8 @@ class VesselDrawingPainter extends CustomPainter {
               final f = i / 40;
               if (f < start || f > end) continue;
               final point = Offset.lerp(a, b, f)! + shift;
-              c.drawCircle(point, 1.5, Paint()..color = Colors.black);
+              c.drawLine(point-const Offset(3,3),point+const Offset(3,3),Paint()..color=Colors.black);
+              if(methods.contains('ПВК')||methods.contains('МК')) c.drawLine(point+const Offset(-3,3),point+const Offset(3,-3),Paint()..color=Colors.black);
             }
             text(c, methods, Offset.lerp(a, b, (start + end) / 2)! + shift,
                 size: 11);
@@ -330,7 +337,7 @@ class VesselDrawingPainter extends CustomPainter {
               mark - const Offset(3, 3),
               mark + const Offset(3, 3),
               Paint()
-                ..color = Colors.deepOrange
+                ..color = Colors.black
                 ..strokeWidth = 2);
         }
         zoneOffset += 10;
@@ -359,7 +366,7 @@ class VesselDrawingPainter extends CustomPainter {
               final a=angle*math.pi/180;
               c.drawLine(mark.value+Offset(radius*math.sin(a),-radius*math.cos(a)),mark.value+Offset((radius+4)*math.sin(a+.03),-(radius+4)*math.cos(a+.03)),Paint()..color=Colors.black);
             }
-            text(c,z['designation'],mark.value+Offset(radius+8,radius),size:10);
+            text(c,'${z['designation']} ${(z['planned_methods'] as List).join('/')}',mark.value+Offset(radius+8,radius),size:9);
           }
         }
       }
@@ -405,20 +412,17 @@ class VesselDrawingPainter extends CustomPainter {
     }
     if (layout.detail == null) {
       for (final section in (m.data['sections'] as List? ?? []).where((s) => s['kind']=='weld_profile')) {
-        final x=size.width*.83,y=110.0;
-        text(c,'${section['designation']} · профиль шва',Offset(x,y-24),size:11);
-        c.drawRect(Rect.fromLTWH(x+60,y+8,30,20),Paint()..color=Colors.grey.shade300);
-        c.drawLine(Offset(x,y+18),Offset(x+155,y+18),Paint()..color=Colors.black);
-        for(var i=0;i<5;i++) {final px=x+15+i*30;c.drawCircle(Offset(px,y+18),2,Paint()..color=Colors.black);text(c,'${i+1}',Offset(px-3,y-5),size:9);}
-        text(c,'Металл · ЗТВ · шов · ЗТВ · металл',Offset(x,y+36),size:9);
+        final x=size.width*(m.data['orientation']=='horizontal'? 0.82:.70),y=90.0;
+        text(c,'${section['designation']} · твердометрия',Offset(x,y-18),size:11);
+        paintWeldProfile(c,Offset(x,y),size.width*.18,scale:m.data['orientation']=='horizontal'? 0.75:.85);
         break;
       }
-      text(c, '×  Точка УЗТ      К — кольцевой шов      П — продольный / шов днища', Offset(size.width * .20, size.height - 72), size: 12);
-      text(c, 'Штриховка — участок НК      I–III — сечения овальности      Крышка Т — отдельная деталь', Offset(size.width * .20, size.height - 52), size: 12);
+      text(c, '×  Точка УЗТ      К — кольцевой шов      П — продольный / шов днища', Offset(20, size.height - 92), size: 12);
+      text(c, '/ УЗК · × ПВК/МК · I–III овальность · А–А твердометрия · крышка — отдельный вид', Offset(20, size.height - 72), size: 12);
     }
     text(
         c,
-        'Размеры без источника не подтверждены. Точки — план контроля, не результаты.',
+        'План контроля. Результаты — в таблицах протоколов. Размеры сверить с источником.',
         Offset(20, size.height - 24),
         size: 11);
   }
@@ -441,24 +445,7 @@ void paintVesselSection(
       'План расположения позиций. Метод: ${section['method'] ?? 'не задан'}',
       const Offset(40, 75),
       size: 18);
-  final middle = size.height / 2;
-  canvas.drawRect(
-      Rect.fromLTWH(size.width * .46, middle - 65, size.width * .08, 130),
-      Paint()..color = Colors.grey.shade300);
-  canvas.drawLine(
-      Offset(70, middle),
-      Offset(size.width - 70, middle),
-      Paint()
-        ..color = Colors.black
-        ..strokeWidth = 2);
-  final names = section['positions'] as List? ??
-      ['Основной металл', 'ЗТВ', 'Металл шва', 'ЗТВ', 'Основной металл'];
-  for (var i = 0; i < 5; i++) {
-    final x = size.width * (.16 + i * .17);
-    canvas.drawCircle(Offset(x, middle), 7, Paint()..color = Colors.black);
-    painter.text(canvas, '${i + 1}. ${names[i]}', Offset(x - 65, middle + 25),
-        size: 18);
-  }
+  paintWeldProfile(canvas,const Offset(220,160),600,scale:3.5);
   painter.text(
       canvas, section['note']?.toString() ?? '', Offset(40, size.height - 110),
       size: 18);
@@ -467,4 +454,18 @@ void paintVesselSection(
       'Значения и единицы измерения заполняются в таблице выбранного метода.',
       Offset(40, size.height - 70),
       size: 18);
+}
+
+void paintWeldProfile(Canvas c, Offset origin, double width, {double scale=1}) {
+ final mid=origin.dy+60*scale,cx=origin.dx+width*.25;
+ c.drawRect(Rect.fromLTRB(origin.dx,mid-22*scale,origin.dx+width*.5,mid+22*scale),Paint()..color=Colors.grey.shade200);
+ c.drawRect(Rect.fromLTRB(origin.dx,mid-7*scale,origin.dx+width*.5,mid+7*scale),Paint()..color=Colors.grey.shade600);
+ for(var i=0;i<5;i++) {
+  final y=mid+[-45,-17,0,17,45][i]*scale;
+  c.drawLine(Offset(cx-3*scale,y-3*scale),Offset(cx+3*scale,y+3*scale),Paint()..color=Colors.black);
+  c.drawLine(Offset(cx-3*scale,y+3*scale),Offset(cx+3*scale,y-3*scale),Paint()..color=Colors.black);
+  void label(String t,Offset at,double font) {final p=TextPainter(text:TextSpan(text:t,style:TextStyle(color:Colors.black,fontSize:font)),textDirection:TextDirection.ltr)..layout();p.paint(c,at);}
+  label('${i+1}',Offset(cx+5*scale,y-7*scale),10*scale);
+  label(['Осн. металл','ЗТВ','Шов','ЗТВ','Осн. металл'][i],Offset(origin.dx+width*.53,y-6*scale),9*scale);
+ }
 }

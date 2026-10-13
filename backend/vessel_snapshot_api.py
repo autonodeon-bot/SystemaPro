@@ -109,18 +109,20 @@ async def save_snapshot(inspection_id: UUID, payload: dict, username: str = Depe
     folder = Path('/app/uploads/vessel_snapshots') / str(inspection_id) / str(uuid4())
     folder.mkdir(parents=True, exist_ok=False)
     try:
+        from vessel_sheet import sheet_spec
+        spec=sheet_spec(geo)
         overview = folder / 'overview.png'
-        overview.write_bytes(render_v2(geo, 1190, 842)[0])
+        overview.write_bytes(render_v2(geo, spec['width'], spec['height'])[0])
         views = [v for v in geo.get('views', []) if v.get('kind') not in ('part_detail', 'section_detail')]
         for part in geo['parts']:
             path = folder / f'{uuid4()}.png'
-            path.write_bytes(render_v2(geo, 1190, 842, detail=part['id'])[0])
+            path.write_bytes(render_v2(geo, spec['width'], spec['height'], detail=part['id'])[0])
             views.append(dict(id=str(uuid4()), kind='part_detail', part_id=part['id'],
                               designation=part['designation'], revision=geo['revision'],
                               document_number=f'vessel_detail_{part["id"]}', image_path=str(path)))
         geo['views'] = views
         (folder / 'drawing.pdf').write_bytes(export_pdf(geo))
-        (folder / 'drawing.svg').write_bytes(render_v2(geo, 1190, 842, svg=True)[0])
+        (folder / 'drawing.svg').write_bytes(render_v2(geo, spec['width'], spec['height'], svg=True)[0])
         data = bind_plan(data, geo)
         data['base_vessel_scheme'].update(source='constructor', geometry=geo, image_path=str(overview))
         data['control_scheme_image'] = str(overview)
