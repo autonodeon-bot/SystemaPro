@@ -9,7 +9,15 @@ class VesselGeometry {
   final VesselEntity data;
   Map<String, VesselEntity>? _index;
   int _indexedCount = -1;
-  VesselGeometry(this.data);
+  VesselGeometry(this.data) { orientHeadNames(); }
+  void orientHeadNames() {
+    const defaults={'левое днище','правое днище','верхнее днище','нижнее днище','днище a','днище b','днище а','днище в'};
+    for (final p in (data['parts'] as List? ?? [])) {
+      if(p['kind']=='head' && defaults.contains('${p['designation']}'.trim().toLowerCase())) {
+        p['designation']=data['orientation']=='vertical' ? (p['side']=='A'?'Верхнее днище':'Нижнее днище') : (p['side']=='A'?'Левое днище':'Правое днище');
+      }
+    }
+  }
   static String id() => const Uuid().v4();
   static VesselEntity copy(Map value) =>
       Map<String, dynamic>.from(jsonDecode(jsonEncode(value)) as Map);
@@ -101,6 +109,7 @@ class VesselGeometry {
       });
     }
     g.addShell();
+    g.orientHeadNames();
     return g;
   }
 

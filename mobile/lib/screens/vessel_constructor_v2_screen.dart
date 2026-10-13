@@ -160,7 +160,7 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
 
   void edit(void Function(VesselGeometry) action) {
     try {
-      store.command(action);
+      store.command((m) { action(m); m.orientHeadNames(); });
     } catch (e) {
       message(e.toString());
     }

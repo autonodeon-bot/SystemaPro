@@ -1,7 +1,7 @@
 import {vesselLibrary} from '../utils/vesselLibrary';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE } from '../constants';
-import { applyLibrary, recommendedNozzlePoints, exampleVessel, chooseConflict, clone, Conflict, Entity, mergeVessel, newId, newVessel, pointTemplate, rebuildRings, VesselDocument } from '../utils/vesselDocument';
+import { orientHeadNames, applyLibrary, recommendedNozzlePoints, exampleVessel, chooseConflict, clone, Conflict, Entity, mergeVessel, newId, newVessel, pointTemplate, rebuildRings, VesselDocument } from '../utils/vesselDocument';
 import './vessel-constructor.css';
 
 const types: Record<string, string> = { nozzle: 'Штуцер', manway: 'Люк', support: 'Опора', instrument: 'Бобышка КИП', pad: 'Усиление', drain: 'Дренаж', vent: 'Воздушник', lug: 'Строповая проушина' };
@@ -29,7 +29,8 @@ function safeSvg(source: string) {
 
 export default function VesselConstructorV2({ equipmentId, inspectionId, onBack }: { equipmentId: string; inspectionId: string; onBack: () => void }) {
   const key = `vessel-v2:${inspectionId || equipmentId || 'new'}`;
-  const [g, setG] = useState<VesselDocument>(() => { try { return JSON.parse(localStorage.getItem(key) || '').geometry || newVessel(); } catch { return newVessel(); } });
+  const [rawG, setG] = useState<VesselDocument>(() => { try { return JSON.parse(localStorage.getItem(key) || '').geometry || newVessel(); } catch { return newVessel(); } });
+  const g=useMemo(()=>orientHeadNames(clone(rawG)),[rawG]);
   const [base, setBase] = useState<VesselDocument>(() => { try { return JSON.parse(localStorage.getItem(key) || '').base || clone(g); } catch { return clone(g); } });
   const [selected, select] = useState(g.parts[0].id), [step, setStep] = useState(0), [detail, setDetail] = useState(''), [layer, setLayer] = useState('');
   const [message, setMessage] = useState('Черновик на этом устройстве'), [busy, setBusy] = useState(false), [svg, setSvg] = useState('');

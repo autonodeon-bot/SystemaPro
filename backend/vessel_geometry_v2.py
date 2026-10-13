@@ -33,6 +33,8 @@ def normalize_v2(raw: dict) -> dict:
             if not isinstance(e, dict) or not isinstance(e.get('id'), str) or not e['id'] or e['id'] in ids:
                 raise ValueError(f'{key}: unique id required')
             ids[e['id']] = e
+    from vessel_sheet import orient_head_names
+    orient_head_names(g)
     shells = [p for p in g['parts'] if p['kind'] == 'shell']
     if not 1 <= len(shells) <= 20:
         raise ValueError('1..20 shells required')
@@ -165,6 +167,8 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
         from vessel_vector import VectorDraw
         d=VectorDraw(width,height,vector_canvas)
     font = _font(14)
+    from vessel_sheet import orient_head_names
+    g = orient_head_names(deepcopy(g))
     horizontal = g['orientation'] == 'horizontal'
     cut = (g.get('views') or [{}])[0].get('cut_angle_deg', 0)
     parts = {p['id']: p for p in g['parts']}

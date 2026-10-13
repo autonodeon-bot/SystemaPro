@@ -41,3 +41,16 @@ def test_explicit_head_convention_and_legacy_preservation(side,angle,expected):
     assert position(point,owner)==pytest.approx(expected)
     point['placement'].pop('angle_convention');point['placement']['theta_deg']=0
     assert position(point,owner)==pytest.approx((.5,0))
+
+def test_head_names_follow_orientation_without_changing_identity():
+    from vessel_sheet import orient_head_names, orient_report_names
+    g=example();before=[p['id'] for p in g['parts']]
+    g['orientation']='vertical';orient_head_names(g)
+    assert [p['designation'] for p in g['parts'] if p['kind']=='head']==['Верхнее днище','Нижнее днище']
+    assert [p['id'] for p in g['parts']]==before
+    data={'base_vessel_scheme':{'geometry':g},'thickness_measurements':[{'location':'Левое днище','thickness':12,'scheme_point_id':'stable'}]}
+    updated=orient_report_names(data)
+    assert updated['thickness_measurements'][0]=={'location':'Верхнее днище','thickness':12,'scheme_point_id':'stable'}
+    assert data['thickness_measurements'][0]['location']=='Левое днище'
+    g['orientation']='horizontal';orient_head_names(g)
+    assert [p['designation'] for p in g['parts'] if p['kind']=='head']==['Левое днище','Правое днище']

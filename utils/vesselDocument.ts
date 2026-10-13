@@ -25,7 +25,7 @@ export function newVessel(): VesselDocument {
     parts: ['A', 'B'].map(side => ({ id: newId(), kind: 'head', side, designation: `Днище ${side}`, head_type: 'elliptical', dimensions: {} })),
     elements: [], welds: [], control_points: [], control_zones: [], control_templates: [], source_documents: [],
     views: [{ id: newId(), kind: 'development', cut_angle_deg: 0, label_overrides: {} }], sections: [] } as VesselDocument;
-  g.parts.push({ id: newId(), kind: 'shell', designation: 'Обечайка 1', dimensions: {} }); rebuildRings(g); return g;
+  g.parts.push({ id: newId(), kind: 'shell', designation: 'Обечайка 1', dimensions: {} }); rebuildRings(g); return orientHeadNames(g);
 }
 export function pointTemplate(g: VesselDocument, owner: Entity, count: number) {
   const existing = g.control_points.filter(p => p.owner_id === owner.id);
@@ -93,4 +93,10 @@ export function applyLibrary(g:VesselDocument, preset:string, owner:Entity):stri
  if(preset==='ring')return w.id;
  if(preset==='profile'){(g.sections||=[]).push({id:newId(),kind:'weld_profile',owner_id:w.id,designation:'А–А',method:'ТВ',positions:['Основной металл','ЗТВ','Шов','ЗТВ','Основной металл']});return w.id;}
  const z={id:newId(),kind:'weld_zone',designation:`${g.control_zones.length+1} уч.`,weld_id:w.id,planned_methods:['УЗК','ПВК'],coverage:{kind:'whole'}};g.control_zones.push(z);return z.id;
+}
+
+export function orientHeadNames(g:VesselDocument):VesselDocument {
+ const names=new Set(['левое днище','правое днище','верхнее днище','нижнее днище','днище a','днище b','днище а','днище в']);
+ for(const p of g.parts) if(p.kind==='head' && names.has(String(p.designation).trim().toLowerCase())) p.designation=g.orientation==='vertical'?(p.side==='A'?'Верхнее днище':'Нижнее днище'):(p.side==='A'?'Левое днище':'Правое днище');
+ return g;
 }

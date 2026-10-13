@@ -1210,7 +1210,8 @@ def _build_context(
     specialist_docs: List[Dict[str, Any]],
     attachments: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
-    data = inspection_data.get("data") or {}
+    from vessel_sheet import orient_report_names
+    data = orient_report_names(inspection_data.get("data") or {})
     if not isinstance(data, dict):
         data = {}
     attrs = equipment_data.get("attributes") or {}

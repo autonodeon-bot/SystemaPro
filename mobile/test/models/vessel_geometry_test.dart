@@ -8,6 +8,18 @@ import 'package:flutter/widgets.dart';
 import 'package:es_td_ngo_mobile/models/vessel_checklist.dart';
 
 void main() {
+  test('orientation renames heads and preserves IDs and physical positions', () {
+    final g=VesselGeometry.create();
+    final heads=g.parts.where((p)=>p['kind']=='head').toList();
+    final ids=heads.map((p)=>p['id']).toList();
+    expect(heads.map((p)=>p['designation']).toList(), ['Верхнее днище','Нижнее днище']);
+    g.data['orientation']='horizontal';g.orientHeadNames();
+    expect(heads.map((p)=>p['designation']).toList(), ['Левое днище','Правое днище']);
+    expect(heads.map((p)=>p['id']).toList(),ids);
+    g.data['orientation']='vertical';g.orientHeadNames();
+    expect(exportVesselSvg(g),contains('Верхнее днище'));
+    expect(exportVesselSvg(g),isNot(contains('Левое днище')));
+  });
   test('fresh and empty-view documents accept generated detail views before reload', () {
     final fresh = VesselGeometry.create();
     final emptyViews = VesselGeometry.copy(fresh.data)..['views'] = [];

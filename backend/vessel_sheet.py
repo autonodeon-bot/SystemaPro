@@ -45,3 +45,33 @@ def main_element_rows(elements, data):
     if len(rows)==1:
         rows[0]['length_mm']=data.get('shell_length') or data.get('height') or ''
     return rows+heads
+
+
+def head_title(orientation, side):
+    return ('Верхнее днище' if side == 'A' else 'Нижнее днище') if orientation == 'vertical' else ('Левое днище' if side == 'A' else 'Правое днище')
+
+def orient_head_names(g):
+    """A is the first/top end; IDs, coordinates and user designations stay intact."""
+    defaults={'левое днище','правое днище','верхнее днище','нижнее днище','днище a','днище b','днище а','днище в'}
+    for p in g.get('parts', []):
+        if p.get('kind')=='head' and str(p.get('designation','')).strip().lower() in defaults:
+            p['designation']=head_title(g.get('orientation'),p.get('side'))
+    return g
+
+def orient_report_names(data):
+    from copy import deepcopy
+    if not isinstance(data,dict):return {}
+    data=deepcopy(data)
+    geometry=(data.get('base_vessel_scheme') or {}).get('geometry') or {}
+    if geometry.get('schema_version')!=2:return data
+    orient_head_names(geometry)
+    names={old:head_title(geometry.get('orientation'),side) for side,old_names in [('A',['Левое днище','Верхнее днище','Днище A']),('B',['Правое днище','Нижнее днище','Днище B'])] for old in old_names}
+    def visit(value):
+        if isinstance(value,list):
+            for item in value:visit(item)
+        elif isinstance(value,dict):
+            for key,item in value.items():
+                if key in ('name','element_name','location','designation') and isinstance(item,str) and item in names:value[key]=names[item]
+                else:visit(item)
+    visit(data)
+    return data
