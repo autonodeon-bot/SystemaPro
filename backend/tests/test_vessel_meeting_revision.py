@@ -24,7 +24,12 @@ def test_adaptive_sheet_is_one_page_and_preserves_marks(orientation):
     for point in g['control_points']:assert point['id'] in svg
     assert 'твердометрия' in page.get_text()
     g['print_settings']={'paper':'A4','detail_ids':[g['parts'][0]['id']]}
-    assert len(pymupdf.open(stream=export_pdf(g),filetype='pdf'))==2
+    with pymupdf.open(stream=export_pdf(g),filetype='pdf') as pages:
+        assert len(pages)==5
+        assert all('Координаты по номеру выноски' in page.get_text() for page in pages[1:])
+        for page in pages[1:]:
+            spans = [span for block in page.get_text('dict')['blocks'] for line in block.get('lines', []) for span in line['spans']]
+            assert min(span['size'] for span in spans) >= 10  # Vector A4, before insertion into the report margins.
 
 def test_grouping_does_not_merge_different_materials_or_include_nozzles():
     rows=[dict(name=f'Обечайка {i}',element_type='shell',material='09Г2С',nominal_thickness=12) for i in range(6)]

@@ -81,14 +81,11 @@ def export_pdf(geometry):
     from reportlab.pdfgen.canvas import Canvas
     from reportlab.lib.units import mm
     from vessel_geometry_v2 import render_v2
-    from vessel_sheet import sheet_spec
+    from vessel_sheet import drawing_pages, sheet_spec
     spec=sheet_spec(geometry)
     stream=BytesIO();canvas=Canvas(stream,pagesize=(spec['width_mm']*mm,spec['height_mm']*mm),pageCompression=1)
     canvas.setTitle(f"Сосуд • общая схема • ревизия {geometry['revision']}")
-    details=[None]+list(dict.fromkeys((geometry.get('print_settings') or {}).get('detail_ids',[])))
-    valid={p['id'] for p in geometry['parts']}
-    for detail in details:
-        if detail is not None and detail not in valid:continue
-        render_v2(geometry,spec['width'],spec['height'],detail=detail,vector_canvas=canvas)
+    for _, options in drawing_pages(geometry, spec):
+        render_v2(geometry,spec['width'],spec['height'],vector_canvas=canvas,**options)
         canvas.showPage()
     canvas.save();return stream.getvalue()

@@ -1104,44 +1104,10 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
         if not equipment:
             raise HTTPException(status_code=404, detail="Equipment not found")
 
-        # Данные ОПО (если оборудование привязано к ОПО)
-        opo_info = None
-        try:
-            opo = None
-            if getattr(equipment, "opo_id", None):
-                opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
-                opo = opo_result.scalar_one_or_none()
-            if opo:
-                workshop = None
-                branch = None
-                enterprise = None
-                if getattr(opo, "workshop_id", None):
-                    w_result = await db.execute(select(Workshop).where(Workshop.id == opo.workshop_id))
-                    workshop = w_result.scalar_one_or_none()
-                if workshop and getattr(workshop, "branch_id", None):
-                    b_result = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
-                    branch = b_result.scalar_one_or_none()
-                if branch and getattr(branch, "enterprise_id", None):
-                    e_result = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
-                    enterprise = e_result.scalar_one_or_none()
+        from report_object_context import resolve_report_object
+        report_object = await resolve_report_object(db, equipment, inspection.data, inspection.assignment_id)
+        opo_info = report_object['opo']
 
-                opo_info = {
-                    "id": str(opo.id),
-                    "name": opo.name,
-                    "code": opo.code,
-                    "description": opo.description,
-                    "survey_data": opo.survey_data or {},
-                    "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
-                    "workshop_name": workshop.name if workshop else None,
-                    "branch_id": str(branch.id) if branch else None,
-                    "branch_name": branch.name if branch else None,
-                    "enterprise_id": str(enterprise.id) if enterprise else None,
-                    "enterprise_name": enterprise.name if enterprise else None,
-                }
-        except Exception as e:
-            print(f"Warning: Could not load OPO info for preview: {e}")
-            opo_info = None
-        
         # Questionnaire: приоритет — questionnaire_id инспекции, иначе последний по оборудованию
         questionnaire = None
         if getattr(inspection, "questionnaire_id", None):
@@ -1246,16 +1212,10 @@ async def get_inspection_preview(inspection_id: str, db: AsyncSession = Depends(
                 "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
                 "status": inspection.status,
                 "conclusion": inspection.conclusion,
-                "data": inspection.data,
+                "data": report_object["data"],
             },
-            "equipment": {
-                "id": str(equipment.id),
-                "name": equipment.name,
-                "serial_number": equipment.serial_number,
-                "location": equipment.location,
-                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                "attributes": equipment.attributes or {},
-            },
+            "equipment": report_object['equipment'],
+            "context_warnings": report_object['warnings'],
             "questionnaire": {
                 "id": str(questionnaire.id) if questionnaire else None,
             },

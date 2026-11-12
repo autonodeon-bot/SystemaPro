@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import create_access_token, verify_password, verify_token
 from database import get_db
 from models import User
+from observability import get_logger, record_login
 from security import (
     AUTH_2FA_RATE_LIMIT,
     generate_recovery_codes,
@@ -31,6 +32,7 @@ from security import (
 )
 
 router = APIRouter(prefix="/api/auth/2fa", tags=["auth"])
+log = get_logger("auth_2fa")
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -57,7 +59,7 @@ class TwoFADisableRequest(BaseModel):
 class TwoFAVerifyRequest(BaseModel):
     username: str
     password: str
-    code: str = Field(..., min_length=6, max_length=8)
+    code: str = Field(..., min_length=6, max_length=9)
 
 
 class TwoFAStatusResponse(BaseModel):
@@ -68,11 +70,13 @@ class TwoFAStatusResponse(BaseModel):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 async def _load_user(db: AsyncSession, username: str) -> User:
     result = await db.execute(
-        select(User).where(or_(User.username == username, User.email == username))
+        select(User).where(or_(User.username == username, User.email == username)).with_for_update()
     )
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Учётная запись отключена")
     return user
 
 
@@ -90,17 +94,22 @@ async def status_2fa(
 
 
 @router.post("/setup", response_model=TwoFASetupResponse)
+@limiter.limit(AUTH_2FA_RATE_LIMIT)
 async def setup_2fa(
+    request: Request,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Генерирует новый секрет. Секрет сохраняется, но 2FA остаётся выключенной,
     пока пользователь не подтвердит код через /enable."""
     user = await _load_user(db, username)
+    if user.totp_enabled:
+        raise HTTPException(status_code=409, detail="Сначала отключите 2FA, подтвердив пароль и действующий код")
     secret = generate_totp_secret()
     user.totp_secret = secret
     user.totp_enabled = False
     await db.commit()
+    log.info("MFA setup: user_id={}", str(user.id))
 
     uri = totp_provisioning_uri(secret, user.username)
     png = totp_qr_png(uri)
@@ -112,12 +121,16 @@ async def setup_2fa(
 
 
 @router.post("/enable", response_model=TwoFAEnableResponse)
+@limiter.limit(AUTH_2FA_RATE_LIMIT)
 async def enable_2fa(
+    request: Request,
     payload: TwoFAEnableRequest,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
 ):
     user = await _load_user(db, username)
+    if user.totp_enabled:
+        raise HTTPException(status_code=409, detail="2FA уже включена")
     if not user.totp_secret:
         raise HTTPException(status_code=400, detail="Сначала вызовите /setup")
     if not verify_totp_code(user.totp_secret, payload.code):
@@ -127,11 +140,14 @@ async def enable_2fa(
     user.totp_recovery_codes = [hash_recovery_code(c) for c in codes]
     user.totp_enabled = True
     await db.commit()
+    log.info("MFA enabled: user_id={}", str(user.id))
     return TwoFAEnableResponse(enabled=True, recovery_codes=codes)
 
 
 @router.post("/disable")
+@limiter.limit(AUTH_2FA_RATE_LIMIT)
 async def disable_2fa(
+    request: Request,
     payload: TwoFADisableRequest,
     username: str = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
@@ -148,6 +164,7 @@ async def disable_2fa(
     user.totp_enabled = False
     user.totp_recovery_codes = None
     await db.commit()
+    log.warning("MFA disabled: user_id={}", str(user.id))
     return {"disabled": True}
 
 
@@ -162,14 +179,21 @@ async def verify_2fa(
 
     Возвращает access_token.
     """
-    user = await _load_user(db, payload.username)
+    try:
+        user = await _load_user(db, payload.username)
+    except HTTPException:
+        record_login("fail")
+        raise
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Учётная запись отключена")
     if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+        record_login("locked")
         raise HTTPException(status_code=423, detail="Учётная запись временно заблокирована")
     if not verify_password(payload.password, user.password_hash):
+        await _record_failed_verification(db, user)
         raise HTTPException(status_code=401, detail="Неверный пароль")
     if not user.totp_enabled or not user.totp_secret:
+        record_login("fail")
         raise HTTPException(status_code=400, detail="2FA не настроена")
 
     ok = verify_totp_code(user.totp_secret, payload.code)
@@ -179,15 +203,31 @@ async def verify_2fa(
         if recovery_hashed in codes:
             user.totp_recovery_codes = [c for c in codes if c != recovery_hashed]
             ok = True
+            log.warning("MFA recovery code used: user_id={}", str(user.id))
         else:
+            await _record_failed_verification(db, user)
             raise HTTPException(status_code=400, detail="Неверный код 2FA")
 
     user.last_login = datetime.now(timezone.utc)
     user.failed_login_count = 0
     await db.commit()
+    record_login("success")
+    log.info("MFA login success: user_id={}", str(user.id))
 
     token = create_access_token(
         data={"sub": user.username, "role": user.role, "amr": ["pwd", "totp"]},
         expires_delta=timedelta(minutes=60 * 24),
     )
     return {"access_token": token, "token_type": "bearer", "role": user.role}
+
+
+async def _record_failed_verification(db: AsyncSession, user: User) -> None:
+    user.failed_login_count = (user.failed_login_count or 0) + 1
+    result = "fail"
+    if user.failed_login_count >= 5:
+        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+        user.failed_login_count = 0
+        result = "locked"
+    await db.commit()
+    record_login(result)
+    log.warning("MFA login {}: user_id={}", result, str(user.id))

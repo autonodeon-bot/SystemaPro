@@ -3013,7 +3013,7 @@ class WordGenerator:
                 if dn and isinstance(fn, str) and fn:
                     attachment_names[dn] = fn
         
-        def add_picture_if_exists(title: str, path: Optional[str], width_inches: float = 4.8):
+        def add_picture_if_exists(title: str, path: Optional[str], width_inches: float = 4.8, *, fit_scheme=False):
             """Добавить изображение или подпись для PDF если существует."""
             if not path:
                 return False
@@ -3046,7 +3046,11 @@ class WordGenerator:
                     par = doc.add_paragraph()
                     par.add_run(title).bold = True
                 doc.add_paragraph()
-                doc.add_picture(str(p), width=Inches(width_inches))
+                if fit_scheme:
+                    from vessel_sheet import add_fitted_scheme
+                    add_fitted_scheme(doc, str(p))
+                else:
+                    doc.add_picture(str(p), width=Inches(width_inches))
                 doc.add_paragraph()
                 return True
             except Exception as e:

@@ -11,6 +11,17 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:test'); URL.revokeObjectURL = vi.fn();
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('stores dimension visibility and selected detail sheets without changing geometry', () => {
+  render(<VesselConstructorV2 equipmentId="test" inspectionId="" onBack={() => {}} />);
+  const before=JSON.parse(localStorage.getItem('vessel-v2:test')!).geometry;
+  fireEvent.click(screen.getByRole('button', { name: '5. Проверка' }));
+  fireEvent.click(screen.getByLabelText('Размерные выноски'));
+  fireEvent.click(screen.getByLabelText(before.parts[0].designation));
+  const after=JSON.parse(localStorage.getItem('vessel-v2:test')!).geometry;
+  expect(after.print_settings.show_dimensions).toBe(false);
+  expect(after.print_settings.detail_ids).toEqual([before.parts[0].id]);
+  expect(after.parts).toEqual(before.parts);
+});
 it('places an individual nozzle on the selected head with decimal-comma coordinates', async () => {
   render(<VesselConstructorV2 equipmentId="test" inspectionId="" onBack={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: '3. Элементы' }));

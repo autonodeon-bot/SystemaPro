@@ -56,7 +56,7 @@ async def login(
     result = await db.execute(
         select(User).where(
             or_(User.username == form_data.username, User.email == form_data.username)
-        )
+        ).with_for_update()
     )
     db_user = result.scalar_one_or_none()
 
@@ -107,7 +107,6 @@ async def login(
         db_user.last_login = now
         user_role = db_user.role
         token_subject = db_user.username
-        password_hash = db_user.password_hash
         await db.commit()
     else:
         record_login("fail")
@@ -128,7 +127,6 @@ async def login(
         "access_token": access_token,
         "token_type": "bearer",
         "role": user_role,
-        "password_hash": password_hash,
     }
 
 

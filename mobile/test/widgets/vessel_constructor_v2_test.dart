@@ -12,6 +12,25 @@ import 'package:es_td_ngo_mobile/widgets/vessel_drawing.dart';
 import 'package:es_td_ngo_mobile/services/vessel_constructor_store.dart';
 
 void main() {
+  test('tap placement retains physical coordinates, including points on nozzles', () {
+    final g = VesselGeometry.create();
+    final shell = g.shells.first;
+    shell['dimensions'] = {'length_mm': 2000, 'diameter_mm': 1000};
+    final nozzle = g.addElement(shell['id'], 'nozzle');
+    nozzle['dimensions'] = {'diameter_mm': 100};
+    nozzle['placement'] = {'mode': 'physical', 'z_local_mm': 350, 'theta_deg': 90};
+    g.setPointTemplate(nozzle['id'], 2);
+    final point = g.points.first;
+    point['placement'] = {'mode': 'physical', 'radius_projection_mm': 25, 'theta_deg': 90};
+    final layout = VesselDrawingLayout(g, vesselSheetSize(g));
+    for (final item in [nozzle, point]) {
+      final result = layout.placementAt(item, layout.marks[item['id']]!);
+      expect(result!['mode'], 'physical');
+      expect(result['theta_deg'], closeTo(90, .001));
+      final key = item == nozzle ? 'z_local_mm' : 'radius_projection_mm';
+      expect(result[key], closeTo(item['placement'][key] as num, .001));
+    }
+  });
   test('UZT overview projection separates points and preserves measured values', () {
     final g = VesselGeometry.create();
     // Use existing template generation to exercise the actual constructor layout.
@@ -97,6 +116,16 @@ void main() {
       await tester.tap(find.text('Элемент'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Штуцер ДУ ≥150 · УЗТ + ПВК/МК'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      // Reach the export stage and exercise the new presentation controls on
+      // both phone and tablet sizes; model coordinates must remain unchanged.
+      for (var step = 0; step < 4 && find.text('Размерные выноски').evaluate().isEmpty; step++) {
+        await tester.tap(find.text('Далее'));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('Размерные выноски'), findsOneWidget);
+      await tester.tap(find.byType(SwitchListTile));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.runAsync(() async {

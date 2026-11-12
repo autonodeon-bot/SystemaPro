@@ -172,7 +172,6 @@ class ApiService extends ApiServiceBase
             {
               'access_token': token,
               'role': data['role'],
-              'password_hash': data['password_hash'],
             },
             fallbackUsername: username,
           );
@@ -259,7 +258,7 @@ class ApiService extends ApiServiceBase
         role: response['role'],
         token: response['access_token'],
       );
-      await authService.saveUser(user, passwordHash: response['password_hash']);
+      await authService.saveUser(user);
       await authService.saveCredentials(creds.username, creds.password);
       return true;
     } catch (_) {

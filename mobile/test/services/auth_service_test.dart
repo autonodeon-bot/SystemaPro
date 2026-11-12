@@ -52,6 +52,34 @@ void main() {
       test('verifyPasswordOffline false без хеша', () async {
         expect(await auth.verifyPasswordOffline('x'), false);
       });
+
+      test('legacy hashes are deleted and cannot authenticate offline', () async {
+        SharedPreferences.setMockInitialValues({
+          'offline_password_hash': 'legacy-sha256',
+          'password_hash': 'server-bcrypt',
+        });
+        FlutterSecureStorage.setMockInitialValues({'password_hash': 'server-bcrypt'});
+        expect(await auth.verifyPasswordOffline('x'), false);
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.containsKey('offline_password_hash'), false);
+        expect(prefs.containsKey('password_hash'), false);
+        expect(await const FlutterSecureStorage().read(key: 'password_hash'), isNull);
+      });
+
+      test('salted verifier exists only in secure storage and changes each time', () async {
+        await auth.saveCredentials('u', 'secret');
+        const storage = FlutterSecureStorage();
+        final first = jsonDecode((await storage.read(key: 'offline_verifier_v1'))!);
+        await auth.saveCredentials('u', 'secret');
+        final second = jsonDecode((await storage.read(key: 'offline_verifier_v1'))!);
+        expect(first['salt'], isNot(second['salt']));
+        expect(first['hash'], isNot(second['hash']));
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.containsKey('offline_password_hash'), false);
+        expect(prefs.containsKey('offline_verifier_v1'), false);
+        await prefs.setString('offline_username', 'another-user');
+        expect(await auth.verifyPasswordOffline('secret'), false);
+      });
     });
 
     group('сессия после входа (saveUser / токен)', () {
@@ -104,13 +132,14 @@ void main() {
           username: 'u',
           token: 'tok',
         );
-        await auth.saveUser(user, passwordHash: 'hashval');
+        await auth.saveUser(user);
         await auth.saveCredentials('u', 'pw');
 
         await auth.logout();
 
         expect(await auth.getToken(), isNull);
         expect(await auth.getStoredCredentials(), isNull);
+        expect(await auth.verifyPasswordOffline('pw'), false);
         final prefs = await SharedPreferences.getInstance();
         expect(prefs.getString('auth_token'), isNull);
         expect(prefs.getString('password_hash'), isNull);

@@ -1,6 +1,6 @@
 # Multi-stage build for frontend
 # ECR public mirror — обход Docker Hub 429 на VPS
-FROM public.ecr.aws/docker/library/node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:24.22.2-alpine AS builder
 
 WORKDIR /app
 

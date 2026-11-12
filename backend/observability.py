@@ -195,7 +195,8 @@ def _path_template(request: Request) -> str:
     route = request.scope.get("route")
     if route and hasattr(route, "path"):
         return route.path
-    return request.url.path
+    # Unmatched URLs are attacker-controlled: never create one series per URL.
+    return "unmatched"
 
 
 async def _metrics_middleware(request: Request, call_next):

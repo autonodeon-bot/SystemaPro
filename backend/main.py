@@ -58,6 +58,7 @@ from standalone_protocols_api import router as standalone_protocols_router
 from diagnostic_engine.api import router as diagnostic_router
 from report_verify_api import router as report_verify_router
 from report_org_settings_api import router as report_org_settings_router
+from report_assistant_api import router as report_assistant_router
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -169,6 +170,7 @@ app.include_router(vessel_scheme_router)
 app.include_router(standalone_protocols_router)
 app.include_router(diagnostic_router)
 app.include_router(report_verify_router)
+app.include_router(report_assistant_router)
 
 
 # ─── Startup: DB migrations ──────────────────────────────────────────────────

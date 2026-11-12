@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y \
 
 # Копирование requirements и установка зависимостей
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.lock .
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Копирование кода приложения
 COPY backend/ /app/

@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       token: response['access_token'] as String?,
     );
 
-    await _authService.saveUser(user, passwordHash: response['password_hash'] as String?);
+    await _authService.saveUser(user);
     await _authService.saveCredentials(
       _usernameController.text.trim(),
       _passwordController.text,

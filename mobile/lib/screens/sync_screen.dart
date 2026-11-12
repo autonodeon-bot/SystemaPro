@@ -209,7 +209,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               ? 'Отправлено 1 обследование.'
               : 'Отправлено обследований: ${result.syncedCount}.';
         } else if (result.syncedCount > 0 && result.failedCount > 0) {
-          msg = 'Отправлено: ${result.syncedCount}. Не удалось отправить: ${result.failedCount}. Проверьте интернет и нажмите «Синхронизировать» ещё раз.';
+          msg = 'Отправлено: ${result.syncedCount}. Не удалось отправить: ${result.failedCount}. '
+              'Откройте список обследований в очереди: причина указана под соответствующим обследованием.';
         } else if (result.failedCount > 0) {
           final reason = result.lastFailureReason ?? result.error;
           final reasonText = reason != null && reason.isNotEmpty
@@ -330,6 +331,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           if (_pendingItems.isNotEmpty) ...[
             const SizedBox(height: 12),
             ExpansionTile(
+              key: ValueKey(_pendingItems.any((item) => (item['sync_error']?.toString() ?? '').isNotEmpty)),
+              initiallyExpanded: _pendingItems.any((item) => (item['sync_error']?.toString() ?? '').isNotEmpty),
               title: Text('Обследования в очереди: ${_pendingItems.length}'),
               children: _pendingItems.map((item) {
                 final data = item['data'] is Map ? item['data'] as Map : const {};

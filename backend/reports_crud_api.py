@@ -305,6 +305,8 @@ async def get_reports(
                 "workshop_id": workshop_id,
                 "workshop_name": workshop_name,
                 "report_type": r.report_type,
+                "report_number": r.report_number,
+                "is_signed": bool(r.is_signed),
                 "title": f"{r.report_type} Report" if r.report_type else "Report",
                 "file_path": r.file_path,
                 "file_size": r.file_size,
@@ -446,18 +448,27 @@ async def generate_report(
             source_report = None
             report_type_req = report_type
             if report_type_req == "EXPERTISE":
-                to_check = await db.execute(
-                    select(Report).where(
-                        Report.inspection_id == inspection_id,
-                        Report.report_type == "TECHNICAL_REPORT",
-                    ).order_by(Report.created_at.desc()).limit(1)
+                query = select(Report).where(
+                    Report.inspection_id == inspection_id,
+                    Report.report_type == "TECHNICAL_REPORT",
+                    Report.is_archived.is_not(True),
                 )
-                source_report = to_check.scalar_one_or_none()
-                if not source_report:
+                source_id = report_data.get('source_report_id')
+                if source_id:
+                    try:
+                        query = query.where(Report.id == uuid_lib.UUID(str(source_id)))
+                    except ValueError as exc:
+                        raise HTTPException(400, 'Неверный идентификатор исходного ТО') from exc
+                candidates = (await db.execute(query.order_by(Report.created_at.desc()).limit(2))).scalars().all()
+                if not candidates:
                     raise HTTPException(
                         status_code=400,
-                        detail="Сначала необходимо сгенерировать технический отчёт по этому обследованию",
+                        detail="Выбранный ТО не найден среди активных отчётов этого обследования" if source_id else
+                               "Сначала необходимо сгенерировать технический отчёт по этому обследованию",
                     )
+                if len(candidates) > 1:
+                    raise HTTPException(409, 'Выберите исходный ТО для ЭПБ')
+                source_report = candidates[0]
             
             # Get equipment data
             eq_result = await db.execute(
@@ -479,46 +490,9 @@ async def generate_report(
                     equipment_type_code = equipment_type.code
                     equipment_type_name = equipment_type.name
 
-            # Данные ОПО для отчета (если оборудование привязано к ОПО)
-            opo_info = None
-            try:
-                opo = None
-                if getattr(equipment, "opo_id", None):
-                    opo_result = await db.execute(select(Opo).where(Opo.id == equipment.opo_id))
-                    opo = opo_result.scalar_one_or_none()
-                if opo:
-                    workshop = None
-                    branch = None
-                    enterprise = None
-                    if getattr(opo, "workshop_id", None):
-                        w_result = await db.execute(select(Workshop).where(Workshop.id == opo.workshop_id))
-                        workshop = w_result.scalar_one_or_none()
-                    if workshop and getattr(workshop, "branch_id", None):
-                        b_result = await db.execute(select(Branch).where(Branch.id == workshop.branch_id))
-                        branch = b_result.scalar_one_or_none()
-                    if branch and getattr(branch, "enterprise_id", None):
-                        e_result = await db.execute(select(Enterprise).where(Enterprise.id == branch.enterprise_id))
-                        enterprise = e_result.scalar_one_or_none()
+            from report_object_context import resolve_report_object
+            report_object = await resolve_report_object(db, equipment, inspection.data, inspection.assignment_id)
 
-                    opo_info = {
-                        "id": str(opo.id),
-                        "name": opo.name,
-                        "code": opo.code,
-                        "description": opo.description,
-                        "hazard_class": getattr(opo, "hazard_class", None),
-                        "registration_number": getattr(opo, "registration_number", None),
-                        "survey_data": opo.survey_data or {},
-                        "workshop_id": str(opo.workshop_id) if opo.workshop_id else None,
-                        "workshop_name": workshop.name if workshop else None,
-                        "branch_id": str(branch.id) if branch else None,
-                        "branch_name": branch.name if branch else None,
-                        "enterprise_id": str(enterprise.id) if enterprise else None,
-                        "enterprise_name": enterprise.name if enterprise else None,
-                    }
-            except Exception as e:
-                print(f"Warning: Could not load OPO info: {e}")
-                opo_info = None
-            
             # Get resource data if expertise
             resource_data = None
             if report_data.get("report_type") == "EXPERTISE":
@@ -995,7 +969,7 @@ async def generate_report(
                     else questionnaire_scope
                 ),
                 "date_performed": inspection.date_performed.isoformat() if inspection.date_performed else None,
-                "data": inspection.data,
+                "data": report_object["data"],
                 "conclusion": inspection.conclusion,
                 "status": inspection.status,
             }
@@ -1167,57 +1141,6 @@ async def generate_report(
                     inspection_payload["data"] = dp
             except Exception:
                 pass
-            try:
-                data_payload = inspection_payload.get("data")
-                if isinstance(data_payload, dict) and opo_info:
-                    data_payload = dict(data_payload)
-                    survey = opo_info.get("survey_data") if isinstance(opo_info.get("survey_data"), dict) else {}
-                    if isinstance(survey, dict):
-                        docs_current = data_payload.get("documents") or {}
-                        if isinstance(docs_current, dict) and isinstance(survey.get("documents"), dict):
-                            merged_docs = dict(docs_current)
-                            for k, v in survey.get("documents").items():
-                                try:
-                                    n = int(str(k))
-                                except Exception:
-                                    continue
-                                if 1 <= n <= 9 and not merged_docs.get(str(k)):
-                                    merged_docs[str(k)] = v
-                            data_payload["documents"] = merged_docs
-                        if not data_payload.get("organization") and survey.get("organization"):
-                            data_payload["organization"] = survey.get("organization")
-                        if not data_payload.get("executors") and survey.get("executors"):
-                            data_payload["executors"] = survey.get("executors")
-                        data_payload.setdefault("opo_survey", survey)
-
-                    data_payload.setdefault("opo", opo_info)
-                    if opo_info.get("id"):
-                        data_payload.setdefault("opo_id", opo_info["id"])
-                    # ОПО-поля: всегда подтягиваем из карточки ОПО, если в обследовании пусто
-                    def _blank(v):
-                        return v in (None, "", "—", "-", "–")
-
-                    if opo_info.get("name") and _blank(data_payload.get("opo_name")):
-                        data_payload["opo_name"] = opo_info["name"]
-                    if opo_info.get("code") and _blank(data_payload.get("opo_code")):
-                        data_payload["opo_code"] = opo_info["code"]
-                    if opo_info.get("hazard_class") and _blank(data_payload.get("opo_hazard_class")):
-                        data_payload["opo_hazard_class"] = opo_info["hazard_class"]
-                    if opo_info.get("registration_number") and _blank(data_payload.get("opo_reg_number")):
-                        data_payload["opo_reg_number"] = opo_info["registration_number"]
-                    if opo_info.get("description") and _blank(data_payload.get("opo_description")):
-                        data_payload["opo_description"] = opo_info["description"]
-                    if opo_info.get("enterprise_name") and _blank(data_payload.get("opo_enterprise")):
-                        data_payload["opo_enterprise"] = opo_info["enterprise_name"]
-                    if opo_info.get("branch_name") and _blank(data_payload.get("opo_branch")):
-                        data_payload["opo_branch"] = opo_info["branch_name"]
-                    if opo_info.get("workshop_name") and _blank(data_payload.get("opo_workshop")):
-                        data_payload["opo_workshop"] = opo_info["workshop_name"]
-
-                    inspection_payload["data"] = data_payload
-            except Exception as e:
-                print(f"Warning: Could not merge OPO data into report payload: {e}")
-
             _report_gen_t0 = time.time()
             client_data, enterprise_name = await _resolve_client_context(db, equipment)
             org_settings = merge_client_into_settings(
@@ -1225,13 +1148,7 @@ async def generate_report(
                 client=client_data,
                 enterprise_name=enterprise_name,
             )
-            equipment_payload = {
-                "id": str(equipment.id), "name": equipment.name,
-                "serial_number": equipment.serial_number, "location": equipment.location,
-                "commissioning_date": str(equipment.commissioning_date) if equipment.commissioning_date else None,
-                "attributes": equipment.attributes or {}, "type_code": equipment_type_code,
-                "type_name": equipment_type_name,
-            }
+            equipment_payload = dict(report_object['equipment'], type_code=equipment_type_code, type_name=equipment_type_name)
             if source_report is not None:
                 from report_snapshot import load_technical_report_snapshot
                 try:

@@ -19,6 +19,37 @@ import '../widgets/vessel_elements_editor.dart';
 import 'vessel_scheme_constructor_screen.dart'
     show VesselSchemeConstructorResult;
 
+String _conflictSectionName(String key) => const {
+      'parts': 'Детали сосуда', 'elements': 'Элементы', 'welds': 'Швы',
+      'control_points': 'Точки контроля', 'control_zones': 'Участки контроля',
+      'sections': 'Сечения', 'orientation': 'Ориентация',
+      'views': 'Виды чертежа', 'print_settings': 'Настройки печати',
+    }[key] ?? 'Параметры схемы ($key)';
+
+String _conflictDescription(dynamic value, dynamic other) {
+  if (value == null) return 'Удалено в этой версии';
+  if (value is! Map) return value is List ? 'Записей: ${value.length}' : '$value';
+  const labels = {
+    'designation': 'Обозначение', 'length_mm': 'Длина, мм',
+    'diameter_mm': 'Диаметр, мм', 'thickness_mm': 'Толщина, мм',
+    'z_local_mm': 'От начала детали, мм', 'radius_projection_mm': 'Радиус проекции, мм',
+    'theta_deg': 'Угол, °', 'mode': 'Режим координат', 'nominal_dn_mm': 'ДУ',
+    'dimensions': 'Размеры', 'placement': 'Размещение', 'archived': 'В архиве',
+    'kind': 'Тип', 'physical': 'точный', 'schematic': 'условный',
+  };
+  final comparison = other is Map ? other : const {};
+  final lines = <String>[if (value['designation'] != null) '${value['designation']}'];
+  for (final key in {...value.keys, ...comparison.keys}) {
+    if (key == 'id' || key == 'designation' || VesselMerge.same(value[key], comparison[key])) continue;
+    final current = value[key];
+    final rendered = current is Map
+        ? current.entries.map((entry) => '${labels[entry.key] ?? entry.key}: ${labels[entry.value] ?? entry.value}').join(', ')
+        : current is List ? current.join(', ') : labels[current] ?? current ?? 'не задано';
+    lines.add('${labels[key] ?? key}: $rendered');
+  }
+  return lines.isEmpty ? 'Параметры совпадают' : lines.join('\n');
+}
+
 class VesselConstructorV2Screen extends StatefulWidget {
   final Map<String, dynamic>? initialGeometry;
   final String orientation, equipmentKind, draftKey;
@@ -108,12 +139,12 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                 builder: (c) => AlertDialog(
                   title: const Text('Изменения одной и той же детали'),
                   content: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Раздел: ${conflict.key}'),
+                    Text(_conflictSectionName(conflict.key)),
                     const Text('Мой черновик', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(const JsonEncoder.withIndent('  ').convert(conflict.local)),
+                    Text(_conflictDescription(conflict.local, conflict.remote)),
                     const Divider(),
                     const Text('Применённая версия', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(const JsonEncoder.withIndent('  ').convert(conflict.remote)),
+                    Text(_conflictDescription(conflict.remote, conflict.local)),
                   ])),
                   actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Применённая')),
                     FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Мой черновик'))]));
@@ -459,6 +490,10 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
 
   Future<void> addElement() async {
     var parent = g.entity(store.selection);
+    if (parent != null && !g.parts.contains(parent)) {
+      final owner = g.entity(parent['parent_id'] ?? parent['owner_id']);
+      parent = owner != null && g.parts.contains(owner) ? owner : g.entity(owner?['parent_id']);
+    }
     if (parent == null || !g.parts.contains(parent)) {
       parent = g.entity(detail) ?? g.shells.first;
     }
@@ -491,9 +526,13 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                                   ]))
                       ]))
                 ]))));
-    if (kind != null) {
+    if (kind != null && mounted) {
       edit((m) {
         store.selection = vesselLibrary.containsKey(kind) ? m.applyLibrary(kind, (kind.startsWith('zone_')||kind=='profile'||kind=='ring') && m.welds.any((w)=>w['id']==store.selection) ? store.selection! : id) : m.addElement(id, kind)['id'];
+        final added = m.entity(store.selection);
+        move = added?['placement'] != null;
+        moveLabel = false;
+        if (move && detail != null && added?['parent_id'] != detail) detail = null;
       });
     }
   }
@@ -1022,7 +1061,10 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                 })),
       ]);
   void select(String id) {
-    setState(() => store.selection = id);
+    setState(() {
+      store.selection = id;
+      move = moveLabel = false;
+    });
     store.changed();
   }
 
@@ -1035,29 +1077,14 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
       return;
     }
     if (move && e != null) {
-      final owner = g.entity(e['parent_id'] ?? e['owner_id']);
-      final r = layout.parts[owner?['id']];
-      if (r == null || !r.contains(at)) {
-        message('Выберите место внутри части-владельца');
+      final placement = layout.placementAt(e, at);
+      if (placement == null) {
+        message('Выберите место внутри контура детали. Для точного режима проверьте её размеры.');
         return;
       }
-      var u = (at.dx - r.left) / r.width, v = (at.dy - r.top) / r.height;
-      if (owner?['kind'] == 'shell' && g.data['orientation'] != 'horizontal') {
-        final t = u;
-        u = v;
-        v = t;
-      }
-      if (owner?['kind'] != 'shell' && (Offset(u - .5, v - .5).distance > .5)) {
-        message('Выберите место внутри контура');
-        return;
-      }
-      if (exteriorB && owner?['side'] == 'B') u = 1 - u;
       if (!await allowPhysicalMove(e)) return;
-      edit((m) => m.entity(e['id'])!['placement'] = {
-            'mode': 'schematic',
-            'u': u,
-            'v': v
-          });
+      if (!mounted) return;
+      edit((m) => m.entity(e['id'])!['placement'] = placement);
       setState(() => move = false);
       return;
     }
@@ -1110,7 +1137,9 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
       final details=(g.data['print_settings']?['detail_ids'] as List? ?? []).where((id)=>g.parts.any((p)=>p['id']==id));
       for(final id in [null,...details]) {
         doc.addPage(pw.Page(pageFormat:format,margin:const pw.EdgeInsets.all(12),
-          build:(_)=>pw.Center(child:pw.SvgImage(svg:exportVesselSvg(g,detail:id),customFontLookup:(_,__,___)=>font))));
+          build:(_)=>pw.Center(child:pw.SvgImage(svg:exportVesselSvg(g,detail:id),
+            width: format.width - 24, height: format.height - 24,
+            fit: pw.BoxFit.contain, customFontLookup:(_,__,___)=>font))));
       }
       await Printing.layoutPdf(onLayout: (_) async => doc.save());
     } catch (e) {
@@ -1278,6 +1307,21 @@ class _VesselConstructorV2ScreenState extends State<VesselConstructorV2Screen>
                   ]),
                 if (store.step == 4)
                   Wrap(children:[DropdownButton<String>(value:g.data['print_settings']?['paper'] ?? 'auto',items:const [DropdownMenuItem(value:'auto',child:Text('Лист: автоматически')),DropdownMenuItem(value:'A4',child:Text('А4')),DropdownMenuItem(value:'A3',child:Text('А3'))],onChanged:(v)=>edit((m)=>(m.data.putIfAbsent('print_settings',()=> <String,dynamic>{}) as Map)['paper']=v)),Text('${vesselPaper(g)} · ${g.data['orientation']=='horizontal'?'альбомный':'книжный'} · общая схема')]),
+                if (store.step == 4)
+                  SwitchListTile(title: const Text('Размерные выноски'),
+                    subtitle: const Text('Координаты — на детальных видах'),
+                    value: g.data['print_settings']?['show_dimensions'] != false,
+                    onChanged: (v) => edit((m) => (m.data.putIfAbsent('print_settings', () => <String,dynamic>{}) as Map)['show_dimensions'] = v)),
+                if (store.step == 4)
+                  SizedBox(height: 110, child: ListView(children: g.parts.map((part) => CheckboxListTile(
+                    title: Text('Лист: ${part['designation']}'),
+                    value: (g.data['print_settings']?['detail_ids'] as List? ?? []).contains(part['id']),
+                    onChanged: (v) => edit((m) {
+                      final settings=m.data.putIfAbsent('print_settings', () => <String,dynamic>{}) as Map;
+                      final ids=List<String>.from(settings['detail_ids'] as List? ?? []);
+                      ids.remove(part['id']); if(v==true)ids.add(part['id']); settings['detail_ids']=ids;
+                    }),
+                  )).toList())),
                 if (store.step == 4)
                   SizedBox(
                       height: 110,

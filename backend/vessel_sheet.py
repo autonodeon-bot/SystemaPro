@@ -1,4 +1,77 @@
 """Presentation policy for a single vessel drawing; never changes physical data."""
+
+
+def configure_drawing_section(section, spec):
+    from docx.enum.section import WD_ORIENT
+    from docx.shared import Mm
+
+    section.orientation = WD_ORIENT.LANDSCAPE if spec['width_mm'] > spec['height_mm'] else WD_ORIENT.PORTRAIT
+    section.page_width = Mm(spec['width_mm'])
+    section.page_height = Mm(spec['height_mm'])
+    section.top_margin = section.bottom_margin = section.left_margin = section.right_margin = Mm(10)
+    section.header_distance = section.footer_distance = Mm(3)
+
+
+def add_fitted_scheme(doc, image, *, reserve_mm=25):
+    from docx.shared import Emu, Mm, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from PIL import Image
+
+    with Image.open(image) as source:
+        width, height = source.size
+    if hasattr(image, 'seek'):
+        image.seek(0)
+    section = doc.sections[-1]
+    usable_width = section.page_width - section.left_margin - section.right_margin - Mm(2)
+    usable_height = section.page_height - section.top_margin - section.bottom_margin - Mm(reserve_mm)
+    scale = min(usable_width / width, usable_height / height)
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = paragraph.paragraph_format.space_after = Pt(0)
+    return paragraph.add_run().add_picture(image, width=Emu(int(width * scale)), height=Emu(int(height * scale)))
+
+
+def drawing_details(geometry):
+    valid = {part['id'] for part in geometry['parts']}
+    return list(dict.fromkeys(detail for detail in (geometry.get('print_settings') or {}).get('detail_ids', []) if detail in valid))
+
+
+def drawing_pages(geometry, spec):
+    """Use continuation sheets instead of reducing text on dense A4 drawings."""
+    from vessel_annotations import coordinate_callout
+
+    settings = geometry.get('print_settings') or {}
+    compact = spec['paper'] == 'A4' and spec['dense'] and settings.get('show_dimensions') is not False
+    parts = {part['id']: part for part in geometry['parts']}
+    details = drawing_details(geometry) or (list(parts) if compact else [])
+    yield 'Общая схема сосуда', {'print_overview': details if compact else ()}
+    if compact:
+        from copy import deepcopy
+        geometry = orient_head_names(deepcopy(geometry))
+    parts = {part['id']: part for part in geometry['parts']}
+    for detail in details:
+        if not compact:
+            yield 'Детальный вид сосуда', {'detail': detail}
+            continue
+        owners = {detail: parts[detail]}
+        owners.update((e['id'], e) for e in geometry['elements'] if e['parent_id'] == detail and not e.get('archived'))
+        rows = []
+        for entity in geometry['elements'] + geometry['control_points']:
+            owner = owners.get(entity.get('parent_id', entity.get('owner_id')))
+            if not owner or entity.get('archived'):
+                continue
+            lines = coordinate_callout(geometry, entity, owner, detail)
+            if not lines:
+                continue
+            name = entity.get('designation') or f"{owner['designation']} / точка {entity.get('body_number', entity.get('local_number'))}"
+            rows.append((entity['id'], str(len(rows) + 1), name, lines))
+        chunks = [rows[n:n + 9] for n in range(0, len(rows), 9)] or [[]]
+        for index, chunk in enumerate(chunks, 1):
+            yield f'Детальный вид сосуда. {parts[detail]["designation"]} ({index}/{len(chunks)})', {
+                'detail': detail, 'print_rows': chunk,
+            }
+
+
 def sheet_spec(g):
     settings = g.get('print_settings') or {}
     dense = (sum(p['kind']=='shell' for p in g['parts']) > 5 or
@@ -7,7 +80,7 @@ def sheet_spec(g):
     if paper not in ('A4', 'A3'): paper = 'A3' if dense else 'A4'
     landscape = g.get('orientation') == 'horizontal'
     short, long = (297,420) if paper=='A3' else (210,297)
-    return dict(paper=paper, width_mm=long if landscape else short,
+    return dict(paper=paper, dense=dense, width_mm=long if landscape else short,
                 height_mm=short if landscape else long,
                 width=1190 if landscape else 842, height=842 if landscape else 1190)
 

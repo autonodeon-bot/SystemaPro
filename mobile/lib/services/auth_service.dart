@@ -4,8 +4,19 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart' as cryptography;
 import '../models/user.dart';
 import 'biometric_service.dart';
+
+// Run the deliberately slow KDF outside the UI isolate.
+Future<List<int>> _deriveOfflineKey((String, List<int>) input) async {
+  final key = await cryptography.Pbkdf2(
+    macAlgorithm: cryptography.Hmac.sha256(),
+    iterations: 600000,
+    bits: 256,
+  ).deriveKey(secretKey: cryptography.SecretKey(utf8.encode(input.$1)), nonce: input.$2);
+  return key.extractBytes();
+}
 
 class AuthService {
   static const String _prefsKeyUser = 'current_user';
@@ -19,6 +30,7 @@ class AuthService {
   static const String _prefsKeyPinSalt = 'pin_salt';
   static const String _prefsKeyOfflineSession = 'offline_session_active';
   static const String _secureKeyPassword = 'stored_password';
+  static const String _secureOfflineVerifier = 'offline_verifier_v1';
 
   final _secureStorage = const FlutterSecureStorage();
   final _biometricService = BiometricService();
@@ -41,20 +53,18 @@ class AuthService {
   }
 
   // Сохранить пользователя
-  Future<void> saveUser(User user, {String? passwordHash}) async {
+  Future<void> saveUser(User user) async {
     await deactivateOfflineSession();
     final prefs = await SharedPreferences.getInstance();
+    await _clearLegacyPasswordHashes();
+    // Never carry an offline verifier across online accounts or password changes.
+    await _secureStorage.delete(key: _secureOfflineVerifier);
     await prefs.setString(_prefsKeyUser, json.encode(user.toJson()));
     if (user.token != null) {
       // Сохраняем токен в безопасном хранилище
       await _secureStorage.write(key: _prefsKeyToken, value: user.token!);
     }
-    // Сохраняем хеш пароля для офлайн-авторизации
-    if (passwordHash != null) {
-      // Сохраняем хеш пароля в безопасном хранилище
-      await _secureStorage.write(key: _prefsKeyPasswordHash, value: passwordHash);
-      await prefs.setString(_prefsKeyUsername, user.username);
-    }
+    await prefs.setString(_prefsKeyUsername, user.username);
     
     // Сохраняем ID устройства для привязки пользователя к устройству
     final deviceId = await _biometricService.getDeviceId();
@@ -65,7 +75,7 @@ class AuthService {
   }
 
   /// Сохранить логин и пароль для автоматического входа при синхронизации (офлайн→онлайн).
-  /// Также сохраняет SHA-256 хеш пароля для офлайн-верификации.
+  /// Офлайн-проверка: PBKDF2 с солью, только в защищённом хранилище.
   Future<void> saveCredentials(String username, String password) async {
     if (username.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
@@ -100,15 +110,11 @@ class AuthService {
     await prefs.setString(_prefsKeyDeviceId, deviceId);
   }
 
-  // Получить сохраненный хеш пароля
-  Future<String?> getPasswordHash() async {
-    try {
-      return await _secureStorage.read(key: _prefsKeyPasswordHash);
-    } catch (e) {
-      // Fallback на SharedPreferences для обратной совместимости
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_prefsKeyPasswordHash);
-    }
+  Future<void> _clearLegacyPasswordHashes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('offline_password_hash');
+    await prefs.remove(_prefsKeyPasswordHash);
+    await _secureStorage.delete(key: _prefsKeyPasswordHash);
   }
 
   List<int> _makeSalt([int length = 16]) {
@@ -200,22 +206,37 @@ class AuthService {
   }
   
   Future<void> _saveOfflinePasswordHash(String password) async {
+    await _clearLegacyPasswordHashes();
     final prefs = await SharedPreferences.getInstance();
-    final bytes = utf8.encode(password);
-    final digest = sha256.convert(bytes);
-    await prefs.setString('offline_password_hash', digest.toString());
+    final salt = _makeSalt();
+    final key = await compute(_deriveOfflineKey, (password, salt));
+    await _secureStorage.write(key: _secureOfflineVerifier, value: json.encode({
+      'version': 1,
+      'username': prefs.getString(_prefsKeyUsername),
+      'salt': base64.encode(salt),
+      'hash': base64.encode(key),
+    }));
   }
 
   // Проверить пароль локально (для офлайн-авторизации)
   Future<bool> verifyPasswordOffline(String password) async {
     try {
+      await _clearLegacyPasswordHashes();
       final prefs = await SharedPreferences.getInstance();
-      final savedHash = prefs.getString('offline_password_hash');
-      if (savedHash == null) return false;
-
-      final bytes = utf8.encode(password);
-      final digest = sha256.convert(bytes);
-      return digest.toString() == savedHash;
+      final raw = await _secureStorage.read(key: _secureOfflineVerifier);
+      // Never promote an untrusted legacy SHA-256 verifier. Sign in online once.
+      if (raw == null) return false;
+      final data = json.decode(raw) as Map<String, dynamic>;
+      if (data['version'] != 1 || data['username'] != prefs.getString(_prefsKeyUsername)) return false;
+      final salt = base64.decode(data['salt'] as String);
+      final expected = base64.decode(data['hash'] as String);
+      if (salt.length != 16 || expected.length != 32) return false;
+      final actual = await compute(_deriveOfflineKey, (password, salt));
+      var difference = 0;
+      for (var i = 0; i < expected.length; i++) {
+        difference |= expected[i] ^ actual[i];
+      }
+      return difference == 0;
     } catch (e) {
       debugPrint('Error verifying offline password: $e');
       return false;
@@ -224,6 +245,7 @@ class AuthService {
 
   // Получить текущего пользователя
   Future<User?> getCurrentUser() async {
+    await _clearLegacyPasswordHashes();
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(_prefsKeyUser);
     if (userJson != null) {
@@ -251,6 +273,8 @@ class AuthService {
   // Выход (токен и пароль удаляются; пользователь и логин сохраняются для кнопок «Войти офлайн» / PIN)
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    await _clearLegacyPasswordHashes();
+    await _secureStorage.delete(key: _secureOfflineVerifier);
     // Не удаляем _prefsKeyUser и _prefsKeyUsername — чтобы после выхода оставались кнопки «Войти офлайн», «Войти по PIN»
     // await prefs.remove(_prefsKeyUser);
     // await prefs.remove(_prefsKeyUsername);

@@ -3,7 +3,8 @@
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from datetime import datetime, timedelta
 from typing import Optional
 import os

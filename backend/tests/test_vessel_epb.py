@@ -169,3 +169,56 @@ def test_epb_scheme_falls_back_to_constructor(tmp_path, image):
     out = tmp_path / 'schemes.docx'
     doc.save(out)
     assert len(Document(out).inline_shapes) == 4
+
+
+def test_epb_uses_snapshot_sheets_and_fits_portrait_image():
+    import io
+    import json
+    from pathlib import Path
+    from types import SimpleNamespace
+    from docx.shared import Mm
+    from PIL import Image
+    from vessel_epb_appendices import append_inspection_schemes
+    from vessel_sheet import add_fitted_scheme
+
+    geometry = json.loads((Path(__file__).parents[2] / 'public/examples/visio-vessel.json').read_text(encoding='utf-8'))
+    geometry['orientation'] = 'vertical'
+    geometry['print_settings'] = {'paper': 'A4', 'detail_ids': [geometry['parts'][0]['id']]}
+    data = {'base_vessel_scheme': {'geometry': geometry}, 'control_scheme_image': 'old-preview.png'}
+    doc = Document()
+    def reject_old_preview(*args, **kwargs):
+        pytest.fail('v2 must render the snapshot, not an uploaded preview')
+    append_inspection_schemes(doc, SimpleNamespace(g=getter(data), inspection_data={'data': data}), reject_old_preview)
+    assert len(doc.inline_shapes) == 5  # Overview and four A4 continuation sheets for this head.
+    assert all(section.page_width.mm == pytest.approx(210, abs=.02)
+               and section.page_height.mm == pytest.approx(297, abs=.02) for section in doc.sections)
+    stream = io.BytesIO()
+    Image.new('RGB', (100, 2000)).save(stream, 'PNG', dpi=(72, 144))
+    stream.seek(0)
+    image = add_fitted_scheme(doc, stream)
+    assert image.height.mm <= 252.02  # Section dimensions are rounded to twips by Word.
+    assert image.width / image.height == pytest.approx(0.05, rel=1e-4)
+
+
+def test_sparse_to_does_not_turn_planned_points_into_positive_findings(tmp_path):
+    import re
+    from docx.oxml.ns import qn
+    from word_generator import WordGenerator
+
+    report = tmp_path / 'sparse.docx'
+    data = {'report_form_id': 'to-1', 'vessel_name': 'Контрольный сосуд',
+            'technical_state': 'Работоспособное', 'vik_conclusion_text': 'Дефектов не обнаружено',
+            'thickness_measurements': [{'scheme_point_id': 'a', 'result_status': 'planned'}],
+            'weld_inspections': [{'control_method': 'UZK', 'result_status': 'planned'}]}
+    WordGenerator().generate_report_word({'id': 'qa', 'data': data},
+                                         {'name': 'Контрольный сосуд', 'type_code': 'VESSEL'},
+                                         [], str(report), 'TECHNICAL_REPORT')
+    doc = Document(report)
+    text = '\n'.join(node.text or '' for node in doc.element.iter(qn('w:t')))
+    assert 'Результаты контроля не внесены' in text
+    assert 'Результаты расчёта на прочность не внесены' in text
+    assert not re.search(r'дефектов не обнаружено|работоспособное|расч[её]т на прочность выполнен|\bгоден\b', text, re.I)
+    control = next(doc.element.body.iter(qn('w:sdt')))
+    numbers = [int(m.group(1)) for p in control.iter(qn('w:p'))
+               if (m := re.fullmatch(r'Таблица\s*№\s*(\d+)', ''.join(x.text or '' for x in p.iter(qn('w:t'))).strip()))]
+    assert numbers and numbers == list(range(1, len(numbers) + 1))

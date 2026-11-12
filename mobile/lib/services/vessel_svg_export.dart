@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:math' as math;
 import '../models/vessel_geometry.dart';
+import '../models/vessel_annotations.dart';
 import '../widgets/vessel_drawing.dart';
 
 /// Editable vector companion to the PNG snapshots used by existing reports.
@@ -17,8 +18,14 @@ String exportVesselSvg(VesselGeometry model,
   final out = StringBuffer(
       '<svg xmlns="http://www.w3.org/2000/svg" width="${size.width/4}mm" height="${size.height/4}mm" viewBox="0 0 ${size.width} ${size.height}"><rect width="${size.width}" height="${size.height}" fill="white"/><g stroke="black" fill="none" stroke-width="1.5">');
   final labels = StringBuffer();
-  void text(String value, double x, double y, {double font = 12}) => labels
-      .write('<text x="$x" y="$y" font-size="$font">${escape(value)}</text>');
+  void text(String value, double x, double y, {double font = 12}) {
+    final width = value.runes.length * font * .68;
+    if (width > size.width - 20) font *= (size.width - 20) / width;
+    final fittedWidth = value.runes.length * font * .68;
+    x = x.clamp(8, math.max(8, size.width - fittedWidth - 10));
+    y = y.clamp(font + 4, size.height - 8);
+    labels.write('<text x="$x" y="$y" font-size="$font">${escape(value)}</text>');
+  }
   void line(Offset a, Offset b, {String extra = ''}) => out.write(
       '<line x1="${a.dx}" y1="${a.dy}" x2="${b.dx}" y2="${b.dy}" $extra/>');
   text(
@@ -171,6 +178,7 @@ String exportVesselSvg(VesselGeometry model,
     if (point && !['shell','head','cover'].contains(model.entity(e['owner_id'])?['kind']) && override.isEmpty) {
       label = p + (<int, Offset>{1: const Offset(-12,-5),2: const Offset(5,-5),3: const Offset(-3,-16),4: const Offset(-3,6)}[e['local_number']] ?? const Offset(5,-12));
     }
+    label=Offset(label.dx.clamp(5,size.width-55),label.dy.clamp(85,size.height-115));
     if (!point || override.isNotEmpty) line(p, label, extra: 'stroke-width="0.5"');
     text(point ? '${e['body_number'] ?? e['local_number']}' : e['designation'],
         label.dx, label.dy);
@@ -184,9 +192,15 @@ String exportVesselSvg(VesselGeometry model,
       for(var i=0;i<5;i++) {final yy=mid+[-45,-17,0,17,45][i]*scale;line(Offset(cx-3,yy-3),Offset(cx+3,yy+3));line(Offset(cx-3,yy+3),Offset(cx+3,yy-3));text('${i+1}',cx+5,yy,font:9);text(['Осн. металл','ЗТВ','Шов','ЗТВ','Осн. металл'][i],x+width*.53,yy,font:8);}
       break;
     }
-    text('× Точка УЗТ · К кольцевой шов · П продольный шов',20,size.height-85);
-    text('/ УЗК · × ПВК/МК · I–III овальность · А–А твердометрия',20,size.height-63);
   }
+  final annotations=vesselDimensionLabels(layout,layer);
+  for(var n=0;n<annotations.length;n++) {
+    final at=Offset(size.width*.64,106+n*math.min(24,(size.height-220)/annotations.length));
+    line(annotations[n].key,at+const Offset(-8,5),extra:'stroke="gray"');
+    text(annotations[n].value,at.dx,at.dy,font:9);
+  }
+  final legend=vesselLegendLines(vesselLegend(model,{...layout.parts.keys,...layout.marks.keys},layer:layer,detail:detail),size.width);
+  for(var n=0;n<legend.length;n++) {text(legend[n],20,size.height-98+n*16,font:11);}
   text(
       'План контроля. Результаты измерений не назначены. Размеры сверить с источником.',
       20,

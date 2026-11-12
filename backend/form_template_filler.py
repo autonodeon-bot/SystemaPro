@@ -202,7 +202,7 @@ def _doc_is_incomplete(text: str) -> bool:
 def _doc_analysis_result_cell(ctx: Dict[str, Any]) -> str:
     raw = _strip_parens(str(ctx.get("conclusion_doc") or ""))
     if not raw:
-        return "Соответствует требованиям"
+        return "Вывод по документации не внесён"
     if _doc_is_incomplete(raw):
         return raw[0].upper() + raw[1:] if raw else raw
     if "полном" in raw.lower():
@@ -210,43 +210,8 @@ def _doc_analysis_result_cell(ctx: Dict[str, Any]) -> str:
     return raw[0].upper() + raw[1:] if raw else raw
 
 
-def _doc_verdict_word(ctx: Dict[str, Any]) -> str:
-    raw = str(ctx.get("conclusion_doc") or "")
-    if _doc_is_incomplete(raw):
-        if "отсутств" in raw.lower() or "не предостав" in raw.lower():
-            return "не соответствует"
-        return "соответствует частично"
-    return "соответствует"
 
 
-def _ndt_items_have_defects(items: Any) -> bool:
-    if not isinstance(items, list):
-        return False
-    for it in items:
-        if not isinstance(it, dict):
-            continue
-        blob = " ".join(
-            str(it.get(k) or "")
-            for k in (
-                "conclusion",
-                "assessment",
-                "quality",
-                "defects",
-                "description",
-                "defect_description",
-                "uzk_defect",
-                "pvk_defect",
-                "indication",
-            )
-        ).lower()
-        if not blob.strip():
-            continue
-        if any(k in blob for k in ("ремонт", "негоден", "не годен", "недопустим", "брак")):
-            if "не обнаружен" not in blob:
-                return True
-        if "дефект" in blob and "не обнаружен" not in blob and "дефектов не" not in blob:
-            return True
-    return False
 
 
 def _ndt_result_summary(
@@ -254,26 +219,55 @@ def _ndt_result_summary(
     *,
     data_keys: Sequence[str],
     custom_key: str,
-    ok_text: str,
-    defect_text: str,
 ) -> str:
     g = ctx["g"]
     custom = str(g(custom_key, default="") or "").strip()
-    items = None
-    for k in data_keys:
-        items = g(k, default=None)
-        if isinstance(items, list) and items:
-            break
-    has_defects = _ndt_items_have_defects(items)
-    if has_defects:
-        if custom and any(
-            k in custom.lower() for k in ("дефект", "ремонт", "негоден", "не годен", "брак")
-        ):
-            return custom
-        return defect_text
-    if custom:
-        return custom
-    return ok_text
+    from vessel_control_plan import method_rows
+
+    method = 'UZK' if custom_key.startswith('uzk_') else 'MPK' if custom_key.startswith('mpk_') else 'VIK'
+    for key in data_keys:
+        rows = g(key, default=None)
+        if not isinstance(rows, list):
+            continue
+        if key == 'weld_inspections':
+            rows = method_rows(rows, method)
+        for row in rows:
+            if not isinstance(row, dict) or row.get('archived') or row.get('result_status') in ('planned', 'skipped', 'unavailable'):
+                continue
+            if any(str(row.get(field) or '').strip(' —-') for field in (
+                'result', 'conclusion', 'assessment', 'quality', 'defects', 'defect_description', 'uzk_defect', 'indication'
+            )):
+                return custom or 'Результаты приведены в протоколе. Сводное заключение не внесено.'
+    return 'Результаты контроля не внесены.'
+
+
+def _technical_state_text(ctx):
+    """Print only an entered conclusion backed by at least one actual control result."""
+    g = ctx['g']
+    from math import isfinite
+
+    for key in ('thickness_measurements', 'thicknessMeasurements', 'hardness_tests',
+                'weld_inspections', 'uzk_results', 'mpk_results', 'vik_control_objects', 'visual_defects'):
+        rows = g(key, default=[])
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict) or row.get('archived') or row.get('result_status') in ('planned', 'skipped', 'unavailable'):
+                continue
+            if key in ('thickness_measurements', 'thicknessMeasurements', 'hardness_tests'):
+                for field in ('thickness', 'value', 'thickness_mm', 'hardness_base', 'hardness_weld', 'hardness_haz'):
+                    try:
+                        value = float(str(row.get(field)).replace(',', '.'))
+                    except ValueError:
+                        continue
+                    if isfinite(value) and value > 0:
+                        return _entered_technical_state(ctx)
+            elif any(str(row.get(field) or '').strip(' —-') for field in ('result', 'conclusion', 'assessment', 'defect_description', 'defects')):
+                return _entered_technical_state(ctx)
+    return 'Техническое состояние не оценено. Результаты контроля не внесены.'
+
+
+def _entered_technical_state(ctx):
+    fields = [str(ctx.get(key) or '').strip(' .—') for key in ('tech_state', 'conclusion_suitable')]
+    return 'Техническое состояние объекта диагностирования: ' + ('. '.join(dict.fromkeys(x for x in fields if x)) or 'заключение не внесено') + '.'
 
 
 def _keep_table_head(table: Table, max_rows: int = 2) -> None:
@@ -740,6 +734,7 @@ def fill_vessel_form_to1(
             if updated != original:
                 _set_paragraph_text(paragraph, updated)
 
+    _normalize_report_page_breaks(doc)
     doc.save(str(out))
     logger.info("Форма to-1 заполнена: %s", out)
     return str(out)
@@ -1379,23 +1374,23 @@ def _build_context(
         "org_settings": org_settings,
         "conclusion_doc": str(g("documentation_conclusion", "doc_analysis_conclusion", default="")),
         "conclusion_suitable": str(
-            g("suitability_conclusion", "conclusion", default="соответствует")
+            g("suitability_conclusion", "conclusion", default="")
         ),
         "operational_ok": str(
-            g("operational_conclusion", "operational_ok", default="соответствует")
+            g("operational_conclusion", "operational_ok", default="")
         ),
         "calculation_result": str(
             g(
                 "calculation_result",
                 "calc_assessment",
-                default="сосуда при рабочих параметрах",
+                default="",
             )
         ),
         "tech_state": str(
             g(
                 "technical_state",
                 "suitability_status",
-                default="работоспособное, пригодно к дальнейшей эксплуатации",
+                default="",
             )
         ),
     }
@@ -1408,8 +1403,8 @@ _METHOD_CODE_TO_RU = {
     "VIK": "ВИК",
     "VT": "ВИК",
     "VISUAL": "ВИК",
-    "ПВК": "ВИК",
-    "PVK": "ВИК",
+    "ПВК": "ПВК",
+    "PVK": "ПВК",
     "UZK": "УЗК",
     "UT": "УЗК",
     "UZT": "УЗТ",
@@ -1958,7 +1953,7 @@ def _fit_image_width_inches(image_path: str, max_width: float, max_height: float
         w = max_width
         if w / aspect > max_height:
             w = max_height * aspect
-        return round(max(4.0, min(w, max_width)), 2)
+        return min(w, max_width)
     except Exception:
         return round(min(max_width, 7.0), 2)
 
@@ -2340,17 +2335,56 @@ def _fmt_date_ru(value: Any) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 def _fix_main_report_captions(doc: Document) -> None:
-    """Исправить задвоение «Таблица № 6» у раздела 10 → «Таблица № 7»."""
-    seen_works = False
-    for p in _iter_all_paragraphs(doc):
-        tx = (p.text or "").strip()
-        # Не брать строку оглавления («…диагностирования5»)
-        if tx.startswith("10. Перечень работ, выполненных") and not tx[-1:].isdigit():
-            seen_works = True
+    """Number the main body's captions consecutively; appendix numbering is local."""
+    control = next(doc.element.body.iter(qn('w:sdt')), None)
+    if control is None:
+        return
+    number = 0
+    for element in control.iter(qn('w:p')):
+        paragraph = Paragraph(element, doc)
+        if re.fullmatch(r'Таблица\s*№\s*\d+', _paragraph_plain_text(paragraph).strip()):
+            number += 1
+            _set_paragraph_text(paragraph, f'Таблица № {number}')
+
+
+def _normalize_report_page_breaks(doc):
+    body = doc.element.body
+    def empty(paragraph, *, allow_bookmarks=False):
+        protected = ('drawing', 'pict', 'sectPr', 'fldChar')
+        if not allow_bookmarks:
+            protected += ('bookmarkStart', 'bookmarkEnd')
+        return paragraph.tag == qn('w:p') and not _element_plain_text(paragraph).strip() and not any(
+            next(paragraph.iter(qn(f'w:{tag}')), None) is not None for tag in protected)
+
+    for element in list(body):
+        if not empty(element, allow_bookmarks=True):
             continue
-        if seen_works and tx in ("Таблица № 6", "Таблица №6"):
-            _set_paragraph_text(p, "Таблица № 7")
+        breaks = list(element.iter(qn('w:br')))
+        if not breaks or any(br.get(qn('w:type')) != 'page' for br in breaks):
+            continue
+        following = element.getnext()
+        if following is not None and following.tag == qn('w:p') and _element_plain_text(following).strip():
+            heading = Paragraph(following, doc)
+            title = _element_plain_text(following).strip()
+            # The signature tables before these protocols may end exactly at
+            # the foot of a page. Let the heading and its header table flow together.
+            heading.paragraph_format.page_break_before = not bool(re.match(r'ПРИЛОЖЕНИЕ\s*№\s*[24](?!\d)', title, re.I))
+            heading.paragraph_format.keep_with_next = True
+            markers = [node for node in element if node.tag in (qn('w:bookmarkStart'), qn('w:bookmarkEnd'))]
+            if markers:
+                properties = following.find(qn('w:pPr'))
+                for marker in reversed(markers):
+                    properties.addnext(marker)
+            body.remove(element)
+            previous = following.getprevious()
+            while previous is not None and empty(previous):
+                body.remove(previous)
+                previous = following.getprevious()
+    while len(body) > 1:
+        trailing = body[-2]
+        if not empty(trailing):
             break
+        body.remove(trailing)
 
 
 def _uzt_smin_summary(ctx: Dict[str, Any]) -> str:
@@ -2397,18 +2431,6 @@ def _residual_life_text(ctx: Dict[str, Any]) -> str:
     return f"{s} лет"
 
 
-def _conclusion_needs_repair(ctx: Dict[str, Any]) -> bool:
-    blob = " ".join(
-        str(ctx.get(k) or "")
-        for k in ("conclusion_suitable", "tech_state", "calculation_result")
-    ).lower()
-    if any(k in blob for k in ("ремонт", "негоден", "не годен", "ограничен")):
-        return True
-    g = ctx["g"]
-    for key in ("weld_inspections", "uzk_results", "mpk_results", "visual_defects"):
-        if _ndt_items_have_defects(g(key, default=[])):
-            return True
-    return False
 
 
 def _hardness_summary(ctx: Dict[str, Any]) -> str:
@@ -2665,43 +2687,19 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     if len(main_tables) > 8:
         works = main_tables[8]
         ndt = ctx.get("ndt_methods") or []
-        scope_by_key = {
-            "ВИК": "100%",
-            "УЗТ": "по схеме контроля",
-            "УЗК": "по схеме контроля",
-            "МПК": "100%",
-            "ТВЕРД": "по схеме контроля",
-        }
+        from vessel_control_plan import method_code
+
         for r in range(1, len(works.rows)):
-            name = (works.rows[r].cells[1].text or "").upper()
-            scope = "в полном объёме"
-            ntd = "СТО Газпром 2-2.3-491-2010"
-            if "ВИЗУАЛЬ" in name:
-                scope = scope_by_key["ВИК"]
-                ntd = "СТО 9701105632-003-2021"
-            elif "ТОЛЩИНОМЕТР" in name:
-                scope = scope_by_key["УЗТ"]
-                ntd = "ГОСТ Р ИСО 16809-2015"
-            elif "ТВЕРД" in name:
-                scope = scope_by_key["ТВЕРД"]
-                ntd = "ГОСТ 22761-77"
-            elif "УЛЬТРАЗВУКОВОЙ КОНТРОЛЬ КАЧЕСТВА" in name or "УЗК" in name:
-                scope = scope_by_key["УЗК"]
-                ntd = "ГОСТ Р 55724-2013"
-            elif "МАГНИТ" in name:
-                scope = scope_by_key["МПК"]
-                ntd = "ГОСТ Р 56512-2015"
-            elif "ГИДРАВЛ" in name:
-                scope = "в соответствии с программой"
-                ntd = "ФНП №536"
-            # Если метод не выполнялся — оставить пустым объём
-            performed = True
-            if isinstance(ndt, list) and ndt:
-                # не блокируем стандартный перечень — всегда заполняем объём/НТД
-                performed = True
-            if performed:
-                _set(works, r, 2, scope)
-                _set(works, r, 3, ntd)
+            name = (works.rows[r].cells[1].text or '').upper()
+            code = next((method for label, method in (
+                ('ВИЗУАЛЬ', 'VIK'), ('ТОЛЩИНОМЕТР', 'UZT'), ('ТВЕРД', 'HARDNESS'),
+                ('УЛЬТРАЗВУКОВОЙ КОНТРОЛЬ', 'UZK'), ('УЗК', 'UZK'), ('МАГНИТ', 'MPK'),
+                ('КАПИЛЛЯР', 'PVK'),
+            ) if label in name), None)
+            actual = next((item for item in ndt if isinstance(item, dict) and item.get('is_performed') is True
+                           and code and method_code(item.get('method_code') or item.get('method')) == code), {})
+            _set(works, r, 2, actual.get('control_volume') or actual.get('scope') or MISSING)
+            _set(works, r, 3, actual.get('standard') or actual.get('normative_doc') or MISSING)
 
     # --- Таблица 9: рассмотренные документы (как прил.1 / табл.1) ---
     if len(main_tables) > 9:
@@ -2751,30 +2749,24 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
             ctx,
             data_keys=("weld_inspections", "uzk_results", "weld_defects"),
             custom_key="uzk_conclusion_text",
-            ok_text="Недопустимых дефектов не обнаружено",
-            defect_text="Выявлены дефекты, требуется ремонт (см. приложение № 6)",
         )
         mpk_cell = _ndt_result_summary(
             ctx,
             data_keys=("mpk_results", "magnetic_results", "weld_inspections"),
             custom_key="mpk_conclusion_text",
-            ok_text="Недопустимых дефектов не обнаружено",
-            defect_text="Выявлены дефекты, требуется ремонт (см. приложение № 7)",
         )
         vik_cell = _ndt_result_summary(
             ctx,
             data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
             custom_key="vik_conclusion_text",
-            ok_text="Дефектов, препятствующих дальнейшей безопасной эксплуатации сосуда не выявлено",
-            defect_text="Выявлены дефекты (см. приложение № 3)",
         )
         residual = _residual_life_text(ctx)
-        calc_cell = ctx.get("calculation_result") or "Условия прочности выполняются"
+        calc_cell = ctx.get("calculation_result") or "Результаты расчёта не внесены"
         if residual:
             calc_cell = f"{calc_cell}. Прогнозный срок остаточного ресурса: {residual}"
         result_by_row = {
             1: _doc_analysis_result_cell(ctx),
-            2: (ctx.get("operational_ok") or "Соответствует требованиям"),
+            2: (ctx.get("operational_ok") or "Заключение не внесено"),
             3: vik_cell,
             4: smin,
             5: _hardness_summary(ctx),
@@ -2807,12 +2799,9 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     contract_date = _fmt_date_ru(g("contract_date", default="")) or str(g("contract_date", default="") or "")
     period_from = _fmt_date_ru(g("work_period_from", "date_from", default="")) or ""
     period_to = _fmt_date_ru(g("work_period_to", "date_to", "date_performed", default=ctx["date_ru"])) or ctx["date_ru"]
-    calc_txt = ctx.get("calculation_result") or "сосуда при рабочих параметрах"
-    tech_state = ctx.get("tech_state") or "работоспособное"
-    conclusion = ctx.get("conclusion_suitable") or "соответствует"
+    calc_txt = ctx.get("calculation_result") or "Результаты расчёта не внесены"
     contractor_name = ctx.get("contractor_name") or ""
     residual = _residual_life_text(ctx)
-    needs_repair = _conclusion_needs_repair(ctx)
 
     for p in _iter_all_paragraphs(doc):
         text = _paragraph_plain_text(p)
@@ -2857,7 +2846,7 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
             extra = f" Прогнозный срок остаточного ресурса составляет {residual}." if residual else ""
             _set_paragraph_text(
                 p,
-                f"По результатам работ произведена оценка работоспособности {calc_txt}.{extra} (Приложение № 8)",
+                f"Расчёт на прочность: {calc_txt}.{extra} (Приложение № 8)",
             )
         elif (
             "фактическое значение параметров" in norm.lower()
@@ -2871,38 +2860,25 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
                 and "удовлетвор" in norm.lower()
             )
         ):
-            satisfy = (
-                "не удовлетворяют требованиям нормативных документов без выполнения ремонта"
-                if needs_repair
-                else "удовлетворяют требованиям нормативных документов"
-            )
             _set_paragraph_text(
                 p,
-                f"Фактическое значение параметров, определяющих состояние эксплуатации сосуда "
-                f"работающего под давлением – {device}, зав.№ {serial}, рег.№ {reg_no}, "
-                f"инв.№ {inv_no}, {satisfy}.",
+                _technical_state_text(ctx),
             )
         elif "техническое состояние объекта диагностирования" in norm.lower():
             vik_s = _ndt_result_summary(
                 ctx,
                 data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
                 custom_key="vik_conclusion_text",
-                ok_text="дефектов не выявлено",
-                defect_text="выявлены дефекты (прил. № 3)",
             )
             uzk_s = _ndt_result_summary(
                 ctx,
                 data_keys=("weld_inspections", "uzk_results"),
                 custom_key="uzk_conclusion_text",
-                ok_text="дефектов не обнаружено",
-                defect_text="выявлены дефекты, требуется ремонт (прил. № 6)",
             )
             mpk_s = _ndt_result_summary(
                 ctx,
                 data_keys=("mpk_results", "weld_inspections"),
                 custom_key="mpk_conclusion_text",
-                ok_text="дефектов не обнаружено",
-                defect_text="выявлены дефекты, требуется ремонт (прил. № 7)",
             )
             summary = (
                 f"Результаты по видам контроля: анализ документации — {_doc_analysis_result_cell(ctx)}; "
@@ -2914,7 +2890,7 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
             )
             _set_paragraph_text(
                 p,
-                f"Техническое состояние объекта диагностирования: {tech_state}. {conclusion}. {summary}".replace("..", "."),
+                f"{_technical_state_text(ctx)} {summary}",
             )
 
 
@@ -3449,7 +3425,7 @@ def _fill_additional_data(table: Table, ctx: Dict[str, Any]) -> None:
 # соответствует данный протокол/приложение. Нужно, чтобы под протоколом ВИК
 # расписывался специалист по ВИК, а не случайный человек из общего списка.
 SIGNATURE_METHOD_KEYS: Dict[int, Tuple[str, ...]] = {
-    18: ("ВИК", "VIK", "ПВК", "PVK"),
+    18: ("ВИК", "VIK"),
     22: ("УЗТ", "UZT"),
     27: ("ТВЕРД", "TVI", "HARD"),
     32: ("УЗК", "UZK"),
@@ -3475,9 +3451,7 @@ def _specialists_for_methods(
         return matched
     if all(not str(s.get("role") or "").strip() for s in specs):
         return specs
-    # Нет специалиста именно по этому методу — берём исполнителей обследования,
-    # иначе блок подписи в протоколе остаётся пустым.
-    return specs
+    return []
 
 
 def _fill_signatures(
@@ -3522,11 +3496,11 @@ def _fill_operational_diagnostics(table: Table, ctx: Dict[str, Any]) -> None:
         op = {}
     # Строки 1–5: оценка / примечания в кол. 2 и 3
     defaults = {
-        1: (op.get("params_ok") or "Соответствуют", op.get("params_note") or ""),
-        2: (op.get("vibration") or "Не выявлена", op.get("vibration_note") or ""),
-        3: (op.get("foundation") or "Не выявлена", op.get("foundation_note") or ""),
-        4: (op.get("supports") or "Работоспособное", op.get("supports_note") or g("support_state", default="")),
-        5: (op.get("kip") or "Работоспособное", op.get("kip_note") or ""),
+        1: (op.get("params_ok") or MISSING, op.get("params_note") or ""),
+        2: (op.get("vibration") or MISSING, op.get("vibration_note") or ""),
+        3: (op.get("foundation") or MISSING, op.get("foundation_note") or ""),
+        4: (op.get("supports") or MISSING, op.get("supports_note") or g("support_state", default="")),
+        5: (op.get("kip") or MISSING, op.get("kip_note") or ""),
     }
     for row, (eval_, note) in defaults.items():
         if row < len(table.rows):
@@ -3637,20 +3611,14 @@ def _fill_vik_results(table: Table, ctx: Dict[str, Any]) -> None:
     def _row_from(o: Dict[str, Any]) -> Tuple[str, str, str, str]:
         return (
             str(o.get("object") or o.get("location") or o.get("element") or ""),
-            str(o.get("scope") or o.get("volume") or "100%"),
-            str(o.get("description") or o.get("defects") or o.get("defect") or "Дефектов не обнаружено"),
-            str(o.get("assessment") or o.get("quality") or "Годен"),
+            str(o.get("scope") or o.get("volume") or MISSING),
+            str(o.get("description") or o.get("defects") or o.get("defect") or MISSING),
+            str(o.get("assessment") or o.get("quality") or MISSING),
         )
 
-    # Базовые (всегда присутствующие) категории наружного осмотра
-    _set(table, 2, 1, "фундаментов")
-    _set(table, 2, 2, "100%")
-    _set(table, 2, 3, "Дефектов не обнаружено")
-    _set(table, 2, 4, "Годен")
-    _set(table, 3, 1, "сварных соединений")
-    _set(table, 3, 2, "100%")
-    _set(table, 3, 3, "Дефектов не обнаружено")
-    _set(table, 3, 4, "Годен")
+    for row in (2, 3):
+        for col in range(1, len(table.rows[row].cells)):
+            _set(table, row, col, '')
 
     # Список объектов контроля ВИК: технику доступно добавление произвольных
     # объектов (не только 2 предустановленные категории) через раздел
@@ -4052,7 +4020,7 @@ def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
         if len(table.rows) > 1:
             _set(table, 1, 0, "—")
             if len(table.rows[1].cells) > 7:
-                _set(table, 1, 7, "Дефектов не обнаружено")
+                _set(table, 1, 7, "Результаты контроля не внесены")
         return
     from vessel_control_plan import method_rows
     if any(w.get("control_method") or w.get("method") for w in welds if isinstance(w, dict)):
@@ -4091,7 +4059,7 @@ def _fill_uzk_results(table: Table, ctx: Dict[str, Any]) -> None:
         conclusion = (
             w.get("conclusion")
             or w.get("assessment")
-            or (defect_text if defect_text else "Дефектов не обнаружено")
+            or (defect_text if defect_text else MISSING)
         )
         vals = [
             w.get("joint") or w.get("weld_number") or w.get("seam") or "",
@@ -4230,10 +4198,8 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
     reg_no = ctx["reg_no"]
     inv_no = ctx["inv_no"]
     device = ctx["device_name"]
-    conclusion = ctx.get("conclusion_suitable") or "соответствует"
-    doc_concl = _strip_parens(str(ctx.get("conclusion_doc") or "в полном объёме"))
-    doc_verdict = _doc_verdict_word(ctx)
-    op_ok = ctx.get("operational_ok") or "соответствует"
+    doc_concl = _strip_parens(str(ctx.get("conclusion_doc") or ""))
+    op_ok = ctx.get("operational_ok") or ""
     g = ctx["g"]
     protocol_no = str(g("protocol_number", "report_number", default="") or "")
     tech_card = str(g("tech_card_number", "technological_card", default="") or "")
@@ -4242,48 +4208,17 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
         ctx,
         data_keys=("weld_inspections", "uzk_results", "weld_defects"),
         custom_key="uzk_conclusion_text",
-        ok_text=(
-            "По результатам обследования сварных соединений сосуда, "
-            "недопустимых дефектов не обнаружено, объект контроля соответствует требованиям НТД."
-        ),
-        defect_text=(
-            "По результатам ультразвукового контроля сварных соединений выявлены недопустимые дефекты. "
-            "Требуется ремонт сосуда / снижение максимально допустимого рабочего давления "
-            "(см. таблицу результатов)."
-        ),
     )
     mpk_concl = _ndt_result_summary(
         ctx,
         data_keys=("mpk_results", "magnetic_results", "weld_inspections"),
         custom_key="mpk_conclusion_text",
-        ok_text=(
-            "По результатам магнитопорошкового контроля дефектов в сварных "
-            "соединениях сосуда не обнаружено, объект контроля соответствует "
-            "требованиям нормативно-технической документации."
-        ),
-        defect_text=(
-            "По результатам магнитопорошкового контроля выявлены дефекты. "
-            "Требуется ремонт сосуда / снижение максимально допустимого рабочего давления "
-            "(см. таблицу результатов)."
-        ),
     )
-    vik_concl = str(g("vik_conclusion_text", default="") or "").strip()
-    if not vik_concl:
-        vik_concl = _ndt_result_summary(
-            ctx,
-            data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
-            custom_key="vik_conclusion_text",
-            ok_text=(
-                "По результатам визуального и измерительного контроля основного "
-                "металла и сварных соединений сосуда, недопустимых дефектов не обнаружено, "
-                "что удовлетворяет требованиям нормативно-технической документации "
-                f"{g('vik_ntd', default='СТО 9701105632-003-2021')}."
-            ),
-            defect_text=(
-                "По результатам визуального и измерительного контроля выявлены дефекты, "
-                "препятствующие дальнейшей безопасной эксплуатации без ремонта."
-            ),
-        )
+    vik_concl = _ndt_result_summary(
+        ctx,
+        data_keys=("visual_defects", "vik_defects", "vik_control_objects"),
+        custom_key="vik_conclusion_text",
+    )
 
     # Важно: основной отчёт в SDT — doc.paragraphs / paragraph.text его не всегда видит
     for p in _iter_all_paragraphs(doc):
@@ -4300,28 +4235,13 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
             no_part = protocol_no if protocol_no else "_________"
             new_text = f"№ {no_part} от {date_ru} г."
         elif "При анализе технической документации установлено" in text:
-            concl = doc_concl.strip() or "в полном объёме"
-            new_text = f"При анализе технической документации установлено, {concl}"
+            new_text = f"Анализ технической документации: {doc_concl or 'вывод не внесён'}."
         elif "ВЫВОД:" in text or "Представленная техническая документация" in text:
-            new_text = (
-                f"ВЫВОД: Представленная техническая документация на сосуд, "
-                f"работающий под давлением – {device} зав. № {serial}, рег. № {reg_no}, "
-                f"инв. № {inv_no} {doc_verdict} требованиям действующей "
-                f"нормативно-технической документации."
-            )
+            new_text = f"ВЫВОД по документации: {doc_concl or 'заключение не внесено'}."
         elif "функциональной (оперативной) диагностики установлено" in text:
-            op = str(op_ok).strip() or "соответствует"
-            if "соответств" in op.lower():
-                new_text = (
-                    f"В результате функциональной (оперативной) диагностики установлено, "
-                    f"что сосуд {op} паспортным характеристикам и требованиям действующей НТД."
-                )
-            else:
-                new_text = (
-                    f"В результате функциональной (оперативной) диагностики установлено, "
-                    f"что сосуд {op} паспортным характеристикам. "
-                    f"Сосуд соответствует требованиям действующей НТД."
-                )
+            new_text = f"Функциональная (оперативная) диагностика: {op_ok or 'заключение не внесено'}."
+        elif stripped.startswith('Контроль выполнен в соответствии с программой работ'):
+            new_text = 'Фактические результаты контроля указываются в таблице протокола.'
         elif "Технологическая карта №" in text:
             card_val = tech_card if tech_card else "—"
             if "_" in text:
@@ -4339,23 +4259,14 @@ def _fill_paragraph_blanks(doc: Document, ctx: Dict[str, Any]) -> None:
                 and ("зав" in text.lower() or "____" in text)
             )
         ):
-            needs_repair = _conclusion_needs_repair(ctx)
-            satisfy = (
-                "не удовлетворяют требованиям нормативных документов без выполнения ремонта"
-                if needs_repair
-                else "удовлетворяют требованиям нормативных документов"
-            )
             new_text = (
-                f"Фактическое значение параметров, определяющих состояние эксплуатации сосуда "
-                f"работающего под давлением – {device}, зав.№ {serial}, рег.№ {reg_no}, "
-                f"инв.№ {inv_no}, {satisfy}."
+                _technical_state_text(ctx)
             )
         elif "техническое состояние объекта диагностирования" in text.lower() and (
             "____" in text or len(stripped) < 80
         ):
-            tech_state = ctx.get("tech_state") or "работоспособное"
             new_text = (
-                f"Техническое состояние объекта диагностирования: {tech_state}. {conclusion}."
+                _technical_state_text(ctx)
             )
         elif "недопустимых дефектов не обнаружено" in text.lower() or (
             "объект контроля соответствует" in text.lower() and "сварн" in text.lower()
@@ -4470,8 +4381,7 @@ def _fill_appendix_8_calculation(doc: Document, ctx: Dict[str, Any]) -> None:
     if not lines and not rows:
         last = insert_paragraph_after(
             last,
-            "Расчёт на прочность выполнен по результатам УЗТ. "
-            "Значения толщин стенок удовлетворяют требованиям прочности.",
+            "Результаты расчёта на прочность не внесены.",
         )
         _set_paragraph_font_size(last, 12.0)
         _normalize_appendix_font(doc, "ПРИЛОЖЕНИЕ № 8", stop_markers=("ПРИЛОЖЕНИЕ № 9", "ПРИЛОЖЕНИЕ №9"))
@@ -4596,11 +4506,11 @@ def _insert_schemes_and_photos(doc: Document, ctx: Dict[str, Any]) -> None:
     )
     logger.info("Вставлено схем: %s", n_schemes)
     geometry = (data.get('base_vessel_scheme') or {}).get('geometry') or {}
+    pvk_rows = []
     if geometry.get('schema_version') == 2:
         from vessel_control_plan import method_rows
         pvk_rows=method_rows(data.get('weld_inspections') or [],'PVK')
         if pvk_rows:
-            doc.add_page_break()
             doc.add_paragraph('Результаты капиллярного контроля (ПВК) — отдельный метод')
             table=doc.add_table(rows=1,cols=3)
             table.style='Table Grid'
@@ -4636,6 +4546,14 @@ def _insert_schemes_and_photos(doc: Document, ctx: Dict[str, Any]) -> None:
             doc, "ПРИЛОЖЕНИЕ № 9", rest_photos, find_image=find_image, width_inches=4.5, max_items=10
         )
     logger.info("Вставлено фото: УЗТ=%s ВИК=%s прочие=%s", n_uzt, n_vik, n_rest)
+    if geometry.get('schema_version') == 2 and not (pvk_rows or n_uzt or n_vik or n_rest):
+        # The restoration section is needed only when content follows the drawing.
+        body = doc.element.body
+        section_break = body[-2]
+        drawing_section = section_break.find('./w:pPr/w:sectPr', namespaces=section_break.nsmap)
+        if drawing_section is not None and not _element_plain_text(section_break):
+            body.replace(body.sectPr, drawing_section)
+            body.remove(section_break)
     for pth in tmp_files:
         try:
             Path(pth).unlink(missing_ok=True)
@@ -4770,7 +4688,7 @@ def insert_unified_vessel_sheet(doc, geometry, data):
     """One dedicated adaptive sheet; references replace template maps, never photos."""
     from io import BytesIO
     from docx.enum.section import WD_SECTION_START
-    from vessel_sheet import sheet_spec
+    from vessel_sheet import add_fitted_scheme, configure_drawing_section, drawing_pages, sheet_spec
     from vessel_geometry_v2 import render_v2
     # Known TO-1 template has exactly five image-only map paragraphs.
     # Only this exact template signature authorizes removing those drawings.
@@ -4784,20 +4702,15 @@ def insert_unified_vessel_sheet(doc, geometry, data):
         p.text='Схема контроля — см. приложение «Общая схема сосуда».'
     spec=sheet_spec(geometry)
     previous=doc.sections[-1]
-    saved={k:getattr(previous,k) for k in ('page_width','page_height','orientation','top_margin','bottom_margin','left_margin','right_margin')}
-    sheets=[None]+list(dict.fromkeys(i for i in (geometry.get('print_settings') or {}).get('detail_ids',[]) if i in {p['id'] for p in geometry['parts']}))
-    for detail in sheets:
+    saved={k:getattr(previous,k) for k in ('page_width','page_height','orientation','top_margin','bottom_margin','left_margin','right_margin','header_distance','footer_distance')}
+    sheets = list(drawing_pages(geometry, spec))
+    for title, options in sheets:
         sec=doc.add_section(WD_SECTION_START.NEW_PAGE)
-        sec.orientation=WD_ORIENT.LANDSCAPE if spec['width_mm']>spec['height_mm'] else WD_ORIENT.PORTRAIT
-        sec.page_width=Cm(spec['width_mm']/10);sec.page_height=Cm(spec['height_mm']/10)
-        sec.top_margin=sec.bottom_margin=sec.left_margin=sec.right_margin=Cm(1)
-        sec.header_distance=sec.footer_distance=Cm(.3)
-        p=doc.add_paragraph('Общая схема сосуда' if detail is None else 'Детальный вид сосуда')
+        configure_drawing_section(sec, spec)
+        p=doc.add_paragraph(title)
         p.paragraph_format.space_after=Pt(0);p.runs[0].font.size=Pt(10)
-        image=render_v2(geometry,spec['width'],spec['height'],detail=detail)[0]
-        available_w=spec['width_mm']-20;available_h=spec['height_mm']-32
-        width=min(available_w,available_h*spec['width']/spec['height'])
-        doc.add_picture(BytesIO(image),width=Cm(width/10))
+        image=render_v2(geometry,spec['width'],spec['height'],**options)[0]
+        add_fitted_scheme(doc, BytesIO(image))
     sec=doc.add_section(WD_SECTION_START.NEW_PAGE)
     for key,value in saved.items():setattr(sec,key,value)
     return len(sheets)

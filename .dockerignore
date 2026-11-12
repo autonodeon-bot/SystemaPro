@@ -42,3 +42,8 @@ tools/flutter
 tools/libreoffice
 tools/*.msi
 docs
+tmp
+output
+artifacts
+backups
+security-*

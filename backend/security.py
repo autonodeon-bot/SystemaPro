@@ -189,7 +189,8 @@ def require_rbac(permission: str):
     """
     # Импорт локальный — чтобы избежать циклических зависимостей (auth.py → security.py).
     from fastapi import Depends
-    from jose import JWTError, jwt
+    import jwt
+    from jwt import PyJWTError as JWTError
     from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
     from auth import ALGORITHM, SECRET_KEY

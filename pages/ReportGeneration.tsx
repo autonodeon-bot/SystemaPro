@@ -307,6 +307,7 @@ const ReportGeneration = () => {
     reportType: string,
     format: string = 'pdf',
     skipValidation: boolean = false,
+    sourceReportId?: string,
   ) => {
     if (generationController.current) return;
     // Проверка полноты данных перед генерацией
@@ -346,7 +347,8 @@ const ReportGeneration = () => {
       }
 
       const data = await runReportJob({ inspection_id: inspectionId, report_type: reportType, format,
-        skip_validation: skipValidation }, user?.id ?? '', headers, controller.signal, setGenerationStage);
+        skip_validation: skipValidation, ...(sourceReportId && { source_report_id: sourceReportId }) },
+        user?.id ?? '', headers, controller.signal, setGenerationStage);
       const reportInfo = data.report_number ? ` Номер: ${data.report_number}` : '';
       toast.success(`Отчет готов (${format.toUpperCase()}).${reportInfo}`);
       await loadData();
@@ -473,13 +475,17 @@ const ReportGeneration = () => {
     }
   };
 
-  const handleGenerateFromPreview = (format: string = 'pdf') => {
+  const handleGenerateFromPreview = (format: string = 'pdf', sourceReportId?: string) => {
     if (previewData) {
-      void generateReport(previewData.inspection.id, previewType, format);
+      void generateReport(previewData.inspection.id, previewType, format, false, sourceReportId);
     }
   };
 
   const handleGenerateDirectly = async (inspectionId: string, reportType: string, format: string = 'pdf') => {
+    if (reportType === 'EXPERTISE') {
+      await loadPreview(inspectionId, reportType);
+      return;
+    }
     await generateReport(inspectionId, reportType, format);
   };
 
@@ -755,9 +761,8 @@ const ReportGeneration = () => {
           navigate={navigate}
           onGenerateFromPreview={handleGenerateFromPreview}
           onExportExcel={handleExportPreviewExcel}
-          hasTechnicalReport={Boolean(
-            getInspectionReports(previewData.inspection.id).technical,
-          )}
+            technicalReports={reports.filter(report => report.inspection_id === previewData.inspection.id &&
+              report.report_type === 'TECHNICAL_REPORT' && !report.is_archived)}
         />
       )}
     </div>

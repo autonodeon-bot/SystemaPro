@@ -62,6 +62,8 @@ def normalize_v2(raw: dict) -> dict:
     if not isinstance(details, list) or any(not isinstance(i, str) or i not in part_ids for i in details):
         raise ValueError('Print details must reference vessel parts')
     settings['detail_ids'] = list(dict.fromkeys(details))
+    if 'show_dimensions' in settings and not isinstance(settings['show_dimensions'], bool):
+        raise ValueError('show_dimensions must be boolean')
     g['print_settings'] = settings
     for e in g['elements'] + g['control_points']:
         owner = ids.get(e.get('parent_id', e.get('owner_id')))
@@ -157,7 +159,7 @@ def position(e: dict, owner: dict, cut: float = 0) -> tuple[float, float]:
     return .5+r*math.sin(math.radians(angle)), .5-r*math.cos(math.radians(angle))
 
 
-def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, layer: str | None = None, vector_canvas=None, svg=False, exterior_b=False):
+def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, layer: str | None = None, vector_canvas=None, svg=False, exterior_b=False, print_rows=None, print_overview=()):
     from PIL import Image, ImageDraw
     from vessel_scheme_renderer import _font
     from vessel_elements import draw_symbol
@@ -166,6 +168,9 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
     if vector_canvas is not None or svg:
         from vessel_vector import VectorDraw
         d=VectorDraw(width,height,vector_canvas)
+    printing = print_rows is not None or print_overview
+    overview_details = set(print_overview)
+    d = SheetDrawing(d, width, height, _font, minimum_size=15 if printing else 9)
     font = _font(14)
     from vessel_sheet import orient_head_names
     g = orient_head_names(deepcopy(g))
@@ -175,10 +180,13 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
     entities = {e['id']: e for e in g['parts']+g['elements']}
     rects = {}
     if detail in parts:
-        rects[detail] = (100, 85, width-100, height-100)
+        dimensioned = (g.get('print_settings') or {}).get('show_dimensions', True)
+        right = width*.51 if print_rows is not None else width*.60 if dimensioned else width-100
+        rects[detail] = (70, 110, right, height-140)
         if parts[detail]['kind'] != 'shell':
-            r = min(width-200, height-185)/2
-            rects[detail] = (width/2-r, height/2-r, width/2+r, height/2+r)
+            r = min(right-70, height-250)/2
+            cx = (70+right)/2
+            rects[detail] = (cx-r, height/2-r, cx+r, height/2+r)
     else:
         shells = [p for p in g['parts'] if p['kind'] == 'shell']
         known = all(p.get('dimensions', {}).get('length_mm') for p in shells)
@@ -322,19 +330,24 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
                         if any(m in z['planned_methods'] for m in ('ПВК','МК')):
                             d.line([(x+rr*math.sin(a),y-rr*math.cos(a)),(x+(rr+4)*math.sin(a-.06),y-(rr+4)*math.cos(a-.06))],fill='black')
                     d.text((x+rr+8,y+rr),z['designation']+' '+ '/'.join(z['planned_methods']),font=_font(9),fill='black')
+        if print_rows is not None or (print_overview and (point or owner['id'] in overview_details)):
+            if svg: d.end_entity()
+            continue
         offset=(g.get('views') or [{}])[0].get('label_overrides',{}).get(e['id'],{})
         dx,dy=offset.get('dx',-3 if point else -20),offset.get('dy',-16 if point else -30)
         if point and owner['kind'] not in ('shell','head','cover') and not offset:
             dx,dy={1:(-12,-5),2:(5,-5),3:(-3,-16),4:(-3,6)}.get(e['local_number'],(5,-12))
         tx,ty=x+dx,y+dy
         label_width=max(14,len(label)*8)
+        label_height=16
         if not offset and not point:
             for attempt in range(30):
-                box=(tx,ty,tx+label_width,ty+16)
+                box=(tx,ty,tx+label_width,ty+label_height)
                 if not any(box[0]<b[2]+3 and box[2]+3>b[0] and box[1]<b[3]+3 and box[3]+3>b[1] for b in label_boxes): break
-                ty+=18
-            tx=min(max(6,tx),width-label_width-6)
-        label_boxes.append((tx,ty,tx+label_width,ty+16))
+                ty+=label_height+3
+        tx=max(6,min(tx,width-label_width-6))
+        ty=min(max(85,ty),height-115-label_height)
+        label_boxes.append((tx,ty,tx+label_width,ty+label_height))
         if not point or offset:d.line([(x,y),(tx,ty)],fill='gray')
         d.text((tx,ty),label,font=_font(10 if point else 13),fill='black')
         if svg: d.end_entity()
@@ -342,18 +355,80 @@ def render_v2(g: dict, width: int, height: int, *, detail: str | None = None, la
         for section in g.get('sections',[]):
             if section['kind']!='weld_profile':continue
             from vessel_sheet import draw_profile
-            x=width*(.82 if horizontal else .70);y=90
+            x=width*(.82 if horizontal else .70);y=78 if printing else 90
             d.text((x,y-18),section['designation']+' · твердометрия',font=_font(11),fill='black')
-            draw_profile(d,x,y,width=width*.18,scale=.75 if horizontal else .85)
+            draw_profile(d,x,y,width=width*.18,scale=1 if printing else .75 if horizontal else .85)
             break
-        d.text((20,height-92),'× Точка УЗТ    К — кольцевой шов    П — продольный / шов днища',font=_font(12),fill='black')
-        d.text((20,height-72),'/ УЗК · × ПВК/МК · I–III овальность · А–А твердометрия · крышка — отдельный вид',font=_font(12),fill='black')
-    methods=[layer] if layer else sorted({m for z in g['control_zones'] for m in z['planned_methods']})
-    d.text((20,height-46),'План контроля. Методы: '+(', '.join(methods) or 'не заданы')+'. Результаты — в таблицах протоколов.',font=font,fill='black')
+    from vessel_annotations import coordinate_callout, legend_entries, legend_lines
+    if print_rows is not None:
+        from vessel_annotations import draw_print_callouts
+        draw_print_callouts(d, marks, print_rows, width, height, _font, d.text_boxes)
+    elif detail is not None:
+        annotations=[]
+        for e in g['elements']+g['control_points']:
+            if e['id'] not in marks or ('owner_id' in e and layer and layer!='УЗТ'):continue
+            owner=entities[e.get('parent_id',e.get('owner_id'))]
+            lines=coordinate_callout(g,e,owner,detail)
+            if not lines:continue
+            name=(owner['designation']+' / '+str(e.get('body_number',e.get('local_number')))) if 'owner_id' in e else e['designation']
+            annotations.append((marks[e['id']], name, lines))
+        annotations.sort(key=lambda item:(item[0][1],item[0][0]))
+        for n,(anchor,name,lines) in enumerate(annotations):
+            tx=width*.64;ty=106+n*min(24,(height-220)/max(1,len(annotations)))
+            d.line([anchor,(tx-8,ty+5)],fill='gray',width=1)
+            d.text((tx,ty),name+' · '+'; '.join(lines),font=_font(9),fill='black')
+    entries = legend_entries(g, set(rects)|set(marks),layer,detail)
+    if printing:
+        entries = [entry.replace('⊕ Штуцер', 'Штуцер — окружность с осями')
+                        .replace('◎ Люк', 'Люк — двойная окружность') for entry in entries]
+    lines = legend_lines(entries, width, _font(15) if printing else None)
+    spacing = 20 if printing else 16
+    legend_top = min(height-98, height-55-(len(lines)-1)*spacing) if printing else height-98
+    for n,line in enumerate(lines):
+        d.text((20,legend_top+n*spacing),line,font=_font(11),fill='black')
+    footer = 'Номера и координаты — на детальных листах.' if print_overview else 'План контроля. Результаты — в протоколах.'
+    d.text((20,height-30),footer,font=_font(11),fill='black')
     if vector_canvas is not None or svg:
         return d.finish(),g,[]
     out=io.BytesIO();img.save(out,format='PNG')
     return out.getvalue(),g,[]
+
+
+class SheetDrawing:
+    """Keep drawing labels inside the same viewbox in PNG, SVG and PDF."""
+
+    def __init__(self, drawing, width, height, font_factory, minimum_size=9):
+        self.drawing = drawing
+        self.width = width
+        self.height = height
+        self.font_factory = font_factory
+        self.minimum_size = minimum_size
+        self.text_boxes = []
+
+    def __getattr__(self, name):
+        return getattr(self.drawing, name)
+
+    def text(self, xy, text, font=None, fill='black'):
+        text = str(text).replace('\n', ' ').replace('\r', ' ')
+        font = font or self.font_factory(14)
+        if getattr(font, 'size', 14) < self.minimum_size:
+            font = self.font_factory(self.minimum_size)
+        x, y = xy
+        x = max(8, min(x, self.width - 32))
+        available = self.width - x - 10
+        if font.getlength(text) > available and getattr(font, 'size', 9) > self.minimum_size:
+            font = self.font_factory(self.minimum_size)
+        if font.getlength(text) > available:
+            # Shift the entire annotation left before abbreviating a long name.
+            x = max(8, self.width - 10 - font.getlength(text))
+            available = self.width - x - 10
+            if font.getlength(text) > available:
+                while text and font.getlength(text + '…') > available:
+                    text = text[:-1]
+                text += '…'
+        y = max(4, min(y, self.height - getattr(font, 'size', 14) - 8))
+        self.drawing.text((x, y), text, font=font, fill=fill)
+        self.text_boxes.append((x-2, y, x+font.getlength(text)+2, y+getattr(font, 'size', 14)+5))
 
 
 def render_profile(geometry, section):

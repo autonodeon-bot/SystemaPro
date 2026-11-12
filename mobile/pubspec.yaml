@@ -1,7 +1,7 @@
 name: es_td_ngo_mobile
 description: Монитор (SystemaPro) — мобильное приложение инженера диагностики
 publish_to: 'none'
-version: 3.7.35+78
+version: 3.7.39+82
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -56,6 +56,7 @@ dependencies:
   intl: ^0.20.2
   package_info_plus: ^8.0.2
   crypto: ^3.0.5
+  cryptography: ^2.7.0
   url_launcher: ^6.3.1
   permission_handler: ^11.3.1
   open_filex: ^4.5.0

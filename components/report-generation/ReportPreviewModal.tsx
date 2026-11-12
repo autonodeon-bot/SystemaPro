@@ -10,8 +10,10 @@
   Download,
 } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
+import { useState } from 'react';
 import { API_BASE } from '../../constants';
-import type { PreviewData, ReportValidationResult } from './types';
+import type { PreviewData, Report, ReportValidationResult } from './types';
+import VesselReportAssistant from './VesselReportAssistant';
 
 interface ReportPreviewModalProps {
   previewData: PreviewData;
@@ -23,9 +25,9 @@ interface ReportPreviewModalProps {
   formatDateRu: (value?: string | null) => string;
   onRefreshValidation: (inspectionId: string) => Promise<void>;
   navigate: NavigateFunction;
-  onGenerateFromPreview: (format?: string) => void;
+  onGenerateFromPreview: (format?: string, sourceReportId?: string) => void;
   onExportExcel: () => Promise<void>;
-  hasTechnicalReport?: boolean;
+  technicalReports?: Report[];
 }
 
 const isImageDoc = (mime?: string) => (mime || '').toLowerCase().startsWith('image/');
@@ -43,8 +45,11 @@ const ReportPreviewModal = ({
   navigate,
   onGenerateFromPreview,
   onExportExcel,
-  hasTechnicalReport = false,
+  technicalReports = [],
 }: ReportPreviewModalProps) => {
+  const [chosenSource, setChosenSource] = useState('');
+  const sourceReportId = technicalReports.some(report => report.id === chosenSource)
+    ? chosenSource : technicalReports.length === 1 ? technicalReports[0].id : '';
   const previewDocs = previewData.document_files ?? [];
   const questionnaireId = previewData.questionnaire?.id;
 
@@ -54,7 +59,7 @@ const ReportPreviewModal = ({
   };
 
   const isGenerating = generatingId === previewData.inspection.id;
-  const expertiseBlocked = previewType === 'EXPERTISE' && !hasTechnicalReport;
+  const expertiseBlocked = previewType === 'EXPERTISE' && !sourceReportId;
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-2 md:p-4">
@@ -69,12 +74,36 @@ const ReportPreviewModal = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6">
+          {previewType === 'EXPERTISE' && <label className="sp-card block">
+            Исходный технический отчёт
+            <select className="mt-2 block w-full bg-app-deep p-2" value={sourceReportId} disabled={isGenerating}
+              onChange={event => setChosenSource(event.target.value)}>
+              <option value="">{technicalReports.length ? 'Выберите версию ТО' : 'Сначала сформируйте ТО'}</option>
+              {technicalReports.map(report => <option value={report.id} key={report.id}>
+                {report.report_number || report.title} · {formatDateRu(report.created_at)} · {report.is_signed ? 'Подписан' : 'Без подписи'}
+              </option>)}
+            </select>
+          </label>}
+          {previewData.context_warnings?.map(message => (
+            <div key={message} role="status" className="rounded-lg border border-amber-400/50 bg-amber-400/10 p-4 text-sm text-amber-100">
+              {message}
+            </div>
+          ))}
+          {(!previewData.inspection.data?.report_form_id || previewData.inspection.data.report_form_id === 'to-1') && (
+            <VesselReportAssistant key={previewData.inspection.id} inspectionId={previewData.inspection.id} />
+          )}
           <div className="bg-app-deep p-3 md:p-4 rounded-lg">
             <h3 className="sp-section-title text-base md:text-lg mb-3 flex items-center gap-2">
               <CheckCircle size={18} className="md:w-5 md:h-5 text-green-400" />
               Оборудование
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              {previewData.equipment.equipment_code && (
+                <div>
+                  <span className="text-app-text3">Код оборудования</span>
+                  <p className="text-white">{previewData.equipment.equipment_code}</p>
+                </div>
+              )}
               <div>
                 <span className="text-app-text3">Название:</span>
                 <p className="text-white font-bold">{previewData.equipment.name}</p>
@@ -91,6 +120,16 @@ const ReportPreviewModal = ({
                   <p className="text-white">{previewData.equipment.location}</p>
                 </div>
               )}
+              {([
+                ['enterprise_name', 'Предприятие'],
+                ['branch_name', 'Филиал'],
+                ['workshop_name', 'Цех'],
+              ] as const).map(([key, title]) => previewData.equipment[key] && (
+                <div key={key}>
+                  <span className="text-app-text3">{title}</span>
+                  <p className="text-white">{previewData.equipment[key]}</p>
+                </div>
+              ))}
               {previewData.equipment.commissioning_date && (
                 <div>
                   <span className="text-app-text3">Дата ввода в эксплуатацию:</span>
@@ -395,11 +434,11 @@ const ReportPreviewModal = ({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => onGenerateFromPreview('pdf')}
+              onClick={() => onGenerateFromPreview('pdf', sourceReportId || undefined)}
               disabled={isGenerating || expertiseBlocked}
               title={
                 expertiseBlocked
-                  ? 'Сначала сгенерируйте технический отчёт'
+                  ? 'Выберите исходный технический отчёт'
                   : `Сгенерировать PDF (${previewType === 'TECHNICAL_REPORT' ? 'ТО' : 'ЭПБ'})`
               }
               aria-label="Сгенерировать PDF"
@@ -409,11 +448,11 @@ const ReportPreviewModal = ({
             </button>
             <button
               type="button"
-              onClick={() => onGenerateFromPreview('docx')}
+              onClick={() => onGenerateFromPreview('docx', sourceReportId || undefined)}
               disabled={isGenerating || expertiseBlocked}
               title={
                 expertiseBlocked
-                  ? 'Сначала сгенерируйте технический отчёт'
+                  ? 'Выберите исходный технический отчёт'
                   : `Сгенерировать DOCX (${previewType === 'TECHNICAL_REPORT' ? 'ТО' : 'ЭПБ'})`
               }
               aria-label="Сгенерировать DOCX"

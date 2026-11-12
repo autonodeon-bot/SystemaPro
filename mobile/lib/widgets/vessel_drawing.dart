@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/vessel_geometry.dart';
+import '../models/vessel_annotations.dart';
 import '../models/vessel_checklist.dart';
 import 'vessel_elements_editor.dart';
 
@@ -66,7 +67,8 @@ class VesselDrawingLayout {
     if (detail != null) {
       final part = model.entity(detail);
       final disk = part?['kind'] != 'shell';
-      final r = Rect.fromLTWH(70, 65, size.width - 140, size.height - 140);
+      final right=model.data['print_settings']?['show_dimensions']!=false?size.width*.60:size.width-100;
+      final r = Rect.fromLTRB(70, 110, right, size.height-140);
       parts[detail!] = disk
           ? Rect.fromCenter(
               center: r.center, width: r.shortestSide, height: r.shortestSide)
@@ -121,18 +123,52 @@ class VesselDrawingLayout {
       ...model.elements.where((e) => e['archived'] != true),
       ...model.points.where((p) => p['archived'] != true)
     ]) {
-      final owner = model.entity(e['parent_id'] ?? e['owner_id']);
-      Rect? r = parts[owner?['id']];
-      if (r == null &&
-          owner?['parent_id'] != null &&
-          owner?['placement'] != null) {
-        final parent = parts[owner?['parent_id']];
-        if (parent != null) {
-          r = Rect.fromCircle(center: project(owner!, parent), radius: symbolRadius(owner, parent));
-        }
-      }
+      final r = ownerRect(e);
       if (r != null) marks[e['id']] = project(e, r);
     }
+  }
+
+  Rect? ownerRect(VesselEntity element) {
+    final owner = model.entity(element['parent_id'] ?? element['owner_id']);
+    if (owner == null) return null;
+    final part = parts[owner['id']];
+    if (part != null) return part;
+    final parent = parts[owner['parent_id']];
+    if (parent == null || owner['placement'] == null) return null;
+    return Rect.fromCircle(center: project(owner, parent), radius: symbolRadius(owner, parent));
+  }
+
+  VesselEntity? placementAt(VesselEntity element, Offset position) {
+    final owner = model.entity(element['parent_id'] ?? element['owner_id']);
+    final rect = ownerRect(element);
+    if (owner == null || rect == null || !rect.contains(position)) return null;
+    var u = (position.dx - rect.left) / rect.width;
+    var v = (position.dy - rect.top) / rect.height;
+    final shell = owner['kind'] == 'shell';
+    if (shell && model.data['orientation'] != 'horizontal') {
+      final horizontal = u;
+      u = v;
+      v = horizontal;
+    }
+    if (exteriorB && owner['side'] == 'B') u = 1 - u;
+    final x = u - .5;
+    final y = .5 - v;
+    final radius = math.sqrt(x * x + y * y);
+    if (!shell && radius > .5) return null;
+
+    final placement = element['placement'] as Map;
+    if (placement['mode'] != 'physical') return {'mode': 'schematic', 'u': u, 'v': v};
+    final dimension = owner['dimensions']?[shell ? 'length_mm' : 'diameter_mm'];
+    if (dimension is! num || dimension <= 0) return null;
+    final visio = placement['angle_convention'] == 'visio-head-2026';
+    final angle = shell ? v * 360 + model.cut : radius == 0
+        ? (placement['theta_deg'] as num).toDouble()
+        : (visio ? math.atan2(y, owner['side'] == 'A' ? -x : x) : math.atan2(x, y)) * 180 / math.pi;
+    return {
+      ...Map<String, dynamic>.from(placement),
+      if (shell) 'z_local_mm': u * dimension else 'radius_projection_mm': radius * dimension,
+      'theta_deg': angle % 360,
+    };
   }
   double symbolRadius(VesselEntity e, Rect ownerRect) {
     final diameter = (e['dimensions']?['diameter_mm'] as num? ?? num.tryParse('${e['dn']}') ?? 100).toDouble();
@@ -166,6 +202,22 @@ class VesselDrawingLayout {
         .map((e) => e.key)
         .toList();
   }
+}
+
+List<MapEntry<Offset,String>> vesselDimensionLabels(VesselDrawingLayout layout,String layer) {
+  if(layout.detail==null)return [];
+  final m=layout.model;final result=<MapEntry<Offset,String>>[];
+  for(final e in [...m.elements,...m.points]) {
+    final anchor=layout.marks[e['id']];
+    if(anchor==null||(e.containsKey('owner_id')&&layer!='Все'&&layer!='УЗТ'))continue;
+    final owner=m.entity(e['parent_id']??e['owner_id'])!;
+    final lines=coordinateCallout(m,e,owner,detail:layout.detail);
+    if(lines.isEmpty)continue;
+    final name=e.containsKey('owner_id')?'${owner['designation']} / ${e['body_number']??e['local_number']}':'${e['designation']}';
+    result.add(MapEntry(anchor,'$name · ${lines.join('; ')}'));
+  }
+  result.sort((a,b)=>a.key.dy==b.key.dy?a.key.dx.compareTo(b.key.dx):a.key.dy.compareTo(b.key.dy));
+  return result;
 }
 
 class VesselDrawingPainter extends CustomPainter {
@@ -377,6 +429,8 @@ class VesselDrawingPainter extends CustomPainter {
           ? '${e['body_number'] ?? e['local_number']}'
           : '${e['designation']}';
       final override = m.labels[e['id']] as Map?;
+      final labelWidth=label.length*7.0+2;
+      const labelHeight=15.0;
       var pos = mark.value +
           Offset((override?['dx'] as num? ?? (point ? -3 : -20)).toDouble(),
               (override?['dy'] as num? ?? (point ? -16 : -30)).toDouble());
@@ -387,14 +441,14 @@ class VesselDrawingPainter extends CustomPainter {
         for (var i = 0;
             i < 8 &&
                 occupied.any(
-                    (r) => r.overlaps(Rect.fromLTWH(pos.dx, pos.dy, label.length * 7.0 + 2, 15)));
+                    (r) => r.overlaps(Rect.fromLTWH(pos.dx, pos.dy, labelWidth, labelHeight)));
             i++) {
-          pos += const Offset(0, 16);
+          pos += Offset(0, labelHeight+3);
         }
       }
       pos = Offset(
-          pos.dx.clamp(5, size.width - 55), pos.dy.clamp(60, size.height - 45));
-      occupied.add(Rect.fromLTWH(pos.dx, pos.dy, label.length * 7.0 + 2, 15));
+          pos.dx.clamp(5, math.max(5,size.width-labelWidth-6)), pos.dy.clamp(85, size.height-115-labelHeight));
+      occupied.add(Rect.fromLTWH(pos.dx, pos.dy, labelWidth, labelHeight));
       if (!point || override != null) c.drawLine(
           mark.value,
           pos,
@@ -411,9 +465,15 @@ class VesselDrawingPainter extends CustomPainter {
         paintWeldProfile(c,Offset(x,y),size.width*.18,scale:m.data['orientation']=='horizontal'? 0.75:.85);
         break;
       }
-      text(c, '×  Точка УЗТ      К — кольцевой шов      П — продольный / шов днища', Offset(20, size.height - 92), size: 12);
-      text(c, '/ УЗК · × ПВК/МК · I–III овальность · А–А твердометрия · крышка — отдельный вид', Offset(20, size.height - 72), size: 12);
     }
+    final annotations=vesselDimensionLabels(layout,layer);
+    for(var n=0;n<annotations.length;n++) {
+      final at=Offset(size.width*.64,106+n*math.min(24,(size.height-220)/annotations.length));
+      c.drawLine(annotations[n].key,at+const Offset(-8,5),Paint()..color=Colors.grey..strokeWidth=1);
+      text(c,annotations[n].value,at,size:9,maxWidth:size.width*.36-10);
+    }
+    final legend=vesselLegendLines(vesselLegend(m,{...layout.parts.keys,...layout.marks.keys},layer:layer,detail:layout.detail),size.width);
+    for(var n=0;n<legend.length;n++) {text(c,legend[n],Offset(20,size.height-98+n*16),size:11);}
     text(
         c,
         'План контроля. Результаты — в таблицах протоколов. Размеры сверить с источником.',

@@ -22,6 +22,8 @@ export interface Equipment {
 
 export interface Report {
   id: string;
+  report_number?: string | null;
+  is_signed?: boolean;
   inspection_id: string;
   equipment_id: string;
   equipment_name?: string;
@@ -50,12 +52,17 @@ export interface PreviewData {
   };
   equipment: {
     id: string;
+    equipment_code?: string;
     name: string;
     serial_number?: string;
     location?: string;
     commissioning_date?: string;
     attributes?: Record<string, unknown>;
+    enterprise_name?: string;
+    branch_name?: string;
+    workshop_name?: string;
   };
+  context_warnings?: string[];
   questionnaire?: {
     id?: string | null;
   };

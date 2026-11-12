@@ -1,6 +1,6 @@
 """Appendices А–Д follow reference 26-2335; only source report facts are inserted."""
 from io import BytesIO
-from docx.shared import Cm, Inches, Pt
+from docx.shared import Cm
 from docx.enum.section import WD_SECTION, WD_ORIENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -9,17 +9,31 @@ from vessel_control_plan import method_rows, vessel_shells, shell_points, number
 
 
 def append_inspection_schemes(doc, ctx, add_picture):
-    """Use the frozen report geometry when no usable uploaded scheme exists."""
+    """Use the frozen v2 geometry and the same sheet policy as TO-1."""
     from copy import deepcopy
     from scheme_ndt_overlays import extract_geometry, render_all_layer_pngs
+    from vessel_sheet import add_fitted_scheme, configure_drawing_section, drawing_pages, sheet_spec
 
     g = ctx.g
+    data = deepcopy(ctx.inspection_data.get('data') or {})
+    geometry = (data.get('base_vessel_scheme') or {}).get('geometry') or {}
+    if geometry.get('schema_version') == 2:
+        from vessel_geometry_v2 import render_v2
+
+        spec = sheet_spec(geometry)
+        configure_drawing_section(doc.sections[-1], spec)
+        for index, (title, options) in enumerate(drawing_pages(geometry, spec)):
+            if index:
+                configure_drawing_section(doc.add_section(WD_SECTION.NEW_PAGE), spec)
+                doc.add_heading(title, level=2)
+            image, _, _ = render_v2(geometry, spec['width'], spec['height'], **options)
+            add_fitted_scheme(doc, BytesIO(image))
+        return
     for key in ('control_scheme_image', 'control_scheme'):
         image = g(key, default=None)
         if isinstance(image, str) and not image.lower().endswith('.pdf'):
-            if add_picture('', image, width_inches=8.6):
+            if add_picture('', image, fit_scheme=True):
                 return
-    data = deepcopy(ctx.inspection_data.get('data') or {})
     shells = vessel_shells(g)
     if shells:
         elements = data.get('vessel_elements') or []
@@ -45,9 +59,7 @@ def append_inspection_schemes(doc, ctx, add_picture):
     for index, item in enumerate(items):
         if index:
             doc.add_page_break()
-        p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(0)
-        p.add_run().add_picture(BytesIO(item['png']), width=Inches(8.6))
+        add_fitted_scheme(doc, BytesIO(item['png']))
 
 
 def append_vessel_epb(doc, ctx, add_picture):
@@ -183,7 +195,6 @@ def append_vessel_epb(doc, ctx, add_picture):
     sec.page_width=Cm(29.7);sec.page_height=Cm(21);sec.left_margin=Cm(1.27);sec.right_margin=Cm(.63)
     doc.add_heading('Приложение В Схема проведения неразрушающего контроля',level=1)
     append_inspection_schemes(doc, ctx, add_picture)
-    doc.add_paragraph('На каждой обечайке — 12 точек УЗТ. Обозначения элементов и точек соответствуют акту № 3. Участки УЗК, МК (ПВК) и твердометрии — по техническому заданию.')
     sec=doc.add_section(WD_SECTION.NEW_PAGE);sec.orientation=WD_ORIENT.PORTRAIT
     sec.page_width=Cm(21);sec.page_height=Cm(29.7);sec.left_margin=Cm(2.25);sec.right_margin=Cm(1)
     doc.add_heading('Приложение Г Расчетные и аналитические процедуры оценки и прогнозирования технического состояния объекта экспертизы',level=1)
