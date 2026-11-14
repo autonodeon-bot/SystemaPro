@@ -7,7 +7,7 @@ from vessel_scheme_renderer import normalize_geometry, render_vessel_scheme
 
 @pytest.fixture
 def geometry():
-    return json.loads((Path(__file__).parents[2]/'artifacts/vessel-constructor-v2/fixture.json').read_text(encoding='utf-8'))
+    return json.loads((Path(__file__).parents[2]/'fixtures/vessel-constructor-v2.json').read_text(encoding='utf-8'))
 
 def test_shared_fixture_roundtrip_and_coordinates(geometry):
     original=copy.deepcopy(geometry)
@@ -23,12 +23,12 @@ def test_shared_fixture_roundtrip_and_coordinates(geometry):
     assert normalize_geometry(g)['future_extension']=={'foo':1}
 
 @pytest.mark.parametrize('orientation',['vertical','horizontal'])
-def test_render_does_not_generate_measurements(geometry,orientation):
+def test_render_does_not_generate_measurements(geometry,orientation,tmp_path):
     geometry['orientation']=orientation
     png,g,points=render_vessel_scheme(geometry,width=1190,height=842)
     assert png.startswith(b'\x89PNG') and not points
     assert g['elements'][0]['placement']==geometry['elements'][0]['placement']
-    (Path(__file__).parents[2]/f'artifacts/vessel-constructor-v2/server-{orientation}.png').write_bytes(png)
+    (tmp_path/f'server-{orientation}.png').write_bytes(png)
 
 @pytest.mark.parametrize('bad',['nan','owner','duplicate','zone','negative'])
 def test_rejects_invalid_model(geometry,bad):

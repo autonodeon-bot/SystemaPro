@@ -154,9 +154,23 @@ void main() {
       'coverage': {'kind': 'sector', 'unit': 'deg', 'start': 350, 'end': 10}
     });
     expect(VesselGeometry.coverageDegrees(350, 10), 20);
-    final dir = Directory('../artifacts/vessel-constructor-v2')
-      ..createSync(recursive: true);
-    File('${dir.path}/fixture.json').writeAsStringSync(jsonEncode(g.data));
+    expect(g.validateForSave, returnsNormally);
+  });
+  test('shared backend fixture preserves IDs, coordinates and the control plan',
+      () {
+    final raw = jsonDecode(
+        File('../fixtures/vessel-constructor-v2.json').readAsStringSync())
+        as Map<String, dynamic>;
+    final restored = VesselGeometry.load(raw);
+    expect(restored.validateForSave, returnsNormally);
+    expect(restored.shells.length, 6);
+    expect(restored.welds.length, 7);
+    expect(restored.points.length, 78);
+    expect(restored.position(restored.elements.first).x, .175);
+    expect(restored.position(restored.elements.first).y, 0);
+    expect(VesselGeometry.load(restored.data).data, restored.data);
+    expect(restored.points.map((p) => p['id']).toList(),
+        (raw['control_points'] as List).map((p) => p['id']).toList());
   });
   test(
       'legacy data preserved without inventing dimensions or deduplicating names',

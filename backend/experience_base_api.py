@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import text, select, or_
+from sqlalchemy import String, Text, bindparam, text, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import verify_token
@@ -219,6 +219,13 @@ async def ensure_experience_archetype_seed(db: AsyncSession) -> int:
                       AND COALESCE(equipment_mark, '') = :mark
                 )
                 """
+            ).bindparams(
+                # Тип совпадает в SELECT и WHERE: asyncpg не выбирает между text и varchar.
+                bindparam('cat', type_=String(50)),
+                bindparam('kind', type_=String(255)),
+                bindparam('mark', type_=String(255)),
+                bindparam('title', type_=String(500)),
+                bindparam('body', type_=Text()),
             ),
             {
                 "cat": item["category_code"],
