@@ -132,6 +132,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.setItem('token', accessToken);
       localStorage.setItem('user', JSON.stringify(userData));
     } catch (error: any) {
+      if (error instanceof TypeError) {
+        throw new Error('Не удалось подключиться к серверу. Проверьте соединение и повторите вход.');
+      }
       throw new Error(error.message || 'Ошибка авторизации');
     }
   };

@@ -265,9 +265,12 @@ export const MOCK_CADASTRAL: CadastralParcel[] = [
   }
 ];
 
-/** Базовый URL API. Пустая строка = тот же хост (nginx проксирует /api на backend). В dev: VITE_API_BASE=http://localhost:8000 */
-const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE);
-export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
+/** В рабочей сборке /api всегда обслуживается текущим хостом через nginx.
+ * VITE_API_BASE применяется только в dev, чтобы локальный адрес не попал на сайт. */
+const _envApiBase = import.meta.env.VITE_API_BASE;
+export const API_BASE = import.meta.env.DEV && _envApiBase != null
+  ? String(_envApiBase).trim().replace(/\/+$/, '')
+  : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
 export const APP_VERSION = '3.7.41';
