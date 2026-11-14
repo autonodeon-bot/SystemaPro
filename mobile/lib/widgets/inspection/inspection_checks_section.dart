@@ -26,7 +26,8 @@ class InspectionChecksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     final op = checklist.operationalDiagnostics;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,8 +39,8 @@ class InspectionChecksSection extends StatelessWidget {
             (value) {
           checklist.matchesDrawing = value == 'yes';
         }),
-        buildYesNoField(
-            'has_thermal_insulation', 'Наличие тепловой изоляции', (value) {
+        buildYesNoField('has_thermal_insulation', 'Наличие тепловой изоляции',
+            (value) {
           checklist.hasThermalInsulation = value == 'yes';
         }),
         buildDropdownField(
@@ -48,30 +49,31 @@ class InspectionChecksSection extends StatelessWidget {
             ChecklistConstants.states, (value) {
           checklist.anticorrosionCoatingState = value;
         }),
-        buildDropdownField('support_state', 'Состояние опор сосуда',
-            ChecklistConstants.states, (value) {
+        buildDropdownField(
+            'support_state', 'Состояние опор сосуда', ChecklistConstants.states,
+            (value) {
           checklist.supportState = value;
           _setOp('supports', value);
         }),
-        buildDropdownField('fasteners_state',
-            'Состояние крепежных элементов', ChecklistConstants.states,
-            (value) {
+        buildDropdownField('fasteners_state', 'Состояние крепежных элементов',
+            ChecklistConstants.states, (value) {
           checklist.fastenersState = value;
         }),
-        buildYesNoField('has_flange_misalignment',
-            'Перекосы фланцевых соединений', (value) {
+        buildYesNoField(
+            'has_flange_misalignment', 'Перекосы фланцевых соединений',
+            (value) {
           checklist.hasFlangeMisalignment = value == 'yes';
         }),
-        buildYesNoField('has_nozzle_misalignment',
-            'Непрямолинейность патрубков', (value) {
+        buildYesNoField(
+            'has_nozzle_misalignment', 'Непрямолинейность патрубков', (value) {
           checklist.hasNozzleMisalignment = value == 'yes';
         }),
-        buildYesNoField('has_vessel_repairs',
-            'Имеются ли места ремонта сосуда', (value) {
+        buildYesNoField('has_vessel_repairs', 'Имеются ли места ремонта сосуда',
+            (value) {
           checklist.hasVesselRepairs = value == 'yes';
         }),
-        buildYesNoField(
-            'has_tpa_repairs', 'Имеются ли места ремонта ТПА', (value) {
+        buildYesNoField('has_tpa_repairs', 'Имеются ли места ремонта ТПА',
+            (value) {
           checklist.hasTpaRepairs = value == 'yes';
         }),
         buildInspectionTextField(

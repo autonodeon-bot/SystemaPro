@@ -2,7 +2,7 @@
 import { Package, Calendar, FileText, MapPin, Eye, Trash2, CheckCircle2, Building2 } from 'lucide-react';
 import type { Inspection } from './types';
 import InspectionStatusBadge from './InspectionStatusBadge';
-import { formatInspectionDate, inspectionHierarchySubtitle } from './inspectionUtils';
+import { formatInspectionDate, inspectionHierarchySubtitle, inspectionTypeLabel } from './inspectionUtils';
 
 interface InspectionCardProps {
   inspection: Inspection;
@@ -27,7 +27,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
 
   return (
     <div className="bg-app-panel rounded-lg p-4 hover:bg-app-soft transition-colors border border-app-line">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <input
           type="checkbox"
           checked={selected}
@@ -39,15 +39,15 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
           className="mt-1 rounded"
         />
         <div
-          className="flex-1 cursor-pointer"
+          className="min-w-0 flex-1 basis-48 cursor-pointer"
           onClick={() => onOpenDetails(insp)}
         >
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <Package className="text-accent" size={20} />
             <h3 className="font-semibold text-app-text">{insp.equipment_name || 'Неизвестное оборудование'}</h3>
             <InspectionStatusBadge status={insp.status} />
             <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-accent/30 text-accent bg-accent/10">
-              {insp.inspection_type || 'UNSPECIFIED'}
+              {inspectionTypeLabel(insp.inspection_type)}
             </span>
           </div>
           {hierarchy && (
@@ -78,7 +78,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 flex-shrink-0 ml-auto">
           {canApprove && String(insp.status || '').toUpperCase() !== 'APPROVED' && (
             <button
               type="button"
@@ -87,7 +87,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
                 onApprove(insp.id);
               }}
               className="p-2 rounded-lg text-green-300 hover:bg-green-500/10 border border-green-500/20"
-              title="Утвердить чек-лист"
+              title="Утвердить обследование"
             >
               <CheckCircle2 size={16} />
             </button>
@@ -99,7 +99,7 @@ const InspectionCard: React.FC<InspectionCardProps> = ({
               onDelete(insp.id);
             }}
             className="p-2 rounded-lg text-red-300 hover:bg-red-500/10 border border-red-500/20"
-            title="Удалить чек-лист"
+            title="Удалить обследование"
           >
             <Trash2 size={16} />
           </button>

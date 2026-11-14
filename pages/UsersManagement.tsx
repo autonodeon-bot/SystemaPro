@@ -437,7 +437,7 @@ const UsersManagement = () => {
 
       {/* Таблица пользователей */}
       <div className="sp-surface overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto sp-users-table">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-tertiary)' }}>
@@ -522,6 +522,17 @@ const UsersManagement = () => {
         </div>
       </div>
 
+      <div className="sp-mobile-users">
+        {filteredUsers.map(user=><article key={user.id} className="sp-surface p-4 space-y-3">
+          <h2 className="font-semibold break-words text-app-text">{user.full_name || user.username}</h2>
+          <p className="text-sm text-app-text2">@{user.username} · {getRoleLabel(user.role)}</p>
+          <p className="text-sm text-app-text3">{user.is_active !== false ? 'Активен' : 'Отключён'}</p>
+          <div className="flex flex-wrap gap-2">
+            <button className="ind-btn" onClick={()=>openEditModal(user)}><Edit size={16}/>Редактировать</button>
+            <button className="ind-btn" style={{color:'var(--danger)'}} onClick={()=>handleDeleteUser(user.id)}><Trash2 size={16}/>Удалить</button>
+          </div>
+        </article>)}
+      </div>
       {filteredUsers.length === 0 && (
         <div className="sp-surface text-center" style={{ padding: '60px 20px' }}>
           <Users className="mx-auto mb-3 opacity-40" size={40} style={{ color: 'var(--text-muted)' }} />

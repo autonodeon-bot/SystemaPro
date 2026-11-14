@@ -1,3 +1,4 @@
+import '../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,32 +33,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Настройки'),
-        backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.scaffold(context),
+        foregroundColor: AppColors.onSurface(context),
       ),
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: AppColors.scaffold(context),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            color: const Color(0xFF1e293b),
+            color: AppColors.surface(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const ListTile(
-                  title: Text('Тема оформления', style: TextStyle(color: Colors.white)),
+                ListTile(
+                  title: Text('Тема оформления',
+                      style: TextStyle(color: AppColors.onSurface(context))),
                   subtitle: Text(
                     'Сохраняется на устройстве',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.mutedText(context), fontSize: 12),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                   child: SegmentedButton<ThemeMode>(
-                    segments: const [
-                      ButtonSegment(value: ThemeMode.light, label: Text('Светлая')),
-                      ButtonSegment(value: ThemeMode.dark, label: Text('Тёмная')),
-                      ButtonSegment(value: ThemeMode.system, label: Text('Системная')),
+                    segments: [
+                      const ButtonSegment(
+                          value: ThemeMode.light, label: Text('Светлая')),
+                      const ButtonSegment(
+                          value: ThemeMode.dark, label: Text('Тёмная')),
+                      const ButtonSegment(
+                          value: ThemeMode.system, label: Text('Системная')),
                     ],
                     selected: {themeMode},
                     onSelectionChanged: (s) {
@@ -70,36 +76,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 12),
           Card(
-            color: const Color(0xFF1e293b),
+            color: AppColors.surface(context),
             child: ListTile(
-              title: const Text('Сервер API', style: TextStyle(color: Colors.white)),
+              title: Text('Сервер API',
+                  style: TextStyle(color: AppColors.onSurface(context))),
               subtitle: SelectableText(
                 AppConfig.effectiveApiBaseUrl,
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.mutedText(context), fontSize: 13),
               ),
             ),
           ),
           const SizedBox(height: 12),
           Card(
-            color: const Color(0xFF1e293b),
+            color: AppColors.surface(context),
             child: ListTile(
-              title: const Text('Синхронизация', style: TextStyle(color: Colors.white)),
-              subtitle: const Text(
+              title: Text('Синхронизация',
+                  style: TextStyle(color: AppColors.onSurface(context))),
+              subtitle: Text(
                 'Очередь обследований и загрузка на сервер',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.mutedText(context), fontSize: 13),
               ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.white70),
+              trailing: Icon(Icons.chevron_right,
+                  color: AppColors.mutedText(context)),
               onTap: () => context.push('/sync'),
             ),
           ),
           const SizedBox(height: 12),
           Card(
-            color: const Color(0xFF1e293b),
+            color: AppColors.surface(context),
             child: ListTile(
-              title: const Text('Версия приложения', style: TextStyle(color: Colors.white)),
+              title: Text('Версия приложения',
+                  style: TextStyle(color: AppColors.onSurface(context))),
               subtitle: Text(
                 _pkg == null ? '…' : '${_pkg!.version} (${_pkg!.buildNumber})',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.mutedText(context), fontSize: 13),
               ),
             ),
           ),

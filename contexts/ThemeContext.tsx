@@ -12,12 +12,21 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem('theme');
-    return (saved as Theme) || 'dark';
+    // Однократно переводим старую тему по умолчанию на дневную.
+    // После этого явный выбор пользователя сохраняется.
+    try {
+      const saved = localStorage.getItem('theme');
+      return localStorage.getItem('theme-preference-v2') === 'true' && saved === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem('theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+      localStorage.setItem('theme-preference-v2', 'true');
+    } catch { /* Оформление работает и без доступа к хранилищу браузера. */ }
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
   }, [theme]);

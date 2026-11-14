@@ -1,7 +1,12 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="light">
   <head>
     <meta charset="utf-8" />
+    <script>
+      try {
+        document.documentElement.className = localStorage.getItem('theme-preference-v2') === 'true' && localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+      } catch (_) {}
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />

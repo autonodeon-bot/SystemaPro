@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'dart:io';
@@ -65,96 +66,102 @@ Widget buildInspectionProgressIndicator({
   required List<String> selectedEquipmentIds,
   required File? factoryPlatePhoto,
 }) {
-  final manualEquipment = checklist.additionalData?['manual_verification_equipment'];
-  final hasEquipment = selectedEquipmentIds.isNotEmpty ||
-      (manualEquipment is List && manualEquipment.isNotEmpty);
-  int completed = 0;
-  int total = 0;
+  return Builder(builder: (context) {
+    final manualEquipment =
+        checklist.additionalData?['manual_verification_equipment'];
+    final hasEquipment = selectedEquipmentIds.isNotEmpty ||
+        (manualEquipment is List && manualEquipment.isNotEmpty);
+    int completed = 0;
+    int total = 0;
 
-  total += 3;
-  if (checklist.inspectionDate != null && checklist.inspectionDate!.isNotEmpty) {
-    completed++;
-  }
-  if (checklist.executors != null && checklist.executors!.isNotEmpty) {
-    completed++;
-  }
-  if (checklist.organization != null && checklist.organization!.isNotEmpty) {
-    completed++;
-  }
-
-  total += 1;
-  if (hasEquipment) completed++;
-
-  total += 5;
-  if (checklist.vesselName != null && checklist.vesselName!.isNotEmpty) {
-    completed++;
-  }
-  if (checklist.serialNumber != null && checklist.serialNumber!.isNotEmpty) {
-    completed++;
-  }
-  if (checklist.regNumber != null && checklist.regNumber!.isNotEmpty) {
-    completed++;
-  }
-  if (checklist.manufacturer != null && checklist.manufacturer!.isNotEmpty) {
-    completed++;
-  }
-  if (checklist.manufactureYear != null && checklist.manufactureYear!.isNotEmpty) {
-    completed++;
-  }
-
-  total += 1;
-  if (factoryPlatePhoto != null ||
-      (checklist.factoryPlatePhoto != null &&
-          checklist.factoryPlatePhoto!.isNotEmpty)) {
-    completed++;
-  }
-
-  total += 1;
-  if (checklist.conclusion != null && checklist.conclusion!.isNotEmpty) {
-    completed++;
-  }
-
-  final missingRequired = <String>[];
-  if (checklist.inspectionDate == null || checklist.inspectionDate!.isEmpty) {
-    missingRequired.add('Дата обследования');
-  }
-  if (checklist.executors == null || checklist.executors!.isEmpty) {
-    missingRequired.add('Исполнители');
-  }
-  if (checklist.organization == null || checklist.organization!.isEmpty) {
-    missingRequired.add('Организация');
-  }
-  if (!hasEquipment) {
-    missingRequired.add('Оборудование для поверок');
-  }
-  if (factoryPlatePhoto == null &&
-      (checklist.factoryPlatePhoto == null ||
-          checklist.factoryPlatePhoto!.isEmpty)) {
-    missingRequired.add('Фото заводской таблички');
-  }
-  if (checklist.controlSchemeImage == null ||
-      checklist.controlSchemeImage!.trim().isEmpty) {
-    final hasUztScheme = checklist.uztSchemes.any(
-      (s) => (s.schemeImagePath ?? '').trim().isNotEmpty,
-    );
-    if (!hasUztScheme) {
-      missingRequired.add('Схема контроля');
+    total += 3;
+    if (checklist.inspectionDate != null &&
+        checklist.inspectionDate!.isNotEmpty) {
+      completed++;
     }
-  }
-  final hasThickness = checklist.thicknessMeasurements.isNotEmpty ||
-      checklist.uztSchemes.any((s) => s.measurements.isNotEmpty);
-  if (!hasThickness) {
-    missingRequired.add('Точки УЗТ');
-  }
-  if (checklist.conclusion == null || checklist.conclusion!.isEmpty) {
-    missingRequired.add('Заключение');
-  }
+    if (checklist.executors != null && checklist.executors!.isNotEmpty) {
+      completed++;
+    }
+    if (checklist.organization != null && checklist.organization!.isNotEmpty) {
+      completed++;
+    }
 
-  return ChecklistProgressIndicator(
-    completedFields: completed,
-    totalFields: total,
-    missingRequiredFields: missingRequired.isNotEmpty ? missingRequired : null,
-  );
+    total += 1;
+    if (hasEquipment) completed++;
+
+    total += 5;
+    if (checklist.vesselName != null && checklist.vesselName!.isNotEmpty) {
+      completed++;
+    }
+    if (checklist.serialNumber != null && checklist.serialNumber!.isNotEmpty) {
+      completed++;
+    }
+    if (checklist.regNumber != null && checklist.regNumber!.isNotEmpty) {
+      completed++;
+    }
+    if (checklist.manufacturer != null && checklist.manufacturer!.isNotEmpty) {
+      completed++;
+    }
+    if (checklist.manufactureYear != null &&
+        checklist.manufactureYear!.isNotEmpty) {
+      completed++;
+    }
+
+    total += 1;
+    if (factoryPlatePhoto != null ||
+        (checklist.factoryPlatePhoto != null &&
+            checklist.factoryPlatePhoto!.isNotEmpty)) {
+      completed++;
+    }
+
+    total += 1;
+    if (checklist.conclusion != null && checklist.conclusion!.isNotEmpty) {
+      completed++;
+    }
+
+    final missingRequired = <String>[];
+    if (checklist.inspectionDate == null || checklist.inspectionDate!.isEmpty) {
+      missingRequired.add('Дата обследования');
+    }
+    if (checklist.executors == null || checklist.executors!.isEmpty) {
+      missingRequired.add('Исполнители');
+    }
+    if (checklist.organization == null || checklist.organization!.isEmpty) {
+      missingRequired.add('Организация');
+    }
+    if (!hasEquipment) {
+      missingRequired.add('Оборудование для поверок');
+    }
+    if (factoryPlatePhoto == null &&
+        (checklist.factoryPlatePhoto == null ||
+            checklist.factoryPlatePhoto!.isEmpty)) {
+      missingRequired.add('Фото заводской таблички');
+    }
+    if (checklist.controlSchemeImage == null ||
+        checklist.controlSchemeImage!.trim().isEmpty) {
+      final hasUztScheme = checklist.uztSchemes.any(
+        (s) => (s.schemeImagePath ?? '').trim().isNotEmpty,
+      );
+      if (!hasUztScheme) {
+        missingRequired.add('Схема контроля');
+      }
+    }
+    final hasThickness = checklist.thicknessMeasurements.isNotEmpty ||
+        checklist.uztSchemes.any((s) => s.measurements.isNotEmpty);
+    if (!hasThickness) {
+      missingRequired.add('Точки УЗТ');
+    }
+    if (checklist.conclusion == null || checklist.conclusion!.isEmpty) {
+      missingRequired.add('Заключение');
+    }
+
+    return ChecklistProgressIndicator(
+      completedFields: completed,
+      totalFields: total,
+      missingRequiredFields:
+          missingRequired.isNotEmpty ? missingRequired : null,
+    );
+  });
 }
 
 class InspectionConclusionSection extends StatefulWidget {
@@ -184,7 +191,8 @@ class InspectionConclusionSection extends StatefulWidget {
       _InspectionConclusionSectionState();
 }
 
-class _InspectionConclusionSectionState extends State<InspectionConclusionSection> {
+class _InspectionConclusionSectionState
+    extends State<InspectionConclusionSection> {
   String _suitabilityStatus = 'FIT';
   final _restrictionsController = TextEditingController();
 
@@ -224,16 +232,17 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
   @override
   Widget build(BuildContext context) {
     final checklist = widget.checklist;
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         buildSectionHeader(
           form.sectionHeader('conclusion', fallback: '12. Заключение'),
         ),
-        const Text(
+        Text(
           'Оценка пригодности',
-          style: TextStyle(color: Colors.white70, fontSize: 14),
+          style: TextStyle(color: AppColors.mutedText(context), fontSize: 14),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -276,19 +285,19 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
           const SizedBox(height: 12),
           TextField(
             controller: _restrictionsController,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
+            style: TextStyle(color: AppColors.onSurface(context)),
+            decoration: InputDecoration(
               labelText: 'Ограничения эксплуатации',
-              labelStyle: TextStyle(color: Colors.white54),
-              border: OutlineInputBorder(),
+              labelStyle: TextStyle(color: AppColors.mutedText(context)),
+              border: const OutlineInputBorder(),
             ),
             onChanged: (_) => _applySuitability('LIMITED_FIT'),
           ),
         ],
         const SizedBox(height: 16),
-        const Text(
+        Text(
           'Быстрые формулировки',
-          style: TextStyle(color: Colors.white54, fontSize: 12),
+          style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
         ),
         const SizedBox(height: 6),
         PhraseChips(
@@ -337,8 +346,7 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
             VoiceInputButton(
               onResult: (text) {
                 final cur = checklist.conclusion?.trim() ?? '';
-                checklist.conclusion =
-                    cur.isEmpty ? text : '$cur $text';
+                checklist.conclusion = cur.isEmpty ? text : '$cur $text';
                 setState(() {});
               },
             ),
@@ -350,7 +358,8 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               'Последнее сохранение черновика: ${intl.DateFormat('dd.MM HH:mm').format(widget.lastAutoSaveTime!)}',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 12),
             ),
           ),
         _buildSubmitButton(context),
@@ -360,11 +369,13 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
   }
 
   Widget buildProgressIndicator() {
-    return buildInspectionProgressIndicator(
-      checklist: widget.checklist,
-      selectedEquipmentIds: widget.selectedEquipmentIds,
-      factoryPlatePhoto: widget.factoryPlatePhoto,
-    );
+    return Builder(builder: (context) {
+      return buildInspectionProgressIndicator(
+        checklist: widget.checklist,
+        selectedEquipmentIds: widget.selectedEquipmentIds,
+        factoryPlatePhoto: widget.factoryPlatePhoto,
+      );
+    });
   }
 
   Widget _buildSubmitButton(BuildContext context) {
@@ -388,18 +399,18 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
                 ),
               ),
               child: widget.isSubmitting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: AppColors.onSurface(context),
                       ),
                     )
-                  : const Text(
+                  : Text(
                       'Сохранить (черновик)',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.onSurface(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -427,18 +438,18 @@ class _InspectionConclusionSectionState extends State<InspectionConclusionSectio
                   ),
                 ),
                 child: widget.isSubmitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: AppColors.onSurface(context),
                         ),
                       )
-                    : const Text(
+                    : Text(
                         'Подписать / Завершить',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.onSurface(context),
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),

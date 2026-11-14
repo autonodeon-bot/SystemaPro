@@ -187,7 +187,7 @@ const PipelineMap = () => {
           </p>
         </div>
 
-        <div className="absolute top-4 right-4 z-[500] bg-secondary/95 backdrop-blur p-2 rounded-lg border border-app-line shadow-lg">
+        <div className="absolute top-4 right-4 z-[500] bg-app-panel p-2 rounded-lg border border-app-line shadow-lg">
           <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2 px-2">
             <Layers size={16} className="text-accent" /> Карта
           </h3>
@@ -223,7 +223,7 @@ const PipelineMap = () => {
         </div>
       </div>
 
-      <div className="w-full md:w-80 bg-secondary rounded-xl p-4 border border-app-line flex flex-col gap-3 max-h-[70vh] md:max-h-none overflow-hidden">
+      <div className="w-full md:w-80 bg-app-panel rounded-xl p-4 border border-app-line flex flex-col gap-3 max-h-[70vh] md:max-h-none overflow-hidden">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-app-text flex items-center gap-2">
             <Users size={18} className="text-accent" />

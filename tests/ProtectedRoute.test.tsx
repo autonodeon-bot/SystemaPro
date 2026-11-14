@@ -22,6 +22,12 @@ function renderProtectedRoute(ui: ReactNode, initialEntry = '/protected') {
 }
 
 describe('ProtectedRoute', () => {
+  it.each(['admin', 'chief_operator', 'engineer'])('сохраняет ограничения общего раздела для %s', role => {
+    mockUseAuth.mockReturnValue({isAuthenticated:true,loading:false,hasRole:(value:string)=>value===role,hasPermission:()=>false});
+    render(<MemoryRouter><ProtectedRoute allowedRoles={['admin','chief_operator']}><div>Корзина обследований</div></ProtectedRoute></MemoryRouter>);
+    if(role==='engineer') expect(screen.queryByText('Корзина обследований')).not.toBeInTheDocument();
+    else expect(screen.getByText('Корзина обследований')).toBeInTheDocument();
+  });
   it('показывает индикатор загрузки, пока auth в состоянии loading', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: false,
@@ -80,7 +86,7 @@ describe('ProtectedRoute', () => {
       </MemoryRouter>
     )
     expect(screen.getByText('Доступ запрещен')).toBeInTheDocument()
-    expect(screen.getByText('Требуется роль: admin')).toBeInTheDocument()
+    expect(screen.getByText('Недостаточно прав для этого раздела')).toBeInTheDocument()
     expect(screen.queryByText('админка')).not.toBeInTheDocument()
   })
 

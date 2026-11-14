@@ -6,11 +6,13 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: string;
   requiredPermission?: string;
+  allowedRoles?: string[];
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requiredRole, 
+  allowedRoles,
   requiredPermission 
 }) => {
   const { isAuthenticated, hasRole, hasPermission, loading } = useAuth();
@@ -18,7 +20,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-primary">
+      <div className="flex items-center justify-center min-h-screen bg-app-deep">
         <div className="text-center">
           <div className="inline-block w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-app-text3">Загрузка...</p>
@@ -31,12 +33,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && !hasRole(requiredRole)) {
+  if ((requiredRole && !hasRole(requiredRole)) || (allowedRoles && !allowedRoles.some(role => hasRole(role)))) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-primary">
+      <div className="flex items-center justify-center min-h-screen bg-app-deep">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-app-text mb-2">Доступ запрещен</h2>
-          <p className="text-app-text3">Требуется роль: {requiredRole}</p>
+          <p className="text-app-text3">Недостаточно прав для этого раздела</p>
         </div>
       </div>
     );
@@ -44,7 +46,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (requiredPermission && !hasPermission(requiredPermission)) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-primary">
+      <div className="flex items-center justify-center min-h-screen bg-app-deep">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-app-text mb-2">Доступ запрещен</h2>
           <p className="text-app-text3">Недостаточно прав доступа</p>

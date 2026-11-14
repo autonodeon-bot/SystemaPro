@@ -17,6 +17,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import type { GroupedItem, Inspection, Report } from './types';
+import { getInspectionStatusLabel } from '../inspections/inspectionStatus';
 
 export interface InspectionReports {
   technical?: Report;
@@ -213,7 +214,7 @@ const GroupedReportList = ({
               <div className="p-4 space-y-4 border-t border-app-line">
                 {group.inspections.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-bold text-app-text3 mb-2">Чек-листы ({group.inspections.length})</h3>
+                    <h3 className="text-sm font-bold text-app-text3 mb-2">Обследования ({group.inspections.length})</h3>
                     <div className="space-y-3">
                       {group.inspections.map((inspection: Inspection) => {
                         const { technical: technicalReport, expertise: expertiseReport } = getInspectionReports(
@@ -232,7 +233,7 @@ const GroupedReportList = ({
                                     ? formatDateRu(inspection.date_performed)
                                     : 'Дата не указана'}
                                   {' • '}
-                                  Статус: {inspection.status}
+                                  Статус: {getInspectionStatusLabel(inspection.status)}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -347,7 +348,7 @@ const GroupedReportList = ({
                               {' • '}
                               {formatDateRu(report.created_at)}
                               {' • '}
-                              Статус: {report.status}
+                              Статус: {getInspectionStatusLabel(report.status)}
                             </p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">

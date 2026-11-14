@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import '../../models/vessel_checklist.dart';
 import 'inspection_form_fields.dart';
@@ -102,8 +103,10 @@ class _InspectionPipelineExtraSectionState
           initialValue: _station['current_a']?.toString(),
         ),
         const SizedBox(height: 8),
-        const Text('Точки защитного потенциала',
-            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+        Text('Точки защитного потенциала',
+            style: TextStyle(
+                color: AppColors.mutedText(context),
+                fontWeight: FontWeight.w600)),
         ...ehz.asMap().entries.map((e) {
           final i = e.key;
           final p = e.value;
@@ -111,11 +114,12 @@ class _InspectionPipelineExtraSectionState
             dense: true,
             title: Text(
               'Точка ${p['point_on_scheme'] ?? i + 1}: ${p['protective_potential_v'] ?? '—'} В',
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.onSurface(context)),
             ),
             subtitle: Text(
               '${p['object_name'] ?? ''} | ${p['coating_state'] ?? ''}',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 12),
             ),
             trailing: IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
@@ -143,11 +147,12 @@ class _InspectionPipelineExtraSectionState
             dense: true,
             title: Text(
               '№ ${p['point'] ?? i + 1}: H=${p['height_mm'] ?? '—'} мм, уклон=${p['slope_mm_per_m'] ?? '—'}',
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.onSurface(context)),
             ),
             subtitle: Text(
               p['conclusion']?.toString() ?? '',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 12),
             ),
             trailing: IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
@@ -187,8 +192,7 @@ class _InspectionPipelineExtraSectionState
             widget.checklist.calculationData!['residual_life_years'] = v;
             widget.onStateChanged();
           },
-          initialValue: widget
-              .checklist.calculationData?['residual_life_years']
+          initialValue: widget.checklist.calculationData?['residual_life_years']
               ?.toString(),
         ),
         buildInspectionTextField(
@@ -200,8 +204,9 @@ class _InspectionPipelineExtraSectionState
             _ad['pipe_material'] = v;
             widget.onStateChanged();
           },
-          initialValue: widget.checklist.calculationData?['steel']?.toString() ??
-              _ad['pipe_material']?.toString(),
+          initialValue:
+              widget.checklist.calculationData?['steel']?.toString() ??
+                  _ad['pipe_material']?.toString(),
         ),
         buildInspectionTextField(
           'shurf_act_path',
@@ -233,50 +238,55 @@ class _InspectionPipelineExtraSectionState
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1e293b),
-        title: const Text('Точка ЭХЗ', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Точка ЭХЗ',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: point,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: '№ точки на схеме',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
               TextField(
                 controller: object,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: 'Объект',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
               TextField(
                 controller: potential,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: 'Защитный потенциал, В',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
               TextField(
                 controller: coating,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: 'Состояние изоляции',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Добавить')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Добавить')),
         ],
       ),
     );
@@ -300,50 +310,55 @@ class _InspectionPipelineExtraSectionState
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1e293b),
-        title: const Text('Точка геометрии', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Точка геометрии',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: point,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: '№ точки',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
               TextField(
                 controller: height,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: 'Высота, мм',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
               TextField(
                 controller: slope,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: 'Уклон, мм/м',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
               TextField(
                 controller: conclusion,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.onSurface(context)),
+                decoration: InputDecoration(
                   labelText: 'Вывод',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Добавить')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Добавить')),
         ],
       ),
     );

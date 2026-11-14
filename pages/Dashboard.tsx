@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles, BarChart2, FileText, ClipboardList, Calendar, User } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Activity, CheckCircle2, Sparkles, FileText, ClipboardList, Calendar, User } from 'lucide-react';
 import {
   API_BASE,
   APP_VERSION,
@@ -179,8 +179,13 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="sp-surface p-4 sm:p-5 sp-animate-in">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h1 className="text-2xl font-semibold text-app-text">Рабочий обзор</h1><p className="text-sm text-app-text3 mt-1">Задания, результаты и сроки обследований</p></div>
+        <a href="#/assignments" className="ind-btn ind-btn--primary">Открыть задания</a>
+      </div>
+      <details className="sp-surface p-4 sm:p-5">
+        <summary className="cursor-pointer text-sm font-semibold text-app-text">Что нового в версии {APP_VERSION}</summary>
+        <div className="flex items-center gap-2 my-3">
           <Sparkles className="text-[var(--accent)]" size={18} />
           <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Что нового</h3>
           <span className="ind-chip ind-chip--info ind-mono" style={{ marginLeft: 'auto' }}>v{APP_VERSION}</span>
@@ -189,14 +194,14 @@ const Dashboard = () => {
           Актуально на {RELEASE_NOTES_DATE} — последние доработки web, mobile и backend:
         </p>
         <ul className="text-sm list-disc list-inside space-y-1.5 marker:text-[var(--accent)]" style={{ color: 'var(--text-secondary)' }}>
-          {DASHBOARD_WHATS_NEW_ITEMS.map((line) => (
+          {DASHBOARD_WHATS_NEW_ITEMS.slice(0, 3).map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
         <a href="#/changelog" className="mt-2 inline-block text-sm" style={{ color: 'var(--accent)' }}>
           Открыть список изменений →
         </a>
-      </div>
+      </details>
 
       {(verificationAlerts.expired > 0 || verificationAlerts.warning7 > 0 || verificationAlerts.warning30 > 0) && (
         <div className="sp-surface p-4 sm:p-5 sp-animate-in">
@@ -236,39 +241,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {stats && (
-        <div className="sp-surface p-4 sm:p-5 sp-animate-in">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart2 className="text-[var(--accent)]" size={18} />
-            <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Статистика за {stats.period_days} дней</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="flex items-center gap-3 p-3 sp-surface-flat">
-              <Activity size={22} style={{ color: 'var(--accent)' }} />
-              <div>
-                <div className="text-xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{stats.inspections}</div>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Обследований</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 sp-surface-flat">
-              <FileText size={22} style={{ color: 'var(--success)' }} />
-              <div>
-                <div className="text-xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{stats.reports}</div>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Отчётов</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 sp-surface-flat">
-              <ClipboardList size={22} style={{ color: 'var(--warning)' }} />
-              <div>
-                <div className="text-xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{stats.assignments}</div>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Заданий</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <StatCard
           title="Всего объектов"
           value={equipmentCount !== null ? equipmentCount.toLocaleString('ru-RU') : '—'}
@@ -304,16 +277,16 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="lg:col-span-2 sp-surface p-4 sm:p-6 overflow-hidden sp-animate-in">
+        <div className="lg:col-span-2 sp-surface p-4 sm:p-6 overflow-hidden sp-animate-in order-2 lg:order-1">
           <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6" style={{ color: 'var(--text-primary)' }}>Динамика обследований по месяцам</h3>
           <div className="h-64 sm:h-80 w-full overflow-x-auto">
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" />
-                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#475569', color: '#fff' }} />
+                  <XAxis dataKey="name" stroke="var(--text-secondary)" />
+                  <YAxis stroke="var(--text-secondary)" />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} labelStyle={{ color: 'var(--text-primary)' }} itemStyle={{ color: 'var(--text-primary)' }} />
                   <Bar dataKey="Обследований" name="Обследований" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -332,7 +305,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="sp-surface p-4 sm:p-6 flex flex-col sp-animate-in">
+        <div className="sp-surface p-4 sm:p-6 flex flex-col sp-animate-in order-1 lg:order-2">
           <h3 className="text-base sm:text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Ближайшие задания</h3>
           <div className="flex-1 overflow-y-auto space-y-3 pr-2">
             {assignmentsLoading ? (

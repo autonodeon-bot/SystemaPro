@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import Modal from './ui/Modal';
+import React, { useState, useEffect } from 'react';
 import { API_BASE, ASSIGNMENT_TYPE_SELECT_OPTIONS } from '../constants';
 
 interface CreateAssignmentModalProps {
@@ -389,12 +390,8 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-app-panel rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-        <div className="p-6 border-b border-app-line">
-          <h2 className="text-xl font-semibold text-white">Создать задание</h2>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal title="Создать задание" onClose={onClose} busy={saving}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-400 text-sm">
               {error}
@@ -772,7 +769,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-app-line">
+          <div className="sp-form-actions">
             <button
               type="button"
               onClick={onClose}
@@ -790,8 +787,7 @@ const CreateAssignmentModal: React.FC<CreateAssignmentModalProps> = ({ onClose, 
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

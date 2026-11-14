@@ -22,20 +22,34 @@ class _ThicknessDefaultsEditorState extends State<ThicknessDefaultsEditor> {
   @override
   void didUpdateWidget(covariant ThicknessDefaultsEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (ThicknessDefaults.parse(nominal.text) !=
-        widget.settings.nominalThickness)
+    if (oldWidget.settings.nominalThickness !=
+            widget.settings.nominalThickness &&
+        ThicknessDefaults.parse(nominal.text) !=
+            widget.settings.nominalThickness)
       nominal.text = widget.settings.nominalThickness?.toString() ?? '';
-    if (ThicknessDefaults.parse(minimum.text) !=
-        widget.settings.minAllowedThickness)
+    if (oldWidget.settings.minAllowedThickness !=
+            widget.settings.minAllowedThickness &&
+        ThicknessDefaults.parse(minimum.text) !=
+            widget.settings.minAllowedThickness)
       minimum.text = widget.settings.minAllowedThickness?.toString() ?? '';
     if (basis.text != (widget.settings.basis ?? ''))
       basis.text = widget.settings.basis ?? '';
   }
 
-  void changed() => widget.onChanged(ThicknessDefaults(
-      nominalThickness: ThicknessDefaults.parse(nominal.text),
-      minAllowedThickness: ThicknessDefaults.parse(minimum.text),
-      basis: basis.text));
+  String? error(TextEditingController controller) =>
+      controller.text.trim().isNotEmpty &&
+              ThicknessDefaults.parse(controller.text) == null
+          ? 'Введите положительное число, например 12,5'
+          : null;
+  void changed() {
+    setState(() {});
+    if (error(nominal) != null || error(minimum) != null) return;
+    widget.onChanged(ThicknessDefaults(
+        nominalThickness: ThicknessDefaults.parse(nominal.text),
+        minAllowedThickness: ThicknessDefaults.parse(minimum.text),
+        basis: basis.text));
+  }
+
   @override
   void dispose() {
     nominal.dispose();
@@ -56,9 +70,10 @@ class _ThicknessDefaultsEditorState extends State<ThicknessDefaultsEditor> {
         TextFormField(
           key: const ValueKey('shared-nominal-thickness'),
           controller: nominal,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
+              errorText: error(nominal),
               labelText: 'Номинальная толщина сосуда, мм',
-              border: OutlineInputBorder()),
+              border: const OutlineInputBorder()),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => changed(),
         ),
@@ -66,10 +81,11 @@ class _ThicknessDefaultsEditorState extends State<ThicknessDefaultsEditor> {
         TextFormField(
           key: const ValueKey('shared-min-allowed-thickness'),
           controller: minimum,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
+              errorText: error(minimum),
               labelText: 'Минимально допустимая толщина, мм',
               helperText: 'Из паспорта или расчёта на прочность',
-              border: OutlineInputBorder()),
+              border: const OutlineInputBorder()),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => changed(),
         ),

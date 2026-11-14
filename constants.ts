@@ -270,7 +270,7 @@ const _envApiBase = (typeof import.meta !== 'undefined' && (import.meta as any).
 export const API_BASE = (_envApiBase !== undefined && _envApiBase !== null && _envApiBase !== '') ? String(_envApiBase) : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.7.40';
+export const APP_VERSION = '3.7.41';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -296,10 +296,13 @@ export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
 export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
 
 /** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
-export const RELEASE_NOTES_DATE = '09.07.2026';
+export const RELEASE_NOTES_DATE = '14.11.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Дневная тема стала основной: контрастные подписи, кнопки и статусы; выбор ночной темы сохраняется.',
+  'Компактное меню, свёрнутые фильтры, действия на небольшом экране и доступные модальные окна.',
+  'Приложение 3.7.41+84: поддержка крупного шрифта, темы форм и полноэкранная карта замеров.',
   'Релиз 3.7.7: UX мобильного, светлая тема, загрузка НД, просмотр шаблонов; APK 3.7.7+44.',
   'Релиз 3.7.5: отчёт ТО — все приложения 1–10, фото/чертежи/сканы из мобильного; UI генерации — иконки, сначала ТО затем ЭПБ; APK 3.7.5+42.',
   'Релиз 3.7.4: доработка отчёта ТО/ЭПБ (титул, содержание, таблицы, выводы, справочник «Данные отчёта»); мобильное — страницы документов, предыдущие обследования; APK 3.7.4+41.',
@@ -339,8 +342,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.7.40';
-export const MOBILE_APP_BUILD = '83';
+export const MOBILE_APP_VERSION = '3.7.41';
+export const MOBILE_APP_BUILD = '84';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

@@ -82,18 +82,26 @@ const ReportGenerationToolbar = ({
           <option value="COMPLETED">Завершен</option>
         </select>
 
+        <label className="flex flex-col gap-1 text-xs text-app-text3"><span>Дата от</span>
+        <label className="flex flex-col gap-1 text-xs text-app-text3"><span>Дата до</span>
         <input
           type="date"
           value={filterDateFrom}
           onChange={(e) => onFilterDateFromChange(e.target.value)}
+          aria-label="Дата отчёта от"
+          title="Дата отчёта от"
           placeholder="Дата от"
           className="px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text text-sm"
         />
+        </label>
+        </label>
 
         <input
           type="date"
           value={filterDateTo}
           onChange={(e) => onFilterDateToChange(e.target.value)}
+          aria-label="Дата отчёта до"
+          title="Дата отчёта до"
           placeholder="Дата до"
           className="px-3 py-2 bg-app-panel border border-app-line rounded-lg text-app-text text-sm"
         />

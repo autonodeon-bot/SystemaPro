@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:image_picker/image_picker.dart';
@@ -33,7 +34,8 @@ class InspectionDocumentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     final docs = form.documents.isNotEmpty
         ? form.documents
         : ChecklistConstants.documents;
@@ -41,7 +43,8 @@ class InspectionDocumentsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         buildSectionHeader(
-          form.sectionHeader('documents', fallback: '2. Перечень рассмотренных документов'),
+          form.sectionHeader('documents',
+              fallback: '2. Перечень рассмотренных документов'),
         ),
         _buildOpoDataSwitch(),
         ...docs.where((doc) {
@@ -60,33 +63,37 @@ class InspectionDocumentsSection extends StatelessWidget {
   }
 
   Widget _buildOpoDataSwitch() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withOpacity(0.25)),
-      ),
-      child: SwitchListTile.adaptive(
-        value: checklist.includeOpoData,
-        onChanged: (v) {
-          checklist.includeOpoData = v;
-          onStateChanged();
-        },
-        title: const Text(
-          'Данные по ОПО (пункты 1–9)',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return Builder(builder: (context) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blue.withOpacity(0.25)),
         ),
-        subtitle: Text(
-          checklist.includeOpoData
-              ? 'Включено: заполните весь опросный лист'
-              : 'Выключено: чек-лист только по оборудованию (начиная с пункта 10)',
-          style: const TextStyle(color: Colors.white70),
+        child: SwitchListTile.adaptive(
+          value: checklist.includeOpoData,
+          onChanged: (v) {
+            checklist.includeOpoData = v;
+            onStateChanged();
+          },
+          title: Text(
+            'Данные по ОПО (пункты 1–9)',
+            style: TextStyle(
+                color: AppColors.onSurface(context),
+                fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            checklist.includeOpoData
+                ? 'Включено: заполните весь опросный лист'
+                : 'Выключено: чек-лист только по оборудованию (начиная с пункта 10)',
+            style: TextStyle(color: AppColors.mutedText(context)),
+          ),
+          activeColor: Colors.green,
         ),
-        activeColor: Colors.green,
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildMultiDocumentSets(
@@ -103,17 +110,19 @@ class InspectionDocumentsSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
-        color: kInspectionDarkBg,
+        color: AppColors.surface(context),
         child: Column(
           children: [
             CheckboxListTile(
               title: Text(
                 '${doc['number']}. ${doc['name']}',
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(
+                    color: AppColors.onSurface(context), fontSize: 14),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Можно добавить несколько комплектов (номер, дата, файл)',
-                style: TextStyle(color: Colors.white54, fontSize: 11),
+                style: TextStyle(
+                    color: AppColors.mutedText(context), fontSize: 11),
               ),
               value: isChecked,
               onChanged: (value) {
@@ -137,8 +146,8 @@ class InspectionDocumentsSection extends StatelessWidget {
                     ...sets.asMap().entries.map((entry) {
                       final setIndex = entry.key;
                       final info = entry.value;
-                      final fileKey =
-                          VesselChecklist.documentFileKey(documentNumber, setIndex);
+                      final fileKey = VesselChecklist.documentFileKey(
+                          documentNumber, setIndex);
                       final hasFile = documentFiles.containsKey(fileKey) ||
                           (setIndex == 0 &&
                               documentFiles.containsKey(documentNumber));
@@ -152,7 +161,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white24),
+                          border: Border.all(color: AppColors.border(context)),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Column(
@@ -162,8 +171,8 @@ class InspectionDocumentsSection extends StatelessWidget {
                               children: [
                                 Text(
                                   'Комплект ${setIndex + 1}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: AppColors.onSurface(context),
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -191,11 +200,13 @@ class InspectionDocumentsSection extends StatelessWidget {
                             FormBuilderTextField(
                               name: 'doc_number_${documentNumber}_$setIndex',
                               initialValue: info['number'],
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Номер документа',
-                                labelStyle: TextStyle(color: Colors.white70),
+                                labelStyle: TextStyle(
+                                    color: AppColors.mutedText(context)),
                               ),
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                  color: AppColors.onSurface(context)),
                               onChanged: (value) {
                                 final updated =
                                     List<Map<String, String>>.from(sets);
@@ -214,11 +225,13 @@ class InspectionDocumentsSection extends StatelessWidget {
                               name: 'doc_date_${documentNumber}_$setIndex',
                               inputType: InputType.date,
                               initialValue: infoDate,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Дата документа',
-                                labelStyle: TextStyle(color: Colors.white70),
+                                labelStyle: TextStyle(
+                                    color: AppColors.mutedText(context)),
                               ),
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                  color: AppColors.onSurface(context)),
                               onChanged: (value) {
                                 final updated =
                                     List<Map<String, String>>.from(sets);
@@ -239,11 +252,13 @@ class InspectionDocumentsSection extends StatelessWidget {
                               name: 'doc_pages_${documentNumber}_$setIndex',
                               initialValue: info['pages'],
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Количество страниц (листов)',
-                                labelStyle: TextStyle(color: Colors.white70),
+                                labelStyle: TextStyle(
+                                    color: AppColors.mutedText(context)),
                               ),
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                  color: AppColors.onSurface(context)),
                               onChanged: (value) {
                                 final updated =
                                     List<Map<String, String>>.from(sets);
@@ -295,8 +310,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: () {
-                          final updated =
-                              List<Map<String, String>>.from(sets);
+                          final updated = List<Map<String, String>>.from(sets);
                           updated.add({'number': '', 'date': '', 'pages': ''});
                           checklist.setDocumentSets(documentNumber, updated);
                           onStateChanged();
@@ -314,13 +328,12 @@ class InspectionDocumentsSection extends StatelessWidget {
     );
   }
 
-  Widget _buildDocumentCheckbox(
-      BuildContext context, Map<String, String> doc) {
+  Widget _buildDocumentCheckbox(BuildContext context, Map<String, String> doc) {
     final documentNumber = doc['number']!;
     final hasFile = documentFiles.containsKey(documentNumber);
     final isChecked = checklist.documents[documentNumber] ?? false;
-    final info =
-        checklist.documentsInfo[documentNumber] ?? {'number': '', 'date': '', 'pages': ''};
+    final info = checklist.documentsInfo[documentNumber] ??
+        {'number': '', 'date': '', 'pages': ''};
     DateTime? infoDate;
     if ((info['date'] ?? '').isNotEmpty) {
       try {
@@ -331,13 +344,14 @@ class InspectionDocumentsSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
-        color: kInspectionDarkBg,
+        color: AppColors.surface(context),
         child: Column(
           children: [
             CheckboxListTile(
               title: Text(
                 '${doc['number']}. ${doc['name']}',
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(
+                    color: AppColors.onSurface(context), fontSize: 14),
               ),
               value: isChecked,
               onChanged: (value) {
@@ -355,9 +369,9 @@ class InspectionDocumentsSection extends StatelessWidget {
                   if (questionnaireId != null) {
                     apiService
                         .deleteDocumentFile(
-                      questionnaireId: questionnaireId!,
-                      documentNumber: documentNumber,
-                    )
+                          questionnaireId: questionnaireId!,
+                          documentNumber: documentNumber,
+                        )
                         .catchError((e) {});
                   }
                 }
@@ -365,8 +379,7 @@ class InspectionDocumentsSection extends StatelessWidget {
               },
               activeColor: kInspectionAccentBlue,
               secondary: hasFile
-                  ? const Icon(Icons.attach_file,
-                      color: Colors.green, size: 20)
+                  ? const Icon(Icons.attach_file, color: Colors.green, size: 20)
                   : null,
             ),
             if (isChecked)
@@ -378,18 +391,19 @@ class InspectionDocumentsSection extends StatelessWidget {
                     FormBuilderTextField(
                       name: 'doc_number_$documentNumber',
                       initialValue: info['number'],
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Номер документа',
-                        labelStyle: TextStyle(color: Colors.white70),
+                        labelStyle:
+                            TextStyle(color: AppColors.mutedText(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
                           borderSide:
-                              BorderSide(color: kInspectionAccentBlue),
+                              BorderSide(color: AppColors.border(context)),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: kInspectionAccentBlue),
                         ),
                       ),
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppColors.onSurface(context)),
                       onChanged: (value) {
                         final current =
                             checklist.documentsInfo[documentNumber] ?? {};
@@ -406,18 +420,19 @@ class InspectionDocumentsSection extends StatelessWidget {
                       name: 'doc_pages_$documentNumber',
                       initialValue: info['pages'],
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Количество страниц',
-                        labelStyle: TextStyle(color: Colors.white70),
+                        labelStyle:
+                            TextStyle(color: AppColors.mutedText(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
                           borderSide:
-                              BorderSide(color: kInspectionAccentBlue),
+                              BorderSide(color: AppColors.border(context)),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: kInspectionAccentBlue),
                         ),
                       ),
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppColors.onSurface(context)),
                       onChanged: (value) {
                         final current =
                             checklist.documentsInfo[documentNumber] ?? {};
@@ -434,18 +449,19 @@ class InspectionDocumentsSection extends StatelessWidget {
                       name: 'doc_date_$documentNumber',
                       inputType: InputType.date,
                       initialValue: infoDate,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Дата документа',
-                        labelStyle: TextStyle(color: Colors.white70),
+                        labelStyle:
+                            TextStyle(color: AppColors.mutedText(context)),
                         enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
                           borderSide:
-                              BorderSide(color: kInspectionAccentBlue),
+                              BorderSide(color: AppColors.border(context)),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: kInspectionAccentBlue),
                         ),
                       ),
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppColors.onSurface(context)),
                       onChanged: (value) {
                         final current =
                             checklist.documentsInfo[documentNumber] ?? {};
@@ -466,11 +482,10 @@ class InspectionDocumentsSection extends StatelessWidget {
                           child: OutlinedButton.icon(
                             onPressed: () =>
                                 _pickDocumentFile(context, documentNumber),
-                            icon: Icon(
-                                hasFile ? Icons.edit : Icons.attach_file),
-                            label: Text(hasFile
-                                ? 'Изменить файл'
-                                : 'Прикрепить файл'),
+                            icon:
+                                Icon(hasFile ? Icons.edit : Icons.attach_file),
+                            label: Text(
+                                hasFile ? 'Изменить файл' : 'Прикрепить файл'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.blue,
                               side: const BorderSide(color: Colors.blue),
@@ -480,16 +495,15 @@ class InspectionDocumentsSection extends StatelessWidget {
                         if (hasFile) ...[
                           const SizedBox(width: 8),
                           IconButton(
-                            icon:
-                                const Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () {
                               documentFiles.remove(documentNumber);
                               if (questionnaireId != null) {
                                 apiService
                                     .deleteDocumentFile(
-                                  questionnaireId: questionnaireId!,
-                                  documentNumber: documentNumber,
-                                )
+                                      questionnaireId: questionnaireId!,
+                                      documentNumber: documentNumber,
+                                    )
                                     .catchError((e) {});
                               }
                               onStateChanged();
@@ -518,24 +532,24 @@ class InspectionDocumentsSection extends StatelessWidget {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: kInspectionDarkBg,
-          title: const Text('Выберите файл',
-              style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.surface(context),
+          title: Text('Выберите файл',
+              style: TextStyle(color: AppColors.onSurface(context))),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.camera_alt,
-                    color: Colors.blue, size: 28),
-                title: const Text('Камера',
+                leading:
+                    const Icon(Icons.camera_alt, color: Colors.blue, size: 28),
+                title: Text('Камера',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.onSurface(context),
                         fontSize: 16,
                         fontWeight: FontWeight.w600)),
                 onTap: () async {
                   Navigator.pop(context);
-                  final image = await imagePicker.pickImage(
-                      source: ImageSource.camera);
+                  final image =
+                      await imagePicker.pickImage(source: ImageSource.camera);
                   if (image != null) {
                     _handleDocumentFile(
                         context, storageKey, image.path, image.name);
@@ -545,15 +559,15 @@ class InspectionDocumentsSection extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.photo_library,
                     color: Colors.green, size: 28),
-                title: const Text('Галерея',
+                title: Text('Галерея',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.onSurface(context),
                         fontSize: 16,
                         fontWeight: FontWeight.w600)),
                 onTap: () async {
                   Navigator.pop(context);
-                  final image = await imagePicker.pickImage(
-                      source: ImageSource.gallery);
+                  final image =
+                      await imagePicker.pickImage(source: ImageSource.gallery);
                   if (image != null) {
                     _handleDocumentFile(
                         context, storageKey, image.path, image.name);
@@ -561,10 +575,9 @@ class InspectionDocumentsSection extends StatelessWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.picture_as_pdf,
-                    color: Colors.red),
-                title: const Text('PDF файл',
-                    style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                title: Text('PDF файл',
+                    style: TextStyle(color: AppColors.onSurface(context))),
                 onTap: () async {
                   Navigator.pop(context);
                   final result = await FilePicker.platform.pickFiles(
@@ -588,8 +601,7 @@ class InspectionDocumentsSection extends StatelessWidget {
                     } else if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                              'Не удалось получить путь к файлу PDF'),
+                          content: Text('Не удалось получить путь к файлу PDF'),
                           backgroundColor: Colors.red,
                         ),
                       );

@@ -19,6 +19,10 @@ export function getInspectionStatusLabel(status: string): string {
       return 'Черновик';
     case 'REJECTED':
       return 'Отклонен';
+    case 'APPROVED': return 'Утверждён';
+    case 'COMPLETED': return 'Завершён';
+    case 'SUBMITTED': return 'Отправлен';
+    case 'ARCHIVED': return 'В архиве';
     default:
       return status;
   }

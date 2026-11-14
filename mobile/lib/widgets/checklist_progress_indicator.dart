@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 /// Виджет для отображения прогресса заполнения чек-листа
 class ChecklistProgressIndicator extends StatelessWidget {
@@ -20,7 +21,7 @@ class ChecklistProgressIndicator extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: progress >= 1.0 ? Colors.green : Colors.orange,
@@ -33,14 +34,16 @@ class ChecklistProgressIndicator extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              Expanded(
+                  child: Text(
                 'Прогресс заполнения',
                 style: TextStyle(
-                  color: Colors.grey[300],
+                  color: AppColors.onSurface(context),
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
-              ),
+              )),
+              const SizedBox(width: 8),
               Text(
                 '${(progress * 100).toStringAsFixed(0)}%',
                 style: TextStyle(
@@ -64,11 +67,12 @@ class ChecklistProgressIndicator extends StatelessWidget {
           Text(
             '$completedFields из $totalFields полей заполнено',
             style: TextStyle(
-              color: Colors.grey[400],
+              color: AppColors.mutedText(context),
               fontSize: 12,
             ),
           ),
-          if (missingRequiredFields != null && missingRequiredFields!.isNotEmpty) ...[
+          if (missingRequiredFields != null &&
+              missingRequiredFields!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
@@ -83,14 +87,15 @@ class ChecklistProgressIndicator extends StatelessWidget {
                     children: [
                       Icon(Icons.warning, color: Colors.red[300], size: 16),
                       const SizedBox(width: 4),
-                      Text(
+                      Expanded(
+                          child: Text(
                         'Не заполнены обязательные поля:',
                         style: TextStyle(
                           color: Colors.red[300],
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
-                      ),
+                      )),
                     ],
                   ),
                   const SizedBox(height: 4),

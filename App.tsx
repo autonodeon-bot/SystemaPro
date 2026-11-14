@@ -1,6 +1,6 @@
-﻿import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Outlet, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Bell, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Briefcase, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon, Wallet, Network, PenTool } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Menu, X, FileText, Package, Users, FolderKanban, FileCheck, Award, Sparkles, ListChecks, Smartphone, LogOut, CheckCircle2, Sun, Moon, Shield, Wrench, HelpCircle, Building2, Map, Layers, AlertTriangle, Trash2, Gauge, Image as ImageIcon, Wallet, Network, PenTool } from 'lucide-react';
 import {
   APP_VERSION,
   APP_HEADER_TITLE,
@@ -15,6 +15,7 @@ import Landing from './pages/Landing';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const SettingsPage = lazy(() => import('./pages/Settings'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const DynamicInspection = lazy(() => import('./pages/DynamicInspection'));
 const TechSpecs = lazy(() => import('./pages/TechSpecs'));
@@ -62,6 +63,16 @@ const PageLoader = () => (
   </div>
 );
 
+const sidebarLabels: Record<string,string> = {
+  '/dashboard':'Обзор', '/equipment':'Оборудование', '/assignments':'Задания', '/inspections-list':'Обследования',
+  '/reports':'Отчёты', '/verifications':'Поверки', '/instrument-registry':'Реестр приборов', '/opo-registry':'Реестр ОПО',
+  '/defect-statement':'Ведомость дефектов', '/regulatory':'Нормативные документы', '/competencies':'Компетенции',
+  '/protocol-constructor':'Шаблоны протоколов', '/drawing-templates':'Шаблоны чертежей', '/vessel-scheme-constructor':'Конструктор сосуда',
+  '/diagnostic-menu':'Меню диагностики', '/inspection-object-templates':'Шаблоны обследований', '/inspections-trash':'Корзина',
+  '/admin':'Администрирование', '/users':'Сотрудники', '/report-templates':'Шаблоны отчётов', '/report-org-settings':'Данные отчёта',
+  '/enterprise-cards':'Предприятия', '/pipeline-map':'Расположение сотрудников', '/projects':'Проекты', '/billing':'Финансы',
+  '/specs':'Архитектура', '/glossary':'Глоссарий', '/mobile-app':'Приложение Android', '/changelog':'Что нового', '/settings':'Настройки'
+};
 const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
@@ -69,7 +80,8 @@ const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: 
     <NavLink
       to={to}
       className={`sp-sidebar-item ${isActive ? 'active' : ''} ${!label ? 'justify-center px-0' : ''}`}
-      title={!label ? to.replace('/', '') : undefined}
+      aria-label={label || sidebarLabels[to] || to}
+      title={!label ? sidebarLabels[to] || to : undefined}
     >
       <Icon size={18} className="shrink-0" />
       {label && <span>{label}</span>}
@@ -79,6 +91,7 @@ const SidebarItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: 
 
 const Layout: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false); // Закрыт по умолчанию на мобильных
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -109,12 +122,12 @@ const Layout: React.FC = () => {
     : user?.username?.charAt(0).toUpperCase() ?? 'A';
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--gradient-bg)', backgroundAttachment: 'fixed' }}>
+    <div className="sp-workspace flex h-screen overflow-hidden" style={{ background: 'var(--gradient-bg)', backgroundAttachment: 'fixed' }}>
 
       {/* ── Sidebar ────────────────────────────────────────────────────── */}
       <aside
         className={`
-          sp-sidebar flex flex-col fixed md:relative z-30 h-full
+          sp-sidebar overflow-hidden flex flex-col fixed md:relative z-30 h-full
           transition-all duration-300
           ${isSidebarOpen ? 'w-64' : 'w-[68px]'}
           ${isSidebarOpen ? 'left-0' : '-left-[68px] md:left-0'}
@@ -126,21 +139,22 @@ const Layout: React.FC = () => {
           style={{ borderColor: 'rgba(99,130,246,0.15)' }}
         >
           <div
-            className="w-9 h-9 shrink-0 rounded-[10px] flex items-center justify-center text-white font-bold text-sm shadow-md"
+            className="sp-on-accent w-9 h-9 shrink-0 rounded-[10px] flex items-center justify-center text-white font-bold text-sm shadow-md"
             style={{ background: 'var(--gradient-accent)', boxShadow: '0 2px 10px rgba(59,130,246,0.4)' }}
             title={SYSTEM_SHORT_NAME}
           >
             {SYSTEM_SIDEBAR_BADGE_LETTER}
           </div>
           {isSidebarOpen && (
-            <span className="font-bold text-white text-base tracking-tight truncate flex-1" title={SYSTEM_SHORT_NAME}>
+            <span className="font-bold text-app-text text-base tracking-tight truncate flex-1" title={SYSTEM_SHORT_NAME}>
               {SYSTEM_SIDEBAR_TITLE_AFTER_BADGE}
             </span>
           )}
           <button
             onClick={() => setSidebarOpen(!isSidebarOpen)}
-            className="p-1.5 rounded-lg transition-colors shrink-0"
-            style={{ color: 'rgba(180,205,255,0.5)' }}
+            aria-label="Свернуть меню"
+            className={`p-1.5 rounded-lg transition-colors shrink-0 ${!isSidebarOpen ? "hidden" : ""}`}
+            style={{ color: 'var(--text-secondary)' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,130,246,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
@@ -149,112 +163,34 @@ const Layout: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
-
-          <SidebarItem to="/dashboard" icon={LayoutDashboard} label={isSidebarOpen ? "Дашборд" : ""} />
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (<>
-            {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Оборудование</p>}
-            <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? "Оборудование" : ""} />
-            <SidebarItem to="/equipment-hierarchy" icon={Building2} label={isSidebarOpen ? "Иерархия" : ""} />
-          </>)}
-
-          {user?.role !== 'client' && (<>
-            {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Работа</p>}
-            <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? (user?.role === 'engineer' ? "Мои задания" : "Задания") : ""} />
-            <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? "Обследования" : ""} />
-          </>)}
-
-          {user?.role === 'admin' && (
-            <SidebarItem to="/projects" icon={FolderKanban} label={isSidebarOpen ? "Проекты" : ""} />
-          )}
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator') && (
-            <SidebarItem to="/billing" icon={Wallet} label={isSidebarOpen ? "Финансы" : ""} />
-          )}
-
-          <SidebarItem to="/reports" icon={Sparkles} label={isSidebarOpen ? "Отчёты" : ""} />
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (
-            <SidebarItem to="/verifications" icon={CheckCircle2} label={isSidebarOpen ? "Поверки" : ""} />
-          )}
-
-          {user?.role !== 'client' && (
-            <SidebarItem to="/instrument-registry" icon={Gauge} label={isSidebarOpen ? "Реестр приборов" : ""} />
-          )}
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (
-            <SidebarItem to="/opo-registry" icon={AlertTriangle} label={isSidebarOpen ? "Реестр ОПО" : ""} />
-          )}
-
-          {user?.role === 'admin' && (<>
-            {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Справочники</p>}
-            <SidebarItem to="/regulatory" icon={FileCheck} label={isSidebarOpen ? "Норм. документы" : ""} />
-            <SidebarItem to="/competencies" icon={Award} label={isSidebarOpen ? "Компетенции" : ""} />
-          </>)}
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator' || user?.role === 'operator') && (<>
-            {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Инструменты</p>}
-            <SidebarItem to="/protocol-constructor" icon={Layers} label={isSidebarOpen ? "Конструктор" : ""} />
-            <SidebarItem to="/drawing-templates" icon={ImageIcon} label={isSidebarOpen ? "Шаблоны чертежей" : ""} />
-            <SidebarItem to="/vessel-scheme-constructor" icon={PenTool} label={isSidebarOpen ? "Конструктор схем" : ""} />
-            <SidebarItem to="/diagnostic-menu" icon={Network} label={isSidebarOpen ? "Меню диагностики" : ""} />
-            <SidebarItem to="/inspection-object-templates" icon={ListChecks} label={isSidebarOpen ? "Шаблоны обследования" : ""} />
-          </>)}
-
-          {user?.role !== 'client' && (
-            <SidebarItem to="/defect-statement" icon={AlertTriangle} label={isSidebarOpen ? "Ведомость дефектов" : ""} />
-          )}
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator') && (
-            <SidebarItem to="/inspections-trash" icon={Trash2} label={isSidebarOpen ? "Корзина" : ""} />
-          )}
-
-          {user?.role === 'admin' && (<>
-            {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Управление</p>}
-            <SidebarItem to="/admin" icon={Shield} label={isSidebarOpen ? "Админ-панель" : ""} />
-            <SidebarItem to="/users" icon={Users} label={isSidebarOpen ? "Сотрудники" : ""} />
-            <SidebarItem to="/report-templates" icon={FileText} label={isSidebarOpen ? "Шаблоны отчетов" : ""} />
-            <SidebarItem to="/report-org-settings" icon={FileText} label={isSidebarOpen ? "Данные отчёта" : ""} />
-            <SidebarItem to="/enterprise-cards" icon={Building2} label={isSidebarOpen ? "Карточки предприятий" : ""} />
-          </>)}
-
-          {(user?.role === 'admin' || user?.role === 'chief_operator') && (
-            <SidebarItem to="/pipeline-map" icon={Map} label={isSidebarOpen ? "Текущие сотрудники" : ""} />
-          )}
-
-          {user?.role === 'engineer' && (
-            <SidebarItem to="/engineer-panel" icon={Wrench} label={isSidebarOpen ? "Моя панель" : ""} />
-          )}
-
-          {user?.role === 'client' && (
-            <SidebarItem to="/client-portal" icon={Briefcase} label={isSidebarOpen ? "Мои отчёты" : ""} />
-          )}
-
-          {user?.role === 'admin' && (<>
-            {isSidebarOpen && <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(140,170,220,0.45)' }}>Система</p>}
-            <SidebarItem to="/specs" icon={BookOpen} label={isSidebarOpen ? "Архитектура" : ""} />
-            <SidebarItem to="/glossary" icon={HelpCircle} label={isSidebarOpen ? "Глоссарий" : ""} />
-            <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? "Моб. приложение" : ""} />
-          </>)}
-
-          <div className="my-2 mx-2 h-px" style={{ background: 'rgba(99,130,246,0.12)' }} />
-          <SidebarItem to="/changelog" icon={Sparkles} label={isSidebarOpen ? "Что нового?" : ""} />
-          <SidebarItem to="/settings" icon={Settings} label={isSidebarOpen ? "Настройки" : ""} />
-
-          {/* Переключатель темы */}
-          <button
-            onClick={toggleTheme}
-            className="sp-sidebar-item w-full"
-            style={{ marginTop: 2 }}
-          >
-            {theme === 'dark'
-              ? <Sun size={18} className="shrink-0" />
-              : <Moon size={18} className="shrink-0" />
-            }
-            {isSidebarOpen && (
-              <span>{theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}</span>
-            )}
+        <nav aria-label="Основная навигация" className="flex-1 px-2 py-3 space-y-1 overflow-y-auto overflow-x-hidden">
+          <SidebarItem to="/dashboard" icon={LayoutDashboard} label={isSidebarOpen ? 'Обзор' : ''} />
+          {user?.role !== 'client' && <>
+            <SidebarItem to="/assignments" icon={ClipboardList} label={isSidebarOpen ? (user?.role === 'engineer' ? 'Мои задания' : 'Задания') : ''} />
+            <SidebarItem to="/inspections-list" icon={ListChecks} label={isSidebarOpen ? 'Обследования' : ''} />
+          </>}
+          {['admin','chief_operator','operator'].includes(user?.role || '') && <SidebarItem to="/equipment" icon={Package} label={isSidebarOpen ? 'Оборудование' : ''} />}
+          <SidebarItem to="/reports" icon={FileText} label={isSidebarOpen ? 'Отчёты' : ''} />
+          {[
+            {name:'Контроль', icon:Gauge, items:[
+              ...(user?.role !== 'client' ? [['/instrument-registry',Gauge],['/defect-statement',AlertTriangle]] : []),
+              ...(['admin','chief_operator','operator'].includes(user?.role || '') ? [['/verifications',CheckCircle2],['/opo-registry',Shield]] : []),
+              ...(['admin','chief_operator'].includes(user?.role || '') ? [['/inspections-trash',Trash2]] : [])]},
+            {name:'Инструменты',icon:Wrench,items:['admin','chief_operator','operator'].includes(user?.role || '') ? [['/protocol-constructor',Layers],['/drawing-templates',ImageIcon],['/vessel-scheme-constructor',PenTool],['/diagnostic-menu',Network],['/inspection-object-templates',ListChecks]] : []},
+            {name:'Управление',icon:Users,items:[
+              ...(['admin','chief_operator'].includes(user?.role || '') ? [['/billing',Wallet]] : []),
+              ...(user?.role === 'admin' ? [['/projects',FolderKanban],['/admin',Shield],['/users',Users],['/report-templates',FileText],['/report-org-settings',FileText],['/enterprise-cards',Building2],['/pipeline-map',Map]] : [])]},
+            {name:'Справочники',icon:BookOpen,items:user?.role === 'admin' ? [['/regulatory',FileCheck],['/competencies',Award],['/glossary',HelpCircle],['/specs',BookOpen]] : []},
+          ].filter(group=>group.items.length).map(group=><details key={group.name} open={group.items.some(([path])=>location.pathname===path) || undefined} className="sp-nav-group">
+            <summary title={group.name} aria-label={group.name} className="sp-sidebar-item cursor-pointer list-none"><group.icon size={18} className="shrink-0" />{isSidebarOpen && <span>{group.name}</span>}</summary>
+            {group.items.map(([path,Icon])=><SidebarItem key={path as string} to={path as string} icon={Icon} label={isSidebarOpen ? sidebarLabels[path as string] : ''} />)}
+          </details>)}
+          <div className="my-3 border-t border-app-line" />
+          <SidebarItem to="/mobile-app" icon={Smartphone} label={isSidebarOpen ? 'Приложение Android' : ''} />
+          <SidebarItem to="/changelog" icon={Sparkles} label={isSidebarOpen ? 'Что нового' : ''} />
+          <SidebarItem to="/settings" icon={Settings} label={isSidebarOpen ? 'Настройки' : ''} />
+          <button onClick={toggleTheme} aria-label={theme==='dark'?'Дневная тема':'Ночная тема'} title={theme==='dark'?'Дневная тема':'Ночная тема'} className="sp-sidebar-item w-full">
+            {theme==='dark'?<Sun size={18}/>:<Moon size={18}/>} {isSidebarOpen && <span>{theme==='dark'?'Дневная тема':'Ночная тема'}</span>}
           </button>
         </nav>
 
@@ -265,21 +201,22 @@ const Layout: React.FC = () => {
         >
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm text-white shadow"
+              className="sp-on-accent w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm text-white sp-on-accent shadow"
               style={{ background: 'linear-gradient(135deg,#4f6edb,#7c5cbf)', boxShadow: '0 2px 8px rgba(79,110,219,0.35)' }}
             >
               {avatarLetter}
             </div>
             {isSidebarOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{user?.full_name || user?.username}</p>
-                <p className="text-[11px] truncate" style={{ color: 'rgba(140,170,220,0.7)' }}>{roleLabel(user?.role)}</p>
+                <p className="text-sm font-semibold text-app-text truncate">{user?.full_name || user?.username}</p>
+                <p className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>{roleLabel(user?.role)}</p>
               </div>
             )}
             {isSidebarOpen && (
               <button
                 onClick={() => { logout(); window.location.href = '/#/login'; }}
-                className="p-1.5 rounded-lg transition-colors shrink-0"
+                aria-label="Свернуть меню"
+            className={`p-1.5 rounded-lg transition-colors shrink-0 ${!isSidebarOpen ? "hidden" : ""}`}
                 style={{ color: 'rgba(248,113,113,0.7)' }}
                 title="Выйти"
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.12)')}
@@ -312,7 +249,9 @@ const Layout: React.FC = () => {
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(!isSidebarOpen)}
-              className="md:hidden p-2 rounded-lg transition-colors shrink-0"
+              aria-label={isSidebarOpen ? "Закрыть меню" : "Открыть меню"}
+              aria-expanded={isSidebarOpen}
+              className="p-2 rounded-lg transition-colors shrink-0"
               style={{ color: 'var(--text-secondary)' }}
             >
               <Menu size={20} />
@@ -322,7 +261,7 @@ const Layout: React.FC = () => {
                 className="text-sm font-semibold leading-tight block truncate"
                 style={{ color: 'var(--text-primary)' }}
               >
-                {APP_HEADER_TITLE}
+                {sidebarLabels[location.pathname] ? `Монитор · ${sidebarLabels[location.pathname]}` : APP_HEADER_TITLE}
               </span>
               <span
                 className="text-[11px] tabular-nums"
@@ -346,27 +285,13 @@ const Layout: React.FC = () => {
               {theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}
             </button>
 
-            {/* Notifications */}
-            <button
-              className="relative p-2 rounded-lg transition-colors"
-              style={{ color: 'var(--text-secondary)' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tertiary)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <Bell size={18} />
-              <span
-                className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-                style={{ background: 'var(--danger)', boxShadow: '0 0 6px var(--danger)' }}
-              />
-            </button>
-
             {/* User chip */}
             <div
               className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl"
               style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', backdropFilter: 'blur(8px)' }}
             >
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                className="sp-on-accent w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                 style={{ background: 'linear-gradient(135deg,#4f6edb,#7c5cbf)' }}
               >
                 {avatarLetter}
@@ -411,7 +336,7 @@ const HomePage = () => {
       <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--gradient-bg)' }}>
         <div className="text-center sp-fade-in">
           <div
-            className="w-12 h-12 rounded-2xl mx-auto mb-5 flex items-center justify-center font-bold text-white text-lg shadow-lg"
+            className="sp-on-accent w-12 h-12 rounded-2xl mx-auto mb-5 flex items-center justify-center font-bold text-white text-lg shadow-lg"
             style={{ background: 'var(--gradient-accent)', boxShadow: '0 4px 20px rgba(59,130,246,0.4)' }}
           >М</div>
           <div className="w-8 h-8 rounded-full border-2 border-transparent border-t-[var(--accent)] mx-auto animate-spin mb-3" />
@@ -465,6 +390,7 @@ const App = () => {
             <Route path="/glossary" element={<Glossary />} />
             <Route path="/mobile-app" element={<MobileApp />} />
             <Route path="/changelog" element={<Changelog />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/assignments" element={<AssignmentsManagement />} />
             <Route
               path="/client-portal"
@@ -482,7 +408,7 @@ const App = () => {
             <Route path="/diagnostic-menu" element={<DiagnosticMenuManager />} />
             <Route path="/inspection-object-templates" element={<InspectionObjectTemplatesManager />} />
             <Route path="/defect-statement" element={<DefectStatement />} />
-            <Route path="/inspections-trash" element={<ProtectedRoute requiredRole="chief_operator"><InspectionsTrash /></ProtectedRoute>} />
+            <Route path="/inspections-trash" element={<ProtectedRoute allowedRoles={['admin','chief_operator']}><InspectionsTrash /></ProtectedRoute>} />
             <Route path="*" element={<div className="text-center text-app-text3 mt-20">Раздел в разработке</div>} />
           </Route>
         </Routes>

@@ -19,7 +19,7 @@ export default function Modal({ title, children, onClose, busy = false, descript
     const dialog = ref.current!;
     const previous = document.activeElement as HTMLElement | null;
     dialog.showModal();
-    dialog.querySelector<HTMLElement>('[data-initial-focus]')?.focus();
+    (dialog.querySelector<HTMLElement>('[data-initial-focus]') || dialog.querySelector<HTMLElement>('button,input,select,textarea'))?.focus();
     return () => { dialog.close(); previous?.focus(); };
   }, []);
   return createPortal(

@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import '../../data/technical_report_form_registry.dart';
 import '../../models/vessel_checklist.dart';
@@ -15,12 +16,14 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         buildSectionHeader(
-          form.sectionHeader('zra', fallback: '5. ЗРА (Запорно-регулирующая арматура)'),
+          form.sectionHeader('zra',
+              fallback: '5. ЗРА (Запорно-регулирующая арматура)'),
         ),
         buildAddItemButton('Добавить ЗРА', () => _showZraDialog(context)),
         ...checklist.zraItems.asMap().entries.map((e) {
@@ -46,7 +49,8 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
         }),
         const SizedBox(height: 24),
         buildSectionHeader(
-          form.sectionHeader('sppk', fallback: '6. СППК (Система предохранительных клапанов)'),
+          form.sectionHeader('sppk',
+              fallback: '6. СППК (Система предохранительных клапанов)'),
         ),
         buildAddItemButton('Добавить СППК', () => _showSppkDialog(context)),
         ...checklist.sppkItems.asMap().entries.map((e) {
@@ -84,9 +88,9 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
-        title: const Text('Добавить ЗРА',
-            style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Добавить ЗРА',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -118,8 +122,7 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
       item.techNumber = tech.text.trim().isEmpty ? null : tech.text.trim();
       item.serialNumber =
           serial.text.trim().isEmpty ? null : serial.text.trim();
-      item.locationOnScheme =
-          loc.text.trim().isEmpty ? null : loc.text.trim();
+      item.locationOnScheme = loc.text.trim().isEmpty ? null : loc.text.trim();
       checklist.zraItems.add(item);
       onStateChanged();
     }
@@ -135,9 +138,9 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
-        title: const Text('Добавить СППК',
-            style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Добавить СППК',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -169,8 +172,7 @@ class InspectionSafetyDevicesSection extends StatelessWidget {
       item.techNumber = tech.text.trim().isEmpty ? null : tech.text.trim();
       item.serialNumber =
           serial.text.trim().isEmpty ? null : serial.text.trim();
-      item.locationOnScheme =
-          loc.text.trim().isEmpty ? null : loc.text.trim();
+      item.locationOnScheme = loc.text.trim().isEmpty ? null : loc.text.trim();
       checklist.sppkItems.add(item);
       onStateChanged();
     }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp hide BluetoothConnectionState;
+import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp
+    hide BluetoothConnectionState;
 import '../services/bluetooth_measurement_service.dart';
 import '../theme/app_colors.dart';
 
@@ -57,7 +58,7 @@ class _BluetoothMeasurementWidgetState
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppColors.darkSurface,
+      color: AppColors.surface(context),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -75,14 +76,14 @@ class _BluetoothMeasurementWidgetState
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Expanded(
+                    child: Text(
                   'Bluetooth прибор',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: AppColors.onSurface(context),
                   ),
-                ),
-                const Spacer(),
+                )),
                 _buildActionButton(),
               ],
             ),
@@ -95,11 +96,12 @@ class _BluetoothMeasurementWidgetState
                     const Icon(Icons.straighten,
                         color: AppColors.accent, size: 16),
                     const SizedBox(width: 4),
-                    Text(
+                    Expanded(
+                        child: Text(
                       'Последнее: ${_lastMeasurement!.value} ${_lastMeasurement!.unit}',
                       style: const TextStyle(
                           color: AppColors.accent, fontWeight: FontWeight.bold),
-                    ),
+                    )),
                   ],
                 ),
               ),
@@ -110,13 +112,13 @@ class _BluetoothMeasurementWidgetState
                       d.device.platformName.isNotEmpty
                           ? d.device.platformName
                           : 'Устройство ${d.device.remoteId}',
-                      style: const TextStyle(
-                          color: AppColors.textPrimary, fontSize: 13),
+                      style: TextStyle(
+                          color: AppColors.onSurface(context), fontSize: 13),
                     ),
                     subtitle: Text(
                       'RSSI: ${d.rssi} dBm',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: AppColors.mutedText(context), fontSize: 11),
                     ),
                     trailing: TextButton(
                       onPressed: () => _btService.connect(d.device,

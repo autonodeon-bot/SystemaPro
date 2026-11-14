@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -21,8 +22,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
   final VoidCallback onStateChanged;
   final void Function(List<ThicknessMeasurement> measurements, File? image)
       onThicknessSave;
-  final void Function(int schemeIndex, List<ThicknessMeasurement> measurements, File? image)?
-      onUztSchemeSave;
+  final void Function(int schemeIndex, List<ThicknessMeasurement> measurements,
+      File? image)? onUztSchemeSave;
   final VoidCallback? onBeforeCalculation;
 
   const InspectionMeasurementsSection({
@@ -38,17 +39,19 @@ class InspectionMeasurementsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // --- Измерительный контроль (Прил. № 3) ---
         buildSectionHeader(
-          form.sectionHeader('measurements_vik', fallback: '7. Измерительный контроль'),
+          form.sectionHeader('measurements_vik',
+              fallback: '7. Измерительный контроль'),
         ),
         buildSubsectionHeader('Овальность'),
-        buildAddItemButton('Добавить измерение овальности',
-            () => _showOvalityDialog(context)),
+        buildAddItemButton(
+            'Добавить измерение овальности', () => _showOvalityDialog(context)),
         ...checklist.ovalityMeasurements.asMap().entries.map((e) {
           final idx = e.key;
           final m = e.value;
@@ -59,8 +62,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
               if (m.minDiameter != null) 'Dmin=${m.minDiameter}',
               if (m.deviationPercent != null) 'Δ%=${m.deviationPercent}',
             ].join(' • '),
-            onTap: () =>
-                _showOvalityDialog(context, editM: m, editIndex: idx),
+            onTap: () => _showOvalityDialog(context, editM: m, editIndex: idx),
             onDelete: () {
               checklist.ovalityMeasurements.removeAt(idx);
               onStateChanged();
@@ -69,8 +71,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
           );
         }),
         buildSubsectionHeader('Прогиб'),
-        buildAddItemButton('Добавить измерение прогиба',
-            () => _showDeflectionDialog(context)),
+        buildAddItemButton(
+            'Добавить измерение прогиба', () => _showDeflectionDialog(context)),
         ...checklist.deflectionMeasurements.asMap().entries.map((e) {
           final idx = e.key;
           final m = e.value;
@@ -92,31 +94,34 @@ class InspectionMeasurementsSection extends StatelessWidget {
 
         // --- Раздел 8: Твёрдость ---
         buildSectionHeader(
-          form.sectionHeader('measurements_hardness', fallback: '8. Результаты контроля твердости'),
+          form.sectionHeader('measurements_hardness',
+              fallback: '8. Результаты контроля твердости'),
         ),
-        buildAddItemButton('Добавить измерение твердости',
-            () => _showHardnessDialog(context)),
+        buildAddItemButton(
+            'Добавить измерение твердости', () => _showHardnessDialog(context)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 4,
           children: [
             OutlinedButton.icon(
-              onPressed: () => _massAddHardnessZones(context, prefix: 'Т', maxN: 20),
+              onPressed: () =>
+                  _massAddHardnessZones(context, prefix: 'Т', maxN: 20),
               icon: const Icon(Icons.add_circle_outline, size: 16),
               label: const Text('Участки Т1–Тn'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white70,
-                side: const BorderSide(color: Colors.white30),
+                foregroundColor: AppColors.mutedText(context),
+                side: BorderSide(color: AppColors.border(context)),
               ),
             ),
             OutlinedButton.icon(
-              onPressed: () => _massAddHardnessZones(context, prefix: 'У', maxN: 30),
+              onPressed: () =>
+                  _massAddHardnessZones(context, prefix: 'У', maxN: 30),
               icon: const Icon(Icons.add_circle_outline, size: 16),
               label: const Text('Участки У1–Уn'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white70,
-                side: const BorderSide(color: Colors.white30),
+                foregroundColor: AppColors.mutedText(context),
+                side: BorderSide(color: AppColors.border(context)),
               ),
             ),
           ],
@@ -148,7 +153,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
 
         // --- Раздел 9: ПВК (МК) и УЗК ---
         buildSectionHeader(
-          form.sectionHeader('measurements_ndt', fallback: '9. Результаты ПВК (МК) и УЗК'),
+          form.sectionHeader('measurements_ndt',
+              fallback: '9. Результаты ПВК (МК) и УЗК'),
         ),
         buildAddItemButton('Добавить сварное соединение',
             () => _showWeldInspectionDialog(context)),
@@ -167,8 +173,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
               if (w.conclusion != null && w.conclusion!.isNotEmpty)
                 'Заключение: ${w.conclusion}',
             ].where((s) => s.isNotEmpty).join(' • '),
-            onTap: () => _showWeldInspectionDialog(context,
-                editWeld: w, editIndex: idx),
+            onTap: () =>
+                _showWeldInspectionDialog(context, editWeld: w, editIndex: idx),
             onDelete: () {
               checklist.weldInspections.removeAt(idx);
               onStateChanged();
@@ -181,20 +187,29 @@ class InspectionMeasurementsSection extends StatelessWidget {
 
         // --- Раздел 10: УЗТ (множественные схемы контроля, П.3.2) ---
         buildSectionHeader(
-          form.sectionHeader('measurements_uzt', fallback: '10. УЗТ (Ультразвуковая толщинометрия)'),
+          form.sectionHeader('measurements_uzt',
+              fallback: '10. УЗТ (Ультразвуковая толщинометрия)'),
         ),
         // Существующая одиночная схема (обратная совместимость)
-        Card(child: Padding(padding: const EdgeInsets.all(12), child: ThicknessDefaultsEditor(
-          settings: checklist.thicknessDefaults,
-          onChanged: (settings) { checklist.setThicknessDefaults(settings); onStateChanged(); },
-        ))),
+        Card(
+            child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: ThicknessDefaultsEditor(
+                  settings: checklist.thicknessDefaults,
+                  onChanged: (settings) {
+                    checklist.setThicknessDefaults(settings);
+                    onStateChanged();
+                  },
+                ))),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          icon: const Icon(Icons.calculate_outlined), label: const Text('Рассчитать минимальную толщину по ГОСТ'),
+          icon: const Icon(Icons.calculate_outlined),
+          label: const Text('Рассчитать минимальную толщину по ГОСТ'),
           onPressed: () async {
             onBeforeCalculation?.call();
-            await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => VesselPressureCalculationScreen(
-              checklist: checklist, onChanged: onStateChanged)));
+            await Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => VesselPressureCalculationScreen(
+                    checklist: checklist, onChanged: onStateChanged)));
             onStateChanged();
           },
         ),
@@ -212,7 +227,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
               },
             );
             if (result != null) {
-              if (result['thicknessDefaults'] is ThicknessDefaults) checklist.setThicknessDefaults(result['thicknessDefaults']);
+              if (result['thicknessDefaults'] is ThicknessDefaults)
+                checklist.setThicknessDefaults(result['thicknessDefaults']);
               final measurements =
                   result['measurements'] as List<ThicknessMeasurement>?;
               final image = result['image'] as File?;
@@ -222,8 +238,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
             }
           }),
           const SizedBox(height: 8),
-          buildAddItemButton(
-              '+ Добавить ещё одну схему контроля УЗТ',
+          buildAddItemButton('+ Добавить ещё одну схему контроля УЗТ',
               () => _addUztScheme(context)),
         ] else ...[
           // Режим множественных схем
@@ -234,8 +249,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
           }),
           const SizedBox(height: 8),
           buildAddItemButton(
-              '+ Добавить схему контроля УЗТ',
-              () => _addUztScheme(context)),
+              '+ Добавить схему контроля УЗТ', () => _addUztScheme(context)),
         ],
       ],
     );
@@ -244,7 +258,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
   /// Добавить новую схему УЗТ
   Future<void> _addUztScheme(BuildContext context) async {
     // Если есть данные в старом поле — переносим в первую схему
-    if (checklist.uztSchemes.isEmpty && checklist.thicknessMeasurements.isNotEmpty) {
+    if (checklist.uztSchemes.isEmpty &&
+        checklist.thicknessMeasurements.isNotEmpty) {
       final first = UztScheme(label: 'Схема 1');
       first.schemeImagePath = checklist.controlSchemeImage;
       first.measurements = List.from(checklist.thicknessMeasurements);
@@ -252,25 +267,25 @@ class InspectionMeasurementsSection extends StatelessWidget {
       checklist.thicknessMeasurements = [];
       checklist.controlSchemeImage = null;
     }
-    final newScheme = UztScheme(label: 'Схема ${checklist.uztSchemes.length + 1}');
+    final newScheme =
+        UztScheme(label: 'Схема ${checklist.uztSchemes.length + 1}');
     checklist.uztSchemes.add(newScheme);
     onStateChanged();
   }
 
   /// Карточка одной схемы УЗТ
   Widget _buildUztSchemeCard(BuildContext context, int idx, UztScheme scheme) {
-    final schemeFile = scheme.schemeImagePath != null
-        ? File(scheme.schemeImagePath!)
-        : null;
+    final schemeFile =
+        scheme.schemeImagePath != null ? File(scheme.schemeImagePath!) : null;
     final fileExists = schemeFile != null && schemeFile.existsSync();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: kInspectionDarkBg,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,25 +295,28 @@ class InspectionMeasurementsSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   scheme.label,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppColors.onSurface(context),
                       fontWeight: FontWeight.bold,
                       fontSize: 15),
                 ),
               ),
               // Переименовать схему
               IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white70, size: 18),
+                icon: Icon(Icons.edit,
+                    color: AppColors.mutedText(context), size: 18),
                 tooltip: 'Переименовать',
                 onPressed: () => _renameUztScheme(context, idx, scheme),
               ),
               // Удалить схему
               IconButton(
-                icon: const Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                icon:
+                    const Icon(Icons.delete, color: Colors.redAccent, size: 18),
                 tooltip: 'Удалить схему',
                 onPressed: () async {
                   final ok = await showConfirmDeleteDialog(context,
-                      message: 'Удалить схему "${scheme.label}" со всеми замерами?');
+                      message:
+                          'Удалить схему "${scheme.label}" со всеми замерами?');
                   if (ok) {
                     checklist.uztSchemes.removeAt(idx);
                     onStateChanged();
@@ -318,7 +336,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: kInspectionBorderColor),
+                  border: Border.all(color: AppColors.border(context)),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -338,7 +356,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kInspectionAccentBlue,
                   side: const BorderSide(color: kInspectionAccentBlue),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
               OutlinedButton.icon(
@@ -353,7 +372,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
                     },
                   );
                   if (result != null) {
-                    if (result['thicknessDefaults'] is ThicknessDefaults) checklist.setThicknessDefaults(result['thicknessDefaults']);
+                    if (result['thicknessDefaults'] is ThicknessDefaults)
+                      checklist
+                          .setThicknessDefaults(result['thicknessDefaults']);
                     final measurements =
                         result['measurements'] as List<ThicknessMeasurement>?;
                     final image = result['image'] as File?;
@@ -372,9 +393,10 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 icon: const Icon(Icons.grid_on, size: 16),
                 label: Text('Карта замеров (${scheme.measurements.length})'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white70,
-                  side: const BorderSide(color: Colors.white30),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  foregroundColor: AppColors.mutedText(context),
+                  side: BorderSide(color: AppColors.border(context)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
             ],
@@ -384,17 +406,23 @@ class InspectionMeasurementsSection extends StatelessWidget {
     );
   }
 
-  Future<void> _renameUztScheme(BuildContext context, int idx, UztScheme scheme) async {
+  Future<void> _renameUztScheme(
+      BuildContext context, int idx, UztScheme scheme) async {
     final controller = TextEditingController(text: scheme.label);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
-        title: const Text('Название схемы', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Название схемы',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: buildDialogTextField(controller, 'Название'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Сохранить')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Сохранить')),
         ],
       ),
     );
@@ -404,13 +432,15 @@ class InspectionMeasurementsSection extends StatelessWidget {
     }
   }
 
-  Future<void> _pickSchemeImage(BuildContext context, int idx, UztScheme scheme) async {
+  Future<void> _pickSchemeImage(
+      BuildContext context, int idx, UztScheme scheme) async {
     final picker = ImagePicker();
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
-        title: const Text('Источник схемы', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Источник схемы',
+            style: TextStyle(color: AppColors.onSurface(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
@@ -470,7 +500,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
               top: MediaQuery.of(ctx).padding.top + 8,
               right: 16,
               child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                icon: Icon(Icons.close,
+                    color: AppColors.onSurface(context), size: 28),
                 onPressed: () => Navigator.of(ctx).pop(),
               ),
             ),
@@ -487,8 +518,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Схема контроля',
-              style: TextStyle(color: Colors.white70, fontSize: 14)),
+          Text('Схема контроля',
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 14)),
           const SizedBox(height: 8),
           GestureDetector(
             onTap: () {
@@ -514,8 +546,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
                         top: MediaQuery.of(ctx).padding.top + 8,
                         right: 16,
                         child: IconButton(
-                          icon: const Icon(Icons.close,
-                              color: Colors.white, size: 28),
+                          icon: Icon(Icons.close,
+                              color: AppColors.onSurface(context), size: 28),
                           onPressed: () => Navigator.of(ctx).pop(),
                         ),
                       ),
@@ -529,7 +561,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: kInspectionBorderColor),
+                border: Border.all(color: AppColors.border(context)),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -550,21 +582,17 @@ class InspectionMeasurementsSection extends StatelessWidget {
         text: editM?.sectionNumber ??
             '${checklist.ovalityMeasurements.length + 1}');
     final maxD = TextEditingController(
-        text:
-            editM?.maxDiameter != null ? editM!.maxDiameter!.toString() : '');
+        text: editM?.maxDiameter != null ? editM!.maxDiameter!.toString() : '');
     final minD = TextEditingController(
-        text:
-            editM?.minDiameter != null ? editM!.minDiameter!.toString() : '');
+        text: editM?.minDiameter != null ? editM!.minDiameter!.toString() : '');
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
+        backgroundColor: AppColors.surface(context),
         title: Text(
-            editM != null
-                ? 'Редактировать овальность'
-                : 'Овальность (сечение)',
-            style: const TextStyle(color: Colors.white)),
+            editM != null ? 'Редактировать овальность' : 'Овальность (сечение)',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -622,9 +650,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
-        title:
-            const Text('Прогиб', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Прогиб',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -655,8 +683,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
               ? '${checklist.deflectionMeasurements.length + 1}'
               : section.text.trim(),
           deflectionMm: double.tryParse(mm.text.replaceAll(',', '.')),
-          deflectionPercent:
-              double.tryParse(pct.text.replaceAll(',', '.')),
+          deflectionPercent: double.tryParse(pct.text.replaceAll(',', '.')),
         ),
       );
       onStateChanged();
@@ -681,9 +708,9 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
-        title: const Text('Твердость',
-            style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Твердость',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -692,10 +719,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
               buildDialogTextField(area, 'Номер участка (Т1 / У1 …)'),
               buildDialogTextField(xPercent, 'X % на схеме'),
               buildDialogTextField(yPercent, 'Y % на схеме'),
-              buildDialogTextField(
-                  allowedBase, 'Допустимая твердость (осн.)'),
-              buildDialogTextField(
-                  allowedWeld, 'Допустимая твердость (шов)'),
+              buildDialogTextField(allowedBase, 'Допустимая твердость (осн.)'),
+              buildDialogTextField(allowedWeld, 'Допустимая твердость (шов)'),
               buildDialogTextField(baseT1, 'Т.1 (основной металл)'),
               buildDialogTextField(baseT5, 'Т.5 (основной металл)'),
               buildDialogTextField(w, 'Т.3 (шов)'),
@@ -721,21 +746,25 @@ class InspectionMeasurementsSection extends StatelessWidget {
       t.location = weld.text.trim();
       t.areaNumber = area.text.trim().isEmpty ? null : area.text.trim();
       t.pointNumber = t.areaNumber ?? weld.text.trim();
-      final xVal =
-          double.tryParse(xPercent.text.trim().replaceAll(',', '.'));
-      final yVal =
-          double.tryParse(yPercent.text.trim().replaceAll(',', '.'));
+      final xVal = double.tryParse(xPercent.text.trim().replaceAll(',', '.'));
+      final yVal = double.tryParse(yPercent.text.trim().replaceAll(',', '.'));
       t.xPercent = (xVal != null && xVal >= 0 && xVal <= 100) ? xVal : null;
       t.yPercent = (yVal != null && yVal >= 0 && yVal <= 100) ? yVal : null;
       t.allowedHardnessBase =
           allowedBase.text.trim().isEmpty ? null : allowedBase.text.trim();
       t.allowedHardnessWeld =
           allowedWeld.text.trim().isEmpty ? null : allowedWeld.text.trim();
-      t.hardnessBaseT1 = baseT1.text.trim().isEmpty ? (base.text.trim().isEmpty ? null : base.text.trim()) : baseT1.text.trim();
-      t.hardnessBaseT5 = baseT5.text.trim().isEmpty ? t.hardnessBaseT1 : baseT5.text.trim();
+      t.hardnessBaseT1 = baseT1.text.trim().isEmpty
+          ? (base.text.trim().isEmpty ? null : base.text.trim())
+          : baseT1.text.trim();
+      t.hardnessBaseT5 =
+          baseT5.text.trim().isEmpty ? t.hardnessBaseT1 : baseT5.text.trim();
       t.hardnessWeld = w.text.trim().isEmpty ? null : w.text.trim();
-      t.hardnessHazT2 = hazT2.text.trim().isEmpty ? (haz.text.trim().isEmpty ? null : haz.text.trim()) : hazT2.text.trim();
-      t.hardnessHazT4 = hazT4.text.trim().isEmpty ? t.hardnessHazT2 : hazT4.text.trim();
+      t.hardnessHazT2 = hazT2.text.trim().isEmpty
+          ? (haz.text.trim().isEmpty ? null : haz.text.trim())
+          : hazT2.text.trim();
+      t.hardnessHazT4 =
+          hazT4.text.trim().isEmpty ? t.hardnessHazT2 : hazT4.text.trim();
       t.hardnessBase = t.hardnessBaseT1;
       t.hardnessHaz = t.hardnessHazT2;
       checklist.hardnessTests.add(t);
@@ -752,15 +781,16 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
+        backgroundColor: AppColors.surface(context),
         title: Text('Участки $prefix',
-            style: const TextStyle(color: Colors.white)),
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Создать участки $prefix с координатами на схеме (сетка). Макс. $maxN.',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 13),
             ),
             const SizedBox(height: 12),
             buildDialogTextField(countCtrl, 'Количество'),
@@ -779,14 +809,12 @@ class InspectionMeasurementsSection extends StatelessWidget {
     if (ok != true) return;
     final want = int.tryParse(countCtrl.text.trim()) ?? 0;
     if (want <= 0) return;
-    final existing = checklist.hardnessTests
-        .where((h) {
-          final lab = (h.areaNumber ?? h.pointNumber ?? h.weldNumber).toUpperCase();
-          return lab.startsWith(prefix) ||
-              (prefix == 'Т' && lab.startsWith('T')) ||
-              (prefix == 'У' && lab.startsWith('U'));
-        })
-        .length;
+    final existing = checklist.hardnessTests.where((h) {
+      final lab = (h.areaNumber ?? h.pointNumber ?? h.weldNumber).toUpperCase();
+      return lab.startsWith(prefix) ||
+          (prefix == 'Т' && lab.startsWith('T')) ||
+          (prefix == 'У' && lab.startsWith('U'));
+    }).length;
     final room = maxN - existing;
     if (room <= 0) return;
     final n = want > room ? room : want;
@@ -797,8 +825,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
       final col = i % cols;
       final row = i ~/ cols;
       final xp = 14.0 + 72.0 * ((col + 0.5) / cols);
-      final yp = (prefix == 'Т' ? 18.0 : 28.0) +
-          50.0 * ((row + 0.5) / rows);
+      final yp = (prefix == 'Т' ? 18.0 : 28.0) + 50.0 * ((row + 0.5) / rows);
       final lab = '$prefix$idx';
       final t = HardnessTest(weldNumber: lab);
       t.areaNumber = lab;
@@ -820,8 +847,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final uzk = TextEditingController(text: editWeld?.uzkDefect ?? '');
     final defectNumber =
         TextEditingController(text: editWeld?.defectNumber ?? '');
-    final eqArea =
-        TextEditingController(text: editWeld?.equivalentArea ?? '');
+    final eqArea = TextEditingController(text: editWeld?.equivalentArea ?? '');
     final depth = TextEditingController(text: editWeld?.depth ?? '');
     final length = TextEditingController(text: editWeld?.length ?? '');
     String controlMethod = editWeld?.controlMethod?.toUpperCase() ?? 'MPK';
@@ -840,12 +866,12 @@ class InspectionMeasurementsSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: kInspectionDarkBg,
+        backgroundColor: AppColors.surface(context),
         title: Text(
             editWeld != null
                 ? 'Редактировать сварное соединение'
                 : 'Сварное соединение',
-            style: const TextStyle(color: Colors.white)),
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: StatefulBuilder(
           builder: (context, setInner) => SingleChildScrollView(
             child: Column(
@@ -855,19 +881,37 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 buildDialogTextField(loc, 'Место на карте контроля'),
                 DropdownButtonFormField<String>(
                   value: controlMethod,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Метод контроля (ЭПБ)',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppColors.mutedText(context)),
                   ),
-                  dropdownColor: kInspectionDarkBg,
+                  dropdownColor: AppColors.surface(context),
                   isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'MPK', child: Text('МПК', style: TextStyle(color: Colors.white))),
-                    DropdownMenuItem(value: 'UZK', child: Text('УЗК', style: TextStyle(color: Colors.white))),
-                    DropdownMenuItem(value: 'PVK', child: Text('ПВК', style: TextStyle(color: Colors.white))),
-                    DropdownMenuItem(value: 'VIK', child: Text('ВИК', style: TextStyle(color: Colors.white))),
+                  items: [
+                    DropdownMenuItem(
+                        value: 'MPK',
+                        child: Text('МПК',
+                            style: TextStyle(
+                                color: AppColors.onSurface(context)))),
+                    DropdownMenuItem(
+                        value: 'UZK',
+                        child: Text('УЗК',
+                            style: TextStyle(
+                                color: AppColors.onSurface(context)))),
+                    DropdownMenuItem(
+                        value: 'PVK',
+                        child: Text('ПВК',
+                            style: TextStyle(
+                                color: AppColors.onSurface(context)))),
+                    DropdownMenuItem(
+                        value: 'VIK',
+                        child: Text('ВИК',
+                            style: TextStyle(
+                                color: AppColors.onSurface(context)))),
                   ],
-                  onChanged: editWeld?.schemeZoneId != null ? null : (v) => setInner(() => controlMethod = v ?? 'MPK'),
+                  onChanged: editWeld?.schemeZoneId != null
+                      ? null
+                      : (v) => setInner(() => controlMethod = v ?? 'MPK'),
                 ),
                 buildDialogTextField(pvk, 'Дефект (ПВК/МК)'),
                 buildDialogTextField(uzk, 'Дефект (УЗК)'),
@@ -882,25 +926,28 @@ class InspectionMeasurementsSection extends StatelessWidget {
                   value: (character == 'объёмный' || character == 'плоскостной')
                       ? character
                       : '',
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Форма дефекта',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppColors.mutedText(context)),
                   ),
-                  dropdownColor: kInspectionDarkBg,
+                  dropdownColor: AppColors.surface(context),
                   isExpanded: true,
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                         value: '',
                         child: Text('не указана',
-                            style: TextStyle(color: Colors.white70))),
+                            style: TextStyle(
+                                color: AppColors.mutedText(context)))),
                     DropdownMenuItem(
                         value: 'объёмный',
                         child: Text('объёмный',
-                            style: TextStyle(color: Colors.white))),
+                            style: TextStyle(
+                                color: AppColors.onSurface(context)))),
                     DropdownMenuItem(
                         value: 'плоскостной',
                         child: Text('плоскостной',
-                            style: TextStyle(color: Colors.white))),
+                            style: TextStyle(
+                                color: AppColors.onSurface(context)))),
                   ],
                   onChanged: (v) => setInner(() => character = v ?? ''),
                 ),
@@ -921,15 +968,16 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: conclusion,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Заключение',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppColors.mutedText(context)),
                     enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white24)),
-                    focusedBorder: OutlineInputBorder(
+                        borderSide:
+                            BorderSide(color: AppColors.border(context))),
+                    focusedBorder: const OutlineInputBorder(
                         borderSide: BorderSide(color: Colors.blue)),
                   ),
-                  dropdownColor: kInspectionDarkBg,
+                  dropdownColor: AppColors.surface(context),
                   isExpanded: true,
                   items: ChecklistConstants.weldConclusions
                       .map((c) => DropdownMenuItem(
@@ -937,8 +985,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
                           child: Text(c,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style:
-                                  const TextStyle(color: Colors.white))))
+                              style: TextStyle(
+                                  color: AppColors.onSurface(context)))))
                       .toList(),
                   onChanged: (v) =>
                       setInner(() => conclusion = v ?? conclusion),
@@ -953,8 +1001,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
               child: const Text('Отмена')),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child:
-                  Text(editWeld != null ? 'Сохранить' : 'Добавить')),
+              child: Text(editWeld != null ? 'Сохранить' : 'Добавить')),
         ],
       ),
     );
@@ -962,15 +1009,13 @@ class InspectionMeasurementsSection extends StatelessWidget {
     if (ok == true && weld.text.trim().isNotEmpty) {
       final w = editWeld ?? WeldInspection(weldNumber: weld.text.trim());
       w.weldNumber = weld.text.trim();
-      w.locationOnControlMap =
-          loc.text.trim().isEmpty ? null : loc.text.trim();
+      w.locationOnControlMap = loc.text.trim().isEmpty ? null : loc.text.trim();
       w.controlMethod = controlMethod;
       w.pvkDefect = pvk.text.trim().isEmpty ? null : pvk.text.trim();
       w.uzkDefect = uzk.text.trim().isEmpty ? null : uzk.text.trim();
       w.defectNumber =
           defectNumber.text.trim().isEmpty ? null : defectNumber.text.trim();
-      w.equivalentArea =
-          eqArea.text.trim().isEmpty ? null : eqArea.text.trim();
+      w.equivalentArea = eqArea.text.trim().isEmpty ? null : eqArea.text.trim();
       w.depth = depth.text.trim().isEmpty ? null : depth.text.trim();
       w.length = length.text.trim().isEmpty ? null : length.text.trim();
       w.character = character.isEmpty ? null : character;
@@ -978,10 +1023,8 @@ class InspectionMeasurementsSection extends StatelessWidget {
           ? (w.uzkDefect ?? 'дефектов не обнаружено')
           : (w.pvkDefect ?? 'дефектов не обнаружено');
       w.conclusion = conclusion;
-      final xVal =
-          double.tryParse(xPercent.text.trim().replaceAll(',', '.'));
-      final yVal =
-          double.tryParse(yPercent.text.trim().replaceAll(',', '.'));
+      final xVal = double.tryParse(xPercent.text.trim().replaceAll(',', '.'));
+      final yVal = double.tryParse(yPercent.text.trim().replaceAll(',', '.'));
       w.xPercent = (xVal != null && xVal >= 0 && xVal <= 100) ? xVal : null;
       w.yPercent = (yVal != null && yVal >= 0 && yVal <= 100) ? yVal : null;
       if (editIndex != null) {

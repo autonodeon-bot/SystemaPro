@@ -44,7 +44,7 @@ const AssignmentsManagement = () => {
   const [objectStats, setObjectStats] = useState<any[]>([]);
   const [showObjectStats, setShowObjectStats] = useState(false);
   const [selectedAssignments, setSelectedAssignments] = useState<Set<string>>(new Set());
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(() => window.innerWidth >= 768);
   const [groupBy, setGroupBy] = useState<'none' | 'enterprise' | 'branch' | 'workshop' | 'engineer' | 'status' | 'priority'>('enterprise');
   const [generatingReport, setGeneratingReport] = useState<string | null>(null);
   const [serverSummary, setServerSummary] = useState<Record<string, AssignmentServerSummary>>({});

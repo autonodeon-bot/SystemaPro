@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -47,7 +48,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     final formId = (checklist.reportFormId ?? 'to-1').toLowerCase();
     final profile = InspectionFormProfiles.forFormId(formId);
     final isPipeline = InspectionFormProfiles.isPipeline(profile);
@@ -74,7 +76,9 @@ class InspectionSurveyCardSection extends StatelessWidget {
             initialValue: checklist.serialNumber),
         buildInspectionTextField(
             'reg_number',
-            isCrane ? 'Учетный / регистрационный номер' : 'Регистрационный номер',
+            isCrane
+                ? 'Учетный / регистрационный номер'
+                : 'Регистрационный номер',
             (value) => checklist.regNumber = value,
             initialValue: checklist.regNumber),
         buildInspectionTextField('inventory_number', 'Инвентарный номер',
@@ -95,10 +99,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
         if (isCrane) ..._buildCraneFields(form),
         if (!isCompressor && !isPipeline && !isCrane && usesVesselFields)
           ..._buildVesselFields(form, context),
-        if (!isCompressor &&
-            !isPipeline &&
-            !isCrane &&
-            !usesVesselFields)
+        if (!isCompressor && !isPipeline && !isCrane && !usesVesselFields)
           ..._buildGenericEquipmentFields(form, profile),
         if (isCompressor) _buildCompressorFields(),
         const SizedBox(height: 16),
@@ -191,11 +192,12 @@ class InspectionSurveyCardSection extends StatelessWidget {
       buildInspectionTextField('diameter', 'Номинальный диаметр DN, мм',
           (value) => checklist.diameter = value,
           initialValue: checklist.diameter),
-      buildInspectionTextField('working_pressure', 'Рабочее / номинальное давление',
+      buildInspectionTextField(
+          'working_pressure',
+          'Рабочее / номинальное давление',
           (value) => checklist.workingPressure = value,
           initialValue: checklist.workingPressure),
-      buildInspectionTextField(
-          'wall_thickness', 'Толщина стенки (номинал), мм',
+      buildInspectionTextField('wall_thickness', 'Толщина стенки (номинал), мм',
           (value) => checklist.wallThickness = value,
           initialValue: checklist.wallThickness),
       buildInspectionTextField(
@@ -277,30 +279,33 @@ class InspectionSurveyCardSection extends StatelessWidget {
     ];
   }
 
-  List<Widget> _buildVesselFields(TechnicalReportForm form, BuildContext context) {
+  List<Widget> _buildVesselFields(
+      TechnicalReportForm form, BuildContext context) {
     String? s(dynamic v) => v?.toString();
     return [
-      buildInspectionTextField('diameter', 'Диаметр сосуда',
-          (value) => checklist.diameter = value,
+      buildInspectionTextField(
+          'diameter', 'Диаметр сосуда', (value) => checklist.diameter = value,
           initialValue: checklist.diameter),
       buildInspectionTextField('working_pressure', 'Рабочее давление',
           (value) => checklist.workingPressure = value,
           initialValue: checklist.workingPressure),
       buildInspectionTextField(
-          'wall_thickness', 'Толщина стенки (обечайка / днище)',
+          'wall_thickness',
+          'Толщина стенки (обечайка / днище)',
           (value) => checklist.wallThickness = value,
           initialValue: checklist.wallThickness),
       buildSectionHeader(
-        form.sectionHeader('survey', fallback: 'Краткая техническая характеристика'),
+        form.sectionHeader('survey',
+            fallback: 'Краткая техническая характеристика'),
       ),
       buildInspectionTextField(
           'purpose', 'Назначение', (v) => checklist.purpose = v,
           initialValue: checklist.purpose),
-      buildInspectionTextField('commissioning_year',
-          'Год ввода в эксплуатацию', (v) => checklist.commissioningYear = v,
+      buildInspectionTextField('commissioning_year', 'Год ввода в эксплуатацию',
+          (v) => checklist.commissioningYear = v,
           initialValue: s(checklist.commissioningYear)),
-      buildInspectionTextField('design_pressure',
-          'Расчётное давление, МПа', (v) => checklist.designPressure = v,
+      buildInspectionTextField('design_pressure', 'Расчётное давление, МПа',
+          (v) => checklist.designPressure = v,
           initialValue: s(checklist.designPressure)),
       buildInspectionTextField(
           'test_pressure',
@@ -315,61 +320,66 @@ class InspectionSurveyCardSection extends StatelessWidget {
           'Температура рабочей среды, ℃',
           (v) => checklist.workingTemperature = v,
           initialValue: checklist.workingTemperature),
-      buildInspectionTextField('design_temperature',
+      buildInspectionTextField(
+          'design_temperature',
           'Расчётная температура стенки, ℃',
           (v) => checklist.designTemperature = v,
           initialValue: checklist.designTemperature),
-      buildInspectionTextField('working_medium',
-          'Наименование рабочей среды (состав)', (v) => checklist.workingMedium = v,
+      buildInspectionTextField(
+          'working_medium',
+          'Наименование рабочей среды (состав)',
+          (v) => checklist.workingMedium = v,
           initialValue: checklist.workingMedium),
       buildInspectionTextField('hazard_class',
           'Класс опасности по ГОСТ 12.1.007', (v) => checklist.hazardClass = v,
           initialValue: checklist.hazardClass),
-      buildInspectionTextField('explosion_hazard',
-          'Категория взрывоопасности', (v) => checklist.explosionHazard = v,
+      buildInspectionTextField('explosion_hazard', 'Категория взрывоопасности',
+          (v) => checklist.explosionHazard = v,
           initialValue: checklist.explosionHazard),
-      buildInspectionTextField('fire_hazard',
-          'Категория пожароопасности', (v) => checklist.fireHazard = v,
+      buildInspectionTextField('fire_hazard', 'Категория пожароопасности',
+          (v) => checklist.fireHazard = v,
           initialValue: checklist.fireHazard),
-      buildInspectionTextField('connection_scheme',
+      buildInspectionTextField(
+          'connection_scheme',
           'Схема подключения сосуда в установку',
           (v) => checklist.connectionScheme = v,
           initialValue: checklist.connectionScheme),
-      buildInspectionTextField('climatic_version',
-          'Климатическое исполнение', (v) => checklist.climaticVersion = v,
+      buildInspectionTextField('climatic_version', 'Климатическое исполнение',
+          (v) => checklist.climaticVersion = v,
           initialValue: checklist.climaticVersion),
-      buildInspectionTextField(
-          'empty_mass', 'Масса порожнего сосуда, кг', (v) => checklist.emptyMass = v,
+      buildInspectionTextField('empty_mass', 'Масса порожнего сосуда, кг',
+          (v) => checklist.emptyMass = v,
           initialValue: checklist.emptyMass),
       buildInspectionTextField('load_cycles', 'Число циклов нагружения',
           (v) => checklist.loadCycles = v,
           initialValue: checklist.loadCycles),
-      buildInspectionTextField(
-          'service_life', 'Расчётный срок службы, лет', (v) => checklist.serviceLife = v,
+      buildInspectionTextField('service_life', 'Расчётный срок службы, лет',
+          (v) => checklist.serviceLife = v,
           initialValue: checklist.serviceLife),
       buildInspectionTextField(
           'vessel_group', 'Группа сосуда', (v) => checklist.vesselGroup = v,
           initialValue: checklist.vesselGroup),
-      buildInspectionTextField(
-          'vessel_installed', 'Сосуд установлен (дата/место)',
-          (v) => checklist.vesselInstalled = v,
+      buildInspectionTextField('vessel_installed',
+          'Сосуд установлен (дата/место)', (v) => checklist.vesselInstalled = v,
           initialValue: checklist.vesselInstalled),
       buildInspectionTextField(
-          'supervisory_remarks', 'Наличие замечаний надзорных органов',
+          'supervisory_remarks',
+          'Наличие замечаний надзорных органов',
           (v) => checklist.supervisoryRemarks = v,
           initialValue: checklist.supervisoryRemarks),
       buildInspectionTextField(
-          'accidents_info', 'Сведения об авариях, инцидентах и отказах',
+          'accidents_info',
+          'Сведения об авариях, инцидентах и отказах',
           (v) => checklist.accidentsInfo = v,
           initialValue: checklist.accidentsInfo),
-      buildInspectionTextField(
-          'repair_info', 'Данные о ремонте и реконструкции',
-          (v) => checklist.repairInfo = v,
+      buildInspectionTextField('repair_info',
+          'Данные о ремонте и реконструкции', (v) => checklist.repairInfo = v,
           initialValue: checklist.repairInfo),
       buildInspectionTextField('medium_group', 'Группа рабочей среды',
           (v) => checklist.mediumGroup = v,
           initialValue: checklist.mediumGroup),
-      buildInspectionTextField('corrosion_allowance',
+      buildInspectionTextField(
+          'corrosion_allowance',
           'Прибавка для компенсации коррозии, мм',
           (v) => checklist.corrosionAllowance = v,
           initialValue: s(checklist.corrosionAllowance)),
@@ -401,7 +411,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
           (v) => checklist.techCardNumber = v,
           initialValue: checklist.techCardNumber),
       buildSectionHeader(
-        form.sectionHeader('survey_prev', fallback: '12. Анализ результатов предыдущих обследований'),
+        form.sectionHeader('survey_prev',
+            fallback: '12. Анализ результатов предыдущих обследований'),
       ),
       _buildPreviousInspectionsTable(context),
       buildMultilineField(
@@ -423,7 +434,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
           final index = entry.key;
           final row = entry.value;
           return Card(
-            color: kInspectionDarkBg,
+            color: AppColors.surface(context),
             margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -432,12 +443,14 @@ class InspectionSurveyCardSection extends StatelessWidget {
                   Row(
                     children: [
                       Text('Запись ${index + 1}',
-                          style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              color: AppColors.onSurface(context),
+                              fontWeight: FontWeight.bold)),
                       const Spacer(),
                       if (checklist.previousInspections.length > 1)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
                           onPressed: () {
                             checklist.previousInspections.removeAt(index);
                             onStateChanged();
@@ -500,23 +513,25 @@ class InspectionSurveyCardSection extends StatelessWidget {
   }
 
   Widget _buildCompressorFields() {
-    final c = checklist as CompressorChecklist;
-    return Column(
-      children: [
-        buildInspectionTextField('compressor_type', 'Тип компрессора',
-            (value) => c.compressorType = value),
-        buildInspectionTextField(
-            'power_rating', 'Мощность', (value) => c.powerRating = value),
-        buildInspectionTextField('pressure_ratio', 'Степень сжатия',
-            (value) => c.pressureRatio = value),
-        buildInspectionTextField('flow_rate', 'Производительность',
-            (value) => c.flowRate = value),
-        buildInspectionTextField('rotation_speed', 'Частота вращения',
-            (value) => c.rotationSpeed = value),
-        buildInspectionTextField('number_of_stages', 'Количество ступеней',
-            (value) => c.numberOfStages = value),
-      ],
-    );
+    return Builder(builder: (context) {
+      final c = checklist as CompressorChecklist;
+      return Column(
+        children: [
+          buildInspectionTextField('compressor_type', 'Тип компрессора',
+              (value) => c.compressorType = value),
+          buildInspectionTextField(
+              'power_rating', 'Мощность', (value) => c.powerRating = value),
+          buildInspectionTextField('pressure_ratio', 'Степень сжатия',
+              (value) => c.pressureRatio = value),
+          buildInspectionTextField(
+              'flow_rate', 'Производительность', (value) => c.flowRate = value),
+          buildInspectionTextField('rotation_speed', 'Частота вращения',
+              (value) => c.rotationSpeed = value),
+          buildInspectionTextField('number_of_stages', 'Количество ступеней',
+              (value) => c.numberOfStages = value),
+        ],
+      );
+    });
   }
 
   // --- Фото ---
@@ -529,7 +544,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(color: Colors.white70, fontSize: 14)),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 14)),
           const SizedBox(height: 8),
           if (image != null)
             GestureDetector(
@@ -555,8 +571,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
                           top: MediaQuery.of(ctx).padding.top + 8,
                           right: 16,
                           child: IconButton(
-                            icon: const Icon(Icons.close,
-                                color: Colors.white, size: 28),
+                            icon: Icon(Icons.close,
+                                color: AppColors.onSurface(context), size: 28),
                             onPressed: () => Navigator.of(ctx).pop(),
                           ),
                         ),
@@ -570,7 +586,7 @@ class InspectionSurveyCardSection extends StatelessWidget {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: kInspectionBorderColor),
+                  border: Border.all(color: AppColors.border(context)),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -586,210 +602,215 @@ class InspectionSurveyCardSection extends StatelessWidget {
   }
 
   Widget _buildEmptyPhotoPlaceholder(bool isFactoryPlate) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: kInspectionDarkBg,
-        borderRadius: BorderRadius.circular(8),
-        border:
-            Border.all(color: kInspectionBorderColor, style: BorderStyle.solid),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.camera_alt, color: Colors.white70, size: 48),
-          const SizedBox(height: 8),
-          const Text('Нет фото',
-              style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                isFactoryPlate
-                    ? 'Выберите способ получения фото заводской таблички:'
-                    : 'Выберите способ получения схемы контроля:',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () =>
-                      onPickImage(ImageSource.camera, isFactoryPlate),
-                  icon: const Icon(Icons.camera, color: Colors.white),
-                  label: Text(
-                    isFactoryPlate
-                        ? 'Сфотографировать табличку'
-                        : 'Сфотографировать схему',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kInspectionAccentBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+    return Builder(builder: (context) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: AppColors.border(context), style: BorderStyle.solid),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.camera_alt,
+                color: AppColors.mutedText(context), size: 48),
+            const SizedBox(height: 8),
+            Text('Нет фото',
+                style: TextStyle(color: AppColors.mutedText(context))),
+            const SizedBox(height: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  isFactoryPlate
+                      ? 'Выберите способ получения фото заводской таблички:'
+                      : 'Выберите способ получения схемы контроля:',
+                  style: TextStyle(
+                      color: AppColors.mutedText(context), fontSize: 12),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () =>
-                      onPickImage(ImageSource.gallery, isFactoryPlate),
-                  icon: const Icon(Icons.photo_library,
-                      color: Colors.white),
-                  label: const Text(
-                    'Выбрать из галереи',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kInspectionAccentBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              if (!isFactoryPlate) ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onPickImageFromFile,
-                    icon: const Icon(Icons.folder_open,
-                        color: kInspectionAccentBlue, size: 20),
-                    label: const Text('Файл',
-                        style: TextStyle(
-                            color: kInspectionAccentBlue,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13)),
-                    style: OutlinedButton.styleFrom(
-                      side:
-                          const BorderSide(color: kInspectionAccentBlue),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: ElevatedButton.icon(
+                    onPressed: () =>
+                        onPickImage(ImageSource.camera, isFactoryPlate),
+                    icon:
+                        Icon(Icons.camera, color: AppColors.onSurface(context)),
+                    label: Text(
+                      isFactoryPlate
+                          ? 'Сфотографировать табличку'
+                          : 'Сфотографировать схему',
+                      style: TextStyle(
+                        color: AppColors.onSurface(context),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kInspectionAccentBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onPickBuiltInTemplate,
-                    icon: const Icon(Icons.dashboard_customize,
-                        color: kInspectionAccentBlue, size: 20),
-                    label: const Text('Встроенный шаблон',
-                        style: TextStyle(
-                            color: kInspectionAccentBlue,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13)),
-                    style: OutlinedButton.styleFrom(
-                      side:
-                          const BorderSide(color: kInspectionAccentBlue),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: ElevatedButton.icon(
+                    onPressed: () =>
+                        onPickImage(ImageSource.gallery, isFactoryPlate),
+                    icon: Icon(Icons.photo_library,
+                        color: AppColors.onSurface(context)),
+                    label: Text(
+                      'Выбрать из галереи',
+                      style: TextStyle(
+                        color: AppColors.onSurface(context),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kInspectionAccentBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
-                if (onOpenSchemeConstructor != null) ...[
-                  const SizedBox(height: 8),
+                if (!isFactoryPlate) ...[
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: onOpenSchemeConstructor,
-                      icon: const Icon(Icons.architecture,
+                      onPressed: onPickImageFromFile,
+                      icon: const Icon(Icons.folder_open,
                           color: kInspectionAccentBlue, size: 20),
-                      label: const Text('Конструктор схемы',
+                      label: const Text('Файл',
                           style: TextStyle(
                               color: kInspectionAccentBlue,
                               fontWeight: FontWeight.w600,
                               fontSize: 13)),
                       style: OutlinedButton.styleFrom(
-                        side:
-                            const BorderSide(color: kInspectionAccentBlue),
+                        side: const BorderSide(color: kInspectionAccentBlue),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
-                ],
-                if (onOpenUzkZones != null || onOpenMpkZones != null) ...[
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (onOpenUzkZones != null)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: onOpenUzkZones,
-                            icon: const Icon(Icons.border_style,
-                                color: Color(0xFF00BED2), size: 18),
-                            label: const Text('Зоны УЗК',
-                                style: TextStyle(
-                                    color: Color(0xFF00BED2),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFF00BED2)),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                          ),
-                        ),
-                      if (onOpenUzkZones != null && onOpenMpkZones != null)
-                        const SizedBox(width: 8),
-                      if (onOpenMpkZones != null)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: onOpenMpkZones,
-                            icon: const Icon(Icons.border_style,
-                                color: Color(0xFF32BE46), size: 18),
-                            label: const Text('Зоны МПК',
-                                style: TextStyle(
-                                    color: Color(0xFF32BE46),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFF32BE46)),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onPickStandardDrawing,
-                    icon: const Icon(Icons.cloud_download,
-                        color: kInspectionAccentBlue),
-                    label: const Text('Шаблон с сервера',
-                        style: TextStyle(
-                            color: kInspectionAccentBlue,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14)),
-                    style: OutlinedButton.styleFrom(
-                      side:
-                          const BorderSide(color: kInspectionAccentBlue),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onPickBuiltInTemplate,
+                      icon: const Icon(Icons.dashboard_customize,
+                          color: kInspectionAccentBlue, size: 20),
+                      label: const Text('Встроенный шаблон',
+                          style: TextStyle(
+                              color: kInspectionAccentBlue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: kInspectionAccentBlue),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
                     ),
                   ),
-                ),
+                  if (onOpenSchemeConstructor != null) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: onOpenSchemeConstructor,
+                        icon: const Icon(Icons.architecture,
+                            color: kInspectionAccentBlue, size: 20),
+                        label: const Text('Конструктор схемы',
+                            style: TextStyle(
+                                color: kInspectionAccentBlue,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: kInspectionAccentBlue),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (onOpenUzkZones != null || onOpenMpkZones != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (onOpenUzkZones != null)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: onOpenUzkZones,
+                              icon: const Icon(Icons.border_style,
+                                  color: Color(0xFF00BED2), size: 18),
+                              label: const Text('Зоны УЗК',
+                                  style: TextStyle(
+                                      color: Color(0xFF00BED2),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                side:
+                                    const BorderSide(color: Color(0xFF00BED2)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                        if (onOpenUzkZones != null && onOpenMpkZones != null)
+                          const SizedBox(width: 8),
+                        if (onOpenMpkZones != null)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: onOpenMpkZones,
+                              icon: const Icon(Icons.border_style,
+                                  color: Color(0xFF32BE46), size: 18),
+                              label: const Text('Зоны МПК',
+                                  style: TextStyle(
+                                      color: Color(0xFF32BE46),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                side:
+                                    const BorderSide(color: Color(0xFF32BE46)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onPickStandardDrawing,
+                      icon: const Icon(Icons.cloud_download,
+                          color: kInspectionAccentBlue),
+                      label: const Text('Шаблон с сервера',
+                          style: TextStyle(
+                              color: kInspectionAccentBlue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: kInspectionAccentBlue),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
-        ],
-      ),
-    );
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   // --- Дополнительные фото ---
@@ -799,21 +820,23 @@ class InspectionSurveyCardSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: kInspectionDarkBg,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Дополнительные фото объекта',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: AppColors.onSurface(context),
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Добавьте несколько фото состояния/дефектов объекта. Фото сохраняются и будут доступны в истории объекта.',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
+            style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
           ),
           const SizedBox(height: 10),
           Row(
@@ -842,17 +865,15 @@ class InspectionSurveyCardSection extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children:
-                  additionalObjectPhotos.asMap().entries.map((entry) {
+              children: additionalObjectPhotos.asMap().entries.map((entry) {
                 final idx = entry.key;
                 final p = entry.value;
                 final f = File(p);
                 final isRemote = p.startsWith('http://') ||
                     p.startsWith('https://') ||
                     p.startsWith('/api/');
-                final remoteUrl = p.startsWith('/api/')
-                    ? '${ApiService.baseUrl}$p'
-                    : p;
+                final remoteUrl =
+                    p.startsWith('/api/') ? '${ApiService.baseUrl}$p' : p;
                 return Stack(
                   children: [
                     GestureDetector(
@@ -866,25 +887,25 @@ class InspectionSurveyCardSection extends StatelessWidget {
                                   ? Image.network(
                                       remoteUrl,
                                       fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) =>
-                                          const Padding(
-                                        padding: EdgeInsets.all(16),
+                                      errorBuilder: (_, __, ___) => Padding(
+                                        padding: const EdgeInsets.all(16),
                                         child: Text(
                                           'Не удалось загрузить фото',
                                           style: TextStyle(
-                                              color: Colors.white),
+                                              color:
+                                                  AppColors.onSurface(context)),
                                         ),
                                       ),
                                     )
                                   : f.existsSync()
-                                      ? Image.file(f,
-                                          fit: BoxFit.contain)
-                                      : const Padding(
-                                          padding: EdgeInsets.all(16),
+                                      ? Image.file(f, fit: BoxFit.contain)
+                                      : Padding(
+                                          padding: const EdgeInsets.all(16),
                                           child: Text(
                                             'Файл не найден',
                                             style: TextStyle(
-                                                color: Colors.white),
+                                                color: AppColors.onSurface(
+                                                    context)),
                                           ),
                                         ),
                             ),
@@ -903,21 +924,19 @@ class InspectionSurveyCardSection extends StatelessWidget {
                                   width: 96,
                                   height: 96,
                                   color: Colors.black26,
-                                  child: const Icon(Icons.broken_image,
-                                      color: Colors.white54),
+                                  child: Icon(Icons.broken_image,
+                                      color: AppColors.mutedText(context)),
                                 ),
                               )
                             : f.existsSync()
                                 ? Image.file(f,
-                                    width: 96,
-                                    height: 96,
-                                    fit: BoxFit.cover)
+                                    width: 96, height: 96, fit: BoxFit.cover)
                                 : Container(
                                     width: 96,
                                     height: 96,
                                     color: Colors.black26,
-                                    child: const Icon(Icons.broken_image,
-                                        color: Colors.white54),
+                                    child: Icon(Icons.broken_image,
+                                        color: AppColors.mutedText(context)),
                                   ),
                       ),
                     ),
@@ -932,8 +951,8 @@ class InspectionSurveyCardSection extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                           padding: const EdgeInsets.all(4),
-                          child: const Icon(Icons.close,
-                              size: 14, color: Colors.white),
+                          child: Icon(Icons.close,
+                              size: 14, color: AppColors.onSurface(context)),
                         ),
                       ),
                     ),

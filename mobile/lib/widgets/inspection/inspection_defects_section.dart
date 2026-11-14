@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as Path;
@@ -13,7 +14,8 @@ class InspectionDefectsSection extends StatelessWidget {
   final VesselChecklist checklist;
   final ImagePicker imagePicker;
   final VoidCallback onStateChanged;
-  final Future<String> Function(String imagePath, {bool force}) maybeAddDateTimeGpsToPhoto;
+  final Future<String> Function(String imagePath, {bool force})
+      maybeAddDateTimeGpsToPhoto;
 
   const InspectionDefectsSection({
     super.key,
@@ -25,7 +27,8 @@ class InspectionDefectsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final form = TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
+    final form =
+        TechnicalReportFormRegistry.formForChecklist(checklist.reportFormId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -45,17 +48,15 @@ class InspectionDefectsSection extends StatelessWidget {
           initialValue: checklist.vikIllumination,
         ),
         buildYesNoField(
-            'has_local_deformations', 'Локально деформированные зоны',
-            (value) {
+            'has_local_deformations', 'Локально деформированные зоны', (value) {
           checklist.hasLocalDeformations = value == 'yes';
         }),
-        buildYesNoField(
-            'has_external_defects', 'Дефекты при наружном осмотре', (value) {
+        buildYesNoField('has_external_defects', 'Дефекты при наружном осмотре',
+            (value) {
           checklist.hasExternalDefects = value == 'yes';
         }),
         buildYesNoField(
-            'has_internal_defects', 'Дефекты при внутреннем осмотре',
-            (value) {
+            'has_internal_defects', 'Дефекты при внутреннем осмотре', (value) {
           checklist.hasInternalDefects = value == 'yes';
         }),
         buildYesNoField('has_armature_defects', 'Дефекты арматуры', (value) {
@@ -71,59 +72,62 @@ class InspectionDefectsSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: kInspectionDarkBg,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Дефекты ВИК (фото/замеры)',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: AppColors.onSurface(context),
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           if (checklist.visualDefects.isEmpty)
-            const Text(
+            Text(
               'Дефекты не добавлены',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 12),
             )
           else
             Column(
-              children:
-                  checklist.visualDefects.asMap().entries.map((entry) {
+              children: checklist.visualDefects.asMap().entries.map((entry) {
                 final idx = entry.key;
                 final d = entry.value;
                 return ListTile(
                   dense: true,
                   title: Text(
                     d.defectType ?? 'Дефект',
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.onSurface(context)),
                   ),
                   subtitle: Text(
                     [
                       if (d.zone != null && d.zone!.isNotEmpty)
-                        d.zone == 'internal' ? 'Внутренний осмотр' : 'Наружный осмотр',
+                        d.zone == 'internal'
+                            ? 'Внутренний осмотр'
+                            : 'Наружный осмотр',
                       if (d.location != null && d.location!.isNotEmpty)
                         'Место: ${d.location}',
                       if (d.size != null && d.size!.isNotEmpty)
                         'Размер: ${d.size}',
-                      if (d.description != null &&
-                          d.description!.isNotEmpty)
+                      if (d.description != null && d.description!.isNotEmpty)
                         d.description,
                       if (d.assessment != null && d.assessment!.isNotEmpty)
                         'Оценка: ${d.assessment}',
                     ].join(' | '),
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.mutedText(context), fontSize: 12),
                   ),
                   trailing: IconButton(
-                    icon:
-                        const Icon(Icons.delete, color: Colors.redAccent),
+                    icon: const Icon(Icons.delete, color: Colors.redAccent),
                     onPressed: () async {
                       final confirmed = await showConfirmDeleteDialog(
                         context,
-                        message: 'Вы уверены? Дефект и все его данные будут удалены.',
+                        message:
+                            'Вы уверены? Дефект и все его данные будут удалены.',
                       );
                       if (confirmed) {
                         checklist.visualDefects.removeAt(idx);
@@ -220,10 +224,13 @@ class InspectionDefectsSection extends StatelessWidget {
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Зона осмотра'),
                   items: [
-                    const DropdownMenuItem(value: 'external', child: Text('Наружный осмотр')),
-                    const DropdownMenuItem(value: 'internal', child: Text('Внутренний осмотр')),
+                    const DropdownMenuItem(
+                        value: 'external', child: Text('Наружный осмотр')),
+                    const DropdownMenuItem(
+                        value: 'internal', child: Text('Внутренний осмотр')),
                     if (isPipeline)
-                      const DropdownMenuItem(value: 'weld', child: Text('Сварное соединение')),
+                      const DropdownMenuItem(
+                          value: 'weld', child: Text('Сварное соединение')),
                   ],
                   onChanged: (v) => setLocalState(() => zone = v ?? 'external'),
                 ),
@@ -233,7 +240,8 @@ class InspectionDefectsSection extends StatelessWidget {
                   runSpacing: -8,
                   children: commonObjects
                       .map((o) => ActionChip(
-                            label: Text(o, style: const TextStyle(fontSize: 12)),
+                            label:
+                                Text(o, style: const TextStyle(fontSize: 12)),
                             onPressed: () {
                               locationController.text = o;
                               setLocalState(() => location = o);
@@ -259,8 +267,8 @@ class InspectionDefectsSection extends StatelessWidget {
                   ),
                   TextFormField(
                     controller: clockCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Ориентация (часы)'),
+                    decoration:
+                        const InputDecoration(labelText: 'Ориентация (часы)'),
                   ),
                   TextFormField(
                     controller: lengthCtrl,
@@ -279,35 +287,40 @@ class InspectionDefectsSection extends StatelessWidget {
                 DropdownButtonFormField<String>(
                   value: defectType,
                   isExpanded: true,
-                  decoration:
-                      const InputDecoration(labelText: 'Тип дефекта (если есть)'),
+                  decoration: const InputDecoration(
+                      labelText: 'Тип дефекта (если есть)'),
                   items: defectTypes
-                      .map(
-                          (t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
                   onChanged: (v) => setLocalState(() => defectType = v),
                 ),
                 TextFormField(
-                  decoration:
-                      const InputDecoration(labelText: 'Размер (мм)'),
+                  decoration: const InputDecoration(labelText: 'Размер (мм)'),
                   onChanged: (v) => size = v,
                 ),
                 TextFormField(
                   decoration: const InputDecoration(
-                      labelText: 'Описание дефектов (пусто — «Дефектов не обнаружено»)'),
+                      labelText:
+                          'Описание дефектов (пусто — «Дефектов не обнаружено»)'),
                   onChanged: (v) => description = v,
                 ),
                 DropdownButtonFormField<String>(
                   value: assessment,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Оценка качества'),
-                  items: const [
-                    DropdownMenuItem(value: 'Годен', child: Text('Годен')),
-                    DropdownMenuItem(value: 'Не годен', child: Text('Не годен')),
-                    DropdownMenuItem(value: 'ремонт', child: Text('ремонт')),
-                    DropdownMenuItem(value: 'вырезать', child: Text('вырезать')),
+                  decoration:
+                      const InputDecoration(labelText: 'Оценка качества'),
+                  items: [
+                    const DropdownMenuItem(
+                        value: 'Годен', child: Text('Годен')),
+                    const DropdownMenuItem(
+                        value: 'Не годен', child: Text('Не годен')),
+                    const DropdownMenuItem(
+                        value: 'ремонт', child: Text('ремонт')),
+                    const DropdownMenuItem(
+                        value: 'вырезать', child: Text('вырезать')),
                   ],
-                  onChanged: (v) => setLocalState(() => assessment = v ?? 'Годен'),
+                  onChanged: (v) =>
+                      setLocalState(() => assessment = v ?? 'Годен'),
                 ),
                 const SizedBox(height: 8),
                 if (photoPath != null)
@@ -320,8 +333,7 @@ class InspectionDefectsSection extends StatelessWidget {
                   children: [
                     TextButton.icon(
                       onPressed: () async {
-                        final p =
-                            await _pickDefectPhoto(ImageSource.camera);
+                        final p = await _pickDefectPhoto(ImageSource.camera);
                         if (p != null) {
                           setLocalState(() => photoPath = p);
                         }
@@ -331,8 +343,7 @@ class InspectionDefectsSection extends StatelessWidget {
                     ),
                     TextButton.icon(
                       onPressed: () async {
-                        final p =
-                            await _pickDefectPhoto(ImageSource.gallery);
+                        final p = await _pickDefectPhoto(ImageSource.gallery);
                         if (p != null) {
                           setLocalState(() => photoPath = p);
                         }
@@ -360,9 +371,8 @@ class InspectionDefectsSection extends StatelessWidget {
                 d.zone = zone;
                 d.assessment = assessment;
                 d.scope = '100%';
-                d.weldNumber = weldCtrl.text.trim().isEmpty
-                    ? null
-                    : weldCtrl.text.trim();
+                d.weldNumber =
+                    weldCtrl.text.trim().isEmpty ? null : weldCtrl.text.trim();
                 d.diameter =
                     dnCtrl.text.trim().isEmpty ? null : dnCtrl.text.trim();
                 d.clockPosition = clockCtrl.text.trim().isEmpty

@@ -1,3 +1,4 @@
+import '../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -32,14 +33,17 @@ class ThicknessMeasurementScreen extends StatefulWidget {
   });
 
   @override
-  State<ThicknessMeasurementScreen> createState() => _ThicknessMeasurementScreenState();
+  State<ThicknessMeasurementScreen> createState() =>
+      _ThicknessMeasurementScreenState();
 }
 
-class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen> {
+class _ThicknessMeasurementScreenState
+    extends State<ThicknessMeasurementScreen> {
   final ImagePicker _imagePicker = ImagePicker();
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService = const ApiService();
   final LocationService _locationService = LocationService();
-  final PhotoAnnotationService _photoAnnotationService = PhotoAnnotationService();
+  final PhotoAnnotationService _photoAnnotationService =
+      PhotoAnnotationService();
   File? _schemeImage;
   Size? _imageSize; // размер изображения для координат при зуме/сдвиге
   List<ThicknessMeasurement> _measurements = [];
@@ -47,6 +51,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   Offset? _pendingTapPosition;
   int? _activePointIndex;
   late ThicknessDefaults _defaults;
+  bool _focusScheme = false;
   bool _canClose = false;
   bool _closing = false;
 
@@ -57,33 +62,50 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     widget.onSave?.call(_measurements, _schemeImage);
     setState(() => _canClose = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.pop({'measurements': _measurements, 'image': _schemeImage, 'thicknessDefaults': _defaults});
+      if (mounted)
+        context.pop({
+          'measurements': _measurements,
+          'image': _schemeImage,
+          'thicknessDefaults': _defaults
+        });
     });
   }
 
   Future<void> _editDefaults() async {
     var value = _defaults;
-    final updated = await showDialog<ThicknessDefaults>(context: context, builder: (dialogContext) => StatefulBuilder(
-      builder: (context, updateDialog) => AlertDialog(
-        title: const Text('Параметры всего сосуда'),
-        content: SingleChildScrollView(child: ThicknessDefaultsEditor(settings: value,
-          onChanged: (settings) => updateDialog(() => value = settings))),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, value), child: const Text('Применить'))],
-      ),
-    ));
-    if (updated != null && mounted) setState(() {
-      updated.applyTo(_measurements, previous: _defaults);
-      _defaults = updated;
-    });
+    final updated = await showDialog<ThicknessDefaults>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+              builder: (context, updateDialog) => AlertDialog(
+                title: const Text('Параметры всего сосуда'),
+                content: SingleChildScrollView(
+                    child: ThicknessDefaultsEditor(
+                        settings: value,
+                        onChanged: (settings) =>
+                            updateDialog(() => value = settings))),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Отмена')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, value),
+                      child: const Text('Применить'))
+                ],
+              ),
+            ));
+    if (updated != null && mounted)
+      setState(() {
+        updated.applyTo(_measurements, previous: _defaults);
+        _defaults = updated;
+      });
   }
 
   void _onBluetoothMeasurement(MeasurementResult result) {
     if (_measurements.isEmpty) return;
-    final target = _activePointIndex != null &&
-            _activePointIndex! < _measurements.length
-        ? _measurements[_activePointIndex!]
-        : _measurements.last;
+    final target =
+        _activePointIndex != null && _activePointIndex! < _measurements.length
+            ? _measurements[_activePointIndex!]
+            : _measurements.last;
     setState(() {
       target.thickness = result.value;
     });
@@ -93,15 +115,23 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   void initState() {
     super.initState();
     _schemeImage = widget.schemeImage;
-    _measurements = (widget.existingMeasurements ?? []).map((point) => ThicknessMeasurement.fromJson(point.toJson())).toList();
+    _measurements = (widget.existingMeasurements ?? [])
+        .map((point) => ThicknessMeasurement.fromJson(point.toJson()))
+        .toList();
     double? uniform(double? Function(ThicknessMeasurement) get) {
       final values = _measurements.map(get).whereType<double>().toSet();
       return values.length == 1 ? values.single : null;
     }
-    _defaults = widget.thicknessDefaults ?? ThicknessDefaults(
-      nominalThickness: ThicknessDefaults.parse(widget.equipment?.attributes?['wall_thickness']) ?? uniform((point) => point.nominalThickness),
-      minAllowedThickness: ThicknessDefaults.parse(widget.equipment?.attributes?['min_wall_thickness']) ?? uniform((point) => point.minAllowedThickness),
-    );
+
+    _defaults = widget.thicknessDefaults ??
+        ThicknessDefaults(
+          nominalThickness: ThicknessDefaults.parse(
+                  widget.equipment?.attributes?['wall_thickness']) ??
+              uniform((point) => point.nominalThickness),
+          minAllowedThickness: ThicknessDefaults.parse(
+                  widget.equipment?.attributes?['min_wall_thickness']) ??
+              uniform((point) => point.minAllowedThickness),
+        );
     _defaults.applyTo(_measurements);
     if (_schemeImage != null) _loadImageSize();
     // Если нет фото схемы и оборудование - сосуд/ресивер, загружаем шаблон
@@ -117,7 +147,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
       final decoded = img.decodeImage(bytes);
       if (decoded != null && mounted) {
         setState(() {
-          _imageSize = Size(decoded.width.toDouble(), decoded.height.toDouble());
+          _imageSize =
+              Size(decoded.width.toDouble(), decoded.height.toDouble());
         });
       }
     } catch (_) {}
@@ -127,20 +158,21 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     if (widget.equipment == null) return false;
     final typeCode = widget.equipment!.typeCode?.toUpperCase() ?? '';
     final typeName = widget.equipment!.typeName?.toUpperCase() ?? '';
-    return typeCode.contains('VESSEL') || 
-           typeName.contains('СОСУД') || 
-           typeName.contains('РЕСИВЕР');
+    return typeCode.contains('VESSEL') ||
+        typeName.contains('СОСУД') ||
+        typeName.contains('РЕСИВЕР');
   }
 
   Future<void> _loadTemplate() async {
     if (!_isVessel()) return;
-    
+
     setState(() {
       _loadingTemplate = true;
     });
 
     try {
-      final templatePath = await _apiService.getVesselTemplate('vessel_template.png');
+      final templatePath =
+          await _apiService.getVesselTemplate('vessel_template.png');
       if (templatePath != null && mounted) {
         setState(() {
           _schemeImage = File(templatePath);
@@ -192,7 +224,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
 
     if (result.localImagePath == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Изображение шаблона не скачано. Подключитесь к сети и синхронизируйтесь.'),
+        content: Text(
+            'Изображение шаблона не скачано. Подключитесь к сети и синхронизируйтесь.'),
       ));
       return;
     }
@@ -239,7 +272,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     final double xPercent = (localPosition.dx / imageSize.width) * 100;
     final double yPercent = (localPosition.dy / imageSize.height) * 100;
 
-    if (xPercent < 0 || xPercent > 100 || yPercent < 0 || yPercent > 100) return;
+    if (xPercent < 0 || xPercent > 100 || yPercent < 0 || yPercent > 100)
+      return;
 
     final newPoint = ThicknessMeasurement(
       location: 'Точка ${_measurements.length + 1}',
@@ -260,24 +294,25 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1e293b),
-        title: const Text('Массовое добавление точек',
-            style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.surface(context),
+        title: Text('Массовое добавление точек',
+            style: TextStyle(color: AppColors.onSurface(context))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Точки будут расставлены сеткой по схеме (без наездов). Максимум 150.',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+              style:
+                  TextStyle(color: AppColors.mutedText(context), fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: countCtrl,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.onSurface(context)),
+              decoration: InputDecoration(
                 labelText: 'Количество точек',
-                labelStyle: TextStyle(color: Colors.white70),
+                labelStyle: TextStyle(color: AppColors.mutedText(context)),
               ),
             ),
           ],
@@ -307,9 +342,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
       return;
     }
     final n = want > room ? room : want;
-    final cols = (n <= 4)
-        ? n
-        : math.max(4, math.min(20, math.sqrt(n * 1.6).ceil()));
+    final cols =
+        (n <= 4) ? n : math.max(4, math.min(20, math.sqrt(n * 1.6).ceil()));
     final rows = ((n + cols - 1) / cols).ceil();
     final start = _measurements.length;
     final added = <ThicknessMeasurement>[];
@@ -343,8 +377,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
         TextEditingController(text: point.nominalThickness?.toString() ?? '');
     final thicknessController =
         TextEditingController(text: point.thickness?.toString() ?? '');
-    final minThicknessController =
-        TextEditingController(text: point.minAllowedThickness?.toString() ?? '');
+    final minThicknessController = TextEditingController(
+        text: point.minAllowedThickness?.toString() ?? '');
     final commentController = TextEditingController(text: point.comment ?? '');
     final locationController = TextEditingController(text: point.location);
     final sectionController = TextEditingController(text: point.sectionNumber);
@@ -352,10 +386,10 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1e293b),
-        title: const Text(
+        backgroundColor: AppColors.surface(context),
+        title: Text(
           'Параметры точки замера',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppColors.onSurface(context)),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -363,37 +397,39 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
             children: [
               TextField(
                 controller: locationController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Местоположение',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                   enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
+                    borderSide: BorderSide(color: AppColors.border(context)),
                   ),
-                  focusedBorder: UnderlineInputBorder(
+                  focusedBorder: const UnderlineInputBorder(
                     borderSide: BorderSide(color: Color(0xFF3b82f6)),
                   ),
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: AppColors.onSurface(context)),
                 onChanged: (value) => point.location = value,
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: sectionController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Номер участка',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                   enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
+                    borderSide: BorderSide(color: AppColors.border(context)),
                   ),
-                  focusedBorder: UnderlineInputBorder(
+                  focusedBorder: const UnderlineInputBorder(
                     borderSide: BorderSide(color: Color(0xFF3b82f6)),
                   ),
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: AppColors.onSurface(context)),
                 onChanged: (value) => point.sectionNumber = value,
               ),
               const SizedBox(height: 8),
-              Text('Номинальная: ${point.nominalThickness ?? "не задана"} мм · Минимальная: ${point.minAllowedThickness ?? "не задана"} мм', style: const TextStyle(color: Colors.white70)),
+              Text(
+                  'Номинальная: ${point.nominalThickness ?? "не задана"} мм · Минимальная: ${point.minAllowedThickness ?? "не задана"} мм',
+                  style: TextStyle(color: AppColors.mutedText(context))),
               const SizedBox(height: 8),
               TextField(
                 controller: thicknessController,
@@ -408,84 +444,94 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                     setState(() {});
                   }
                 },
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Фактическая толщина, мм (крупный ввод)',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  suffixIcon: Icon(Icons.dialpad, color: Colors.white54),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
+                  suffixIcon:
+                      Icon(Icons.dialpad, color: AppColors.mutedText(context)),
                   enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
+                    borderSide: BorderSide(color: AppColors.border(context)),
                   ),
-                  focusedBorder: UnderlineInputBorder(
+                  focusedBorder: const UnderlineInputBorder(
                     borderSide: BorderSide(color: Color(0xFF3b82f6)),
                   ),
                 ),
-                style: const TextStyle(color: Colors.white, fontSize: 22),
+                style: TextStyle(
+                    color: AppColors.onSurface(context), fontSize: 22),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
                   point.thickness = double.tryParse(value.replaceAll(',', '.'));
                 },
               ),
               const SizedBox(height: 8),
-              ExpansionTile(title: const Text('Индивидуальные нормативы элемента'), children: [
-              TextField(
-                controller: nominalThicknessController,
-                decoration: const InputDecoration(
-                  labelText: 'Номинальная толщина, мм',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF3b82f6)),
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  point.nominalThickness = ThicknessDefaults.parse(value);
-                },
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: minThicknessController,
-                decoration: const InputDecoration(
-                  labelText: 'Отбраковочная толщина, мм',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF3b82f6)),
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  point.minAllowedThickness = ThicknessDefaults.parse(value);
-                },
-              ),
-              const SizedBox(height: 8),
-              ]),
+              ExpansionTile(
+                  title: const Text('Индивидуальные нормативы элемента'),
+                  children: [
+                    TextField(
+                      controller: nominalThicknessController,
+                      decoration: InputDecoration(
+                        labelText: 'Номинальная толщина, мм',
+                        labelStyle:
+                            TextStyle(color: AppColors.mutedText(context)),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide:
+                              BorderSide(color: AppColors.border(context)),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF3b82f6)),
+                        ),
+                      ),
+                      style: TextStyle(color: AppColors.onSurface(context)),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        point.nominalThickness = ThicknessDefaults.parse(value);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: minThicknessController,
+                      decoration: InputDecoration(
+                        labelText: 'Отбраковочная толщина, мм',
+                        labelStyle:
+                            TextStyle(color: AppColors.mutedText(context)),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide:
+                              BorderSide(color: AppColors.border(context)),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFF3b82f6)),
+                        ),
+                      ),
+                      style: TextStyle(color: AppColors.onSurface(context)),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        point.minAllowedThickness =
+                            ThicknessDefaults.parse(value);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                  ]),
               TextField(
                 controller: commentController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Комментарий',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppColors.mutedText(context)),
                   enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
+                    borderSide: BorderSide(color: AppColors.border(context)),
                   ),
-                  focusedBorder: UnderlineInputBorder(
+                  focusedBorder: const UnderlineInputBorder(
                     borderSide: BorderSide(color: Color(0xFF3b82f6)),
                   ),
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: AppColors.onSurface(context)),
                 maxLines: 3,
                 onChanged: (value) => point.comment = value,
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Фото замеров (для отчёта)',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(
+                    color: AppColors.mutedText(context), fontSize: 14),
               ),
               const SizedBox(height: 4),
               Wrap(
@@ -493,40 +539,43 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 runSpacing: 8,
                 children: [
                   ...point.photos.asMap().entries.map((e) => SizedBox(
-                    width: 64,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            File(e.value),
-                            width: 64,
-                            height: 64,
-                            fit: BoxFit.cover,
-                          ),
+                        width: 64,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(e.value),
+                                width: 64,
+                                height: 64,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  point.photos.removeAt(e.key);
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(Icons.close,
+                                    color: Colors.red, size: 18),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              point.photos.removeAt(e.key);
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(10),
-                          child: const Padding(
-                            padding: EdgeInsets.all(2),
-                            child: Icon(Icons.close, color: Colors.red, size: 18),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
+                      )),
                   GestureDetector(
                     onTap: () async {
-                      final img = await _imagePicker.pickImage(source: ImageSource.camera);
+                      final img = await _imagePicker.pickImage(
+                          source: ImageSource.camera);
                       if (img != null && mounted) {
-                        final path = await _maybeAddDateTimeGpsToPhoto(img.path);
+                        final path =
+                            await _maybeAddDateTimeGpsToPhoto(img.path);
                         setState(() {
                           point.photos.add(path);
                         });
@@ -536,10 +585,11 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white24),
+                        border: Border.all(color: AppColors.border(context)),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.add_a_photo, color: Colors.white54, size: 28),
+                      child: Icon(Icons.add_a_photo,
+                          color: AppColors.mutedText(context), size: 28),
                     ),
                   ),
                 ],
@@ -569,13 +619,12 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
     );
   }
 
-
   Future<String?> _showLargeThicknessKeypad({String? initial}) async {
     var buf = initial ?? '';
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0f172a),
+      backgroundColor: AppColors.scaffold(context),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
@@ -601,7 +650,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                     height: 64,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: color ?? const Color(0xFF1e293b),
+                        backgroundColor: color ?? AppColors.surface(context),
                         foregroundColor: Colors.white,
                         textStyle: const TextStyle(
                             fontSize: 24, fontWeight: FontWeight.w700),
@@ -620,15 +669,16 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'Толщина, мм',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(
+                          color: AppColors.mutedText(context), fontSize: 14),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       buf.isEmpty ? '0' : buf,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppColors.onSurface(context),
                         fontSize: 48,
                         fontWeight: FontWeight.w700,
                       ),
@@ -693,14 +743,16 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setInner) => AlertDialog(
-          backgroundColor: const Color(0xFF1e293b),
-          title: const Text('Добавить на фото?', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.surface(context),
+          title: Text('Добавить на фото?',
+              style: TextStyle(color: AppColors.onSurface(context))),
           content: CheckboxListTile(
             value: addMeta,
             onChanged: (v) => setInner(() => addMeta = v ?? true),
-            title: const Text(
+            title: Text(
               'Добавить дату и GPS-координаты',
-              style: TextStyle(color: Colors.white, fontSize: 15),
+              style:
+                  TextStyle(color: AppColors.onSurface(context), fontSize: 15),
             ),
             activeColor: const Color(0xFF3b82f6),
             controlAffinity: ListTileControlAffinity.leading,
@@ -708,11 +760,13 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Пропустить', style: TextStyle(color: Colors.white70)),
+              child: Text('Пропустить',
+                  style: TextStyle(color: AppColors.mutedText(context))),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, addMeta),
-              child: const Text('ОК', style: TextStyle(color: Color(0xFF3b82f6))),
+              child:
+                  const Text('ОК', style: TextStyle(color: Color(0xFF3b82f6))),
             ),
           ],
         ),
@@ -730,7 +784,8 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
         ? '${coords['latitude']!.toStringAsFixed(6)}, ${coords['longitude']!.toStringAsFixed(6)}'
         : null;
 
-    final result = await _photoAnnotationService.annotatePhotoWithDateTimeAndGps(
+    final result =
+        await _photoAnnotationService.annotatePhotoWithDateTimeAndGps(
       imagePath: imagePath,
       dateTimeText: dateStr,
       gpsText: gpsStr,
@@ -740,95 +795,105 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
 
   Widget _buildZoomableScheme() {
     return LayoutBuilder(builder: (context, constraints) {
-    final fitted = applyBoxFit(BoxFit.contain,
-        _imageSize ?? constraints.biggest, constraints.biggest).destination;
-    final w = fitted.width;
-    final h = fitted.height;
-    final imageSize = Size(w, h);
+      final fitted = applyBoxFit(BoxFit.contain,
+              _imageSize ?? constraints.biggest, constraints.biggest)
+          .destination;
+      final w = fitted.width;
+      final h = fitted.height;
+      final imageSize = Size(w, h);
 
-    Widget content = Stack(
-      clipBehavior: Clip.none,
-      children: [
-        SizedBox(
-          width: w,
-          height: h,
-          child: Image.file(
-            _schemeImage!,
-            fit: BoxFit.fill,
+      Widget content = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SizedBox(
+            width: w,
+            height: h,
+            child: Image.file(
+              _schemeImage!,
+              fit: BoxFit.fill,
+            ),
           ),
-        ),
-        // Слой добавления точки лежит под маркерами: иначе тап по готовому
-        // маркеру перехватывался им и создавал новую точку поверх старой.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: (details) {
-              _pendingTapPosition = details.localPosition;
-            },
-            onTap: () {
-              if (_pendingTapPosition != null) {
-                _handleImageTapAtLocal(_pendingTapPosition!, imageSize);
-                _pendingTapPosition = null;
-              }
-            },
-            onTapCancel: () => _pendingTapPosition = null,
-          ),
-        ),
-        ..._measurements.map((point) {
-          final hasBoth = point.thickness != null && point.minAllowedThickness != null;
-          final isCritical = hasBoth && point.thickness! < point.minAllowedThickness!;
-          final isOk = hasBoth && point.thickness! >= point.minAllowedThickness!;
-          final color = isCritical
-              ? Colors.red
-              : isOk
-                  ? const Color(0xFF3b82f6)
-                  : Colors.grey;
-          final left = point.xPercent != null ? (point.xPercent! / 100) * w - 22 : 0.0;
-          final top = point.yPercent != null ? (point.yPercent! / 100) * h - 22 : 0.0;
-          return Positioned(
-            left: left.clamp(0.0, math.max(0, w - 44)),
-            top: top.clamp(0.0, math.max(0, h - 44)),
+          // Слой добавления точки лежит под маркерами: иначе тап по готовому
+          // маркеру перехватывался им и создавал новую точку поверх старой.
+          Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _editPoint(point),
-              child: SizedBox(width: 44, height: 44, child: Center(child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2.0),
-                ),
-                child: Center(
-                  child: Text(
-                    '${_measurements.indexOf(point) + 1}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ))),
+              onTapDown: (details) {
+                _pendingTapPosition = details.localPosition;
+              },
+              onTap: () {
+                if (_pendingTapPosition != null) {
+                  _handleImageTapAtLocal(_pendingTapPosition!, imageSize);
+                  _pendingTapPosition = null;
+                }
+              },
+              onTapCancel: () => _pendingTapPosition = null,
             ),
-          );
-        }),
-      ],
-    );
-
-    if (_imageSize != null) {
-      content = InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        panEnabled: true,
-        scaleEnabled: true,
-        child: content,
+          ),
+          ..._measurements.map((point) {
+            final hasBoth =
+                point.thickness != null && point.minAllowedThickness != null;
+            final isCritical =
+                hasBoth && point.thickness! < point.minAllowedThickness!;
+            final isOk =
+                hasBoth && point.thickness! >= point.minAllowedThickness!;
+            final color = isCritical
+                ? Colors.red
+                : isOk
+                    ? const Color(0xFF3b82f6)
+                    : Colors.grey;
+            final left =
+                point.xPercent != null ? (point.xPercent! / 100) * w - 22 : 0.0;
+            final top =
+                point.yPercent != null ? (point.yPercent! / 100) * h - 22 : 0.0;
+            return Positioned(
+              left: left.clamp(0.0, math.max(0, w - 44)),
+              top: top.clamp(0.0, math.max(0, h - 44)),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _editPoint(point),
+                child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                        child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2.0),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${_measurements.indexOf(point) + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ))),
+              ),
+            );
+          }),
+        ],
       );
-    } else {
-      content = content;
-    }
 
-    return Center(child: SizedBox(width: w, height: h, child: content));
+      if (_imageSize != null) {
+        content = InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          panEnabled: true,
+          scaleEnabled: true,
+          child: content,
+        );
+      } else {
+        content = content;
+      }
+
+      return Center(child: SizedBox(width: w, height: h, child: content));
     });
   }
 
@@ -836,235 +901,349 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   Widget build(BuildContext context) {
     _defaults.applyTo(_measurements);
     return PopScope(
-      canPop: _canClose,
-      onPopInvoked: (didPop) { if (!didPop) _finishEditing(); },
-      child: Scaffold(
-      appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('УЗТ - Толщинометрия'),
-            if (_schemeImage != null && _imageSize != null)
-              const Text(
-                'Масштаб и сдвиг: двумя пальцами',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.white70),
-              ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF0f172a),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.grid_on),
-            tooltip: 'Массовое добавление сеткой',
-            onPressed: _massAddGrid,
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: 'Сохранить замеры',
-            onPressed: _finishEditing,
-          ),
-        ],
-      ),
-      backgroundColor: const Color(0xFF0f172a),
-      body: Column(
-        children: [
-          ListTile(
-            title: const Text('Общие толщины сосуда'),
-            subtitle: Text('Номинальная: ${_defaults.nominalThickness ?? 'не задана'} мм · Минимальная: ${_defaults.minAllowedThickness ?? 'не задана'} мм'),
-            trailing: IconButton(icon: const Icon(Icons.settings), tooltip: 'Общие параметры толщины', onPressed: _editDefaults),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: BluetoothMeasurementWidget(
-              instrumentType: InstrumentType.thicknessGauge,
-              onMeasurement: _onBluetoothMeasurement,
+        canPop: _canClose,
+        onPopInvoked: (didPop) {
+          if (!didPop) _finishEditing();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('УЗТ - Толщинометрия',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (_schemeImage != null &&
+                    _imageSize != null &&
+                    MediaQuery.textScalerOf(context).scale(12) <= 16)
+                  Text(
+                    'Масштаб и сдвиг: двумя пальцами',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.normal,
+                        color: AppColors.mutedText(context)),
+                  ),
+              ],
             ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1e293b),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
+            backgroundColor: AppColors.scaffold(context),
+            foregroundColor: AppColors.onSurface(context),
+            actions: [
+              IconButton(
+                icon: Icon(
+                    _focusScheme ? Icons.fullscreen_exit : Icons.fullscreen),
+                tooltip: _focusScheme
+                    ? 'Показать точки и параметры'
+                    : 'Развернуть схему',
+                onPressed: () => setState(() => _focusScheme = !_focusScheme),
               ),
-              child: _loadingTemplate
-                  ? const Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  : _schemeImage == null
-                      ? Center(
-                          child: SingleChildScrollView(child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.image,
-                                  size: 64,
-                                  color: Colors.white38,
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Выберите или загрузите схему для нанесения точек',
-                                  style: TextStyle(color: Colors.white70),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                if (widget.equipment != null)
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      onPressed: _pickServerDrawingTemplate,
-                                      icon: const Icon(Icons.inventory_2_outlined),
-                                      label: const Text('Шаблон из библиотеки'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF3b82f6),
-                                        foregroundColor: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                if (_isVessel()) ...[
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _loadTemplate,
-                                      icon: const Icon(Icons.download),
-                                      label: const Text('Базовый шаблон сосуда'),
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
-                                    onPressed: _pickSchemeImage,
-                                    icon: const Icon(Icons.upload),
-                                    label: const Text('Загрузить из галереи'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )),
-                        )
-                      : _buildZoomableScheme(),
-            ),
+              IconButton(
+                icon: const Icon(Icons.grid_on),
+                tooltip: 'Массовое добавление сеткой',
+                onPressed: _massAddGrid,
+              ),
+              IconButton(
+                icon: const Icon(Icons.save),
+                tooltip: 'Сохранить замеры',
+                onPressed: _finishEditing,
+              ),
+            ],
           ),
-          // Список точек
-          Expanded(
-            flex: 2,
-            child: Container(
-              color: const Color(0xFF1e293b),
+          backgroundColor: AppColors.scaffold(context),
+          body: SafeArea(
+              top: false,
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Точки замера (${_measurements.length})',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (_schemeImage != null)
-                          IconButton(
-                            icon: const Icon(Icons.add_circle, color: Color(0xFF3b82f6)),
-                            onPressed: _pickSchemeImage,
-                            tooltip: 'Изменить схему',
-                          ),
-                      ],
+                  if (!_focusScheme)
+                    ListTile(
+                      title: const Text('Общие толщины сосуда'),
+                      subtitle: Text(
+                          'Номинальная: ${_defaults.nominalThickness ?? 'не задана'} мм · Минимальная: ${_defaults.minAllowedThickness ?? 'не задана'} мм'),
+                      trailing: IconButton(
+                          icon: const Icon(Icons.settings),
+                          tooltip: 'Общие параметры толщины',
+                          onPressed: _editDefaults),
                     ),
-                  ),
+                  if (!_focusScheme)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: BluetoothMeasurementWidget(
+                        instrumentType: InstrumentType.thicknessGauge,
+                        onMeasurement: _onBluetoothMeasurement,
+                      ),
+                    ),
                   Expanded(
-                    child: _measurements.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Нажмите на схему, чтобы добавить точку замера',
-                              style: TextStyle(color: Colors.white70),
-                              textAlign: TextAlign.center,
+                      child: LayoutBuilder(builder: (context, constraints) {
+                    final wide = constraints.maxWidth > 600;
+                    return Flex(
+                        direction: wide ? Axis.horizontal : Axis.vertical,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Container(
+                              margin: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface(context),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: AppColors.border(context)),
+                              ),
+                              child: _loadingTemplate
+                                  ? const Center(
+                                      child: CircularProgressIndicator(),
+                                    )
+                                  : _schemeImage == null
+                                      ? Center(
+                                          child: SingleChildScrollView(
+                                              child: Padding(
+                                            padding: const EdgeInsets.all(24),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.image,
+                                                  size: 64,
+                                                  color: AppColors.mutedText(
+                                                      context),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                Text(
+                                                  'Выберите или загрузите схему для нанесения точек',
+                                                  style: TextStyle(
+                                                      color:
+                                                          AppColors.mutedText(
+                                                              context)),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                const SizedBox(height: 16),
+                                                if (widget.equipment != null)
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: ElevatedButton.icon(
+                                                      onPressed:
+                                                          _pickServerDrawingTemplate,
+                                                      icon: const Icon(Icons
+                                                          .inventory_2_outlined),
+                                                      label: const Text(
+                                                          'Шаблон из библиотеки'),
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            const Color(
+                                                                0xFF3b82f6),
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (_isVessel()) ...[
+                                                  const SizedBox(height: 8),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: _loadTemplate,
+                                                      icon: const Icon(
+                                                          Icons.download),
+                                                      label: const Text(
+                                                          'Базовый шаблон сосуда'),
+                                                    ),
+                                                  ),
+                                                ],
+                                                const SizedBox(height: 8),
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  child: OutlinedButton.icon(
+                                                    onPressed: _pickSchemeImage,
+                                                    icon: const Icon(
+                                                        Icons.upload),
+                                                    label: const Text(
+                                                        'Загрузить из галереи'),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )),
+                                        )
+                                      : _buildZoomableScheme(),
                             ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _measurements.length,
-                            itemBuilder: (context, index) {
-                              final point = _measurements[index];
-                              final hasBoth = point.thickness != null && point.minAllowedThickness != null;
-                              final isCritical = hasBoth && point.thickness! < point.minAllowedThickness!;
-                              final isOk = hasBoth && point.thickness! >= point.minAllowedThickness!;
-                              final bgColor = isCritical ? Colors.red : (isOk ? const Color(0xFF3b82f6) : Colors.grey);
-                              return Card(
-                                color: isCritical
-                                    ? Colors.red.withValues(alpha: 0.2)
-                                    : const Color(0xFF0f172a),
-                                margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: bgColor,
-                                    child: Text('${index + 1}'),
-                                  ),
-                                  title: Text(
-                                    '${point.location} (${point.sectionNumber})',
-                                    style: TextStyle(
-                                      color: isCritical ? Colors.red : Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (point.nominalThickness != null)
-                                        Text(
-                                          'Номинальная: ${point.nominalThickness} мм',
-                                          style: const TextStyle(color: Colors.white54, fontSize: 11),
-                                        ),
-                                      if (point.thickness != null)
-                                        Text(
-                                          'Фактическая: ${point.thickness} мм',
-                                          style: TextStyle(
-                                            color: isCritical ? Colors.redAccent : Colors.white70,
-                                          ),
-                                        ),
-                                      if (point.minAllowedThickness != null)
-                                        Text(
-                                          'Отбраковочная: ${point.minAllowedThickness} мм',
-                                          style: const TextStyle(color: Colors.white70),
-                                        ),
-                                      if (point.comment != null && point.comment!.isNotEmpty)
-                                        Text(
-                                          point.comment!,
-                                          style: const TextStyle(color: Colors.white54),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                    ],
-                                  ),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.edit, color: Color(0xFF3b82f6)),
-                                    onPressed: () => _editPoint(point),
-                                  ),
-                                  onTap: () => _editPoint(point),
-                                ),
-                              );
-                            },
                           ),
-                  ),
+                          if (!_focusScheme)
+                            Expanded(
+                              flex: 2,
+                              child: Container(
+                                color: AppColors.surface(context),
+                                child: Column(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                              child: Text(
+                                            'Точки замера (${_measurements.length})',
+                                            style: TextStyle(
+                                              color:
+                                                  AppColors.onSurface(context),
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          )),
+                                          if (_schemeImage != null)
+                                            IconButton(
+                                              icon: const Icon(Icons.add_circle,
+                                                  color: Color(0xFF3b82f6)),
+                                              onPressed: _pickSchemeImage,
+                                              tooltip: 'Изменить схему',
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _measurements.isEmpty
+                                          ? Center(
+                                              child: Text(
+                                                'Нажмите на схему, чтобы добавить точку замера',
+                                                style: TextStyle(
+                                                    color: AppColors.mutedText(
+                                                        context)),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            )
+                                          : ListView.builder(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 16),
+                                              itemCount: _measurements.length,
+                                              itemBuilder: (context, index) {
+                                                final point =
+                                                    _measurements[index];
+                                                final hasBoth = point
+                                                            .thickness !=
+                                                        null &&
+                                                    point.minAllowedThickness !=
+                                                        null;
+                                                final isCritical = hasBoth &&
+                                                    point.thickness! <
+                                                        point
+                                                            .minAllowedThickness!;
+                                                final isOk = hasBoth &&
+                                                    point.thickness! >=
+                                                        point
+                                                            .minAllowedThickness!;
+                                                final bgColor = isCritical
+                                                    ? Colors.red
+                                                    : (isOk
+                                                        ? const Color(
+                                                            0xFF3b82f6)
+                                                        : Colors.grey);
+                                                return Card(
+                                                  color: isCritical
+                                                      ? Colors.red.withValues(
+                                                          alpha: 0.2)
+                                                      : AppColors.scaffold(
+                                                          context),
+                                                  margin: const EdgeInsets.only(
+                                                      bottom: 8),
+                                                  child: ListTile(
+                                                    leading: CircleAvatar(
+                                                      backgroundColor: bgColor,
+                                                      child:
+                                                          Text('${index + 1}'),
+                                                    ),
+                                                    title: Text(
+                                                      '${point.location} (${point.sectionNumber})',
+                                                      style: TextStyle(
+                                                        color: isCritical
+                                                            ? Colors.red
+                                                            : AppColors
+                                                                .onSurface(
+                                                                    context),
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    subtitle: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        if (point
+                                                                .nominalThickness !=
+                                                            null)
+                                                          Text(
+                                                            'Номинальная: ${point.nominalThickness} мм',
+                                                            style: TextStyle(
+                                                                color: AppColors
+                                                                    .mutedText(
+                                                                        context),
+                                                                fontSize: 11),
+                                                          ),
+                                                        if (point.thickness !=
+                                                            null)
+                                                          Text(
+                                                            'Фактическая: ${point.thickness} мм',
+                                                            style: TextStyle(
+                                                              color: isCritical
+                                                                  ? Colors
+                                                                      .redAccent
+                                                                  : AppColors
+                                                                      .mutedText(
+                                                                          context),
+                                                            ),
+                                                          ),
+                                                        if (point
+                                                                .minAllowedThickness !=
+                                                            null)
+                                                          Text(
+                                                            'Отбраковочная: ${point.minAllowedThickness} мм',
+                                                            style: TextStyle(
+                                                                color: AppColors
+                                                                    .mutedText(
+                                                                        context)),
+                                                          ),
+                                                        if (point.comment !=
+                                                                null &&
+                                                            point.comment!
+                                                                .isNotEmpty)
+                                                          Text(
+                                                            point.comment!,
+                                                            style: TextStyle(
+                                                                color: AppColors
+                                                                    .mutedText(
+                                                                        context)),
+                                                            maxLines: 1,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    trailing: IconButton(
+                                                      icon: const Icon(
+                                                          Icons.edit,
+                                                          color: Color(
+                                                              0xFF3b82f6)),
+                                                      onPressed: () =>
+                                                          _editPoint(point),
+                                                    ),
+                                                    onTap: () =>
+                                                        _editPoint(point),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ]);
+                  })),
                 ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ));
+              )),
+        ));
   }
 }
-

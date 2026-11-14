@@ -1,3 +1,4 @@
+import '../../theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import '../../models/vessel_checklist.dart';
 import 'inspection_form_fields.dart';
@@ -20,7 +21,7 @@ class InspectionCraneSafetySection extends StatefulWidget {
 
 class _InspectionCraneSafetySectionState
     extends State<InspectionCraneSafetySection> {
-  static const _safetyNodes = [
+  static final _safetyNodes = [
     '1.1 Зона соединения со стрелой',
     '1.2 Зона соединения с противовесом',
     '1.3 Противовес',
@@ -38,7 +39,7 @@ class _InspectionCraneSafetySectionState
     '7.2 Состояние каната',
   ];
 
-  static const _safetyDevices = [
+  static final _safetyDevices = [
     'Блокировка рычагов управления лебедкой и противовесом',
     'Сигнализатор предельного подъема крюка',
     'Устройство для автоматической остановки стрелы в крайнем положении',
@@ -143,9 +144,9 @@ class _InspectionCraneSafetySectionState
         ),
         const SizedBox(height: 16),
         buildSectionHeader('Проверка узлов и механизмов (прил. 6)'),
-        const Text(
+        Text(
           'Для каждого узла укажите результат контроля (соответствует / не соответствует / описание дефекта).',
-          style: TextStyle(color: Colors.white54, fontSize: 12),
+          style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
         ),
         const SizedBox(height: 8),
         ..._safetyNodes.map((node) {

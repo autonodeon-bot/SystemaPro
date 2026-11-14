@@ -21,7 +21,7 @@ export default {
           DEFAULT: '#1e293b',
           light: '#f1f5f9',
         },
-        accent: '#3b82f6',
+        accent: '#2563eb',
         danger: '#ef4444',
         success: '#22c55e',
         warning: '#f59e0b',

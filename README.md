@@ -164,5 +164,5 @@ Staging: добавить `-f docker-compose.staging.yml`, см. ADR 0001.
 
 ## Версия
 
-Текущая — **3.7.40**, мобильная сборка **83** (см. `constants.ts`, `backend/main.py`,
+Текущая — **3.7.41**, мобильная сборка **84** (см. `constants.ts`, `backend/main.py`,
 `mobile/pubspec.yaml`).

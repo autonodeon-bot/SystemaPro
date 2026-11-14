@@ -200,7 +200,7 @@ const InspectionsList = () => {
   }, [user]);
 
   const approveInspection = async (inspectionId: string) => {
-    const confirm = window.confirm('Утвердить чек-лист? Действие изменит статус на APPROVED.');
+    const confirm = window.confirm('Утвердить обследование? Действие изменит статус на APPROVED.');
     if (!confirm) return;
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -227,7 +227,7 @@ const InspectionsList = () => {
   };
 
   const deleteInspection = async (inspectionId: string) => {
-    const confirm = window.confirm('Удалить чек-лист? Также будут удалены связанные отчеты и файлы. Действие необратимо.');
+    const confirm = window.confirm('Удалить обследование? Также будут удалены связанные отчеты и файлы. Действие необратимо.');
     if (!confirm) return;
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -359,7 +359,7 @@ const InspectionsList = () => {
   };
 
   const cleanupOldInspections = async () => {
-    const confirm = window.confirm(`Удалить чек-листы старше ${cleanupInspectionsDays} дней? Также будут удалены связанные отчеты и файлы. Действие необратимо.`);
+    const confirm = window.confirm(`Удалить обследованиеы старше ${cleanupInspectionsDays} дней? Также будут удалены связанные отчеты и файлы. Действие необратимо.`);
     if (!confirm) return;
     try {
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -531,7 +531,7 @@ const InspectionsList = () => {
   return (
     <div className="space-y-6">
       <nav className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Чек-листы</span>
+        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Обследования</span>
         {selectedEnterpriseId && enterprises.find((e) => e.id === selectedEnterpriseId) && (
           <>
             <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
@@ -556,7 +556,7 @@ const InspectionsList = () => {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
             <FileText className="text-[var(--accent)]" size={26} />
-            Чек-листы диагностики
+            Обследования
           </h1>
           <p className="mt-1" style={{ color: 'var(--text-muted)', fontSize: 13 }}>
             Просмотр и управление чек-листами по предприятиям, филиалам и цехам

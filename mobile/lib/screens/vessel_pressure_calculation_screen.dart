@@ -263,8 +263,12 @@ class _VesselPressureCalculationScreenState
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Расчёт толщины по ГОСТ')),
         body: ListView(padding: const EdgeInsets.all(16), children: [
-          const Text(
-              'ГОСТ 34233.2-2017: обечайка и эллиптическое / полусферическое днище под внутренним давлением. Расчёт элемента не заменяет проверки отверстий, опор, вакуума и совместных нагрузок.'),
+          const ExpansionTile(
+              title: Text('Область расчёта и ограничения'),
+              children: [
+                Text(
+                    'ГОСТ 34233.2-2017: обечайка и эллиптическое / полусферическое днище под внутренним давлением. Расчёт элемента не заменяет проверки отверстий, опор, вакуума и совместных нагрузок.')
+              ]),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
               key: ValueKey('load-$_load'),
