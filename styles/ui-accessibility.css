@@ -32,8 +32,8 @@ body { color: var(--text-primary); background: var(--bg-primary); }
 .light :is(.sp-workspace,.sp-dialog) :where(.text-green-300,.text-green-400,.text-emerald-400) { color: #166534; }
 .light :is(.sp-workspace,.sp-dialog) :where(.text-yellow-300,.text-yellow-400,.text-orange-400,.text-amber-400) { color: #854d0e; }
 .light :is(.sp-workspace,.sp-dialog) :where(.text-blue-300,.text-blue-400,.text-cyan-400) { color: #1e40af; }
-.light :is(.sp-workspace,.sp-dialog) :is(.bg-accent,.bg-blue-500,.bg-blue-600,.bg-blue-700,.bg-red-500,.bg-red-600,.bg-red-700,.bg-green-600,.bg-green-700,.bg-indigo-600,.bg-primary,.sp-btn-primary,.ind-btn--primary),
-.light :is(.sp-workspace,.sp-dialog) :is(.bg-accent,.bg-blue-500,.bg-blue-600,.bg-blue-700,.bg-red-500,.bg-red-600,.bg-red-700,.bg-green-600,.bg-green-700,.bg-indigo-600,.bg-primary,.sp-btn-primary,.ind-btn--primary) :is(span,svg,.text-white) { color: #fff; }
+.light :is(.sp-workspace,.sp-dialog) :is(.bg-accent,.bg-blue-500,.bg-blue-600,.bg-blue-700,.bg-red-500,.bg-red-600,.bg-red-700,.bg-green-600,.bg-green-700,.bg-indigo-600,.sp-btn-primary,.ind-btn--primary),
+.light :is(.sp-workspace,.sp-dialog) :is(.bg-accent,.bg-blue-500,.bg-blue-600,.bg-blue-700,.bg-red-500,.bg-red-600,.bg-red-700,.bg-green-600,.bg-green-700,.bg-indigo-600,.sp-btn-primary,.ind-btn--primary) :is(span,svg,.text-white) { color: #fff; }
 .sp-form-actions { position: sticky; bottom: -24px; margin: 0 -24px -24px; padding: 16px 24px; background: var(--bg-secondary); border-top: 1px solid var(--border-primary); display:flex; flex-wrap:wrap; gap:12px; justify-content:flex-end; z-index: 1; }
 .sp-filter-details > summary { cursor: pointer; min-height: 40px; display: flex; align-items:center; color: var(--accent); font-weight: 600; }
 .sp-filter-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
