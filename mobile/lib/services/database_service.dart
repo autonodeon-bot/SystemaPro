@@ -491,6 +491,7 @@ class DatabaseService {
         final oldForm = existing['data'] is Map ? existing['data']['report_form_id'] : null;
         if ((existing['status'] ?? 'DRAFT').toString().toUpperCase() == 'DRAFT' &&
             existing['equipment_id'] == data['equipment_id'] &&
+            (existing['inspection_id'] ?? '') == (data['inspection_id'] ?? '') &&
             (existing['assignment_id'] ?? '') == (data['assignment_id'] ?? '') && oldForm == form) {
           await txn.delete('pending_inspections', where: 'id = ?', whereArgs: [row['id']]);
         }
@@ -508,16 +509,23 @@ class DatabaseService {
   }
 
   /// Acknowledge only the uploaded revision; edits made during upload survive.
-  static Future<void> acknowledgeInspectionUpload(Map<String, dynamic> uploaded) async {
+  static Future<void> acknowledgeInspectionUpload(Map<String, dynamic> uploaded, {String? serverRevision}) async {
     final db = await database;
     final id = uploaded['id']?.toString();
     if (id == null) return;
     await db.transaction((txn) async {
+      final inspectionId = uploaded['inspection_id']?.toString();
+      if (inspectionId != null && serverRevision != null) {
+        await txn.insert('sync_metadata', {'key':'inspection_revision:$inspectionId','value':serverRevision}, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
       final rows = await txn.query('pending_inspections', where: 'id = ?', whereArgs: [id]);
       if (rows.isNotEmpty) {
         final current = jsonDecode(rows.first['data'] as String) as Map;
         if (current['timestamp'] == uploaded['timestamp']) {
           await txn.delete('pending_inspections', where: 'id = ?', whereArgs: [id]);
+        } else if (serverRevision != null && inspectionId != null && current['inspection_id'] == inspectionId && current['source_revision'] == uploaded['source_revision']) {
+          current['source_revision'] = serverRevision;
+          await txn.update('pending_inspections', {'data':jsonEncode(current)}, where:'id = ?', whereArgs:[id]);
         }
       }
       final sentAt = DateTime.tryParse(uploaded['timestamp']?.toString() ?? '');
@@ -530,8 +538,12 @@ class DatabaseService {
         final draftForm = draft['checklist_data'] is Map ? draft['checklist_data']['report_form_id'] : null;
         if (savedAt != null && !savedAt.isAfter(sentAt) &&
             draft['equipment_id'] == uploaded['equipment_id'] &&
+            (draft['inspection_id'] ?? '') == (uploaded['inspection_id'] ?? '') &&
             (draft['assignment_id'] ?? '') == (uploaded['assignment_id'] ?? '') && form == draftForm) {
           await txn.delete('drafts', where: 'id = ?', whereArgs: [row['id']]);
+        } else if (inspectionId != null && serverRevision != null && draft['inspection_id'] == inspectionId && draft['source_revision'] == uploaded['source_revision']) {
+          draft['source_revision'] = serverRevision;
+          await txn.update('drafts', {'data':jsonEncode(draft)}, where:'id = ?', whereArgs:[row['id']]);
         }
       }
     });

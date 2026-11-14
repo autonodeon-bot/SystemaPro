@@ -25,6 +25,7 @@ from inspection_utils import (
 )
 from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
 from client_access import get_client_accessible_equipment_ids
+from inspection_edit_guard import inspection_revision
 
 router = APIRouter(tags=["inspections"])
 
@@ -231,6 +232,7 @@ async def get_inspections(
                                 "inspection_method": ins.inspection_method,
                                 "inspection_category": ins.inspection_category,
                                 "created_at": ins.created_at.isoformat() if ins.created_at else None,
+                                "revision": inspection_revision(ins),
                             }
                             for ins in sliced
                         ],
@@ -341,6 +343,7 @@ async def get_inspections(
                     "inspection_category": getattr(ins, "inspection_category", None),
                     "is_archived": getattr(ins, "is_archived", False),
                     "created_at": ins.created_at.isoformat() if ins.created_at else None,
+                    "revision": inspection_revision(ins),
                 }
                 for ins in inspections
             ],

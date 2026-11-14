@@ -13,12 +13,14 @@ import '../services/bluetooth_measurement_service.dart';
 import '../models/equipment.dart';
 import '../models/drawing_template.dart';
 import '../widgets/bluetooth_measurement_widget.dart';
+import '../widgets/inspection/thickness_defaults_editor.dart';
 
 class ThicknessMeasurementScreen extends StatefulWidget {
   final File? schemeImage;
   final List<ThicknessMeasurement>? existingMeasurements;
   final Function(List<ThicknessMeasurement>, File?)? onSave;
   final Equipment? equipment;
+  final ThicknessDefaults? thicknessDefaults;
 
   const ThicknessMeasurementScreen({
     super.key,
@@ -26,6 +28,7 @@ class ThicknessMeasurementScreen extends StatefulWidget {
     this.existingMeasurements,
     this.onSave,
     this.equipment,
+    this.thicknessDefaults,
   });
 
   @override
@@ -43,6 +46,37 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   bool _loadingTemplate = false;
   Offset? _pendingTapPosition;
   int? _activePointIndex;
+  late ThicknessDefaults _defaults;
+  bool _canClose = false;
+  bool _closing = false;
+
+  void _finishEditing() {
+    if (_closing) return;
+    _closing = true;
+    _defaults.applyTo(_measurements);
+    widget.onSave?.call(_measurements, _schemeImage);
+    setState(() => _canClose = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.pop({'measurements': _measurements, 'image': _schemeImage, 'thicknessDefaults': _defaults});
+    });
+  }
+
+  Future<void> _editDefaults() async {
+    var value = _defaults;
+    final updated = await showDialog<ThicknessDefaults>(context: context, builder: (dialogContext) => StatefulBuilder(
+      builder: (context, updateDialog) => AlertDialog(
+        title: const Text('Параметры всего сосуда'),
+        content: SingleChildScrollView(child: ThicknessDefaultsEditor(settings: value,
+          onChanged: (settings) => updateDialog(() => value = settings))),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, value), child: const Text('Применить'))],
+      ),
+    ));
+    if (updated != null && mounted) setState(() {
+      updated.applyTo(_measurements, previous: _defaults);
+      _defaults = updated;
+    });
+  }
 
   void _onBluetoothMeasurement(MeasurementResult result) {
     if (_measurements.isEmpty) return;
@@ -59,7 +93,16 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   void initState() {
     super.initState();
     _schemeImage = widget.schemeImage;
-    _measurements = widget.existingMeasurements ?? [];
+    _measurements = (widget.existingMeasurements ?? []).map((point) => ThicknessMeasurement.fromJson(point.toJson())).toList();
+    double? uniform(double? Function(ThicknessMeasurement) get) {
+      final values = _measurements.map(get).whereType<double>().toSet();
+      return values.length == 1 ? values.single : null;
+    }
+    _defaults = widget.thicknessDefaults ?? ThicknessDefaults(
+      nominalThickness: ThicknessDefaults.parse(widget.equipment?.attributes?['wall_thickness']) ?? uniform((point) => point.nominalThickness),
+      minAllowedThickness: ThicknessDefaults.parse(widget.equipment?.attributes?['min_wall_thickness']) ?? uniform((point) => point.minAllowedThickness),
+    );
+    _defaults.applyTo(_measurements);
     if (_schemeImage != null) _loadImageSize();
     // Если нет фото схемы и оборудование - сосуд/ресивер, загружаем шаблон
     if (_schemeImage == null && _isVessel()) {
@@ -295,6 +338,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
   }
 
   void _showPointDialog(ThicknessMeasurement point) {
+    _defaults.applyTo([point]);
     final nominalThicknessController =
         TextEditingController(text: point.nominalThickness?.toString() ?? '');
     final thicknessController =
@@ -349,24 +393,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 onChanged: (value) => point.sectionNumber = value,
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: nominalThicknessController,
-                decoration: const InputDecoration(
-                  labelText: 'Номинальная толщина, мм',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF3b82f6)),
-                  ),
-                ),
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  point.nominalThickness = double.tryParse(value);
-                },
-              ),
+              Text('Номинальная: ${point.nominalThickness ?? "не задана"} мм · Минимальная: ${point.minAllowedThickness ?? "не задана"} мм', style: const TextStyle(color: Colors.white70)),
               const SizedBox(height: 8),
               TextField(
                 controller: thicknessController,
@@ -399,6 +426,26 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 },
               ),
               const SizedBox(height: 8),
+              ExpansionTile(title: const Text('Индивидуальные нормативы элемента'), children: [
+              TextField(
+                controller: nominalThicknessController,
+                decoration: const InputDecoration(
+                  labelText: 'Номинальная толщина, мм',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white24),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF3b82f6)),
+                  ),
+                ),
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  point.nominalThickness = ThicknessDefaults.parse(value);
+                },
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: minThicknessController,
                 decoration: const InputDecoration(
@@ -414,10 +461,11 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                 style: const TextStyle(color: Colors.white),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
-                  point.minAllowedThickness = double.tryParse(value);
+                  point.minAllowedThickness = ThicknessDefaults.parse(value);
                 },
               ),
               const SizedBox(height: 8),
+              ]),
               TextField(
                 controller: commentController,
                 decoration: const InputDecoration(
@@ -786,7 +834,11 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    _defaults.applyTo(_measurements);
+    return PopScope(
+      canPop: _canClose,
+      onPopInvoked: (didPop) { if (!didPop) _finishEditing(); },
+      child: Scaffold(
       appBar: AppBar(
         title: Column(
           mainAxisSize: MainAxisSize.min,
@@ -810,19 +862,19 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
           ),
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: () {
-              widget.onSave?.call(_measurements, _schemeImage);
-              context.pop({
-                'measurements': _measurements,
-                'image': _schemeImage,
-              });
-            },
+            tooltip: 'Сохранить замеры',
+            onPressed: _finishEditing,
           ),
         ],
       ),
       backgroundColor: const Color(0xFF0f172a),
       body: Column(
         children: [
+          ListTile(
+            title: const Text('Общие толщины сосуда'),
+            subtitle: Text('Номинальная: ${_defaults.nominalThickness ?? 'не задана'} мм · Минимальная: ${_defaults.minAllowedThickness ?? 'не задана'} мм'),
+            trailing: IconButton(icon: const Icon(Icons.settings), tooltip: 'Общие параметры толщины', onPressed: _editDefaults),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: BluetoothMeasurementWidget(
@@ -845,9 +897,10 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                     )
                   : _schemeImage == null
                       ? Center(
-                          child: Padding(
+                          child: SingleChildScrollView(child: Padding(
                             padding: const EdgeInsets.all(24),
                             child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Icon(
@@ -897,7 +950,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
                                 ),
                               ],
                             ),
-                          ),
+                          )),
                         )
                       : _buildZoomableScheme(),
             ),
@@ -1011,7 +1064,7 @@ class _ThicknessMeasurementScreenState extends State<ThicknessMeasurementScreen>
           ),
         ],
       ),
-    );
+    ));
   }
 }
 

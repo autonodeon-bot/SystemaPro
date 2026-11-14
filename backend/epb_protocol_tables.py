@@ -481,6 +481,46 @@ def append_epb_appendix_e(
     equipment_data: Dict[str, Any],
 ) -> None:
     """Приложение Г — расчёт остаточного ресурса и прочности."""
+    # The mobile pressure calculation is a bounded element check. Preserve its
+    # actual inputs/results instead of substituting the legacy example values
+    # and an unconditional statement that continued operation is safe.
+    calc = g("calculation_data", default={})
+    cases = calc.get("strength_calculations") if isinstance(calc, dict) else None
+    if isinstance(cases, list) and cases:
+        doc.add_page_break()
+        doc.add_heading("Приложение Г. Расчёт элементов под внутренним давлением", level=1)
+        doc.add_paragraph("ГОСТ 34233.2-2017. Сохранённые исходные данные и результаты расчёта мобильного приложения.")
+        for case in cases:
+            if not isinstance(case, dict):
+                continue
+            inputs, result = case.get("inputs") or {}, case.get("result") or {}
+            doc.add_heading(str(case.get("name") or "Элемент сосуда"), level=2)
+            rows = [
+                ("Расчётное давление, МПа", inputs.get("pressure_mpa")),
+                ("Температура стенки, °C", inputs.get("temperature_c")),
+                ("Внутренний диаметр, мм", inputs.get("diameter_mm")),
+                ("Материал", inputs.get("material")),
+                ("Группа / источник [σ]", inputs.get("stress_basis") or inputs.get("material_group")),
+                ("Допускаемое [σ], МПа", result.get("allowable_stress_mpa")),
+                ("Коэффициент сварного шва φ", inputs.get("weld_factor")),
+                ("Номинальная толщина, мм", inputs.get("nominal_mm")),
+                ("H / h₁, мм", f'{inputs.get("head_height_mm")} / {inputs.get("flange_length_mm")}'),
+                ("Прибавки c₁ / c₂ / c₃, мм", f'{inputs.get("c1_mm")} / {inputs.get("c2_mm")} / {inputs.get("c3_mm")}'),
+                ("Пункт и формула", f'{result.get("clause", "")} · {result.get("formula", "")}'),
+                ("Расчётная толщина sp, мм", result.get("calculated_thickness_mm")),
+                ("Минимальная с заданными прибавками, мм", result.get("minimum_thickness_mm")),
+            ]
+            table = doc.add_table(rows=1, cols=2)
+            table.style = "Table Grid"
+            _header_row(table, ["Величина", "Значение"])
+            for label, value in rows:
+                row = table.add_row()
+                _cell(row, 0, label)
+                _cell(row, 1, str(value) if value is not None else "—")
+            if result.get("nominal_sufficient") is False:
+                doc.add_paragraph("Номинальная толщина меньше требуемой для данного расчётного случая.")
+        doc.add_paragraph("Проверены выбранные элементы и внутреннее давление. Проверки отверстий, опор, вакуума и совместных нагрузок выполняются отдельно. Этот расчёт не устанавливает остаточный ресурс и не является итоговым разрешением эксплуатации.")
+        return
     preset = preset_from_equipment_data(equipment_data)
     type_label = device_type_label(preset)
     doc.add_page_break()

@@ -26,6 +26,7 @@ class AutoSaveService {
     required Map<String, dynamic> checklistData,
     String? assignmentId,
     String? inspectionId,
+    String? sourceRevision,
   }) async {
     try {
       final key = draftKey(equipmentId: equipmentId, assignmentId: assignmentId,
@@ -35,6 +36,7 @@ class AutoSaveService {
         'equipment_id': equipmentId,
         'assignment_id': assignmentId,
         'inspection_id': inspectionId,
+        'source_revision': sourceRevision,
         'checklist_data': checklistData,
         'saved_at': DateTime.now().toIso8601String(),
         'version': 1,
@@ -86,7 +88,7 @@ class AutoSaveService {
       final sameForm = reportFormId == null || (data is Map && data['report_form_id'] == reportFormId);
       if (d['equipment_id'] == equipmentId &&
           (d['assignment_id'] ?? '') == (assignmentId ?? '') && sameForm &&
-          (inspectionId == null || d['id'] == inspectionId)) {
+          (d['inspection_id'] ?? '') == (inspectionId ?? '')) {
         return d;
       }
     }

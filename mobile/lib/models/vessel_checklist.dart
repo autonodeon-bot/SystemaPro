@@ -1,6 +1,7 @@
 // Модель данных для чек-листа обследования сосуда
 
 class VesselChecklist {
+  Map<String, dynamic> _restoredJson = {};
   bool testData = false;
   // Основная информация
   String? inspectionDate;
@@ -183,6 +184,34 @@ class VesselChecklist {
   
   // Дополнительные данные (JSON)
   Map<String, dynamic>? additionalData;
+
+  Iterable<ThicknessMeasurement> get allThicknessMeasurements sync* {
+    yield* thicknessMeasurements;
+    for (final scheme in uztSchemes) { yield* scheme.measurements; }
+  }
+
+  ThicknessDefaults get thicknessDefaults {
+    final raw = additionalData?['thickness_defaults'];
+    if (raw is Map) return ThicknessDefaults.fromJson(Map<String, dynamic>.from(raw));
+    double? uniform(double? Function(ThicknessMeasurement) value) {
+      final values = allThicknessMeasurements.map(value).whereType<double>().toSet();
+      return values.length == 1 ? values.single : null;
+    }
+    return ThicknessDefaults(
+      nominalThickness: ThicknessDefaults.parse(wallThickness) ?? ThicknessDefaults.parse(_restoredJson['nominal_thickness']) ?? uniform((point) => point.nominalThickness),
+      minAllowedThickness: ThicknessDefaults.parse(_restoredJson['min_allowed_thickness']) ?? ThicknessDefaults.parse(calculationData?['min_thickness']) ?? uniform((point) => point.minAllowedThickness),
+    );
+  }
+
+  void setThicknessDefaults(ThicknessDefaults settings) {
+    final previous = thicknessDefaults;
+    settings.applyTo(allThicknessMeasurements, previous: previous);
+    additionalData ??= {};
+    additionalData!['thickness_defaults'] = settings.toJson();
+    if (settings.nominalThickness != null && (ThicknessDefaults.parse(wallThickness) != null || (wallThickness ?? '').trim().isEmpty)) {
+      wallThickness = settings.nominalThickness.toString();
+    }
+  }
   
   VesselChecklist();
 
@@ -268,6 +297,7 @@ class VesselChecklist {
   }
   
   Map<String, dynamic> toJson() {
+    thicknessDefaults.applyTo(allThicknessMeasurements);
     // Базовая схема: если есть controlSchemeImage — фиксируем как base_vessel_scheme.
     if (baseVesselScheme == null &&
         controlSchemeImage != null &&
@@ -348,6 +378,9 @@ class VesselChecklist {
 
     return {
       'equipment_type': equipmentTypeCode ?? 'VESSEL',
+      ..._restoredJson,
+      'min_allowed_thickness': thicknessDefaults.minAllowedThickness,
+      'nominal_thickness': thicknessDefaults.nominalThickness,
       'inspection_date': inspectionDate,
       'inspection_type': inspectionType,
       'report_form_id': reportFormId,
@@ -485,14 +518,15 @@ class VesselChecklist {
 
   /// Restore all shared fields, including report data, for every equipment type.
   void loadJson(Map<String, dynamic> json) {
+    _restoredJson = Map<String, dynamic>.from(json);
     final checklist = this;
 
-    checklist.inspectionDate = json['inspection_date'] as String?;
-    checklist.inspectionType = json['inspection_type'] as String?;
-    checklist.reportFormId = json['report_form_id'] as String?;
-    checklist.reportFormTitle = json['report_form_title'] as String?;
-    checklist.executors = json['executors'] as String?;
-    checklist.organization = json['organization'] as String?;
+    checklist.inspectionDate = json['inspection_date']?.toString();
+    checklist.inspectionType = json['inspection_type']?.toString();
+    checklist.reportFormId = json['report_form_id']?.toString();
+    checklist.reportFormTitle = json['report_form_title']?.toString();
+    checklist.executors = json['executors']?.toString();
+    checklist.organization = json['organization']?.toString();
 
     checklist.includeOpoData = _asBool(json['include_opo_data']) ?? true;
     checklist.equipmentTypeCode = json['equipment_type']?.toString();
@@ -539,68 +573,68 @@ class VesselChecklist {
       checklist.documentsInfo = {};
     }
 
-    checklist.vesselName = json['vessel_name'] as String?;
+    checklist.vesselName = json['vessel_name']?.toString();
     checklist.testData = json['test_data'] == true;
-    checklist.serialNumber = json['serial_number'] as String?;
-    checklist.regNumber = json['reg_number'] as String?;
-    checklist.inventoryNumber = (json['inventory_number'] ?? json['inv_number']) as String?;
+    checklist.serialNumber = json['serial_number']?.toString();
+    checklist.regNumber = json['reg_number']?.toString();
+    checklist.inventoryNumber = (json['inventory_number'] ?? json['inv_number'])?.toString();
     checklist.equipmentLocation =
-        (json['equipment_location'] ?? json['location']) as String?;
-    checklist.manufacturer = json['manufacturer'] as String?;
-    checklist.manufactureYear = json['manufacture_year'] as String?;
-    checklist.diameter = json['diameter'] as String?;
-    checklist.workingPressure = json['working_pressure'] as String?;
-    checklist.wallThickness = json['wall_thickness'] as String?;
-    checklist.purpose = json['purpose'] as String?;
-    checklist.commissioningYear = json['commissioning_year'] as String?;
-    checklist.designPressure = json['design_pressure'] as String?;
-    checklist.testPressure = json['test_pressure'] as String?;
+        (json['equipment_location'] ?? json['location'])?.toString();
+    checklist.manufacturer = json['manufacturer']?.toString();
+    checklist.manufactureYear = json['manufacture_year']?.toString();
+    checklist.diameter = json['diameter']?.toString();
+    checklist.workingPressure = json['working_pressure']?.toString();
+    checklist.wallThickness = json['wall_thickness']?.toString();
+    checklist.purpose = json['purpose']?.toString();
+    checklist.commissioningYear = json['commissioning_year']?.toString();
+    checklist.designPressure = json['design_pressure']?.toString();
+    checklist.testPressure = json['test_pressure']?.toString();
     checklist.workingTemperature =
-        (json['working_medium_temperature'] ?? json['working_temperature']) as String?;
-    checklist.designTemperature = json['design_temperature'] as String?;
-    checklist.workingMedium = json['working_medium'] as String?;
-    checklist.mediumCharacteristics = json['medium_characteristics'] as String?;
-    checklist.hazardClass = json['hazard_class'] as String?;
-    checklist.explosionHazard = json['explosion_hazard'] as String?;
-    checklist.fireHazard = json['fire_hazard'] as String?;
-    checklist.designation = json['designation'] as String?;
-    checklist.connectionScheme = json['connection_scheme'] as String?;
-    checklist.climaticVersion = json['climatic_version'] as String?;
-    checklist.emptyMass = json['empty_mass'] as String?;
-    checklist.loadCycles = json['load_cycles'] as String?;
-    checklist.serviceLife = json['service_life'] as String?;
-    checklist.vesselGroup = json['vessel_group'] as String?;
-    checklist.vesselInstalled = json['vessel_installed'] as String?;
-    checklist.supervisoryRemarks = json['supervisory_remarks'] as String?;
-    checklist.accidentsInfo = json['accidents_info'] as String?;
-    checklist.repairInfo = json['repair_info'] as String?;
-    checklist.mediumGroup = json['medium_group'] as String?;
-    checklist.corrosionAllowance = json['corrosion_allowance'] as String?;
-    checklist.calculationResult = json['calculation_result'] as String?;
-    checklist.technicalState = json['technical_state'] as String?;
-    checklist.contractNumber = json['contract_number'] as String?;
-    checklist.contractDate = json['contract_date'] as String?;
-    checklist.workPeriodFrom = json['work_period_from'] as String?;
-    checklist.workPeriodTo = json['work_period_to'] as String?;
-    checklist.workBasis = json['work_basis'] as String?;
-    checklist.techCardNumber = json['tech_card_number'] as String?;
-    checklist.documentationConclusion = json['documentation_conclusion'] as String?;
-    checklist.vikConclusionText = json['vik_conclusion_text'] as String?;
-    checklist.vikRoughness = json['vik_roughness'] as String?;
+        (json['working_medium_temperature'] ?? json['working_temperature'])?.toString();
+    checklist.designTemperature = json['design_temperature']?.toString();
+    checklist.workingMedium = json['working_medium']?.toString();
+    checklist.mediumCharacteristics = json['medium_characteristics']?.toString();
+    checklist.hazardClass = json['hazard_class']?.toString();
+    checklist.explosionHazard = json['explosion_hazard']?.toString();
+    checklist.fireHazard = json['fire_hazard']?.toString();
+    checklist.designation = json['designation']?.toString();
+    checklist.connectionScheme = json['connection_scheme']?.toString();
+    checklist.climaticVersion = json['climatic_version']?.toString();
+    checklist.emptyMass = json['empty_mass']?.toString();
+    checklist.loadCycles = json['load_cycles']?.toString();
+    checklist.serviceLife = json['service_life']?.toString();
+    checklist.vesselGroup = json['vessel_group']?.toString();
+    checklist.vesselInstalled = json['vessel_installed']?.toString();
+    checklist.supervisoryRemarks = json['supervisory_remarks']?.toString();
+    checklist.accidentsInfo = json['accidents_info']?.toString();
+    checklist.repairInfo = json['repair_info']?.toString();
+    checklist.mediumGroup = json['medium_group']?.toString();
+    checklist.corrosionAllowance = json['corrosion_allowance']?.toString();
+    checklist.calculationResult = json['calculation_result']?.toString();
+    checklist.technicalState = json['technical_state']?.toString();
+    checklist.contractNumber = json['contract_number']?.toString();
+    checklist.contractDate = json['contract_date']?.toString();
+    checklist.workPeriodFrom = json['work_period_from']?.toString();
+    checklist.workPeriodTo = json['work_period_to']?.toString();
+    checklist.workBasis = json['work_basis']?.toString();
+    checklist.techCardNumber = json['tech_card_number']?.toString();
+    checklist.documentationConclusion = json['documentation_conclusion']?.toString();
+    checklist.vikConclusionText = json['vik_conclusion_text']?.toString();
+    checklist.vikRoughness = json['vik_roughness']?.toString();
     checklist.vikIllumination =
         (json['vik_illumination'] ?? json['illumination'])?.toString();
-    checklist.uzkConclusionText = json['uzk_conclusion_text'] as String?;
-    checklist.mpkConclusionText = json['mpk_conclusion_text'] as String?;
-    checklist.opoHazardClass = json['opo_hazard_class'] as String?;
-    checklist.opoRegNumber = json['opo_reg_number'] as String?;
-    checklist.operationalConclusion = json['operational_conclusion'] as String?;
+    checklist.uzkConclusionText = json['uzk_conclusion_text']?.toString();
+    checklist.mpkConclusionText = json['mpk_conclusion_text']?.toString();
+    checklist.opoHazardClass = json['opo_hazard_class']?.toString();
+    checklist.opoRegNumber = json['opo_reg_number']?.toString();
+    checklist.operationalConclusion = json['operational_conclusion']?.toString();
     final op = json['operational_diagnostics'] ?? json['functional_diagnostics'];
     if (op is Map) {
       checklist.operationalDiagnostics = op.map(
         (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
       );
     }
-    checklist.previousInspectionResult = json['previous_inspection_result'] as String?;
+    checklist.previousInspectionResult = json['previous_inspection_result']?.toString();
     checklist.previousInspections = _parseList(
       json['previous_inspections'],
       PreviousInspectionRecord.fromJson,
@@ -646,19 +680,19 @@ class VesselChecklist {
       checklist.calculationData = Map<String, dynamic>.from(calcRaw);
     }
 
-    checklist.factoryPlatePhoto = json['factory_plate_photo'] as String?;
-    checklist.controlSchemeImage = json['control_scheme_image'] as String?;
+    checklist.factoryPlatePhoto = json['factory_plate_photo']?.toString();
+    checklist.controlSchemeImage = json['control_scheme_image']?.toString();
 
     checklist.matchesDrawing = _asBool(json['matches_drawing']);
     checklist.hasThermalInsulation = _asBool(json['has_thermal_insulation']);
-    checklist.anticorrosionCoatingState = json['anticorrosion_coating_state'] as String?;
-    checklist.supportState = json['support_state'] as String?;
-    checklist.fastenersState = json['fasteners_state'] as String?;
+    checklist.anticorrosionCoatingState = json['anticorrosion_coating_state']?.toString();
+    checklist.supportState = json['support_state']?.toString();
+    checklist.fastenersState = json['fasteners_state']?.toString();
     checklist.hasFlangeMisalignment = _asBool(json['has_flange_misalignment']);
     checklist.hasNozzleMisalignment = _asBool(json['has_nozzle_misalignment']);
     checklist.hasVesselRepairs = _asBool(json['has_vessel_repairs']);
     checklist.hasTpaRepairs = _asBool(json['has_tpa_repairs']);
-    checklist.internalDevicesState = json['internal_devices_state'] as String?;
+    checklist.internalDevicesState = json['internal_devices_state']?.toString();
 
     // ЗРА
     final zraRaw = json['zra_items'];
@@ -780,7 +814,7 @@ class VesselChecklist {
           .toList();
     }
 
-    checklist.conclusion = json['conclusion'] as String?;
+    checklist.conclusion = json['conclusion']?.toString();
     
     final adRaw = json['additional_data'];
     if (adRaw is Map) {
@@ -1186,6 +1220,37 @@ class WeldInspection {
     w.xPercent = VesselChecklist._asDouble(json['x_percent']);
     w.yPercent = VesselChecklist._asDouble(json['y_percent']);
     return w;
+  }
+}
+
+class ThicknessDefaults {
+  final double? nominalThickness;
+  final double? minAllowedThickness;
+  final String? basis;
+  const ThicknessDefaults({this.nominalThickness, this.minAllowedThickness, this.basis});
+
+  static double? parse(dynamic value) {
+    final number = double.tryParse((value ?? '').toString().trim().replaceAll(',', '.'));
+    return number != null && number.isFinite && number > 0 ? number : null;
+  }
+
+  factory ThicknessDefaults.fromJson(Map<String, dynamic> data) => ThicknessDefaults(
+    nominalThickness: parse(data['nominal_thickness']),
+    minAllowedThickness: parse(data['min_allowed_thickness']),
+    basis: data['basis']?.toString(),
+  );
+  Map<String, dynamic> toJson() => {
+    'nominal_thickness': nominalThickness, 'min_allowed_thickness': minAllowedThickness, 'basis': basis,
+  };
+  void applyTo(Iterable<ThicknessMeasurement> points, {ThicknessDefaults? previous}) {
+    for (final point in points) {
+      if (point.nominalThickness == null || (previous != null && point.nominalThickness == previous.nominalThickness)) {
+        point.nominalThickness = nominalThickness;
+      }
+      if (point.minAllowedThickness == null || (previous != null && point.minAllowedThickness == previous.minAllowedThickness)) {
+        point.minAllowedThickness = minAllowedThickness;
+      }
+    }
   }
 }
 

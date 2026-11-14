@@ -11,6 +11,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as Path;
 import 'inspection_form_fields.dart';
 import '../vessel_drawing.dart';
+import 'thickness_defaults_editor.dart';
+import '../../screens/vessel_pressure_calculation_screen.dart';
 
 class InspectionMeasurementsSection extends StatelessWidget {
   final VesselChecklist checklist;
@@ -21,6 +23,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
       onThicknessSave;
   final void Function(int schemeIndex, List<ThicknessMeasurement> measurements, File? image)?
       onUztSchemeSave;
+  final VoidCallback? onBeforeCalculation;
 
   const InspectionMeasurementsSection({
     super.key,
@@ -30,6 +33,7 @@ class InspectionMeasurementsSection extends StatelessWidget {
     required this.onStateChanged,
     required this.onThicknessSave,
     this.onUztSchemeSave,
+    this.onBeforeCalculation,
   });
 
   @override
@@ -180,6 +184,20 @@ class InspectionMeasurementsSection extends StatelessWidget {
           form.sectionHeader('measurements_uzt', fallback: '10. УЗТ (Ультразвуковая толщинометрия)'),
         ),
         // Существующая одиночная схема (обратная совместимость)
+        Card(child: Padding(padding: const EdgeInsets.all(12), child: ThicknessDefaultsEditor(
+          settings: checklist.thicknessDefaults,
+          onChanged: (settings) { checklist.setThicknessDefaults(settings); onStateChanged(); },
+        ))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.calculate_outlined), label: const Text('Рассчитать минимальную толщину по ГОСТ'),
+          onPressed: () async {
+            onBeforeCalculation?.call();
+            await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => VesselPressureCalculationScreen(
+              checklist: checklist, onChanged: onStateChanged)));
+            onStateChanged();
+          },
+        ),
         if (checklist.uztSchemes.isEmpty) ...[
           _buildControlSchemePhoto(context),
           buildAddItemButton('Открыть карту замеров', () async {
@@ -190,9 +208,11 @@ class InspectionMeasurementsSection extends StatelessWidget {
                 'schemeImage': controlSchemeImage,
                 'existingMeasurements': checklist.thicknessMeasurements,
                 'equipment': equipment,
+                'thicknessDefaults': checklist.thicknessDefaults,
               },
             );
             if (result != null) {
+              if (result['thicknessDefaults'] is ThicknessDefaults) checklist.setThicknessDefaults(result['thicknessDefaults']);
               final measurements =
                   result['measurements'] as List<ThicknessMeasurement>?;
               final image = result['image'] as File?;
@@ -329,9 +349,11 @@ class InspectionMeasurementsSection extends StatelessWidget {
                       'schemeImage': fileExists ? schemeFile : null,
                       'existingMeasurements': scheme.measurements,
                       'equipment': equipment,
+                      'thicknessDefaults': checklist.thicknessDefaults,
                     },
                   );
                   if (result != null) {
+                    if (result['thicknessDefaults'] is ThicknessDefaults) checklist.setThicknessDefaults(result['thicknessDefaults']);
                     final measurements =
                         result['measurements'] as List<ThicknessMeasurement>?;
                     final image = result['image'] as File?;

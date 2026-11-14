@@ -16,12 +16,13 @@ from database import get_db
 from models import (
     Inspection, Questionnaire, QuestionnaireDocumentFile,
     InspectionHistory, Assignment, User, Equipment,
-    InspectionEquipment, VerificationEquipment,
+    InspectionEquipment, VerificationEquipment, AuditLog, Report, NDTMethod,
 )
 from inspection_utils import create_ndt_methods_from_mobile, update_equipment_attributes_from_inspection
 from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
 from auth import verify_token
 from archive_integrity import verify_inspection_archive, archive_upload_identity
+from inspection_edit_guard import assert_mobile_edit_allowed, inspection_revision
 import mimetypes
 from typing import Optional
 
@@ -135,6 +136,39 @@ async def upload_inspection_archive(
                     'date_performed': existing.date_performed.isoformat() if existing.date_performed else None}
                 await db.rollback()
                 return response
+            target = None
+            previous_questionnaire_id = None
+            source_id = checklist_payload.get("inspection_id") or manifest.get("inspection_id")
+            if source_id:
+                target_id = uuid_lib.UUID(str(source_id))
+                await db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {
+                    'key': int.from_bytes(target_id.bytes[:8], 'big', signed=True)})
+                receipt = await db.get(AuditLog, upload_id)
+                if receipt is not None and receipt.entity_id == target_id:
+                    received = await db.get(Inspection, target_id)
+                    if received is None or received.is_deleted or received.equipment_id != equipment_id:
+                        raise HTTPException(409, 'Обследование после загрузки удалено или недоступно; локальный черновик сохранён')
+                    revision = inspection_revision(received)
+                    await db.rollback()
+                    return {'id': str(target_id), 'status': 'already_received', 'revision': revision}
+                target = (await db.execute(select(Inspection).where(Inspection.id == target_id).with_for_update())).scalar_one_or_none()
+                assert_mobile_edit_allowed(target, equipment_id, u if created_by_id else None,
+                    checklist_payload.get('source_revision') or manifest.get('source_revision'))
+                signed = (await db.execute(select(Report.id).where(Report.inspection_id == target_id, Report.is_signed == True).limit(1))).first()
+                if signed:
+                    raise HTTPException(409, 'Обследование с подписанными отчётами нельзя перезаписывать')
+                inspection_data['data'] = guard_vessel_update(target.data or {}, inspection_data['data'])
+                previous = _json.loads(_json.dumps(target.data or {}))
+                db.add(AuditLog(id=upload_id, user_id=created_by_id, action='UPDATE', entity_type='inspection', entity_id=target_id,
+                    details={'source': 'mobile_edit', 'previous_data': previous,
+                        'previous_questionnaire_id': str(target.questionnaire_id) if target.questionnaire_id else None,
+                        'previous_revision': inspection_revision(target)}))
+                if target.questionnaire_id:
+                    previous_questionnaire_id = target.questionnaire_id
+                    methods = (await db.execute(select(NDTMethod).where(NDTMethod.inspection_id == target_id,
+                        NDTMethod.questionnaire_id == target.questionnaire_id))).scalars().all()
+                    for method in methods:
+                        method.inspection_id = None  # retained with the previous questionnaire and report snapshot
             date_performed = None
             if inspection_data.get("date_performed"):
                 try:
@@ -163,7 +197,7 @@ async def upload_inspection_archive(
                 _asg_gate = ar_gate.scalar_one_or_none()
                 if _asg_gate:
                     await assert_mandatory_standalone_protocol_uploaded(db, _asg_gate)
-            new_inspection = Inspection(
+            new_inspection = target or Inspection(
                 id=upload_id,
                 equipment_id=equipment_id,
                 project_id=project_id,
@@ -177,7 +211,15 @@ async def upload_inspection_archive(
                 inspector_id=created_by_id,
                 performed_by=created_by_id,
             )
-            db.add(new_inspection)
+            if target is None:
+                db.add(new_inspection)
+            else:
+                new_inspection.data = inspection_data.get('data', {})
+                new_inspection.conclusion = inspection_data.get('conclusion')
+                new_inspection.status = inspection_data.get('status', 'DRAFT')
+                new_inspection.date_performed = date_performed
+                new_inspection.updated_by = created_by_id
+                new_inspection.updated_at = datetime.now(timezone.utc)
             await db.flush()
             await db.refresh(new_inspection)
             # Сразу сохраняем ответ, чтобы не зависеть от состояния сессии в конце
@@ -185,7 +227,7 @@ async def upload_inspection_archive(
                 "id": str(new_inspection.id),
                 "equipment_id": str(new_inspection.equipment_id),
                 "questionnaire_id": None,
-                "status": "created",
+                "status": "updated" if target is not None else "created",
                 "date_performed": new_inspection.date_performed.isoformat() if new_inspection.date_performed else None,
             }
             questionnaire_id = None
@@ -388,7 +430,24 @@ async def upload_inspection_archive(
                         await db.flush()
                 except Exception:
                     raise
+            if previous_questionnaire_id and questionnaire_id:
+                # Existing server files need no re-upload from the phone. Keep
+                # their links in the new questionnaire; retain the old snapshot.
+                current_numbers = set((await db.execute(select(QuestionnaireDocumentFile.document_number).where(
+                    QuestionnaireDocumentFile.questionnaire_id == uuid_lib.UUID(questionnaire_id)))).scalars().all())
+                previous_files = (await db.execute(select(QuestionnaireDocumentFile).where(
+                    QuestionnaireDocumentFile.questionnaire_id == previous_questionnaire_id))).scalars().all()
+                for old_file in previous_files:
+                    if old_file.document_number not in current_numbers:
+                        db.add(QuestionnaireDocumentFile(questionnaire_id=uuid_lib.UUID(questionnaire_id),
+                            document_number=old_file.document_number, file_name=old_file.file_name,
+                            file_path=old_file.file_path, file_size=old_file.file_size, file_type=old_file.file_type,
+                            mime_type=old_file.mime_type, uploaded_by=old_file.uploaded_by))
+                        current_numbers.add(old_file.document_number)
             response_data["questionnaire_id"] = questionnaire_id
+            await db.flush()
+            await db.refresh(new_inspection)
+            response_data['revision'] = inspection_revision(new_inspection)
             await db.commit()
         finally:
             try:

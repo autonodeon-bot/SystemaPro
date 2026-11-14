@@ -37,7 +37,8 @@ class SyncService {
     final equipmentId = _nonEmptyString(item['equipment_id']) ?? '';
     final datePerformed = _nonEmptyString(item['date_performed']) ?? '';
     final form = item['data'] is Map ? item['data']['report_form_id'] ?? '' : '';
-    return '$assignmentId|$equipmentId|$form|$datePerformed';
+    final inspectionId = _nonEmptyString(item['inspection_id']) ?? '';
+    return '$assignmentId|$equipmentId|$form|$datePerformed|$inspectionId';
   }
 
   static String _normalizeIsoDateTime(String? value) {
@@ -59,6 +60,8 @@ class SyncService {
     required String inspectionDate,
     Map<String, String>? documentFiles,
     String? assignmentId, // ID задания (версия 3.3.0)
+    String? inspectionId,
+    String? sourceRevision,
     List<String>?
         verificationEquipmentIds, // ID выбранного оборудования для поверок
     String status = 'DRAFT', // DRAFT / SIGNED
@@ -199,6 +202,8 @@ class SyncService {
       }
 
       final inspectionData = <String, dynamic>{
+        if (inspectionId != null) 'inspection_id': inspectionId,
+        if (sourceRevision != null) 'source_revision': sourceRevision,
         'equipment_id': equipmentId,
         'data': checklistJson,
         'conclusion': conclusion,
@@ -217,6 +222,12 @@ class SyncService {
         'verification_equipment_ids': verificationEquipmentIds ??
             [], // ID выбранного оборудования для поверок
       };
+      if (inspectionId != null) {
+        final revision = await DatabaseService.getSyncMeta('inspection_revision:$inspectionId');
+        final latest = DateTime.tryParse(revision ?? '');
+        final provided = DateTime.tryParse(sourceRevision ?? '');
+        if (latest != null && (provided == null || latest.isAfter(provided))) inspectionData['source_revision'] = revision;
+      }
       inspectionData['id'] = '${_queueKey(inspectionData)}|${status.toUpperCase()}'
           '${status.toUpperCase() == 'SIGNED' ? '|${inspectionData['timestamp']}' : ''}';
       await DatabaseService.enqueueInspection(inspectionData);
@@ -453,6 +464,7 @@ class SyncService {
               print('Ошибка добавления оборудования для поверок: $e');
             }
           }
+          inspectionData['_server_revision'] = submitResult['revision'];
           successfulInspections.add(inspectionData);
           result.syncedCount++;
         } catch (e) {
@@ -472,7 +484,7 @@ class SyncService {
 
         // Do not replace the entire queue from a stale pre-upload snapshot.
         for (final uploaded in successfulInspections) {
-          await DatabaseService.acknowledgeInspectionUpload(uploaded);
+          await DatabaseService.acknowledgeInspectionUpload(uploaded, serverRevision: uploaded['_server_revision']?.toString());
         }
 
       }
@@ -1258,6 +1270,7 @@ class SyncService {
     required String equipmentId,
     String? assignmentId,
     String? reportFormId,
+    String? inspectionId,
   }) async {
     try {
       final pending = await getPendingInspections();
@@ -1266,6 +1279,7 @@ class SyncService {
       final matching = pending.where((item) {
         final eqId = item['equipment_id']?.toString();
         if (eqId != equipmentId) return false;
+        if ((item['inspection_id'] ?? '') != (inspectionId ?? '')) return false;
         if (reportFormId != null && (item['data'] is! Map || item['data']['report_form_id'] != reportFormId)) return false;
 
           final aId = item['assignment_id']?.toString() ?? '';

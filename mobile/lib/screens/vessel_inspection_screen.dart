@@ -64,6 +64,9 @@ class VesselInspectionScreen extends StatefulWidget {
   final String? reportFormId;
   /// Предзаполнение из шаблона обследования объекта.
   final Map<String, dynamic>? initialChecklistJson;
+  final SyncService? syncService;
+  final AutoSaveService? autoSaveService;
+  final String? sourceRevision;
 
   const VesselInspectionScreen({
     super.key,
@@ -73,6 +76,9 @@ class VesselInspectionScreen extends StatefulWidget {
     this.inspectionType,
     this.reportFormId,
     this.initialChecklistJson,
+    this.syncService,
+    this.autoSaveService,
+    this.sourceRevision,
   });
 
   @override
@@ -87,14 +93,17 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   int _currentPage = 0;
   late TechnicalReportForm _reportForm;
   final ApiService _apiService = ApiService();
-  final SyncService _syncService = SyncService();
+  late final SyncService _syncService = widget.syncService ?? SyncService();
   final LocationService _locationService = LocationService();
-  final AutoSaveService _autoSaveService = AutoSaveService();
+  late final AutoSaveService _autoSaveService = widget.autoSaveService ?? AutoSaveService();
   final PhotoAnnotationService _photoAnnotationService = PhotoAnnotationService();
   final LastValuesService _lastValuesService = LastValuesService();
   bool _isSubmitting = false;
   bool _hasUnsavedChanges = false;
   bool _isAutoSaving = false;
+  bool _isInitializing = true;
+  String? _loadFailure;
+  String? _sourceRevision;
   Map<String, double>? _gpsCoordinates;
   DateTime? _lastAutoSaveTime;
   int _formSeed = 0;
@@ -202,6 +211,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   @override
   void initState() {
     super.initState();
+    _sourceRevision = widget.sourceRevision;
     WidgetsBinding.instance.addObserver(this);
     try {
       final formId = widget.reportFormId ??
@@ -222,13 +232,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
       _prefillFromEquipment();
       _applyTemplateDefaults();
-      final openingSaved = widget.existingInspectionId != null && widget.initialChecklistJson != null && !_isCompressor;
+      final openingSaved = widget.existingInspectionId != null && widget.initialChecklistJson != null;
       if (openingSaved) {
-        _checklist = VesselChecklist.fromJson(widget.initialChecklistJson!);
-        final manual = widget.initialChecklistJson!['additional_data']?['manual_verification_equipment'];
-        if (manual is List) {
-          _manualVerificationEquipment = manual.whereType<Map>().map((e) => e.map((k,v) => MapEntry(k.toString(),v?.toString() ?? ''))).toList();
-        }
+        _checklist = _isCompressor
+            ? CompressorChecklist.fromJson(widget.initialChecklistJson!)
+            : VesselChecklist.fromJson(widget.initialChecklistJson!);
+        _restoreSavedSelections(widget.initialChecklistJson!);
       }
 
       Future.microtask(_loadEngineers);
@@ -238,13 +247,40 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       Future.microtask(_startAutoSaveTimer);
       
       Future.microtask(() async {
-        final hadLocal = openingSaved ? false : await _loadLocalPendingIfExists();
-        if (openingSaved) await _renderSavedGeometry();
-        if (!hadLocal && !openingSaved) {
-          await _prefillFromPreviousInspections();
+        try {
+          final hadLocal = await _loadLocalPendingIfExists();
+          if (!hadLocal && !openingSaved && widget.existingInspectionId != null) {
+            final records = await _apiService.getInspections(widget.equipment.id);
+            final saved = records.cast<Map>().where((item) => item['id']?.toString() == widget.existingInspectionId).firstOrNull;
+            if (saved == null || saved['data'] is! Map) throw StateError('Не удалось загрузить сохранённое обследование');
+            final data = Map<String, dynamic>.from(saved['data']);
+            _sourceRevision = saved['revision']?.toString();
+            _checklist = _isCompressor ? CompressorChecklist.fromJson(data) : VesselChecklist.fromJson(data);
+            _restoreSavedSelections(data);
+            _formSeed++;
+          }
+          if (openingSaved || hadLocal) await _renderSavedGeometry();
+          if (!hadLocal && !openingSaved && widget.existingInspectionId == null) {
+            await _prefillFromPreviousInspections();
+          }
+          await _applyAssignmentMeta();
+          await _prefillFromOpo();
+        } catch (error) {
+          _loadFailure = 'Не удалось открыть сохранённые данные: $error';
+        } finally {
+          if (mounted) {
+            setState(() => _isInitializing = false);
+            final page = _restorePageIndex;
+            if (page != null && page >= 0 && page < _pageLabels.length) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _pageController.hasClients) {
+                  _pageController.jumpToPage(page);
+                  setState(() => _currentPage = page);
+                }
+              });
+            }
+          }
         }
-        await _applyAssignmentMeta();
-        await _prefillFromOpo();
       });
     } catch (e) {
       _reportForm = TechnicalReportFormRegistry.getById('to-1');
@@ -256,6 +292,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _checklist.documents[doc['number']!] = false;
       }
       print('Ошибка инициализации чек-листа: $e');
+      _loadFailure = 'Не удалось прочитать сохранённое обследование: $e';
+      _isInitializing = false;
     }
   }
 
@@ -304,7 +342,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
       syncVesselMeasurementProjection(_checklist);
       if (mounted) setState(() {});
-      await _autoSaveDraft(force: true);
+      if (!_isInitializing) await _autoSaveDraft(force: true);
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось восстановить изображения схемы: $error')));
     }
@@ -673,6 +711,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   }
 
   Future<bool> _autoSaveDraft({bool force = false}) async {
+    if (_isInitializing || _loadFailure != null) return false;
     if (_isAutoSaving) return false;
     if (!force && !_hasUnsavedChanges) return true;
     _isAutoSaving = true;
@@ -696,9 +735,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         checklistData: checklistData,
         assignmentId: widget.assignmentId,
         inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
       );
 
       await _syncService.saveInspectionOffline(
+        inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
         equipmentId: widget.equipment.id,
         checklist: _checklist,
         conclusion: _checklist.conclusion,
@@ -989,25 +1031,54 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     }
   }
 
+  void _restoreSavedSelections(Map<String, dynamic> data) {
+    final extra = data['additional_data'] is Map ? data['additional_data'] as Map : const {};
+    final manual = extra['manual_verification_equipment'];
+    if (manual is List) {
+      _manualVerificationEquipment = manual.whereType<Map>().map((item) =>
+          item.map((key, value) => MapEntry(key.toString(), value?.toString() ?? ''))).toList();
+    }
+    final ids = data['verification_equipment_ids'] ?? extra['verification_equipment_ids'];
+    if (ids is List) _selectedEquipmentIds = ids.map((id) => id.toString()).toList();
+    final photos = extra['object_photos'];
+    if (photos is List) _additionalObjectPhotos = photos.map((item) => item.toString()).toList();
+    final files = data['document_files'];
+    if (files is Map) {
+      _documentFiles.clear();
+      for (final entry in files.entries) {
+        final value = entry.value;
+        final file = value is Map ? value['file_path']?.toString() : value?.toString();
+        if (file != null && file.isNotEmpty) _documentFiles[entry.key.toString()] = file;
+      }
+    }
+    final plate = _checklist.factoryPlatePhoto;
+    if (plate != null && File(plate).existsSync()) _factoryPlatePhoto = File(plate);
+    final scheme = _checklist.controlSchemeImage;
+    if (scheme != null && File(scheme).existsSync()) _controlSchemeImage = File(scheme);
+  }
+
   Future<bool> _loadLocalPendingIfExists() async {
     try {
       Map<String, dynamic>? pending = await _syncService.getLatestPendingInspection(
         equipmentId: widget.equipment.id,
         assignmentId: widget.assignmentId,
         reportFormId: _checklist.reportFormId,
+        inspectionId: widget.existingInspectionId,
       );
 
       Map<String, dynamic>? data =
           (pending?['data'] as Map?)?.cast<String, dynamic>();
 
-      // Fallback: черновик из AutoSaveService (на случай, если pending ещё нет)
-      if (data == null) {
-        final draft = await _autoSaveService.getDraftForEquipment(
+      // A newer autosave can exist when the subsequent queue write failed.
+      final draft = await _autoSaveService.getDraftForEquipment(
           widget.equipment.id,
           assignmentId: widget.assignmentId,
           inspectionId: widget.existingInspectionId,
           reportFormId: _checklist.reportFormId,
         );
+      final draftTime = DateTime.tryParse(draft?['saved_at']?.toString() ?? '');
+      final queueTime = DateTime.tryParse(pending?['timestamp']?.toString() ?? '');
+      if (data == null || (draftTime != null && queueTime != null && draftTime.isAfter(queueTime))) {
         if (draft != null) {
           final draftAssignment = draft['assignment_id']?.toString();
           if (widget.assignmentId == null ||
@@ -1018,6 +1089,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
               data = Map<String, dynamic>.from(cd);
               pending = {
                 'data': data,
+                'source_revision': draft['source_revision'],
                 'verification_equipment_ids':
                     data['additional_data'] is Map
                         ? (data['additional_data']
@@ -1031,6 +1103,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       }
 
       if (data == null) return false;
+      _sourceRevision = pending?['source_revision']?.toString() ?? _sourceRevision;
 
       final equipmentType = data['equipment_type']?.toString();
       final isCompressor = equipmentType != null &&
@@ -1150,24 +1223,11 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         _formSeed++;
       });
 
-      final pageToRestore = _restorePageIndex;
-      if (pageToRestore != null &&
-          pageToRestore >= 0 &&
-          pageToRestore < _pageLabels.length) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (_pageController.hasClients) {
-            _pageController.jumpToPage(pageToRestore);
-          }
-          setState(() => _currentPage = pageToRestore);
-        });
-      }
-
       await _refreshVerificationLabels();
       return true;
     } catch (e) {
       print('Ошибка загрузки локальных данных: $e');
-      return false;
+      rethrow;
     }
   }
 
@@ -1779,6 +1839,7 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         checklistData: _checklist.toJson(),
         assignmentId: widget.assignmentId,
         inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
       );
       if (!mounted) return;
       final typeCode = widget.equipment.typeCode?.toLowerCase().replaceAll('-', '_');
@@ -2220,9 +2281,12 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
         checklistData: draftData,
         assignmentId: widget.assignmentId,
         inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
       );
 
       await _syncService.saveInspectionOffline(
+        inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
         equipmentId: widget.equipment.id,
         checklist: _checklist,
         conclusion: _checklist.conclusion,
@@ -2380,6 +2444,8 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     setState(() => _isSubmitting = true);
     try {
       await _syncService.saveInspectionOffline(
+        inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
         equipmentId: widget.equipment.id,
         checklist: _checklist,
         conclusion: _checklist.conclusion,
@@ -2444,18 +2510,22 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       _syncManualEquipmentToChecklist();
       _syncObjectPhotosToChecklist();
       await _syncService.saveInspectionOffline(
+        inspectionId: widget.existingInspectionId,
+        sourceRevision: _sourceRevision,
         equipmentId: widget.equipment.id, checklist: _checklist,
         inspectionDate: _resolveInspectionDateIso(), conclusion: _checklist.conclusion,
         assignmentId: widget.assignmentId, documentFiles: _documentFiles,
         verificationEquipmentIds: _selectedEquipmentIds, status: 'DRAFT',
       );
       final draft = await _syncService.getLatestPendingInspection(equipmentId: widget.equipment.id,
-        assignmentId: widget.assignmentId, reportFormId: _checklist.reportFormId);
+        assignmentId: widget.assignmentId, reportFormId: _checklist.reportFormId, inspectionId: widget.existingInspectionId);
       if (draft == null || draft['status'] != 'DRAFT') throw Exception('Не удалось прочитать сохраненный черновик');
       archive = await InspectionArchiveService.buildArchive(inspectionData: draft);
       final uploaded = await _apiService.uploadInspectionArchive(archive);
       final inspectionId = uploaded['id']?.toString();
       if (inspectionId == null) throw Exception('Сервер не подтвердил сохранение черновика');
+      _sourceRevision = uploaded['revision']?.toString() ?? _sourceRevision;
+      await DatabaseService.acknowledgeInspectionUpload(draft, serverRevision: _sourceRevision);
       final bytes = Uint8List.fromList(await _apiService.generateInspectionPdf(inspectionId));
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => Scaffold(
@@ -2480,6 +2550,14 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitializing || _loadFailure != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Открытие обследования')),
+        body: Center(child: _loadFailure == null
+            ? const CircularProgressIndicator()
+            : Padding(padding: const EdgeInsets.all(24), child: Text('$_loadFailure\nСуществующие данные не изменены. Вернитесь и повторите открытие.'))),
+      );
+    }
     final initialValues = <String, dynamic>{
       'executors': _checklist.executors,
       'organization': _checklist.organization,
@@ -2839,18 +2917,31 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     final page6 = _buildSinglePage(
       pageIndex: 6,
       child: InspectionMeasurementsSection(
+        onBeforeCalculation: _syncFormFieldsToChecklist,
         checklist: _checklist,
         controlSchemeImage: _controlSchemeImage,
         equipment: widget.equipment,
-        onStateChanged: () => setState(() => _hasUnsavedChanges = true),
+        onStateChanged: () {
+          final field = _formKey.currentState?.fields['wall_thickness'];
+          if (field != null && field.value?.toString() != _checklist.wallThickness) {
+            field.didChange(_checklist.wallThickness);
+          }
+          setState(() => _hasUnsavedChanges = true);
+        },
         onThicknessSave: (measurements, image) {
           setState(() {
+            _hasUnsavedChanges = true;
             _checklist.thicknessMeasurements = measurements;
-            if (image != null) _controlSchemeImage = image;
+            if (image != null) {
+              _controlSchemeImage = image;
+              _checklist.controlSchemeImage = image.path;
+            }
           });
+          _autoSaveDraft(force: true);
         },
         onUztSchemeSave: (schemeIndex, measurements, image) {
           setState(() => _hasUnsavedChanges = true);
+          _autoSaveDraft(force: true);
         },
       ),
     );

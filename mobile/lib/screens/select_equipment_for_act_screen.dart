@@ -305,8 +305,8 @@ class _SelectEquipmentForActScreenState
     Map<String, dynamic>? saved;
     try {
       final inspections = await _api.getInspections(eq.id);
-      final drafts = inspections.where((i) => i['status'] == 'DRAFT' &&
-          i['data']?['base_vessel_scheme']?['geometry']?['schema_version'] == 2).toList();
+      final drafts = inspections.where((i) => i['status'] == 'DRAFT' && i['data'] is Map &&
+          (widget.assignmentId == null || i['assignment_id']?.toString() == widget.assignmentId)).toList();
       if (drafts.isNotEmpty && mounted) {
         final choice = await showDialog<String>(context: context, builder: (c) => SimpleDialog(
           title: const Text('Сохранённые обследования'),
@@ -325,10 +325,11 @@ class _SelectEquipmentForActScreenState
       MaterialPageRoute(
         builder: (_) => VesselInspectionScreen(
           equipment: eq,
-          assignmentId: widget.assignmentId,
+          assignmentId: saved?['assignment_id']?.toString() ?? widget.assignmentId,
           inspectionType: inspectionType,
-          reportFormId: TechnicalReportFormRegistry.suggestFormId(eq),
+          reportFormId: saved?['data']?['report_form_id']?.toString() ?? TechnicalReportFormRegistry.suggestFormId(eq),
           existingInspectionId: saved?['id']?.toString(),
+          sourceRevision: saved?['revision']?.toString(),
           initialChecklistJson: saved == null ? tpl?.defaultData : Map<String,dynamic>.from(saved['data']),
         ),
       ),

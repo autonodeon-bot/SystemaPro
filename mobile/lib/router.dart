@@ -129,6 +129,7 @@ final appRouter = GoRouter(
           schemeImage: extra['schemeImage'] as File?,
           existingMeasurements:
               extra['existingMeasurements'] as List<ThicknessMeasurement>?,
+          thicknessDefaults: extra['thicknessDefaults'] as ThicknessDefaults?,
           equipment: extra['equipment'] as Equipment?,
         );
       },

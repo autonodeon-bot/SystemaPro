@@ -167,6 +167,8 @@ class InspectionArchiveService {
     }
     // 1) Manifest
     final manifest = {
+      'inspection_id': inspectionData['inspection_id'],
+      'source_revision': inspectionData['source_revision'],
       'client_revision': '${inspectionData['id'] ?? ''}|${inspectionData['timestamp'] ?? ''}',
       'equipment_id': inspectionData['equipment_id'],
       'assignment_id': inspectionData['assignment_id'],
@@ -183,6 +185,8 @@ class InspectionArchiveService {
       return value;
     }
     final checklistPayload = {
+      'inspection_id': inspectionData['inspection_id'],
+      'source_revision': inspectionData['source_revision'],
       'data': replaceAllPaths(dataCopy),
       'equipment_id': inspectionData['equipment_id'],
       'conclusion': inspectionData['conclusion'],
