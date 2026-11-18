@@ -116,6 +116,7 @@ async def get_inspections(
     inspection_type: Optional[str] = None,
     inspection_method: Optional[str] = None,
     inspection_category: Optional[str] = None,
+    archive_state: str = 'active',
     group_by: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
@@ -133,6 +134,12 @@ async def get_inspections(
         query = select(Inspection).where(
             or_(Inspection.is_deleted == False, Inspection.is_deleted == None)
         )
+        if archive_state not in {'active','archived','all'}:
+            raise HTTPException(400,'Недопустимый фильтр архива')
+        if archive_state == 'archived':
+            query = query.where(Inspection.is_archived == True)
+        elif archive_state == 'active':
+            query = query.where(or_(Inspection.is_archived == False,Inspection.is_archived == None))
 
         if current_user.role == "engineer":
             query = query.where(
@@ -335,6 +342,7 @@ async def get_inspections(
                     "workshop_id": equipment_map.get(str(ins.equipment_id), {}).get("workshop_id"),
                     "workshop_name": equipment_map.get(str(ins.equipment_id), {}).get("workshop_name"),
                     "date_performed": ins.date_performed.isoformat() if ins.date_performed else None,
+                    "assignment_id": str(ins.assignment_id) if ins.assignment_id else None,
                     "data": ins.data,
                     "conclusion": ins.conclusion,
                     "status": ins.status,

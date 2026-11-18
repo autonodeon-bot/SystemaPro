@@ -15,6 +15,22 @@ import 'drawing_templates_service.dart';
 
 /// Сервис для офлайн-режима и синхронизации данных
 class SyncService {
+  static Future<SyncResult>? _activeSync;
+
+  Future<Map<String, dynamic>?> getCachedInspection(
+          {required String equipmentId,
+          String? assignmentId,
+          String? reportFormId,
+          String? inspectionId}) =>
+      DatabaseService.cachedInspection(
+          equipmentId: equipmentId,
+          assignmentId: assignmentId,
+          reportFormId: reportFormId,
+          inspectionId: inspectionId);
+  Future<void> cacheInspection(Map<String, dynamic> item) =>
+      DatabaseService.cacheInspection(item);
+  Future<Map<String, dynamic>?> getCachedDocument(String documentId) =>
+      DatabaseService.cachedInspectionDocument(documentId);
   static const String _prefsKeyLastSync = 'last_sync';
   static const String _prefsKeyOfflineMode = 'offline_mode';
 
@@ -36,7 +52,8 @@ class SyncService {
     final assignmentId = _nonEmptyString(item['assignment_id']) ?? '';
     final equipmentId = _nonEmptyString(item['equipment_id']) ?? '';
     final datePerformed = _nonEmptyString(item['date_performed']) ?? '';
-    final form = item['data'] is Map ? item['data']['report_form_id'] ?? '' : '';
+    final form =
+        item['data'] is Map ? item['data']['report_form_id'] ?? '' : '';
     final inspectionId = _nonEmptyString(item['inspection_id']) ?? '';
     return '$assignmentId|$equipmentId|$form|$datePerformed|$inspectionId';
   }
@@ -68,6 +85,18 @@ class SyncService {
   }) async {
     try {
       final checklistJson = checklist.toJson();
+      final localDocumentId =
+          checklist.additionalData?['_client_document_id']?.toString();
+      final saved = (localDocumentId == null
+              ? null
+              : await getCachedDocument(localDocumentId)) ??
+          await getCachedInspection(
+              equipmentId: equipmentId,
+              assignmentId: assignmentId,
+              reportFormId: checklist.reportFormId,
+              inspectionId: inspectionId);
+      inspectionId ??= saved?['inspection_id']?.toString();
+      sourceRevision ??= saved?['source_revision']?.toString();
       // Добавляем информацию о файлах документов (единый формат: docNumber -> {file_path, file_name})
       // Важно: этот формат должен совпадать с тем, как он читается в syncPendingInspections().
       final structuredDocumentFiles = <String, Map<String, dynamic>>{};
@@ -95,8 +124,10 @@ class SyncService {
           if (view is! Map) continue;
           final filePath = view['image_path']?.toString();
           final documentNumber = view['document_number']?.toString();
-          if (filePath == null || filePath.isEmpty ||
-              documentNumber == null || documentNumber.isEmpty) continue;
+          if (filePath == null ||
+              filePath.isEmpty ||
+              documentNumber == null ||
+              documentNumber.isEmpty) continue;
           structuredDocumentFiles[documentNumber] = {
             'file_path': filePath,
             'file_name': Path.basename(filePath),
@@ -188,7 +219,8 @@ class SyncService {
                   for (var k = 0; k < photos.length; k++) {
                     final path = photos[k]?.toString();
                     if (path != null && path.trim().isNotEmpty) {
-                      structuredDocumentFiles['uzt_scheme_${i}_point_${j}_$k'] = {
+                      structuredDocumentFiles['uzt_scheme_${i}_point_${j}_$k'] =
+                          {
                         'file_path': path,
                         'file_name': Path.basename(path),
                       };
@@ -222,13 +254,19 @@ class SyncService {
         'verification_equipment_ids': verificationEquipmentIds ??
             [], // ID выбранного оборудования для поверок
       };
+      inspectionData['client_document_id'] = localDocumentId ??
+          saved?['client_document_id'] ??
+          await DatabaseService.inspectionDocumentId(inspectionData);
       if (inspectionId != null) {
-        final revision = await DatabaseService.getSyncMeta('inspection_revision:$inspectionId');
+        final revision = await DatabaseService.getSyncMeta(
+            'inspection_revision:$inspectionId');
         final latest = DateTime.tryParse(revision ?? '');
         final provided = DateTime.tryParse(sourceRevision ?? '');
-        if (latest != null && (provided == null || latest.isAfter(provided))) inspectionData['source_revision'] = revision;
+        if (latest != null && (provided == null || latest.isAfter(provided)))
+          inspectionData['source_revision'] = revision;
       }
-      inspectionData['id'] = '${_queueKey(inspectionData)}|${status.toUpperCase()}'
+      inspectionData['id'] =
+          '${_queueKey(inspectionData)}|${status.toUpperCase()}'
           '${status.toUpperCase() == 'SIGNED' ? '|${inspectionData['timestamp']}' : ''}';
       await DatabaseService.enqueueInspection(inspectionData);
     } catch (e) {
@@ -284,11 +322,16 @@ class SyncService {
   }
 
   /// Прогресс отправки: [reportIndex] из [reportTotal], отправлено [bytesSent] из [totalBytes].
-  void Function(int reportIndex, int reportTotal, int bytesSent, int totalBytes)? onUploadProgress;
+  void Function(
+          int reportIndex, int reportTotal, int bytesSent, int totalBytes)?
+      onUploadProgress;
 
   /// Синхронизировать все ожидающие диагностики и загрузить оборудование.
   /// Каждое обследование собирается в ZIP-архив и загружается одним запросом (с прогрессом).
-  Future<SyncResult> syncPendingInspections() async {
+  Future<SyncResult> syncPendingInspections() => _activeSync ??=
+      _syncPendingInspections().whenComplete(() => _activeSync = null);
+
+  Future<SyncResult> _syncPendingInspections() async {
     final result = SyncResult();
 
     try {
@@ -302,7 +345,8 @@ class SyncService {
       // Убедиться, что есть валидный токен (при переходе из офлайна — войти по сохранённым логину/паролю)
       final hasToken = await _apiService.ensureValidToken();
       if (!hasToken) {
-        result.error = 'Войдите в приложение. После входа логин и пароль сохранятся для следующей синхронизации.';
+        result.error =
+            'Войдите в приложение. После входа логин и пароль сохранятся для следующей синхронизации.';
         return result;
       }
 
@@ -333,12 +377,15 @@ class SyncService {
 
       // Загружаем список поверенного оборудования с сервера и сохраняем локально
       try {
-        final verificationEquipment = await _apiService.getVerificationEquipment();
+        final verificationEquipment =
+            await _apiService.getVerificationEquipment();
         await saveVerificationEquipmentOffline(verificationEquipment);
         if (result.message != null) {
-          result.message = '${result.message}; Поверенное оборудование обновлено';
+          result.message =
+              '${result.message}; Поверенное оборудование обновлено';
         } else {
-          result.message = 'Список поверенного оборудования обновлен и сохранен локально';
+          result.message =
+              'Список поверенного оборудования обновлен и сохранен локально';
         }
       } catch (e) {
         // Игнорируем ошибки загрузки поверенного оборудования, не роняем синхронизацию
@@ -356,7 +403,7 @@ class SyncService {
           try {
             final equipment = await _apiService.getAssignmentEquipment(a.id);
             await saveEquipmentOffline([equipment]);
-            
+
             // Собираем enterprise_id для загрузки ОПО
             if (a.enterpriseId != null && a.enterpriseId!.isNotEmpty) {
               enterpriseIds.add(a.enterpriseId!);
@@ -365,7 +412,7 @@ class SyncService {
             // Игнорируем ошибки по одному объекту, не роняем всю синхронизацию
           }
         }
-        
+
         // Загружаем ОПО для предприятий из заданий
         for (final enterpriseId in enterpriseIds) {
           try {
@@ -405,88 +452,117 @@ class SyncService {
         final totalReports = toSend.length;
 
         for (var reportIndex = 0; reportIndex < toSend.length; reportIndex++) {
-          final inspectionData = toSend[reportIndex];
+          final snapshot = toSend[reportIndex];
+          final current = (await getPendingInspections())
+              .where((item) => item['id'] == snapshot['id'])
+              .firstOrNull;
+          if (current == null) continue;
+          // A preceding upload may have assigned the server ID/revision to the
+          // next local revision of this document while this batch was running.
+          final inspectionData = current;
           String? zipPath;
           try {
-          final data = inspectionData['data'] as Map<String, dynamic>? ?? {};
-          final rawEqId = inspectionData['equipment_id'];
-          final equipmentId = rawEqId != null ? rawEqId.toString().trim() : '';
-          if (equipmentId.isEmpty) {
-            result.lastFailureReason = 'Нет ID оборудования в сохранённых данных';
-            await DatabaseService.recordInspectionSyncError(inspectionData, result.lastFailureReason!);
+            final data = inspectionData['data'] as Map<String, dynamic>? ?? {};
+            final rawEqId = inspectionData['equipment_id'];
+            final equipmentId =
+                rawEqId != null ? rawEqId.toString().trim() : '';
+            if (equipmentId.isEmpty) {
+              result.lastFailureReason =
+                  'Нет ID оборудования в сохранённых данных';
+              await DatabaseService.recordInspectionSyncError(
+                  inspectionData, result.lastFailureReason!);
+              failedInspections.add(inspectionData);
+              result.failedCount++;
+              continue;
+            }
+
+            zipPath = await InspectionArchiveService.buildArchive(
+                inspectionData: inspectionData);
+            final zipFile = File(zipPath);
+            final totalBytes = zipFile.lengthSync();
+
+            final submitResult = await _uploadInspectionArchiveWithRetry(
+              zipPath: zipPath,
+              reportIndex: reportIndex,
+              totalReports: totalReports,
+              totalBytes: totalBytes,
+            );
+
+            try {
+              zipFile.deleteSync();
+            } catch (_) {}
+
+            final inspectionId = submitResult['id'] as String?;
+            if (inspectionId == null)
+              throw StateError('Сервер не подтвердил ID обследования');
+            await DatabaseService.acknowledgeInspectionUpload(inspectionData,
+                serverInspectionId: inspectionId,
+                serverRevision: submitResult['revision']?.toString());
+            if (submitResult.containsKey('questionnaire_id') &&
+                submitResult['questionnaire_id'] != null) {
+              inspectionData['questionnaire_id_synced'] =
+                  submitResult['questionnaire_id'] as String;
+            }
+
+            final checklist = data['equipment_type'] != null &&
+                    (data['equipment_type']
+                            .toString()
+                            .toUpperCase()
+                            .contains('COMPRESSOR') ||
+                        data['equipment_type']
+                            .toString()
+                            .toUpperCase()
+                            .contains('КОМПРЕССОР'))
+                ? CompressorChecklist.fromJson(data)
+                : VesselChecklist.fromJson(data);
+            try {
+              final conflicts = await _apiService.updateEquipmentFromChecklist(
+                  equipmentId: equipmentId, checklist: checklist);
+              if (conflicts.isNotEmpty)
+                result.conflictCount += conflicts.length;
+            } catch (e) {
+              print('Ошибка обновления данных оборудования: $e');
+            }
+            final verificationEquipmentIds =
+                inspectionData['verification_equipment_ids'] as List<dynamic>?;
+            if (inspectionId != null &&
+                verificationEquipmentIds != null &&
+                verificationEquipmentIds.isNotEmpty) {
+              try {
+                final equipmentIds = verificationEquipmentIds
+                    .map((id) => id.toString())
+                    .where((id) => id.isNotEmpty)
+                    .toList();
+                if (equipmentIds.isNotEmpty) {
+                  await _apiService.addEquipmentToInspection(
+                      inspectionId, equipmentIds);
+                }
+              } catch (e) {
+                print('Ошибка добавления оборудования для поверок: $e');
+              }
+            }
+            inspectionData['_server_revision'] = submitResult['revision'];
+            successfulInspections.add(inspectionData);
+            result.syncedCount++;
+          } catch (e) {
+            try {
+              if (zipPath != null) File(zipPath).deleteSync();
+            } catch (_) {}
+            result.lastFailureReason = e is Exception ? e.toString() : '$e';
+            if (result.lastFailureReason != null &&
+                result.lastFailureReason!.startsWith('Exception: ')) {
+              result.lastFailureReason =
+                  result.lastFailureReason!.substring('Exception: '.length);
+            }
+            print('Синхронизация: ошибка отправки обследования: $e');
+            await DatabaseService.recordInspectionSyncError(
+                inspectionData, result.lastFailureReason ?? 'Ошибка отправки');
             failedInspections.add(inspectionData);
             result.failedCount++;
-            continue;
           }
-
-          zipPath = await InspectionArchiveService.buildArchive(inspectionData: inspectionData);
-          final zipFile = File(zipPath);
-          final totalBytes = zipFile.lengthSync();
-
-          final submitResult = await _uploadInspectionArchiveWithRetry(
-            zipPath: zipPath,
-            reportIndex: reportIndex,
-            totalReports: totalReports,
-            totalBytes: totalBytes,
-          );
-
-          try {
-            zipFile.deleteSync();
-          } catch (_) {}
-
-          final inspectionId = submitResult['id'] as String?;
-          if (submitResult.containsKey('questionnaire_id') && submitResult['questionnaire_id'] != null) {
-            inspectionData['questionnaire_id_synced'] = submitResult['questionnaire_id'] as String;
-          }
-
-          final checklist = data['equipment_type'] != null &&
-                  (data['equipment_type'].toString().toUpperCase().contains('COMPRESSOR') ||
-                      data['equipment_type'].toString().toUpperCase().contains('КОМПРЕССОР'))
-              ? CompressorChecklist.fromJson(data)
-              : VesselChecklist.fromJson(data);
-          try {
-            final conflicts = await _apiService.updateEquipmentFromChecklist(equipmentId: equipmentId, checklist: checklist);
-            if (conflicts.isNotEmpty) result.conflictCount += conflicts.length;
-          } catch (e) {
-            print('Ошибка обновления данных оборудования: $e');
-          }
-          final verificationEquipmentIds = inspectionData['verification_equipment_ids'] as List<dynamic>?;
-          if (inspectionId != null && verificationEquipmentIds != null && verificationEquipmentIds.isNotEmpty) {
-            try {
-              final equipmentIds = verificationEquipmentIds
-                  .map((id) => id.toString())
-                  .where((id) => id.isNotEmpty)
-                  .toList();
-              if (equipmentIds.isNotEmpty) {
-                await _apiService.addEquipmentToInspection(inspectionId, equipmentIds);
-              }
-            } catch (e) {
-              print('Ошибка добавления оборудования для поверок: $e');
-            }
-          }
-          inspectionData['_server_revision'] = submitResult['revision'];
-          successfulInspections.add(inspectionData);
-          result.syncedCount++;
-        } catch (e) {
-          try {
-            if (zipPath != null) File(zipPath).deleteSync();
-          } catch (_) {}
-          result.lastFailureReason = e is Exception ? e.toString() : '$e';
-          if (result.lastFailureReason != null && result.lastFailureReason!.startsWith('Exception: ')) {
-            result.lastFailureReason = result.lastFailureReason!.substring('Exception: '.length);
-          }
-          print('Синхронизация: ошибка отправки обследования: $e');
-          await DatabaseService.recordInspectionSyncError(inspectionData, result.lastFailureReason ?? 'Ошибка отправки');
-          failedInspections.add(inspectionData);
-          result.failedCount++;
-        }
         }
 
-        // Do not replace the entire queue from a stale pre-upload snapshot.
-        for (final uploaded in successfulInspections) {
-          await DatabaseService.acknowledgeInspectionUpload(uploaded, serverRevision: uploaded['_server_revision']?.toString());
-        }
-
+        // Each accepted revision has already been acknowledged, before follow-up requests.
       }
 
       final standaloneFailed = await _syncPendingStandaloneProtocols(result);
@@ -509,23 +585,23 @@ class SyncService {
       try {
         final pendingOpoSurveys = await getPendingOpoSurveys();
         final successfulOpoIds = <String>[];
-        
+
         for (final surveyData in pendingOpoSurveys) {
           try {
             final opoId = surveyData['opo_id'] as String;
             final survey = surveyData['survey_data'] as Map<String, dynamic>;
-            
+
             await _apiService.updateOpoSurvey(
               opoId: opoId,
               surveyData: survey,
             );
-            
+
             successfulOpoIds.add(opoId);
           } catch (e) {
             print('Ошибка синхронизации ОПО: $e');
           }
         }
-        
+
         // Удаляем успешно отправленные ОПО опросники из sqflite
         for (final opoId in successfulOpoIds) {
           await DatabaseService.deleteOpoSurvey(opoId);
@@ -652,8 +728,8 @@ class SyncService {
     final existing = await getPendingQuestionnaires();
     final removed = existing.where((e) {
       final sameEq = e['equipment_id']?.toString() == equipmentId;
-      final sameAsg = (e['assignment_id']?.toString() ?? '') ==
-          (assignmentId ?? '');
+      final sameAsg =
+          (e['assignment_id']?.toString() ?? '') == (assignmentId ?? '');
       return sameEq && sameAsg;
     }).toList();
     final keptNdt = <Map<String, dynamic>>[];
@@ -671,8 +747,8 @@ class SyncService {
     }
     final merged = existing.where((e) {
       final sameEq = e['equipment_id']?.toString() == equipmentId;
-      final sameAsg = (e['assignment_id']?.toString() ?? '') ==
-          (assignmentId ?? '');
+      final sameAsg =
+          (e['assignment_id']?.toString() ?? '') == (assignmentId ?? '');
       return !(sameEq && sameAsg);
     }).toList();
     item['id'] = preservedLocalId ?? localId;
@@ -703,8 +779,7 @@ class SyncService {
     return _serverQuestionnaireIdRe.hasMatch(id.trim());
   }
 
-  bool isPendingQuestionnaireLocalId(String id) =>
-      id.trim().startsWith('pq_');
+  bool isPendingQuestionnaireLocalId(String id) => id.trim().startsWith('pq_');
 
   /// Поставить метод НК с фото в офлайн-очередь.
   Future<String> queueNdtMethodOffline({
@@ -865,8 +940,9 @@ class SyncService {
         result.syncedCount++;
       } catch (e) {
         result.failedCount++;
-        result.lastFailureReason =
-            e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        result.lastFailureReason = e is Exception
+            ? e.toString().replaceFirst('Exception: ', '')
+            : '$e';
         failed.add(item);
       }
     }
@@ -899,8 +975,9 @@ class SyncService {
         final response = await _apiService.saveQuestionnaire(
           equipmentId: equipmentId,
           data: data,
-          assignmentId:
-              (assignmentId != null && assignmentId.isNotEmpty) ? assignmentId : null,
+          assignmentId: (assignmentId != null && assignmentId.isNotEmpty)
+              ? assignmentId
+              : null,
           questionnaireId:
               (serverQid != null && serverQid.isNotEmpty) ? serverQid : null,
           status: status,
@@ -924,8 +1001,9 @@ class SyncService {
         result.syncedCount++;
       } catch (e) {
         result.failedCount++;
-        result.lastFailureReason =
-            e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        result.lastFailureReason = e is Exception
+            ? e.toString().replaceFirst('Exception: ', '')
+            : '$e';
         failed.add(item);
       }
     }
@@ -944,7 +1022,9 @@ class SyncService {
         final payload = item['payload'];
         final mapPayload = payload is Map<String, dynamic>
             ? payload
-            : (payload is Map ? Map<String, dynamic>.from(payload) : <String, dynamic>{});
+            : (payload is Map
+                ? Map<String, dynamic>.from(payload)
+                : <String, dynamic>{});
 
         var aid = item['assignment_id']?.toString().trim();
         if (aid == null || aid.isEmpty) {
@@ -967,8 +1047,9 @@ class SyncService {
         result.syncedCount++;
       } catch (e) {
         result.failedCount++;
-        result.lastFailureReason =
-            e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+        result.lastFailureReason = e is Exception
+            ? e.toString().replaceFirst('Exception: ', '')
+            : '$e';
         failed.add(item);
       }
     }
@@ -1091,7 +1172,8 @@ class SyncService {
 
   /// Предзагрузка шаблонов для набора оборудования (напр., при открытии
   /// списка заданий, чтобы инженер мог работать офлайн).
-  Future<int> prefetchDrawingTemplatesForAssignments(List<Assignment> assignments) async {
+  Future<int> prefetchDrawingTemplatesForAssignments(
+      List<Assignment> assignments) async {
     final ids = assignments
         .map((a) => a.equipmentId)
         .where((e) => e.isNotEmpty)
@@ -1188,15 +1270,18 @@ class SyncService {
 
   // ─── Delta sync ──────────────────────────────────────────────────────────
 
-  static const String _prefsKeyLastAssignmentsSync = 'last_assignments_sync'; // хранится в sync_metadata (sqflite)
+  static const String _prefsKeyLastAssignmentsSync =
+      'last_assignments_sync'; // хранится в sync_metadata (sqflite)
 
   /// Инкрементальная синхронизация заданий (дельта).
   /// Запрашивает только изменённые записи с момента последней синхронизации,
   /// мерджит с локальным кэшем и обновляет метку времени.
   Future<List<dynamic>> syncAssignmentsDelta() async {
-    final lastSyncStr = await DatabaseService.getSyncMeta(_prefsKeyLastAssignmentsSync);
+    final lastSyncStr =
+        await DatabaseService.getSyncMeta(_prefsKeyLastAssignmentsSync);
 
-    final assignments = await _apiService.getAssignmentsDelta(since: lastSyncStr);
+    final assignments =
+        await _apiService.getAssignmentsDelta(since: lastSyncStr);
 
     final cached = await DatabaseService.getAssignments();
 
@@ -1273,6 +1358,13 @@ class SyncService {
     String? inspectionId,
   }) async {
     try {
+      if (inspectionId == null && (assignmentId ?? '').isNotEmpty) {
+        inspectionId = (await getCachedInspection(
+                equipmentId: equipmentId,
+                assignmentId: assignmentId,
+                reportFormId: reportFormId))?['inspection_id']
+            ?.toString();
+      }
       final pending = await getPendingInspections();
 
       // Фильтруем по equipment_id и assignment_id (если указан)
@@ -1280,10 +1372,12 @@ class SyncService {
         final eqId = item['equipment_id']?.toString();
         if (eqId != equipmentId) return false;
         if ((item['inspection_id'] ?? '') != (inspectionId ?? '')) return false;
-        if (reportFormId != null && (item['data'] is! Map || item['data']['report_form_id'] != reportFormId)) return false;
+        if (reportFormId != null &&
+            (item['data'] is! Map ||
+                item['data']['report_form_id'] != reportFormId)) return false;
 
-          final aId = item['assignment_id']?.toString() ?? '';
-          if (aId != (assignmentId ?? '')) return false;
+        final aId = item['assignment_id']?.toString() ?? '';
+        if (aId != (assignmentId ?? '')) return false;
 
         return true;
       }).toList();
@@ -1311,6 +1405,7 @@ class SyncResult {
   int conflictCount = 0;
   String? message;
   String? error;
+
   /// Текст последней ошибки при отправке обследования (для показа пользователю).
   String? lastFailureReason;
 }

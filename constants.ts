@@ -273,7 +273,7 @@ export const API_BASE = import.meta.env.DEV && _envApiBase != null
   : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.7.41';
+export const APP_VERSION = '3.7.42';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -299,10 +299,13 @@ export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
 export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
 
 /** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
-export const RELEASE_NOTES_DATE = '14.11.2026';
+export const RELEASE_NOTES_DATE = '18.11.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Синхронизация обновляет одно обследование: повторные отправки и подпись не создают дубли.',
+  'Приложение 3.7.42+85 повторно открывает полные данные задания; после отправки сохраняется офлайн-копия.',
+  'Исправлены перечень документов, оглавление и адрес в отчёте; в списке обследований доступен восстанавливаемый архив.',
   'Дневная тема стала основной: контрастные подписи, кнопки и статусы; выбор ночной темы сохраняется.',
   'Компактное меню, свёрнутые фильтры, действия на небольшом экране и доступные модальные окна.',
   'Приложение 3.7.41+84: поддержка крупного шрифта, темы форм и полноэкранная карта замеров.',
@@ -345,8 +348,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.7.41';
-export const MOBILE_APP_BUILD = '84';
+export const MOBILE_APP_VERSION = '3.7.42';
+export const MOBILE_APP_BUILD = '85';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

@@ -41,3 +41,9 @@ def archive_upload_identity(archive, owner):
              for item in archive.infolist() if not item.is_dir()]
     digest = hashlib.sha256(repr(sorted(parts)).encode('utf-8')).hexdigest()
     return uuid.uuid5(uuid.NAMESPACE_URL, f'systemapro-upload:{owner}:{digest}')
+
+
+def archive_document_identity(client_document_id, owner):
+    """One document survives autosaves, signing and ZIP rebuilds."""
+    identifier = uuid.UUID(str(client_document_id))
+    return uuid.uuid5(uuid.NAMESPACE_URL, f'systemapro-document:{owner}:{identifier}')

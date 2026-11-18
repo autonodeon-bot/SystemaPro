@@ -33,6 +33,12 @@ void main() {
           inspectionDate: '2026-11-13T10:00:00Z');
     }
     expect((await sync.getPendingInspections()).length, 2);
+    expect(
+        (await sync.getPendingInspections())
+            .map((e) => e['client_document_id'])
+            .toSet()
+            .length,
+        2);
     final a = await sync.getLatestPendingInspection(
         equipmentId: 'vessel', inspectionId: 'server-a', reportFormId: 'to-1');
     expect(a?['data']['vessel_name'], 'server-a');
@@ -102,5 +108,71 @@ void main() {
         await AutoSaveService()
             .getDraftForEquipment('vessel', reportFormId: 'to-1'),
         isNull);
+  });
+
+  test(
+      'first sync retains a full copy and later saves update the returned server ID',
+      () async {
+    final sync = SyncService();
+    final checklist = VesselChecklist()
+      ..reportFormId = 'to-1'
+      ..manufacturer = 'Завод инженера';
+    await sync.saveInspectionOffline(
+        equipmentId: 'vessel',
+        assignmentId: 'task',
+        checklist: checklist,
+        inspectionDate: '2026-11-18T10:00:00Z');
+    final uploaded = (await sync.getPendingInspections()).single;
+    await DatabaseService.acknowledgeInspectionUpload(uploaded,
+        serverInspectionId: 'created-on-server',
+        serverRevision: '2026-11-18T10:01:00Z');
+    expect(await sync.getPendingInspections(), isEmpty);
+    final cached = await sync.getCachedInspection(
+        equipmentId: 'vessel', assignmentId: 'task', reportFormId: 'to-1');
+    expect(cached?['data']['manufacturer'], 'Завод инженера');
+    checklist.manufacturer = 'Дополненный завод';
+    await sync.saveInspectionOffline(
+        equipmentId: 'vessel',
+        assignmentId: 'task',
+        checklist: checklist,
+        inspectionDate: '2026-11-18T10:00:00Z');
+    final edit = (await sync.getPendingInspections()).single;
+    expect(edit['inspection_id'], 'created-on-server');
+    expect(edit['source_revision'], '2026-11-18T10:01:00Z');
+    expect(edit['client_document_id'], uploaded['client_document_id']);
+    expect(
+        (await sync.getLatestPendingInspection(
+            equipmentId: 'vessel',
+            assignmentId: 'task',
+            reportFormId: 'to-1'))?['inspection_id'],
+        'created-on-server');
+  });
+
+  test(
+      'an edit during the first upload adopts its server ID without losing newer data',
+      () async {
+    final sync = SyncService();
+    final checklist = VesselChecklist()
+      ..reportFormId = 'to-1'
+      ..manufacturer = 'Отправлено';
+    await sync.saveInspectionOffline(
+        equipmentId: 'vessel',
+        assignmentId: 'task',
+        checklist: checklist,
+        inspectionDate: '2026-11-18T10:00:00Z');
+    final uploaded = (await sync.getPendingInspections()).single;
+    checklist.manufacturer = 'Введено во время отправки';
+    await sync.saveInspectionOffline(
+        equipmentId: 'vessel',
+        assignmentId: 'task',
+        checklist: checklist,
+        inspectionDate: '2026-11-18T10:00:00Z');
+    await DatabaseService.acknowledgeInspectionUpload(uploaded,
+        serverInspectionId: 'server-id',
+        serverRevision: '2026-11-18T10:01:00Z');
+    final newer = (await sync.getPendingInspections()).single;
+    expect(newer['data']['manufacturer'], 'Введено во время отправки');
+    expect(newer['inspection_id'], 'server-id');
+    expect(newer['source_revision'], '2026-11-18T10:01:00Z');
   });
 }

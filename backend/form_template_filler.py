@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from docx import Document
 from docx.enum.section import WD_ORIENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT, WD_TAB_LEADER
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor, Inches
@@ -771,6 +771,14 @@ def _refresh_vessel_contents(doc: Document) -> None:
         p.add_run(title+'\t')
         field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),f'PAGEREF {bookmark} \\h');p._p.append(field)
         p.paragraph_format.keep_with_next=False
+        section=doc.sections[0]
+        width=section.page_width-section.left_margin-section.right_margin
+        p.paragraph_format.tab_stops.clear_all()
+        p.paragraph_format.tab_stops.add_tab_stop(width,WD_TAB_ALIGNMENT.RIGHT,WD_TAB_LEADER.DOTS)
+        p.paragraph_format.left_indent=Pt(0)
+        p.paragraph_format.first_line_indent=Pt(0)
+        p.paragraph_format.right_indent=Pt(0)
+        p.alignment=WD_ALIGN_PARAGRAPH.LEFT
         p.paragraph_format.space_before=Pt(0);p.paragraph_format.space_after=Pt(3)
         _set_paragraph_font_size(p,10)
     update=OxmlElement('w:updateFields');update.set(qn('w:val'),'true');doc.settings.element.append(update)
@@ -1711,6 +1719,13 @@ def _split_customer_location(org_name: str, location: str) -> Tuple[str, str]:
     return org or MISSING, loc or MISSING
 
 
+def _cover_location(org_name: str, location: str) -> str:
+    parts=[str(p).strip() for p in (org_name,location) if p and p!=MISSING]
+    if len(parts)==2 and ' '.join(parts[1].casefold().split()) in ' '.join(parts[0].casefold().split()):
+        return parts[0]
+    return ', '.join(parts) if parts else MISSING
+
+
 def _iter_all_paragraphs(doc: Document):
     """Все абзацы документа, включая content controls (SDT)."""
     body = doc.element.body
@@ -2108,8 +2123,12 @@ def _finalize_table_typography(doc: Document) -> None:
                 # Заголовок «Таблица № N» (и при необходимости название раздела)
                 # должны оказаться в той же landscape-секции, что и таблица.
                 block_start = _landscape_block_start(t._tbl)
-                _insert_section_break_before(block_start, landscape=False)
-                _insert_section_break_after(t._tbl, landscape=True)
+                # Official templates already contain landscape boundaries.
+                # Adding another pair creates empty sections/blank PDF sheets.
+                if not _adjacent_section_boundary(block_start, before=True):
+                    _insert_section_break_before(block_start, landscape=False)
+                if not _adjacent_section_boundary(t._tbl, before=False):
+                    _insert_section_break_after(t._tbl, landscape=True)
             except Exception:
                 logger.exception("to-1: landscape для широкой таблицы")
 
@@ -2129,6 +2148,17 @@ def _finalize_table_typography(doc: Document) -> None:
 
     _ensure_title_section_portrait(doc)
     _apply_document_font(doc)
+
+
+def _adjacent_section_boundary(element, *, before: bool) -> bool:
+    current=element.getprevious() if before else element.getnext()
+    while current is not None and current.tag==qn('w:p'):
+        if _element_plain_text(current).strip() or next(current.iter(qn('w:drawing')),None) is not None:
+            return False
+        if next(current.iter(qn('w:sectPr')),None) is not None:
+            return True
+        current=current.getprevious() if before else current.getnext()
+    return False
 
 
 def _ensure_title_section_portrait(doc: Document) -> None:
@@ -2342,6 +2372,9 @@ def _fix_main_report_captions(doc: Document) -> None:
     number = 0
     for element in control.iter(qn('w:p')):
         paragraph = Paragraph(element, doc)
+        value=_paragraph_plain_text(paragraph)
+        if 'Перечень применяемой' in value and 'Приложении' in value:
+            _set_paragraph_text(paragraph,re.sub(r'Приложении\s*№\s*\d+','Приложении № 10',value))
         if re.fullmatch(r'Таблица\s*№\s*\d+', _paragraph_plain_text(paragraph).strip()):
             number += 1
             _set_paragraph_text(paragraph, f'Таблица № {number}')
@@ -2507,8 +2540,7 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
         if len(title.rows) > 11:
             # Местонахождение объекта на титуле — полный адрес: наименование
             # заказчика/структурного подразделения + место нахождения.
-            addr_parts = [p for p in (org_name, location) if p and p != MISSING]
-            loc_text = ", ".join(addr_parts) if addr_parts else MISSING
+            loc_text = _cover_location(org_name, location)
             _set(title, 11, 1, loc_text)
             if len(title.rows[11].cells) > 2:
                 _set(title, 11, 2, loc_text)
@@ -2704,19 +2736,9 @@ def _fill_main_report(doc: Document, ctx: Dict[str, Any]) -> None:
     # --- Таблица 9: рассмотренные документы (как прил.1 / табл.1) ---
     if len(main_tables) > 9:
         docs_tbl = main_tables[9]
-        docs_dict = ctx["docs_dict"]
-        docs_info = ctx["docs_info"]
-        for r in range(1, len(docs_tbl.rows)):
-            num_txt = (docs_tbl.rows[r].cells[0].text or "").strip().rstrip(".")
-            if not num_txt.isdigit():
-                continue
-            info = docs_info.get(num_txt) or docs_info.get(int(num_txt)) or {}
-            if not isinstance(info, dict):
-                info = {}
-            present = docs_dict.get(num_txt, docs_dict.get(int(num_txt)))
-            ident, pages = _doc_ident_and_pages(present, info)
-            _set(docs_tbl, r, 2, ident)
-            _set(docs_tbl, r, 3, pages)
+        # The mobile form has 17 document types. Reuse the same dictionary as
+        # appendix 1 instead of filling 11 unrelated labels left in the template.
+        _fill_documents_table(docs_tbl,ctx)
 
     # --- Таблица 10: предыдущие обследования ---
     if len(main_tables) > 10:

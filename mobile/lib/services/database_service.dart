@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 class DatabaseService {
   static Database? _database;
@@ -332,7 +333,8 @@ class DatabaseService {
     return 'sp_${DateTime.now().toUtc().millisecondsSinceEpoch}';
   }
 
-  static Future<List<Map<String, dynamic>>> getPendingStandaloneProtocols() async {
+  static Future<List<Map<String, dynamic>>>
+      getPendingStandaloneProtocols() async {
     final db = await database;
     final rows = await db.query('pending_standalone_protocols');
     return rows.map((r) {
@@ -421,10 +423,13 @@ class DatabaseService {
     final equipmentId = data['equipment_id']?.toString().trim() ?? '';
     final datePerformed = data['date_performed']?.toString().trim() ?? '';
     final base = '$assignmentId|$equipmentId|$datePerformed';
-    if (assignmentId.isNotEmpty && equipmentId.isNotEmpty && datePerformed.isNotEmpty) {
+    if (assignmentId.isNotEmpty &&
+        equipmentId.isNotEmpty &&
+        datePerformed.isNotEmpty) {
       return base;
     }
-    final timestamp = data['timestamp']?.toString().trim() ?? DateTime.now().toUtc().toIso8601String();
+    final timestamp = data['timestamp']?.toString().trim() ??
+        DateTime.now().toUtc().toIso8601String();
     return '$base|$timestamp';
   }
 
@@ -488,17 +493,25 @@ class DatabaseService {
       final form = data['data'] is Map ? data['data']['report_form_id'] : null;
       for (final row in rows) {
         final existing = jsonDecode(row['data'] as String) as Map;
-        final oldForm = existing['data'] is Map ? existing['data']['report_form_id'] : null;
-        if ((existing['status'] ?? 'DRAFT').toString().toUpperCase() == 'DRAFT' &&
+        final oldForm =
+            existing['data'] is Map ? existing['data']['report_form_id'] : null;
+        if ((existing['status'] ?? 'DRAFT').toString().toUpperCase() ==
+                'DRAFT' &&
             existing['equipment_id'] == data['equipment_id'] &&
-            (existing['inspection_id'] ?? '') == (data['inspection_id'] ?? '') &&
-            (existing['assignment_id'] ?? '') == (data['assignment_id'] ?? '') && oldForm == form) {
-          await txn.delete('pending_inspections', where: 'id = ?', whereArgs: [row['id']]);
+            (existing['inspection_id'] ?? '') ==
+                (data['inspection_id'] ?? '') &&
+            (existing['assignment_id'] ?? '') ==
+                (data['assignment_id'] ?? '') &&
+            oldForm == form) {
+          await txn.delete('pending_inspections',
+              where: 'id = ?', whereArgs: [row['id']]);
         }
       }
       await txn.insert('pending_inspections', {
-        'id': data['id'], 'data': jsonEncode(data),
-        'created_at': DateTime.now().toUtc().toIso8601String(), 'status': 'pending',
+        'id': data['id'],
+        'data': jsonEncode(data),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'status': 'pending',
       });
     });
   }
@@ -508,42 +521,174 @@ class DatabaseService {
     await db.delete('pending_inspections');
   }
 
-  /// Acknowledge only the uploaded revision; edits made during upload survive.
-  static Future<void> acknowledgeInspectionUpload(Map<String, dynamic> uploaded, {String? serverRevision}) async {
+  static String inspectionScope(Map<String, dynamic> item) => jsonEncode([
+        item['equipment_id'],
+        item['assignment_id'] ?? '',
+        item['data'] is Map ? item['data']['report_form_id'] : null,
+      ]);
+
+  static Future<String> inspectionDocumentId(Map<String, dynamic> item) async {
+    final db = await database;
+    final key =
+        'inspection_document:${item['inspection_id'] ?? inspectionScope(item)}';
+    return db.transaction((txn) async {
+      final rows =
+          await txn.query('sync_metadata', where: 'key = ?', whereArgs: [key]);
+      if (rows.isNotEmpty) return rows.first['value'] as String;
+      final value = const Uuid().v4();
+      await txn.insert('sync_metadata', {'key': key, 'value': value});
+      return value;
+    });
+  }
+
+  static Future<void> cacheInspection(Map<String, dynamic> item) async {
+    final id = item['inspection_id']?.toString() ?? item['id']?.toString();
+    if (id == null || id.isEmpty) return;
+    final payload = {...item, 'inspection_id': id};
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.insert('sync_metadata',
+          {'key': 'inspection_saved:$id', 'value': jsonEncode(payload)},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+      if ((item['assignment_id'] ?? '').toString().isNotEmpty) {
+        await txn.insert('sync_metadata',
+            {'key': 'inspection_scope:${inspectionScope(item)}', 'value': id},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  static Future<Map<String, dynamic>?> cachedInspection(
+      {required String equipmentId,
+      String? assignmentId,
+      String? reportFormId,
+      String? inspectionId}) async {
+    var id = inspectionId;
+    if (id == null && (assignmentId ?? '').isNotEmpty) {
+      id = await getSyncMeta('inspection_scope:${inspectionScope({
+            'equipment_id': equipmentId,
+            'assignment_id': assignmentId,
+            'data': {'report_form_id': reportFormId}
+          })}');
+    }
+    if (id == null) return null;
+    final raw = await getSyncMeta('inspection_saved:$id');
+    return raw == null ? null : Map<String, dynamic>.from(jsonDecode(raw));
+  }
+
+  static Future<Map<String, dynamic>?> cachedInspectionDocument(
+      String documentId) async {
+    final id = await getSyncMeta('inspection_document_server:$documentId');
+    if (id == null) return null;
+    final raw = await getSyncMeta('inspection_saved:$id');
+    return raw == null ? null : Map<String, dynamic>.from(jsonDecode(raw));
+  }
+
+  /// Acknowledge only the uploaded revision; retain a full editable offline copy.
+  static Future<void> acknowledgeInspectionUpload(Map<String, dynamic> uploaded,
+      {String? serverRevision, String? serverInspectionId}) async {
     final db = await database;
     final id = uploaded['id']?.toString();
     if (id == null) return;
     await db.transaction((txn) async {
-      final inspectionId = uploaded['inspection_id']?.toString();
-      if (inspectionId != null && serverRevision != null) {
-        await txn.insert('sync_metadata', {'key':'inspection_revision:$inspectionId','value':serverRevision}, conflictAlgorithm: ConflictAlgorithm.replace);
+      final inspectionId =
+          serverInspectionId ?? uploaded['inspection_id']?.toString();
+      if (inspectionId != null) {
+        final snapshot = {
+          ...uploaded,
+          'inspection_id': inspectionId,
+          'source_revision': serverRevision
+        };
+        await txn.insert(
+            'sync_metadata',
+            {
+              'key': 'inspection_saved:$inspectionId',
+              'value': jsonEncode(snapshot)
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
+        if (uploaded['client_document_id'] != null) {
+          await txn.insert(
+              'sync_metadata',
+              {
+                'key':
+                    'inspection_document_server:${uploaded['client_document_id']}',
+                'value': inspectionId
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if ((uploaded['assignment_id'] ?? '').toString().isNotEmpty) {
+          await txn.insert(
+              'sync_metadata',
+              {
+                'key': 'inspection_scope:${inspectionScope(uploaded)}',
+                'value': inspectionId
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace);
+        }
       }
-      final rows = await txn.query('pending_inspections', where: 'id = ?', whereArgs: [id]);
-      if (rows.isNotEmpty) {
-        final current = jsonDecode(rows.first['data'] as String) as Map;
-        if (current['timestamp'] == uploaded['timestamp']) {
-          await txn.delete('pending_inspections', where: 'id = ?', whereArgs: [id]);
-        } else if (serverRevision != null && inspectionId != null && current['inspection_id'] == inspectionId && current['source_revision'] == uploaded['source_revision']) {
+      if (inspectionId != null && serverRevision != null) {
+        await txn.insert(
+            'sync_metadata',
+            {
+              'key': 'inspection_revision:$inspectionId',
+              'value': serverRevision
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      final rows = await txn.query('pending_inspections');
+      for (final row in rows) {
+        final current = jsonDecode(row['data'] as String) as Map;
+        final sameDocument = row['id'] == id ||
+            (uploaded['client_document_id'] != null &&
+                current['client_document_id'] ==
+                    uploaded['client_document_id']);
+        if (!sameDocument) continue;
+        if (row['id'] == id && current['timestamp'] == uploaded['timestamp']) {
+          await txn.delete('pending_inspections',
+              where: 'id = ?', whereArgs: [row['id']]);
+        } else if (serverRevision != null &&
+            inspectionId != null &&
+            current['source_revision'] == uploaded['source_revision']) {
+          current['inspection_id'] = inspectionId;
           current['source_revision'] = serverRevision;
-          await txn.update('pending_inspections', {'data':jsonEncode(current)}, where:'id = ?', whereArgs:[id]);
+          await txn.update('pending_inspections', {'data': jsonEncode(current)},
+              where: 'id = ?', whereArgs: [row['id']]);
         }
       }
       final sentAt = DateTime.tryParse(uploaded['timestamp']?.toString() ?? '');
       if (sentAt == null) return;
-      final drafts = await txn.query('drafts', where: 'screen_type = ?', whereArgs: ['inspection']);
-      final form = uploaded['data'] is Map ? uploaded['data']['report_form_id'] : null;
+      final drafts = await txn
+          .query('drafts', where: 'screen_type = ?', whereArgs: ['inspection']);
+      final form =
+          uploaded['data'] is Map ? uploaded['data']['report_form_id'] : null;
       for (final row in drafts) {
         final draft = jsonDecode(row['data'] as String) as Map;
         final savedAt = DateTime.tryParse(draft['saved_at']?.toString() ?? '');
-        final draftForm = draft['checklist_data'] is Map ? draft['checklist_data']['report_form_id'] : null;
-        if (savedAt != null && !savedAt.isAfter(sentAt) &&
+        final draftForm = draft['checklist_data'] is Map
+            ? draft['checklist_data']['report_form_id']
+            : null;
+        if (savedAt != null &&
+            !savedAt.isAfter(sentAt) &&
             draft['equipment_id'] == uploaded['equipment_id'] &&
-            (draft['inspection_id'] ?? '') == (uploaded['inspection_id'] ?? '') &&
-            (draft['assignment_id'] ?? '') == (uploaded['assignment_id'] ?? '') && form == draftForm) {
+            (draft['inspection_id'] ?? '') ==
+                (uploaded['inspection_id'] ?? '') &&
+            (draft['assignment_id'] ?? '') ==
+                (uploaded['assignment_id'] ?? '') &&
+            form == draftForm) {
           await txn.delete('drafts', where: 'id = ?', whereArgs: [row['id']]);
-        } else if (inspectionId != null && serverRevision != null && draft['inspection_id'] == inspectionId && draft['source_revision'] == uploaded['source_revision']) {
+        } else if (inspectionId != null &&
+            serverRevision != null &&
+            (draft['inspection_id'] ?? '') ==
+                (uploaded['inspection_id'] ?? '') &&
+            draft['equipment_id'] == uploaded['equipment_id'] &&
+            (draft['assignment_id'] ?? '') ==
+                (uploaded['assignment_id'] ?? '') &&
+            form == draftForm &&
+            draft['source_revision'] == uploaded['source_revision']) {
+          draft['inspection_id'] = inspectionId;
           draft['source_revision'] = serverRevision;
-          await txn.update('drafts', {'data':jsonEncode(draft)}, where:'id = ?', whereArgs:[row['id']]);
+          await txn.update('drafts', {'data': jsonEncode(draft)},
+              where: 'id = ?', whereArgs: [row['id']]);
         }
       }
     });
@@ -559,19 +704,23 @@ class DatabaseService {
     );
   }
 
-  static Future<void> recordInspectionSyncError(Map<String, dynamic> uploaded, String message) async {
+  static Future<void> recordInspectionSyncError(
+      Map<String, dynamic> uploaded, String message) async {
     final db = await database;
     final id = uploaded['id']?.toString();
     if (id == null) return;
     await db.transaction((txn) async {
-      final rows = await txn.query('pending_inspections', where: 'id = ?', whereArgs: [id]);
+      final rows = await txn
+          .query('pending_inspections', where: 'id = ?', whereArgs: [id]);
       if (rows.isEmpty) return;
-      final current = jsonDecode(rows.first['data'] as String) as Map<String, dynamic>;
+      final current =
+          jsonDecode(rows.first['data'] as String) as Map<String, dynamic>;
       if (current['timestamp'] != uploaded['timestamp']) return;
       current['sync_error'] = message;
       current['sync_attempted_at'] = DateTime.now().toUtc().toIso8601String();
       current['sync_attempts'] = (current['sync_attempts'] as int? ?? 0) + 1;
-      await txn.update('pending_inspections', {'data': jsonEncode(current)}, where: 'id = ?', whereArgs: [id]);
+      await txn.update('pending_inspections', {'data': jsonEncode(current)},
+          where: 'id = ?', whereArgs: [id]);
     });
   }
 
@@ -599,7 +748,9 @@ class DatabaseService {
     final now = DateTime.now().toUtc().toIso8601String();
 
     for (var e in engineers) {
-      final map = e is Map<String, dynamic> ? e : (e as dynamic).toJson() as Map<String, dynamic>;
+      final map = e is Map<String, dynamic>
+          ? e
+          : (e as dynamic).toJson() as Map<String, dynamic>;
       final id = map['id']?.toString() ?? '';
       if (id.isEmpty) continue;
       batch.insert(
@@ -631,7 +782,9 @@ class DatabaseService {
     final now = DateTime.now().toUtc().toIso8601String();
 
     for (var e in equipment) {
-      final map = e is Map<String, dynamic> ? e : (e as dynamic).toJson() as Map<String, dynamic>;
+      final map = e is Map<String, dynamic>
+          ? e
+          : (e as dynamic).toJson() as Map<String, dynamic>;
       final id = map['id']?.toString() ?? '';
       if (id.isEmpty) continue;
       batch.insert(
@@ -663,7 +816,9 @@ class DatabaseService {
     final now = DateTime.now().toUtc().toIso8601String();
 
     for (var o in opos) {
-      final map = o is Map<String, dynamic> ? o : (o as dynamic).toJson() as Map<String, dynamic>;
+      final map = o is Map<String, dynamic>
+          ? o
+          : (o as dynamic).toJson() as Map<String, dynamic>;
       final id = map['id']?.toString() ?? '';
       if (id.isEmpty) continue;
       batch.insert(
@@ -689,7 +844,8 @@ class DatabaseService {
   }
 
   // OPO Surveys (pending offline)
-  static Future<void> saveOpoSurvey(String opoId, Map<String, dynamic> data) async {
+  static Future<void> saveOpoSurvey(
+      String opoId, Map<String, dynamic> data) async {
     final db = await database;
     await db.insert(
       'opo_surveys',
@@ -725,7 +881,8 @@ class DatabaseService {
   }
 
   // Drafts (auto-save)
-  static Future<void> saveDraft(String id, String screenType, Map<String, dynamic> data) async {
+  static Future<void> saveDraft(
+      String id, String screenType, Map<String, dynamic> data) async {
     final db = await database;
     await db.insert(
       'drafts',
@@ -770,7 +927,8 @@ class DatabaseService {
     await db.delete('drafts');
   }
 
-  static Future<void> clearOldDrafts({Duration maxAge = const Duration(days: 30)}) async {
+  static Future<void> clearOldDrafts(
+      {Duration maxAge = const Duration(days: 30)}) async {
     final db = await database;
     final cutoff = DateTime.now().subtract(maxAge).toUtc().toIso8601String();
     await db.delete('drafts', where: 'updated_at < ?', whereArgs: [cutoff]);
@@ -804,7 +962,8 @@ class DatabaseService {
 
   static Future<Map<String, dynamic>?> getDrawingTemplate(String id) async {
     final db = await database;
-    final rows = await db.query('drawing_templates', where: 'id = ?', whereArgs: [id]);
+    final rows =
+        await db.query('drawing_templates', where: 'id = ?', whereArgs: [id]);
     if (rows.isEmpty) return null;
     final r = rows.first;
     return {
@@ -849,29 +1008,34 @@ class DatabaseService {
       whereArgs: args,
       orderBy: 'updated_at DESC',
     );
-    return rows.map((r) => {
-          'id': r['id'],
-          'data': r['data'],
-          'version': r['version'],
-          'local_image_path': r['local_image_path'],
-          'equipment_id': r['equipment_id'],
-          'equipment_type_id': r['equipment_type_id'],
-          'updated_at': r['updated_at'],
-        }).toList();
+    return rows
+        .map((r) => {
+              'id': r['id'],
+              'data': r['data'],
+              'version': r['version'],
+              'local_image_path': r['local_image_path'],
+              'equipment_id': r['equipment_id'],
+              'equipment_type_id': r['equipment_type_id'],
+              'updated_at': r['updated_at'],
+            })
+        .toList();
   }
 
   static Future<List<Map<String, dynamic>>> getAllDrawingTemplates() async {
     final db = await database;
-    final rows = await db.query('drawing_templates', orderBy: 'updated_at DESC');
-    return rows.map((r) => {
-          'id': r['id'],
-          'data': r['data'],
-          'version': r['version'],
-          'local_image_path': r['local_image_path'],
-          'equipment_id': r['equipment_id'],
-          'equipment_type_id': r['equipment_type_id'],
-          'updated_at': r['updated_at'],
-        }).toList();
+    final rows =
+        await db.query('drawing_templates', orderBy: 'updated_at DESC');
+    return rows
+        .map((r) => {
+              'id': r['id'],
+              'data': r['data'],
+              'version': r['version'],
+              'local_image_path': r['local_image_path'],
+              'equipment_id': r['equipment_id'],
+              'equipment_type_id': r['equipment_type_id'],
+              'updated_at': r['updated_at'],
+            })
+        .toList();
   }
 
   static Future<void> deleteDrawingTemplate(String id) async {

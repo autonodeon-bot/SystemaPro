@@ -25,6 +25,7 @@ const InspectionsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [archiveState, setArchiveState] = useState<'active'|'archived'|'all'>('active');
   const [selectedInspectionType, setSelectedInspectionType] = useState<string>('all');
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
@@ -78,7 +79,7 @@ const InspectionsList = () => {
 
   useEffect(() => {
     loadInspections();
-  }, [selectedEquipment, selectedStatus, selectedInspectionType, selectedEnterpriseId, selectedBranchId, selectedWorkshopId]);
+  }, [selectedEquipment, selectedStatus, selectedInspectionType, selectedEnterpriseId, selectedBranchId, selectedWorkshopId, archiveState]);
 
   useEffect(() => {
     if (selectedEnterpriseId) {
@@ -150,7 +151,7 @@ const InspectionsList = () => {
   const loadInspections = async () => {
     setLoading(true);
     try {
-      let url = `${API_BASE}/api/inspections?limit=1000`;
+      let url = `${API_BASE}/api/inspections?limit=1000&archive_state=${archiveState}`;
       if (selectedEquipment !== 'all') {
         url += `&equipment_id=${selectedEquipment}`;
       } else if (selectedWorkshopId) {
@@ -319,7 +320,8 @@ const InspectionsList = () => {
       alert('Выберите чек-листы для архивирования');
       return;
     }
-    const confirm = window.confirm(`Отправить ${selectedInspections.size} выбранных чек-листов в архив?`);
+    const archive = archiveState !== 'archived';
+    const confirm = window.confirm(`${archive ? 'Отправить в архив' : 'Вернуть из архива'} ${selectedInspections.size} выбранных обследований? Данные и файлы сохраняются.`);
     if (!confirm) return;
 
     setIsProcessing(true);
@@ -331,7 +333,7 @@ const InspectionsList = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ inspection_ids: Array.from(selectedInspections), archive: true }),
+        body: JSON.stringify({ inspection_ids: Array.from(selectedInspections), archive }),
       });
 
       if (!response.ok) {
@@ -347,7 +349,7 @@ const InspectionsList = () => {
       }
 
       const data = await response.json();
-      alert(`Отправлено в архив: ${data.archived} из ${data.total} чек-листов`);
+      alert(`${archive ? 'Отправлено в архив' : 'Восстановлено'}: ${data.archived} из ${data.total} обследований`);
       setSelectedInspections(new Set());
       await loadInspections();
     } catch (e) {
@@ -564,7 +566,18 @@ const InspectionsList = () => {
         </div>
       </div>
 
+      <label className="flex flex-wrap items-center gap-3 text-app-text">
+        Показывать обследования
+        <select aria-label="Показывать обследования" value={archiveState}
+          onChange={(event)=>{setArchiveState(event.target.value as typeof archiveState);setSelectedInspections(new Set());}}
+          className="bg-app-panel border border-app-line rounded-lg px-3 py-2 max-w-full">
+          <option value="active">Действующие</option>
+          <option value="archived">Архив</option>
+          <option value="all">Все, включая архив</option>
+        </select>
+      </label>
       <InspectionsFiltersBar
+        archiveActionLabel={archiveState === 'archived' ? 'Вернуть из архива' : 'Отправить в архив'}
         selectedCount={selectedInspections.size}
         isProcessing={isProcessing}
         onBulkArchive={handleBulkArchive}

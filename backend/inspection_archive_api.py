@@ -21,7 +21,7 @@ from models import (
 from inspection_utils import create_ndt_methods_from_mobile, update_equipment_attributes_from_inspection
 from standalone_protocols_api import assert_mandatory_standalone_protocol_uploaded
 from auth import verify_token
-from archive_integrity import verify_inspection_archive, archive_upload_identity
+from archive_integrity import verify_inspection_archive, archive_upload_identity, archive_document_identity
 from inspection_edit_guard import assert_mobile_edit_allowed, inspection_revision
 import mimetypes
 from typing import Optional
@@ -130,15 +130,43 @@ async def upload_inspection_archive(
             await db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': lock_key})
             existing = await db.get(Inspection, upload_id)
             if existing is not None:
+                if existing.is_deleted or existing.is_archived:
+                    raise HTTPException(409, 'Обследование находится в архиве. Откройте актуальную версию задания; локальные данные сохранены')
                 response = {'id': str(existing.id), 'equipment_id': str(existing.equipment_id),
                     'questionnaire_id': str(existing.questionnaire_id) if existing.questionnaire_id else None,
                     'status': 'already_received',
-                    'date_performed': existing.date_performed.isoformat() if existing.date_performed else None}
+                    'date_performed': existing.date_performed.isoformat() if existing.date_performed else None,
+                    'revision': inspection_revision(existing)}
                 await db.rollback()
                 return response
             target = None
             previous_questionnaire_id = None
             source_id = checklist_payload.get("inspection_id") or manifest.get("inspection_id")
+            client_document_id = checklist_payload.get('client_document_id') or manifest.get('client_document_id')
+            document_id = archive_document_identity(client_document_id, created_by_id) if client_document_id else upload_id
+            if not source_id:
+                # Old clients must reopen the existing assignment record before
+                # replacing its full data, rather than creating autosave copies.
+                aid = inspection_data.get('assignment_id')
+                if aid:
+                    form = data_clean.get('report_form_id') or ''
+                    scope_id = uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, f'{created_by_id}:{equipment_id}:{aid}:{form}')
+                    await db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {
+                        'key': int.from_bytes(scope_id.bytes[:8], 'big', signed=True)})
+                    known = (await db.execute(select(Inspection.id).where(
+                        Inspection.assignment_id == uuid_lib.UUID(str(aid)),
+                        Inspection.equipment_id == equipment_id,
+                        Inspection.created_by == created_by_id,
+                        Inspection.is_deleted == False, Inspection.is_archived == False,
+                        Inspection.data['report_form_id'].astext == form,
+                    ).limit(1))).scalar_one_or_none()
+                    if known is not None and known != document_id:
+                        raise HTTPException(409, 'Обследование этого задания уже сохранено. Обновите приложение и откройте задание повторно: данные на сервере сохранены')
+                if client_document_id:
+                    await db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {
+                        'key': int.from_bytes(document_id.bytes[:8], 'big', signed=True)})
+                    if await db.get(Inspection, document_id) is not None:
+                        source_id = str(document_id)
             if source_id:
                 target_id = uuid_lib.UUID(str(source_id))
                 await db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {
@@ -146,7 +174,7 @@ async def upload_inspection_archive(
                 receipt = await db.get(AuditLog, upload_id)
                 if receipt is not None and receipt.entity_id == target_id:
                     received = await db.get(Inspection, target_id)
-                    if received is None or received.is_deleted or received.equipment_id != equipment_id:
+                    if received is None or received.is_deleted or received.is_archived or received.equipment_id != equipment_id:
                         raise HTTPException(409, 'Обследование после загрузки удалено или недоступно; локальный черновик сохранён')
                     revision = inspection_revision(received)
                     await db.rollback()
@@ -161,6 +189,7 @@ async def upload_inspection_archive(
                 previous = _json.loads(_json.dumps(target.data or {}))
                 db.add(AuditLog(id=upload_id, user_id=created_by_id, action='UPDATE', entity_type='inspection', entity_id=target_id,
                     details={'source': 'mobile_edit', 'previous_data': previous,
+                        'previous_status': target.status,
                         'previous_questionnaire_id': str(target.questionnaire_id) if target.questionnaire_id else None,
                         'previous_revision': inspection_revision(target)}))
                 if target.questionnaire_id:
@@ -198,7 +227,7 @@ async def upload_inspection_archive(
                 if _asg_gate:
                     await assert_mandatory_standalone_protocol_uploaded(db, _asg_gate)
             new_inspection = target or Inspection(
-                id=upload_id,
+                id=document_id,
                 equipment_id=equipment_id,
                 project_id=project_id,
                 assignment_id=assignment_id_parsed,
@@ -213,6 +242,10 @@ async def upload_inspection_archive(
             )
             if target is None:
                 db.add(new_inspection)
+                if client_document_id:
+                    db.add(AuditLog(id=upload_id, user_id=created_by_id, action='CREATE',
+                        entity_type='inspection',entity_id=document_id,
+                        details={'source':'mobile_upload','client_document_id':str(client_document_id)}))
             else:
                 new_inspection.data = inspection_data.get('data', {})
                 new_inspection.conclusion = inspection_data.get('conclusion')

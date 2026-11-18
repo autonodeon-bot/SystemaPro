@@ -30,13 +30,19 @@ def test_stale_or_missing_revision_is_retained_as_local_conflict(state, revision
     assert error.value.status_code == 409
 
 
-@pytest.mark.parametrize('status', ['SIGNED', 'APPROVED', 'COMPLETED'])
+@pytest.mark.parametrize('status', ['APPROVED', 'COMPLETED'])
 def test_non_drafts_cannot_be_overwritten(state, status):
     inspection, equipment, user = state
     inspection.status = status
     with pytest.raises(HTTPException) as error:
         assert_mobile_edit_allowed(inspection, equipment, user, inspection_revision(inspection))
     assert error.value.status_code == 409
+
+
+def test_completed_mobile_checklist_can_be_corrected_with_current_revision(state):
+    inspection, equipment, user = state
+    inspection.status = 'SIGNED'
+    assert_mobile_edit_allowed(inspection, equipment, user, inspection_revision(inspection))
 
 
 def test_other_engineer_cannot_edit_inspection(state):

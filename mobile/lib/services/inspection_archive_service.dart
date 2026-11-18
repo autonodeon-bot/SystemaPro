@@ -20,15 +20,21 @@ class InspectionArchiveService {
   }) async {
     final archive = Archive();
     final data = inspectionData['data'] as Map<String, dynamic>? ?? {};
-    final documentFiles = inspectionData['document_files'] as Map<String, dynamic>? ?? {};
+    final documentFiles =
+        inspectionData['document_files'] as Map<String, dynamic>? ?? {};
 
     // Собираем путь -> имя в архиве
     final pathToArcName = <String, String>{};
     void addPath(String? filePath, String archiveName) {
       if (filePath == null || filePath.trim().isEmpty) return;
       final f = File(filePath);
-      if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('/api/') || filePath.startsWith('/app/')) return;
-      if (!f.existsSync()) throw Exception('Не найдено вложение: ${path.basename(filePath)}. Восстановите файл перед отправкой.');
+      if (filePath.startsWith('http://') ||
+          filePath.startsWith('https://') ||
+          filePath.startsWith('/api/') ||
+          filePath.startsWith('/app/')) return;
+      if (!f.existsSync())
+        throw Exception(
+            'Не найдено вложение: ${path.basename(filePath)}. Восстановите файл перед отправкой.');
       final extension = path.extension(filePath).toLowerCase();
       if (pathToArcName.containsKey(filePath)) return;
       final stem = path.basenameWithoutExtension(archiveName);
@@ -94,7 +100,8 @@ class InspectionArchiveService {
     // Include every attached document, including PDF and equipment-specific protocols.
     for (final entry in documentFiles.entries) {
       final value = entry.value;
-      final filePath = value is Map ? value['file_path']?.toString() : value?.toString();
+      final filePath =
+          value is Map ? value['file_path']?.toString() : value?.toString();
       if (filePath != null && !pathToArcName.containsKey(filePath)) {
         final key = entry.key.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
         addPath(filePath, 'doc_$key.jpg');
@@ -104,9 +111,12 @@ class InspectionArchiveService {
     // Resize JPEG only; retain the real format of PDF, PNG and other attachments.
     for (final entry in pathToArcName.entries) {
       final extension = path.extension(entry.key).toLowerCase();
-      final resized = ['.jpg', '.jpeg'].contains(extension) ? await ImageResizeService.resizeIfNeeded(entry.key) : entry.key;
+      final resized = ['.jpg', '.jpeg'].contains(extension)
+          ? await ImageResizeService.resizeIfNeeded(entry.key)
+          : entry.key;
       final bytes = await File(resized).readAsBytes();
-      archive.addFile(ArchiveFile('$photosDir/${entry.value}', bytes.length, bytes));
+      archive.addFile(
+          ArchiveFile('$photosDir/${entry.value}', bytes.length, bytes));
       checksums['$photosDir/${entry.value}'] = sha256.convert(bytes).toString();
     }
 
@@ -117,9 +127,12 @@ class InspectionArchiveService {
       final name = pathToArcName[pathVal];
       if (name != null) dataCopy[key] = '$photosDir/$name';
     }
+
     replacePath('factory_plate_photo', data['factory_plate_photo'] as String?);
-    replacePath('control_scheme_image', data['control_scheme_image'] as String?);
-    replacePath('connection_scheme_file', data['connection_scheme_file'] as String?);
+    replacePath(
+        'control_scheme_image', data['control_scheme_image'] as String?);
+    replacePath(
+        'connection_scheme_file', data['connection_scheme_file'] as String?);
     if (dataCopy['additional_data'] is Map) {
       final ad = Map<String, dynamic>.from(dataCopy['additional_data'] as Map);
       final objectPhotosRaw = ad['object_photos'];
@@ -136,7 +149,9 @@ class InspectionArchiveService {
       }
     }
     if (dataCopy['visual_defects'] is List) {
-      final vdList = List<Map<String, dynamic>>.from((dataCopy['visual_defects'] as List).map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{}));
+      final vdList = List<Map<String, dynamic>>.from(
+          (dataCopy['visual_defects'] as List).map((e) =>
+              e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{}));
       for (var i = 0; i < vdList.length; i++) {
         final photos = vdList[i]['photos'] as List? ?? [];
         final newPhotos = <String>[];
@@ -150,9 +165,11 @@ class InspectionArchiveService {
       dataCopy['visual_defects'] = vdList;
     }
     // Заменяем пути фото в thickness_measurements на имена в архиве
-    final tm = dataCopy['thickness_measurements'] ?? dataCopy['thicknessMeasurements'];
+    final tm =
+        dataCopy['thickness_measurements'] ?? dataCopy['thicknessMeasurements'];
     if (tm is List) {
-      final tmList = List<Map<String, dynamic>>.from(tm.map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{}));
+      final tmList = List<Map<String, dynamic>>.from(tm.map((e) =>
+          e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{}));
       for (var i = 0; i < tmList.length; i++) {
         final photos = tmList[i]['photos'] as List? ?? [];
         final newPhotos = <String>[];
@@ -167,24 +184,31 @@ class InspectionArchiveService {
     }
     // 1) Manifest
     final manifest = {
+      'client_document_id': inspectionData['client_document_id'],
       'inspection_id': inspectionData['inspection_id'],
       'source_revision': inspectionData['source_revision'],
-      'client_revision': '${inspectionData['id'] ?? ''}|${inspectionData['timestamp'] ?? ''}',
+      'client_revision':
+          '${inspectionData['id'] ?? ''}|${inspectionData['timestamp'] ?? ''}',
       'equipment_id': inspectionData['equipment_id'],
       'assignment_id': inspectionData['assignment_id'],
       'status': inspectionData['status'] ?? 'DRAFT',
       'date_performed': inspectionData['date_performed'],
       'conclusion': inspectionData['conclusion'],
-      'verification_equipment_ids': inspectionData['verification_equipment_ids'] ?? [],
+      'verification_equipment_ids':
+          inspectionData['verification_equipment_ids'] ?? [],
     };
     // 2) Checklist
     dynamic replaceAllPaths(dynamic value) {
-      if (value is Map) return value.map((key, item) => MapEntry(key, replaceAllPaths(item)));
+      if (value is Map)
+        return value.map((key, item) => MapEntry(key, replaceAllPaths(item)));
       if (value is List) return value.map(replaceAllPaths).toList();
-      if (value is String && pathToArcName.containsKey(value)) return '$photosDir/${pathToArcName[value]}';
+      if (value is String && pathToArcName.containsKey(value))
+        return '$photosDir/${pathToArcName[value]}';
       return value;
     }
+
     final checklistPayload = {
+      'client_document_id': inspectionData['client_document_id'],
       'inspection_id': inspectionData['inspection_id'],
       'source_revision': inspectionData['source_revision'],
       'data': replaceAllPaths(dataCopy),
@@ -193,21 +217,25 @@ class InspectionArchiveService {
       'status': inspectionData['status'],
       'date_performed': inspectionData['date_performed'],
       'assignment_id': inspectionData['assignment_id'],
-      'verification_equipment_ids': inspectionData['verification_equipment_ids'] ?? [],
+      'verification_equipment_ids':
+          inspectionData['verification_equipment_ids'] ?? [],
     };
     final checklistBytes = utf8.encode(json.encode(checklistPayload));
-    archive.addFile(ArchiveFile(checklistName, checklistBytes.length, checklistBytes));
+    archive.addFile(
+        ArchiveFile(checklistName, checklistBytes.length, checklistBytes));
     checksums[checklistName] = sha256.convert(checklistBytes).toString();
     manifest['version'] = 2;
     manifest['checksums'] = checksums;
     final manifestBytes = utf8.encode(json.encode(manifest));
-    archive.addFile(ArchiveFile(manifestName, manifestBytes.length, manifestBytes));
+    archive.addFile(
+        ArchiveFile(manifestName, manifestBytes.length, manifestBytes));
 
     final zipBytes = ZipEncoder().encode(archive);
     if (zipBytes == null) throw Exception('Не удалось создать архив');
 
     final dir = await getTemporaryDirectory();
-    final zipPath = path.join(dir.path, 'inspection_${DateTime.now().millisecondsSinceEpoch}.zip');
+    final zipPath = path.join(
+        dir.path, 'inspection_${DateTime.now().millisecondsSinceEpoch}.zip');
     await File(zipPath).writeAsBytes(zipBytes, flush: true);
     return zipPath;
   }

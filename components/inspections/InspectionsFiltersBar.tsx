@@ -8,6 +8,7 @@ interface InspectionsFiltersBarProps {
   selectedCount: number;
   isProcessing: boolean;
   onBulkArchive: () => void;
+  archiveActionLabel?: string;
   onBulkDelete: () => void;
   onClearSelection: () => void;
   searchTerm: string;
@@ -40,6 +41,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
   selectedCount,
   isProcessing,
   onBulkArchive,
+  archiveActionLabel = 'Отправить в архив',
   onBulkDelete,
   onClearSelection,
   searchTerm,
@@ -78,7 +80,7 @@ const InspectionsFiltersBar: React.FC<InspectionsFiltersBarProps> = ({
             disabled={isProcessing}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
           >
-            Отправить в архив
+            {archiveActionLabel}
           </button>
           <button
             type="button"

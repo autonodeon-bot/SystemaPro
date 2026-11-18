@@ -54,7 +54,8 @@ final appRouter = GoRouter(
           return Scaffold(
             appBar: AppBar(title: const Text('Ошибка')),
             body: const Center(
-              child: Text('Не удалось открыть обследование: данные оборудования не переданы'),
+              child: Text(
+                  'Не удалось открыть обследование: данные оборудования не переданы'),
             ),
           );
         }
@@ -62,9 +63,11 @@ final appRouter = GoRouter(
           equipment: equipment,
           assignmentId: extra['assignmentId'] as String?,
           existingInspectionId: extra['existingInspectionId'] as String?,
+          sourceRevision: extra['sourceRevision'] as String?,
           inspectionType: extra['inspectionType'] as String?,
           reportFormId: extra['reportFormId'] as String?,
-          initialChecklistJson: extra['initialChecklistJson'] as Map<String, dynamic>?,
+          initialChecklistJson:
+              extra['initialChecklistJson'] as Map<String, dynamic>?,
         );
       },
     ),
@@ -192,7 +195,8 @@ final appRouter = GoRouter(
         return DrawingAnnotationScreen(
           template: extra['template'] as DrawingTemplate,
           equipmentName: extra['equipmentName'] as String?,
-          existingMeasurements: extra['existingMeasurements'] as Map<String, double>?,
+          existingMeasurements:
+              extra['existingMeasurements'] as Map<String, double>?,
         );
       },
     ),

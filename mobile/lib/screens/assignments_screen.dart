@@ -32,7 +32,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   static const String _prefsFilterStatus = 'assignments_filter_status';
   static const String _prefsFilterSort = 'assignments_filter_sort';
   static const String _prefsFilterAsc = 'assignments_filter_asc';
-  static const String _prefsFilterAssignmentType = 'assignments_filter_assignment_type';
+  static const String _prefsFilterAssignmentType =
+      'assignments_filter_assignment_type';
   static const String _prefsFilterSearch = 'assignments_filter_search';
   static const String _prefsViewMode = 'assignments_view_mode_v2';
   static const String _prefsShowOverdueOnly = 'assignments_filter_overdue';
@@ -137,7 +138,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       await prefs.setString(_prefsFilterStatus, _selectedStatus);
       await prefs.setString(_prefsFilterSort, _selectedSort);
       await prefs.setBool(_prefsFilterAsc, _sortAscending);
-      await prefs.setString(_prefsFilterAssignmentType, _selectedAssignmentType);
+      await prefs.setString(
+          _prefsFilterAssignmentType, _selectedAssignmentType);
       await prefs.setString(_prefsFilterSearch, _searchQuery);
       await prefs.setString(_prefsViewMode, _viewMode);
       await prefs.setBool(_prefsShowOverdueOnly, _showOverdueOnly);
@@ -202,7 +204,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
     });
   }
 
-  Future<_AssignmentEntryChoice?> _promptAssignmentEntry(Assignment assignment) async {
+  Future<_AssignmentEntryChoice?> _promptAssignmentEntry(
+      Assignment assignment) async {
     final name = assignment.protocolTemplateName;
     return showDialog<_AssignmentEntryChoice>(
       context: context,
@@ -246,8 +249,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (ctx) =>
-              const Center(child: CircularProgressIndicator()),
+          builder: (ctx) => const Center(child: CircularProgressIndicator()),
         );
       }
       final raw = await _apiService.getProtocolTemplateById(tid);
@@ -330,7 +332,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Сессия истекла или токен недействителен. Войдите заново.'),
+            content: Text(
+                'Сессия истекла или токен недействителен. Войдите заново.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -446,7 +449,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
 
       for (var assignment in assignments) {
         try {
-          final equipment = await _apiService.getAssignmentEquipment(assignment.id);
+          final equipment =
+              await _apiService.getAssignmentEquipment(assignment.id);
           await _syncService.saveEquipmentOffline([equipment]);
         } catch (e) {}
       }
@@ -478,7 +482,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Сессия истекла или токен недействителен. Войдите заново.'),
+            content: Text(
+                'Сессия истекла или токен недействителен. Войдите заново.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -499,7 +504,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
     }
   }
 
-  Future<void> _refreshLocalInspectionState(List<Assignment> assignments) async {
+  Future<void> _refreshLocalInspectionState(
+      List<Assignment> assignments) async {
     try {
       final ids = assignments.map((a) => a.id).toList();
       final st = await _syncService.getLocalAssignmentInspectionState(ids);
@@ -584,7 +590,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       filtered = filtered.where((a) => a.status == _selectedStatus).toList();
     }
     if (_selectedAssignmentType != 'all') {
-      filtered = filtered.where((a) => a.assignmentType == _selectedAssignmentType).toList();
+      filtered = filtered
+          .where((a) => a.assignmentType == _selectedAssignmentType)
+          .toList();
     }
 
     if (_searchQuery.isNotEmpty) {
@@ -659,7 +667,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
               msg.contains('failed host lookup')) {
             final offlineList = await _syncService.getOfflineEquipment();
             try {
-              equipment = offlineList.firstWhere((e) => e.id == assignment.equipmentId);
+              equipment =
+                  offlineList.firstWhere((e) => e.id == assignment.equipmentId);
             } catch (_) {
               equipment = null;
             }
@@ -687,7 +696,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
             for (var insp in inspections) {
               final data = insp['data'] as Map<String, dynamic>?;
               if (data != null) {
-                final assignmentIdInData = data['assignment_id'] as String?;
+                final assignmentIdInData =
+                    (insp['assignment_id'] ?? data['assignment_id'])
+                        ?.toString();
                 if (assignmentIdInData == assignment.id) {
                   existingInspection = insp;
                   break;
@@ -773,7 +784,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
 
       try {
         if (assignment.status != 'COMPLETED') {
-          await _apiService.updateAssignmentStatus(assignment.id, 'IN_PROGRESS');
+          await _apiService.updateAssignmentStatus(
+              assignment.id, 'IN_PROGRESS');
         }
         equipment = await _apiService.getAssignmentEquipment(assignment.id);
         if (equipment.id.isNotEmpty) {
@@ -792,7 +804,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
         if (isNetworkError || isOfflineNoToken) {
           final offlineList = await _syncService.getOfflineEquipment();
           try {
-            equipment = offlineList.firstWhere((e) => e.id == assignment.equipmentId);
+            equipment =
+                offlineList.firstWhere((e) => e.id == assignment.equipmentId);
           } catch (_) {
             equipment = null;
           }
@@ -949,7 +962,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
   @override
   Widget build(BuildContext context) {
     final pending = _assignments.where((a) => a.status == 'PENDING').length;
-    final inProgress = _assignments.where((a) => a.status == 'IN_PROGRESS').length;
+    final inProgress =
+        _assignments.where((a) => a.status == 'IN_PROGRESS').length;
     final completed = _assignments.where((a) => a.status == 'COMPLETED').length;
     final counts = [_assignments.length, pending, inProgress, completed];
     final overdueCount = _assignments.where((a) {
@@ -1010,17 +1024,22 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Поиск по коду, названию, предприятию…',
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 13),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                    hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 13),
+                    prefixIcon: const Icon(Icons.search,
+                        color: Colors.white38, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white38, size: 18),
+                            icon: const Icon(Icons.close,
+                                color: Colors.white38, size: 18),
                             onPressed: _onClearSearch,
                           )
                         : null,
                     filled: true,
                     fillColor: AppColors.darkSurface,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: const BorderSide(color: AppColors.darkBorder),
@@ -1047,7 +1066,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
                 indicatorSize: TabBarIndicatorSize.label,
                 indicatorWeight: 2,
                 dividerColor: AppColors.darkBorder,
-                labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                labelStyle:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 12),
                 tabs: List.generate(_tabs.length, (i) {
                   final tab = _tabs[i];
@@ -1070,7 +1090,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
                         if (cnt > 0) ...[
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: AppColors.darkBorder,
                               borderRadius: BorderRadius.circular(8),
@@ -1094,7 +1115,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           ),
         ),
         actions: [
-          IconButton(tooltip: 'Сбросить фильтры', icon: const Icon(Icons.filter_alt_off_outlined), onPressed: _resetFilters),
+          IconButton(
+              tooltip: 'Сбросить фильтры',
+              icon: const Icon(Icons.filter_alt_off_outlined),
+              onPressed: _resetFilters),
           // Переключатель вида списка
           PopupMenuButton<String>(
             icon: Icon(
@@ -1114,8 +1138,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
               _viewModeItem(
                   'enterprise', 'По предприятиям', Icons.business_outlined),
               _viewModeItem('opo', 'По ОПО', Icons.dangerous_outlined),
-              _viewModeItem(
-                  'week', 'По неделям срока', Icons.calendar_view_week_outlined),
+              _viewModeItem('week', 'По неделям срока',
+                  Icons.calendar_view_week_outlined),
             ],
           ),
           // Быстрая сортировка
@@ -1127,7 +1151,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
               _sortItem('due_date', 'По сроку', Icons.calendar_today_outlined),
               _sortItem('priority', 'По приоритету', Icons.flag_outlined),
               _sortItem('created_at', 'По дате создания', Icons.access_time),
-              _sortItem('equipment_name', 'По оборудованию', Icons.precision_manufacturing_outlined),
+              _sortItem('equipment_name', 'По оборудованию',
+                  Icons.precision_manufacturing_outlined),
             ],
             onSelected: (v) {
               if (_selectedSort == v) {
@@ -1151,7 +1176,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.accent),
                     ),
                   )
                 : const Icon(Icons.sync, size: 20),
@@ -1345,7 +1371,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
       value: value,
       child: Row(
         children: [
-          Icon(icon, size: 16, color: selected ? AppColors.accent : AppColors.textSecondary),
+          Icon(icon,
+              size: 16,
+              color: selected ? AppColors.accent : AppColors.textSecondary),
           const SizedBox(width: 10),
           Text(
             label,
@@ -1397,7 +1425,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen>
           const SizedBox(height: 6),
           const Text(
             'Нажмите иконку синхронизации вверху,\nчтобы загрузить задания с сервера',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
+            style: TextStyle(
+                color: AppColors.textSecondary, fontSize: 12, height: 1.5),
             textAlign: TextAlign.center,
           ),
         ],
