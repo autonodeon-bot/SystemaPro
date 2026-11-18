@@ -34,6 +34,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx configuration
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
+# The custom config already defines its listeners. Skip the stock check,
+# which can contact Alpine repositories and delay nginx startup.
+RUN chmod -x /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+
 # Expose ports 80 and 443
 EXPOSE 80 443
 
