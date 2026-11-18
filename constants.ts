@@ -273,7 +273,7 @@ export const API_BASE = import.meta.env.DEV && _envApiBase != null
   : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.7.42';
+export const APP_VERSION = '3.7.43';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -303,6 +303,8 @@ export const RELEASE_NOTES_DATE = '18.11.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Приложение 3.7.43+86: переходы между страницами последовательно сохраняют все введённые значения.',
+  'Проверены все 8 разделов, быстрые переходы при медленном хранилище и восстановление после повторного открытия.',
   'Синхронизация обновляет одно обследование: повторные отправки и подпись не создают дубли.',
   'Приложение 3.7.42+85 повторно открывает полные данные задания; после отправки сохраняется офлайн-копия.',
   'Исправлены перечень документов, оглавление и адрес в отчёте; в списке обследований доступен восстанавливаемый архив.',
@@ -348,8 +350,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.7.42';
-export const MOBILE_APP_BUILD = '85';
+export const MOBILE_APP_VERSION = '3.7.43';
+export const MOBILE_APP_BUILD = '86';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

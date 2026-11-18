@@ -307,6 +307,7 @@ class InspectionPassportSection extends StatelessWidget {
       color: const Color(0xFF1E2A38),
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
+        key: PageStorageKey('passport_table_$title'),
         title:
             Text(title, style: TextStyle(color: AppColors.onSurface(context))),
         trailing: IconButton(

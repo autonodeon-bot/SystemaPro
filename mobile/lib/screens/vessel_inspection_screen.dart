@@ -108,6 +108,10 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
   bool _isSubmitting = false;
   bool _hasUnsavedChanges = false;
   bool _isAutoSaving = false;
+  Future<bool>? _autoSaveInFlight;
+  bool _autoSaveRequested = false;
+  bool _forceAutoSaveRequested = false;
+  bool _lastAutoSaveFailed = false;
   bool _isInitializing = true;
   String? _loadFailure;
   String? _sourceRevision;
@@ -748,11 +752,40 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
     _checklist.additionalData!['current_page'] = _currentPage;
   }
 
-  Future<bool> _autoSaveDraft({bool force = false}) async {
-    if (_isInitializing || _loadFailure != null) return false;
-    if (_isAutoSaving) return false;
-    if (!force && !_hasUnsavedChanges) return true;
+  Future<bool> _autoSaveDraft({bool force = false}) {
+    if (_isInitializing || _loadFailure != null) return Future.value(false);
+    _autoSaveRequested = true;
+    _forceAutoSaveRequested = _forceAutoSaveRequested || force;
+    return _autoSaveInFlight ??= _drainAutoSaves();
+  }
+
+  Future<bool> _drainAutoSaves() async {
     _isAutoSaving = true;
+    var saved = false;
+    try {
+      while (_autoSaveRequested) {
+        final force = _forceAutoSaveRequested;
+        _autoSaveRequested = false;
+        _forceAutoSaveRequested = false;
+        _lastAutoSaveFailed = false;
+        saved = await _writeAutoSaveDraft(force: force);
+        // Finish a later page revision before callers are told saving is done.
+        // A storage error returns control without an endless retry loop.
+        if (!saved && !_lastAutoSaveFailed && _hasUnsavedChanges) {
+          _autoSaveRequested = true;
+          _forceAutoSaveRequested = true;
+        }
+      }
+      return saved;
+    } finally {
+      _isAutoSaving = false;
+      _autoSaveInFlight = null;
+    }
+  }
+
+  Future<bool> _writeAutoSaveDraft({bool force = false}) async {
+    if (_isInitializing || _loadFailure != null) return false;
+    if (!force && !_hasUnsavedChanges) return true;
 
     try {
       await _refreshSavedIdentity();
@@ -810,10 +843,9 @@ class _VesselInspectionScreenState extends State<VesselInspectionScreen>
       print('Черновик автоматически сохранен');
       return !_hasUnsavedChanges;
     } catch (e) {
+      _lastAutoSaveFailed = true;
       print('Ошибка автосохранения черновика: $e');
       return false;
-    } finally {
-      _isAutoSaving = false;
     }
   }
 
