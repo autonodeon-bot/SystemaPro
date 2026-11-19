@@ -164,5 +164,7 @@ Staging: добавить `-f docker-compose.staging.yml`, см. ADR 0001.
 
 ## Версия
 
-Текущая — **3.7.43**, мобильная сборка **86** (см. `constants.ts`, `backend/main.py`,
+Текущая — **3.7.44**, мобильная сборка **87** (см. `constants.ts`, `backend/main.py`,
 `mobile/pubspec.yaml`).
+
+Инструкция конструктора: [20 инструментов и работа со схемой](docs/VESSEL_CONSTRUCTOR_GUIDE.md).

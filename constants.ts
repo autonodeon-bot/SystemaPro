@@ -273,7 +273,7 @@ export const API_BASE = import.meta.env.DEV && _envApiBase != null
   : '';
 
 /** Единая версия приложения (отображается в UI и в package.json) */
-export const APP_VERSION = '3.7.43';
+export const APP_VERSION = '3.7.44';
 
 /** Короткое имя продукта в интерфейсе (веб и мобильное). */
 export const SYSTEM_SHORT_NAME = 'Монитор';
@@ -299,10 +299,12 @@ export const SYSTEM_SIDEBAR_BADGE_LETTER = 'М';
 export const SYSTEM_SIDEBAR_TITLE_AFTER_BADGE = 'онитор';
 
 /** Дата актуализации блока «Что нового» и верхних записей changelog (ДД.ММ.ГГГГ). */
-export const RELEASE_NOTES_DATE = '18.11.2026';
+export const RELEASE_NOTES_DATE = '19.11.2026';
 
 /** Краткий список последних заметных изменений для дашборда (обновлять вместе с релизом). */
 export const DASHBOARD_WHATS_NEW_ITEMS: readonly string[] = [
+  'Конструктор 3.7.44+87: перетаскивание элементов, редактирование угла шва и отдельный экран свойств.',
+  '20 инструментов: сетка и привязки, поиск, слои, дублирование, блокировка, выравнивание, линейка и архив.',
   'Приложение 3.7.43+86: переходы между страницами последовательно сохраняют все введённые значения.',
   'Проверены все 8 разделов, быстрые переходы при медленном хранилище и восстановление после повторного открытия.',
   'Синхронизация обновляет одно обследование: повторные отправки и подпись не создают дубли.',
@@ -350,8 +352,8 @@ export const ASSIGNMENT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] 
 ];
 
 // Версия мобильного APK, который реально лежит по MOBILE_APK_URL
-export const MOBILE_APP_VERSION = '3.7.43';
-export const MOBILE_APP_BUILD = '86';
+export const MOBILE_APP_VERSION = '3.7.44';
+export const MOBILE_APP_BUILD = '87';
 
 /** URL скачивания мобильного APK. В dev можно задать VITE_MOBILE_APK_URL в .env */
 export const MOBILE_APK_URL =

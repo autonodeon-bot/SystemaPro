@@ -398,7 +398,7 @@ class VesselGeometry {
     final nozzle = ['nozzle','manway'].contains(entity(ownerId)?['kind']);
     const cardinal = [[.18,.5],[.82,.5],[.5,.18],[.5,.82]];
     for (var i = existing.length; i < count; i++) {
-      (data['control_points'] as List).add({
+      (data['control_points'] as List).add(<String, dynamic>{
         'id': id(),
         'owner_id': ownerId,
         'local_number': i + 1,

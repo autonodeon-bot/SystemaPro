@@ -5,33 +5,65 @@ import '../models/vessel_annotations.dart';
 import '../models/vessel_checklist.dart';
 import 'vessel_elements_editor.dart';
 
-Size vesselSheetSize(VesselGeometry model) => model.data['orientation']=='horizontal' ? const Size(1190,842) : const Size(842,1190);
+Size vesselSheetSize(VesselGeometry model) =>
+    model.data['orientation'] == 'horizontal'
+        ? const Size(1190, 842)
+        : const Size(842, 1190);
 String vesselPaper(VesselGeometry model) {
-  final paper=model.data['print_settings']?['paper'];
-  if(paper=='A3'||paper=='A4') return paper;
-  return model.shells.length>5||model.elements.length>16||model.points.length>100?'A3':'A4';
+  final paper = model.data['print_settings']?['paper'];
+  if (paper == 'A3' || paper == 'A4') return paper;
+  return model.shells.length > 5 ||
+          model.elements.length > 16 ||
+          model.points.length > 100
+      ? 'A3'
+      : 'A4';
 }
 
-void paintControlBand(Canvas c, Offset a, Offset b, double start, double span, String label, bool cross) {
-  final alongX=(b.dx-a.dx).abs()>(b.dy-a.dy).abs();
-  final ranges=[[start,math.min(1.0,start+span)],if(start+span>1)[0.0,start+span-1]];
-  for(final range in ranges) {
-    final lo=Offset.lerp(a,b,range[0])!,hi=Offset.lerp(a,b,range[1])!;
-    final rect=Rect.fromPoints(lo,hi).inflate(0);
-    final band=alongX?Rect.fromLTRB(rect.left,rect.top-6,rect.right,rect.bottom+6):Rect.fromLTRB(rect.left-6,rect.top,rect.right+6,rect.bottom);
-    c.drawRect(band,Paint()..color=const Color(0xffeeeeee));
-    c.drawRect(band,Paint()..color=Colors.black..style=PaintingStyle.stroke..strokeWidth=1);
+void paintControlBand(Canvas c, Offset a, Offset b, double start, double span,
+    String label, bool cross) {
+  final alongX = (b.dx - a.dx).abs() > (b.dy - a.dy).abs();
+  final ranges = [
+    [start, math.min(1.0, start + span)],
+    if (start + span > 1) [0.0, start + span - 1]
+  ];
+  for (final range in ranges) {
+    final lo = Offset.lerp(a, b, range[0])!, hi = Offset.lerp(a, b, range[1])!;
+    final rect = Rect.fromPoints(lo, hi).inflate(0);
+    final band = alongX
+        ? Rect.fromLTRB(rect.left, rect.top - 6, rect.right, rect.bottom + 6)
+        : Rect.fromLTRB(rect.left - 6, rect.top, rect.right + 6, rect.bottom);
+    c.drawRect(band, Paint()..color = const Color(0xffeeeeee));
+    c.drawRect(
+        band,
+        Paint()
+          ..color = Colors.black
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1);
   }
-  final step=7/math.max(1,(b-a).distance);
-  for(var i=0;i*step<=span;i++) {
-    final p=Offset.lerp(a,b,(start+i*step)%1)!;
-    c.drawLine(p-const Offset(5,5),p+const Offset(5,5),Paint()..color=Colors.black..strokeWidth=1.5);
-    if(cross)c.drawLine(p+const Offset(-5,5),p+const Offset(5,-5),Paint()..color=Colors.black);
+  final step = 7 / math.max(1, (b - a).distance);
+  for (var i = 0; i * step <= span; i++) {
+    final p = Offset.lerp(a, b, (start + i * step) % 1)!;
+    c.drawLine(
+        p - const Offset(5, 5),
+        p + const Offset(5, 5),
+        Paint()
+          ..color = Colors.black
+          ..strokeWidth = 1.5);
+    if (cross)
+      c.drawLine(p + const Offset(-5, 5), p + const Offset(5, -5),
+          Paint()..color = Colors.black);
   }
-  final mid=Offset.lerp(a,b,(start+span/2)%1)!;
-  final at=mid+(alongX?const Offset(-48,-36):const Offset(14,-20));
-  c.drawLine(mid+(alongX?const Offset(0,-7):Offset.zero),at+const Offset(8,13),Paint()..color=Colors.black);
-  final tp=TextPainter(text:TextSpan(text:label,style:const TextStyle(color:Colors.black,fontSize:11)),textDirection:TextDirection.ltr)..layout();tp.paint(c,at);
+  final mid = Offset.lerp(a, b, (start + span / 2) % 1)!;
+  final at = mid + (alongX ? const Offset(-48, -36) : const Offset(14, -20));
+  c.drawLine(mid + (alongX ? const Offset(0, -7) : Offset.zero),
+      at + const Offset(8, 13), Paint()..color = Colors.black);
+  final tp = TextPainter(
+      text: TextSpan(
+          text: label,
+          style: const TextStyle(color: Colors.black, fontSize: 11)),
+      textDirection: TextDirection.ltr)
+    ..layout();
+  tp.paint(c, at);
 }
 
 /// Project stable constructor point IDs onto the exported overview for the UZT map.
@@ -62,13 +94,16 @@ class VesselDrawingLayout {
   final bool exteriorB;
   final Map<String, Rect> parts = {};
   final Map<String, Offset> marks = {};
+  final Map<String, (Offset, Offset)> weldLines = {};
   VesselDrawingLayout(this.model, this.size,
       {this.detail, this.exteriorB = false}) {
     if (detail != null) {
       final part = model.entity(detail);
       final disk = part?['kind'] != 'shell';
-      final right=model.data['print_settings']?['show_dimensions']!=false?size.width*.60:size.width-100;
-      final r = Rect.fromLTRB(70, 110, right, size.height-140);
+      final right = model.data['print_settings']?['show_dimensions'] != false
+          ? size.width * .60
+          : size.width - 100;
+      final r = Rect.fromLTRB(70, 110, right, size.height - 140);
       parts[detail!] = disk
           ? Rect.fromCenter(
               center: r.center, width: r.shortestSide, height: r.shortestSide)
@@ -78,7 +113,7 @@ class VesselDrawingLayout {
       final body = horizontal
           ? Rect.fromLTWH(
               size.width * .18, 100, size.width * .62, size.height * .68)
-          : Rect.fromLTWH(55,100,size.width*.65-55,size.height-230);
+          : Rect.fromLTWH(55, 100, size.width * .65 - 55, size.height - 230);
       final known =
           model.shells.every((s) => s['dimensions']?['length_mm'] != null);
       final total = model.shells.fold<double>(
@@ -100,23 +135,58 @@ class VesselDrawingLayout {
       }
       final diameter = horizontal
           ? math.min(size.width * .15, body.height * .8)
-          : math.min(size.width*.24,size.height*.18);
+          : math.min(size.width * .24, size.height * .18);
       for (final p in model.parts.where((p) => p['kind'] == 'head')) {
         final a = p['side'] == 'A';
         final center = horizontal
-            ? Offset(a ? size.width * .09 : size.width * .90, size.height * (a ? .46 : .37))
-            : Offset(size.width*.83,size.height*(a? 0.25:.47));
+            ? Offset(a ? size.width * .09 : size.width * .90,
+                size.height * (a ? .46 : .37))
+            : Offset(size.width * .83, size.height * (a ? 0.25 : .47));
         parts[p['id']] = Rect.fromCircle(center: center, radius: diameter / 2);
       }
     }
     if (detail == null) {
       final covers = model.parts.where((p) => p['kind'] == 'cover').toList();
       for (var i = 0; i < covers.length; i++) {
-        final horizontal=model.data['orientation']=='horizontal';
-        final diameter = math.min(size.width * (horizontal? 0.15:.24), size.height * .25 / covers.length);
+        final horizontal = model.data['orientation'] == 'horizontal';
+        final diameter = math.min(size.width * (horizontal ? 0.15 : .24),
+            size.height * .25 / covers.length);
         parts[covers[i]['id']] = Rect.fromCircle(
-          center: Offset(size.width * (horizontal? 0.90:.83), size.height * (.64 + .24 * (i + .5) / covers.length)),
-          radius: diameter / 2);
+            center: Offset(size.width * (horizontal ? 0.90 : .83),
+                size.height * (.64 + .24 * (i + .5) / covers.length)),
+            radius: diameter / 2);
+      }
+    }
+    for (final w in model.welds) {
+      final ownerIds = w['connected_part_ids'] as List? ?? [];
+      if (w['kind'] == 'longitudinal' && ownerIds.isNotEmpty) {
+        final r = parts[ownerIds.first];
+        if (r == null) continue;
+        final q =
+            (((w['geometry']['theta_deg'] as num) - model.cut) % 360) / 360;
+        weldLines[w['id']] = model.data['orientation'] == 'horizontal'
+            ? (
+                Offset(r.left, r.top + r.height * q),
+                Offset(r.right, r.top + r.height * q)
+              )
+            : (
+                Offset(r.left + r.width * q, r.top),
+                Offset(r.left + r.width * q, r.bottom)
+              );
+      } else if (w['kind'] == 'circumferential') {
+        final owners = ownerIds.where((id) =>
+            model.entity(id)?['kind'] == 'shell' && parts.containsKey(id));
+        if (owners.isEmpty) continue;
+        final id = owners.first, r = parts[id]!, start = id == ownerIds.last;
+        weldLines[w['id']] = model.data['orientation'] == 'horizontal'
+            ? (
+                Offset(start ? r.left : r.right, r.top),
+                Offset(start ? r.left : r.right, r.bottom)
+              )
+            : (
+                Offset(r.left, start ? r.top : r.bottom),
+                Offset(r.right, start ? r.top : r.bottom)
+              );
       }
     }
     for (final e in [
@@ -135,15 +205,17 @@ class VesselDrawingLayout {
     if (part != null) return part;
     final parent = parts[owner['parent_id']];
     if (parent == null || owner['placement'] == null) return null;
-    return Rect.fromCircle(center: project(owner, parent), radius: symbolRadius(owner, parent));
+    return Rect.fromCircle(
+        center: project(owner, parent), radius: symbolRadius(owner, parent));
   }
 
   VesselEntity? placementAt(VesselEntity element, Offset position) {
     final owner = model.entity(element['parent_id'] ?? element['owner_id']);
     final rect = ownerRect(element);
-    if (owner == null || rect == null || !rect.contains(position)) return null;
-    var u = (position.dx - rect.left) / rect.width;
-    var v = (position.dy - rect.top) / rect.height;
+    if (owner == null || rect == null || !rect.inflate(1e-7).contains(position))
+      return null;
+    var u = ((position.dx - rect.left) / rect.width).clamp(0.0, 1.0);
+    var v = ((position.dy - rect.top) / rect.height).clamp(0.0, 1.0);
     final shell = owner['kind'] == 'shell';
     if (shell && model.data['orientation'] != 'horizontal') {
       final horizontal = u;
@@ -157,28 +229,51 @@ class VesselDrawingLayout {
     if (!shell && radius > .5) return null;
 
     final placement = element['placement'] as Map;
-    if (placement['mode'] != 'physical') return {'mode': 'schematic', 'u': u, 'v': v};
+    if (placement['mode'] != 'physical')
+      return {'mode': 'schematic', 'u': u, 'v': v};
     final dimension = owner['dimensions']?[shell ? 'length_mm' : 'diameter_mm'];
     if (dimension is! num || dimension <= 0) return null;
     final visio = placement['angle_convention'] == 'visio-head-2026';
-    final angle = shell ? v * 360 + model.cut : radius == 0
-        ? (placement['theta_deg'] as num).toDouble()
-        : (visio ? math.atan2(y, owner['side'] == 'A' ? -x : x) : math.atan2(x, y)) * 180 / math.pi;
+    final angle = shell
+        ? v * 360 + model.cut
+        : radius == 0
+            ? (placement['theta_deg'] as num? ?? 0).toDouble()
+            : (visio
+                    ? math.atan2(y, owner['side'] == 'A' ? -x : x)
+                    : math.atan2(x, y)) *
+                180 /
+                math.pi;
     return {
       ...Map<String, dynamic>.from(placement),
-      if (shell) 'z_local_mm': u * dimension else 'radius_projection_mm': radius * dimension,
+      if (shell)
+        'z_local_mm': u * dimension
+      else
+        'radius_projection_mm': radius * dimension,
       'theta_deg': angle % 360,
     };
   }
+
   double symbolRadius(VesselEntity e, Rect ownerRect) {
-    final diameter = (e['dimensions']?['diameter_mm'] as num? ?? num.tryParse('${e['dn']}') ?? 100).toDouble();
+    final diameter = (e['dimensions']?['diameter_mm'] as num? ??
+            num.tryParse('${e['dn']}') ??
+            100)
+        .toDouble();
     final owner = model.entity(e['parent_id']);
     final scale = owner?['kind'] == 'shell'
-        ? (model.data['orientation'] == 'horizontal' ? ownerRect.width : ownerRect.height) /
+        ? (model.data['orientation'] == 'horizontal'
+                ? ownerRect.width
+                : ownerRect.height) /
             (owner?['dimensions']?['length_mm'] as num? ?? 2000)
-        : ownerRect.width / (owner?['dimensions']?['diameter_mm'] as num? ?? 2000);
-    return (diameter * scale / 2).clamp(owner?['kind'] == 'shell' && model.points.any((p) => p['owner_id'] == e['id']) ? 14.0 : 9.0, 38.0);
+        : ownerRect.width /
+            (owner?['dimensions']?['diameter_mm'] as num? ?? 2000);
+    return (diameter * scale / 2).clamp(
+        owner?['kind'] == 'shell' &&
+                model.points.any((p) => p['owner_id'] == e['id'])
+            ? 14.0
+            : 9.0,
+        38.0);
   }
+
   Offset project(VesselEntity e, Rect r) {
     final owner = model.entity(e['parent_id'] ?? e['owner_id']);
     final p = model.position(e);
@@ -197,6 +292,19 @@ class VesselDrawingLayout {
         .map((e) => e.key)
         .toList();
     if (found.isNotEmpty) return found;
+    final seams = weldLines.entries
+        .where((entry) {
+          final a = entry.value.$1, b = entry.value.$2, d = b - a;
+          final length = d.dx * d.dx + d.dy * d.dy;
+          final t = length == 0
+              ? 0.0
+              : (((p - a).dx * d.dx + (p - a).dy * d.dy) / length)
+                  .clamp(0.0, 1.0);
+          return (p - (a + d * t)).distance < 8;
+        })
+        .map((e) => e.key)
+        .toList();
+    if (seams.isNotEmpty) return seams;
     return parts.entries
         .where((e) => e.value.contains(p))
         .map((e) => e.key)
@@ -204,19 +312,27 @@ class VesselDrawingLayout {
   }
 }
 
-List<MapEntry<Offset,String>> vesselDimensionLabels(VesselDrawingLayout layout,String layer) {
-  if(layout.detail==null)return [];
-  final m=layout.model;final result=<MapEntry<Offset,String>>[];
-  for(final e in [...m.elements,...m.points]) {
-    final anchor=layout.marks[e['id']];
-    if(anchor==null||(e.containsKey('owner_id')&&layer!='Все'&&layer!='УЗТ'))continue;
-    final owner=m.entity(e['parent_id']??e['owner_id'])!;
-    final lines=coordinateCallout(m,e,owner,detail:layout.detail);
-    if(lines.isEmpty)continue;
-    final name=e.containsKey('owner_id')?'${owner['designation']} / ${e['body_number']??e['local_number']}':'${e['designation']}';
-    result.add(MapEntry(anchor,'$name · ${lines.join('; ')}'));
+List<MapEntry<Offset, String>> vesselDimensionLabels(
+    VesselDrawingLayout layout, String layer) {
+  if (layout.detail == null) return [];
+  final m = layout.model;
+  final result = <MapEntry<Offset, String>>[];
+  for (final e in [...m.elements, ...m.points]) {
+    final anchor = layout.marks[e['id']];
+    if (anchor == null ||
+        (e.containsKey('owner_id') && layer != 'Все' && layer != 'УЗТ'))
+      continue;
+    final owner = m.entity(e['parent_id'] ?? e['owner_id'])!;
+    final lines = coordinateCallout(m, e, owner, detail: layout.detail);
+    if (lines.isEmpty) continue;
+    final name = e.containsKey('owner_id')
+        ? '${owner['designation']} / ${e['body_number'] ?? e['local_number']}'
+        : '${e['designation']}';
+    result.add(MapEntry(anchor, '$name · ${lines.join('; ')}'));
   }
-  result.sort((a,b)=>a.key.dy==b.key.dy?a.key.dx.compareTo(b.key.dx):a.key.dy.compareTo(b.key.dy));
+  result.sort((a, b) => a.key.dy == b.key.dy
+      ? a.key.dx.compareTo(b.key.dx)
+      : a.key.dy.compareTo(b.key.dy));
   return result;
 }
 
@@ -224,7 +340,9 @@ class VesselDrawingPainter extends CustomPainter {
   final VesselDrawingLayout layout;
   final String? selection;
   final String layer;
-  VesselDrawingPainter(this.layout, {this.selection, this.layer = 'Все'});
+  final Set<String> hiddenLayers;
+  VesselDrawingPainter(this.layout,
+      {this.selection, this.layer = 'Все', this.hiddenLayers = const {}});
   void text(Canvas c, String text, Offset p,
       {double size = 13, Color color = Colors.black, double maxWidth = 1100}) {
     final t = TextPainter(
@@ -264,22 +382,53 @@ class VesselDrawingPainter extends CustomPainter {
         c.drawOval(r, ink);
         final mirrored = layout.exteriorB && p['side'] == 'B';
         if (layout.detail != null) {
-        final modern=[...m.elements,...m.points].any((e)=>(e['parent_id']??e['owner_id'])==p['id'] && e['placement']?['angle_convention']=='visio-head-2026');
-        final side=p['side'];
-        final values=modern?['90°',side=='A'?'180°':'0°','270°',side=='A'?'0°':'180°']:['0°',mirrored?'270°':'90°','180°',mirrored?'90°':'270°'];
-        for(var i=0;i<4;i++) {text(c,values[i],[Offset(r.center.dx,r.top-16),Offset(r.right+3,r.center.dy),Offset(r.center.dx,r.bottom-16),Offset(r.left-30,r.center.dy)][i],size:11);}
-
+          final modern = [...m.elements, ...m.points].any((e) =>
+              (e['parent_id'] ?? e['owner_id']) == p['id'] &&
+              e['placement']?['angle_convention'] == 'visio-head-2026');
+          final side = p['side'];
+          final values = modern
+              ? [
+                  '90°',
+                  side == 'A' ? '180°' : '0°',
+                  '270°',
+                  side == 'A' ? '0°' : '180°'
+                ]
+              : [
+                  '0°',
+                  mirrored ? '270°' : '90°',
+                  '180°',
+                  mirrored ? '90°' : '270°'
+                ];
+          for (var i = 0; i < 4; i++) {
+            text(
+                c,
+                values[i],
+                [
+                  Offset(r.center.dx, r.top - 16),
+                  Offset(r.right + 3, r.center.dy),
+                  Offset(r.center.dx, r.bottom - 16),
+                  Offset(r.left - 30, r.center.dy)
+                ][i],
+                size: 11);
+          }
         }
       }
       text(
           c,
-          p['kind']=='shell' && m.data['orientation']=='vertical' && layout.detail==null ? p['designation'].toString().replaceAll('Обечайка','Об.') : p['designation'].toString(),
+          p['kind'] == 'shell' &&
+                  m.data['orientation'] == 'vertical' &&
+                  layout.detail == null
+              ? p['designation'].toString().replaceAll('Обечайка', 'Об.')
+              : p['designation'].toString(),
           p['kind'] == 'shell'
-              ? m.data['orientation']=='vertical' && layout.detail==null ? Offset(5,r.center.dy) : Offset(r.left + 6, r.top + 6)
+              ? m.data['orientation'] == 'vertical' && layout.detail == null
+                  ? Offset(5, r.center.dy)
+                  : Offset(r.left + 6, r.top + 6)
               : Offset(r.left, r.bottom + 4),
           size: p['kind'] == 'shell' ? 10 : 12);
       final dims = p['dimensions'] as Map;
-      if (layout.detail != null && r.width > 140 &&
+      if (layout.detail != null &&
+          r.width > 140 &&
           r.height > 60 &&
           (dims['length_mm'] != null || dims['diameter_mm'] != null)) {
         text(
@@ -290,12 +439,13 @@ class VesselDrawingPainter extends CustomPainter {
       }
       if (p['kind'] == 'shell') {
         final horizontal = m.data['orientation'] == 'horizontal';
-        if (layout.detail != null || entry.key == m.shells.first['id']) for (var i = 0; i < 4; i++) {
-          final at = horizontal
-              ? Offset(r.left - 34, r.top + r.height * i / 4)
-              : Offset(r.left + r.width * i / 4, r.top - 31);
-          text(c, '${(m.cut + i * 90) % 360}°', at, size: 10);
-        }
+        if (layout.detail != null || entry.key == m.shells.first['id'])
+          for (var i = 0; i < 4; i++) {
+            final at = horizontal
+                ? Offset(r.left - 34, r.top + r.height * i / 4)
+                : Offset(r.left + r.width * i / 4, r.top - 31);
+            text(c, '${(m.cut + i * 90) % 360}°', at, size: 10);
+          }
         for (final section in (m.data['sections'] as List? ?? [])
             .where((s) => s['kind'] == 'ovality' && s['owner_id'] == p['id'])) {
           final length = (p['dimensions']['length_mm'] as num?)?.toDouble();
@@ -312,6 +462,7 @@ class VesselDrawingPainter extends CustomPainter {
           text(c, section['designation'], a + const Offset(3, 14), size: 12);
         }
         for (final w in m.welds.where((w) =>
+            !hiddenLayers.contains('Швы') &&
             w['kind'] == 'longitudinal' &&
             (w['connected_part_ids'] as List).contains(p['id']))) {
           final q = (((w['geometry']['theta_deg'] as num) - m.cut) % 360) / 360;
@@ -325,8 +476,16 @@ class VesselDrawingPainter extends CustomPainter {
               Paint()
                 ..color = Colors.grey
                 ..strokeWidth = 1.5);
-          text(c, w['designation'], horizontal ? Offset((a.dx+b.dx)/2-10, q>.65 ? a.dy+4 : a.dy-18) : Offset(a.dx+4,(a.dy+b.dy)/2), size: 11);
-          for (final z in m.zones.where((z) => z['weld_id'] == w['id'])) {
+          text(
+              c,
+              w['designation'],
+              horizontal
+                  ? Offset(
+                      (a.dx + b.dx) / 2 - 10, q > .65 ? a.dy + 4 : a.dy - 18)
+                  : Offset(a.dx + 4, (a.dy + b.dy) / 2),
+              size: 11);
+          for (final z in m.zones.where((z) =>
+              !hiddenLayers.contains('Зоны') && z['weld_id'] == w['id'])) {
             final methods = (z['planned_methods'] as List).join('/');
             if (layer != 'Все' && !methods.contains(layer)) continue;
             final coverage = z['coverage'] as Map;
@@ -336,23 +495,39 @@ class VesselDrawingPainter extends CustomPainter {
             final end = coverage['kind'] == 'whole'
                 ? 1.0
                 : (coverage['end'] as num).toDouble();
-            paintControlBand(c,a,b,start,end-start,'${z['designation']} · $methods',methods.contains('ПВК')||methods.contains('МК'));
+            paintControlBand(
+                c,
+                a,
+                b,
+                start,
+                end - start,
+                '${z['designation']} · $methods',
+                methods.contains('ПВК') || methods.contains('МК'));
           }
         }
       }
     }
-    for (final w in m.welds.where((w) => w['kind'] == 'head_joint')) {
+    for (final w in m.welds.where(
+        (w) => !hiddenLayers.contains('Швы') && w['kind'] == 'head_joint')) {
       final owner = m.entity((w['connected_part_ids'] as List).first)!;
       final r = layout.parts[owner['id']];
       if (r == null) continue;
       final offset = (w['geometry']['offset_mm'] as num).toDouble() /
-          (owner['dimensions']['diameter_mm'] as num) * r.height;
-      final half = math.sqrt(math.max(0, r.width * r.width / 4 - offset * offset));
+          (owner['dimensions']['diameter_mm'] as num) *
+          r.height;
+      final half =
+          math.sqrt(math.max(0, r.width * r.width / 4 - offset * offset));
       final at = Offset(r.center.dx, r.center.dy + offset);
-      c.drawLine(at - Offset(half, 0), at + Offset(half, 0), Paint()..color = Colors.black..strokeWidth = 2);
+      c.drawLine(
+          at - Offset(half, 0),
+          at + Offset(half, 0),
+          Paint()
+            ..color = Colors.black
+            ..strokeWidth = 2);
       text(c, w['designation'], at + const Offset(8, 3), size: 11);
     }
-    for (final w in m.welds.where((w) => w['kind'] == 'circumferential')) {
+    for (final w in m.welds.where((w) =>
+        !hiddenLayers.contains('Швы') && w['kind'] == 'circumferential')) {
       final owners = (w['connected_part_ids'] as List)
           .where((id) =>
               m.entity(id)?['kind'] == 'shell' && layout.parts.containsKey(id))
@@ -373,7 +548,8 @@ class VesselDrawingPainter extends CustomPainter {
             ..color = Colors.black
             ..strokeWidth = 2);
       text(c, w['designation'], a + const Offset(2, -17), size: 11);
-      for (final z in m.zones.where((z) => z['weld_id'] == w['id'])) {
+      for (final z in m.zones.where(
+          (z) => !hiddenLayers.contains('Зоны') && z['weld_id'] == w['id'])) {
         final methods = (z['planned_methods'] as List).join('/');
         if (layer != 'Все' && !methods.contains(layer)) continue;
         final coverage = z['coverage'] as Map;
@@ -386,35 +562,63 @@ class VesselDrawingPainter extends CustomPainter {
                     (coverage['start'] as num).toDouble(),
                     (coverage['end'] as num).toDouble()) /
                 360;
-        paintControlBand(c,a,b,start,span,'${z['designation']} · $methods',methods.contains('ПВК')||methods.contains('МК'));
+        paintControlBand(c, a, b, start, span, '${z['designation']} · $methods',
+            methods.contains('ПВК') || methods.contains('МК'));
       }
     }
     final occupied = <Rect>[];
     for (final mark in layout.marks.entries) {
       final e = m.entity(mark.key)!;
       final point = e.containsKey('owner_id');
+      if (hiddenLayers.contains(point ? 'Точки' : 'Элементы')) continue;
       if (point && layer != 'Все' && layer != e['method']) continue;
       if (point) {
-        final ink = Paint()..color = Colors.black..strokeWidth = 1.7;
-        c.drawLine(mark.value - const Offset(3, 3), mark.value + const Offset(3, 3), ink);
-        c.drawLine(mark.value + const Offset(-3, 3), mark.value + const Offset(3, -3), ink);
+        final ink = Paint()
+          ..color = Colors.black
+          ..strokeWidth = 1.7;
+        c.drawLine(mark.value - const Offset(3, 3),
+            mark.value + const Offset(3, 3), ink);
+        c.drawLine(mark.value + const Offset(-3, 3),
+            mark.value + const Offset(3, -3), ink);
       } else {
         final r = layout.parts[e['parent_id']];
-        paintVesselElement(c, mark.value, e['kind'],
-            radius: r == null ? 10 : layout.symbolRadius(e, r), engineering: true);
-        if (r != null) for (final w in m.welds.where((w) => w['kind']=='attachment' && w['geometry']['element_id']==e['id'])) {
-          for (final z in m.zones.where((z) => z['weld_id']==w['id'])) {
-            if (layer!='Все' && !(z['planned_methods'] as List).contains(layer)) continue;
-            final radius=layout.symbolRadius(e,r)+3;
-            for (var i=0;i<72;i++) {
-              final angle=i*5.0,cov=z['coverage'];
-              if (cov['kind']=='sector' && (angle-cov['start'])%360>(cov['end']-cov['start'])%360) continue;
-              final a=angle*math.pi/180;
-              c.drawLine(mark.value+Offset(radius*math.sin(a),-radius*math.cos(a)),mark.value+Offset((radius+4)*math.sin(a+.03),-(radius+4)*math.cos(a+.03)),Paint()..color=Colors.black);
+        c.save();
+        c.translate(mark.value.dx, mark.value.dy);
+        c.rotate((e['symbol_rotation_deg'] as num? ?? 0) * math.pi / 180);
+        paintVesselElement(c, Offset.zero, e['kind'],
+            radius: r == null ? 10 : layout.symbolRadius(e, r),
+            engineering: true);
+        c.restore();
+        if (r != null)
+          for (final w in m.welds.where((w) =>
+              w['kind'] == 'attachment' &&
+              w['geometry']['element_id'] == e['id'])) {
+            for (final z in m.zones.where((z) =>
+                !hiddenLayers.contains('Зоны') && z['weld_id'] == w['id'])) {
+              if (layer != 'Все' &&
+                  !(z['planned_methods'] as List).contains(layer)) continue;
+              final radius = layout.symbolRadius(e, r) + 3;
+              for (var i = 0; i < 72; i++) {
+                final angle = i * 5.0, cov = z['coverage'];
+                if (cov['kind'] == 'sector' &&
+                    (angle - cov['start']) % 360 >
+                        (cov['end'] - cov['start']) % 360) continue;
+                final a = angle * math.pi / 180;
+                c.drawLine(
+                    mark.value +
+                        Offset(radius * math.sin(a), -radius * math.cos(a)),
+                    mark.value +
+                        Offset((radius + 4) * math.sin(a + .03),
+                            -(radius + 4) * math.cos(a + .03)),
+                    Paint()..color = Colors.black);
+              }
+              text(
+                  c,
+                  '${z['designation']} ${(z['planned_methods'] as List).join('/')}',
+                  mark.value + Offset(radius + 8, radius),
+                  size: 9);
             }
-            text(c,'${z['designation']} ${(z['planned_methods'] as List).join('/')}',mark.value+Offset(radius+8,radius),size:9);
           }
-        }
       }
       if (selection == e['id']) {
         c.drawCircle(
@@ -429,51 +633,78 @@ class VesselDrawingPainter extends CustomPainter {
           ? '${e['body_number'] ?? e['local_number']}'
           : '${e['designation']}';
       final override = m.labels[e['id']] as Map?;
-      final labelWidth=label.length*7.0+2;
-      const labelHeight=15.0;
+      final labelWidth = label.length * 7.0 + 2;
+      const labelHeight = 15.0;
       var pos = mark.value +
           Offset((override?['dx'] as num? ?? (point ? -3 : -20)).toDouble(),
               (override?['dy'] as num? ?? (point ? -16 : -30)).toDouble());
-      if (point && !['shell', 'head', 'cover'].contains(m.entity(e['owner_id'])?['kind']) && override == null) {
-        pos = mark.value + (<int, Offset>{1: const Offset(-12,-5), 2: const Offset(5,-5), 3: const Offset(-3,-16), 4: const Offset(-3,6)}[e['local_number']] ?? const Offset(5,-12));
+      if (point &&
+          !['shell', 'head', 'cover']
+              .contains(m.entity(e['owner_id'])?['kind']) &&
+          override == null) {
+        pos = mark.value +
+            (<int, Offset>{
+                  1: const Offset(-12, -5),
+                  2: const Offset(5, -5),
+                  3: const Offset(-3, -16),
+                  4: const Offset(-3, 6)
+                }[e['local_number']] ??
+                const Offset(5, -12));
       }
       if (override == null && !point) {
         for (var i = 0;
             i < 8 &&
-                occupied.any(
-                    (r) => r.overlaps(Rect.fromLTWH(pos.dx, pos.dy, labelWidth, labelHeight)));
+                occupied.any((r) => r.overlaps(
+                    Rect.fromLTWH(pos.dx, pos.dy, labelWidth, labelHeight)));
             i++) {
-          pos += Offset(0, labelHeight+3);
+          pos += Offset(0, labelHeight + 3);
         }
       }
-      pos = Offset(
-          pos.dx.clamp(5, math.max(5,size.width-labelWidth-6)), pos.dy.clamp(85, size.height-115-labelHeight));
+      pos = Offset(pos.dx.clamp(5, math.max(5, size.width - labelWidth - 6)),
+          pos.dy.clamp(85, size.height - 115 - labelHeight));
       occupied.add(Rect.fromLTWH(pos.dx, pos.dy, labelWidth, labelHeight));
-      if (!point || override != null) c.drawLine(
-          mark.value,
-          pos,
-          Paint()
-            ..color = Colors.grey
-            ..strokeWidth = .6);
-      text(c, label, pos,
-          size: point ? 10 : 13, color: Colors.black);
+      if (!point || override != null)
+        c.drawLine(
+            mark.value,
+            pos,
+            Paint()
+              ..color = Colors.grey
+              ..strokeWidth = .6);
+      text(c, label, pos, size: point ? 10 : 13, color: Colors.black);
     }
     if (layout.detail == null) {
-      for (final section in (m.data['sections'] as List? ?? []).where((s) => s['kind']=='weld_profile')) {
-        final x=size.width*(m.data['orientation']=='horizontal'? 0.82:.70),y=90.0;
-        text(c,'${section['designation']} · твердометрия',Offset(x,y-18),size:11);
-        paintWeldProfile(c,Offset(x,y),size.width*.18,scale:m.data['orientation']=='horizontal'? 0.75:.85);
+      for (final section in (m.data['sections'] as List? ?? [])
+          .where((s) => s['kind'] == 'weld_profile')) {
+        final x = size.width *
+                (m.data['orientation'] == 'horizontal' ? 0.82 : .70),
+            y = 90.0;
+        text(c, '${section['designation']} · твердометрия', Offset(x, y - 18),
+            size: 11);
+        paintWeldProfile(c, Offset(x, y), size.width * .18,
+            scale: m.data['orientation'] == 'horizontal' ? 0.75 : .85);
         break;
       }
     }
-    final annotations=vesselDimensionLabels(layout,layer);
-    for(var n=0;n<annotations.length;n++) {
-      final at=Offset(size.width*.64,106+n*math.min(24,(size.height-220)/annotations.length));
-      c.drawLine(annotations[n].key,at+const Offset(-8,5),Paint()..color=Colors.grey..strokeWidth=1);
-      text(c,annotations[n].value,at,size:9,maxWidth:size.width*.36-10);
+    final annotations = vesselDimensionLabels(layout, layer);
+    for (var n = 0; n < annotations.length; n++) {
+      final at = Offset(size.width * .64,
+          106 + n * math.min(24, (size.height - 220) / annotations.length));
+      c.drawLine(
+          annotations[n].key,
+          at + const Offset(-8, 5),
+          Paint()
+            ..color = Colors.grey
+            ..strokeWidth = 1);
+      text(c, annotations[n].value, at,
+          size: 9, maxWidth: size.width * .36 - 10);
     }
-    final legend=vesselLegendLines(vesselLegend(m,{...layout.parts.keys,...layout.marks.keys},layer:layer,detail:layout.detail),size.width);
-    for(var n=0;n<legend.length;n++) {text(c,legend[n],Offset(20,size.height-98+n*16),size:11);}
+    final legend = vesselLegendLines(
+        vesselLegend(m, {...layout.parts.keys, ...layout.marks.keys},
+            layer: layer, detail: layout.detail),
+        size.width);
+    for (var n = 0; n < legend.length; n++) {
+      text(c, legend[n], Offset(20, size.height - 98 + n * 16), size: 11);
+    }
     text(
         c,
         'План контроля. Результаты — в таблицах протоколов. Размеры сверить с источником.',
@@ -499,7 +730,7 @@ void paintVesselSection(
       'План расположения позиций. Метод: ${section['method'] ?? 'не задан'}',
       const Offset(40, 75),
       size: 18);
-  paintWeldProfile(canvas,const Offset(220,160),600,scale:3.5);
+  paintWeldProfile(canvas, const Offset(220, 160), 600, scale: 3.5);
   painter.text(
       canvas, section['note']?.toString() ?? '', Offset(40, size.height - 110),
       size: 18);
@@ -510,16 +741,34 @@ void paintVesselSection(
       size: 18);
 }
 
-void paintWeldProfile(Canvas c, Offset origin, double width, {double scale=1}) {
- final mid=origin.dy+60*scale,cx=origin.dx+width*.25;
- c.drawRect(Rect.fromLTRB(origin.dx,mid-22*scale,origin.dx+width*.5,mid+22*scale),Paint()..color=Colors.grey.shade200);
- c.drawRect(Rect.fromLTRB(origin.dx,mid-7*scale,origin.dx+width*.5,mid+7*scale),Paint()..color=Colors.grey.shade600);
- for(var i=0;i<5;i++) {
-  final y=mid+[-45,-17,0,17,45][i]*scale;
-  c.drawLine(Offset(cx-3*scale,y-3*scale),Offset(cx+3*scale,y+3*scale),Paint()..color=Colors.black);
-  c.drawLine(Offset(cx-3*scale,y+3*scale),Offset(cx+3*scale,y-3*scale),Paint()..color=Colors.black);
-  void label(String t,Offset at,double font) {final p=TextPainter(text:TextSpan(text:t,style:TextStyle(color:Colors.black,fontSize:font)),textDirection:TextDirection.ltr)..layout();p.paint(c,at);}
-  label('${i+1}',Offset(cx+5*scale,y-7*scale),10*scale);
-  label(['Осн. металл','ЗТВ','Шов','ЗТВ','Осн. металл'][i],Offset(origin.dx+width*.53,y-6*scale),9*scale);
- }
+void paintWeldProfile(Canvas c, Offset origin, double width,
+    {double scale = 1}) {
+  final mid = origin.dy + 60 * scale, cx = origin.dx + width * .25;
+  c.drawRect(
+      Rect.fromLTRB(origin.dx, mid - 22 * scale, origin.dx + width * .5,
+          mid + 22 * scale),
+      Paint()..color = Colors.grey.shade200);
+  c.drawRect(
+      Rect.fromLTRB(
+          origin.dx, mid - 7 * scale, origin.dx + width * .5, mid + 7 * scale),
+      Paint()..color = Colors.grey.shade600);
+  for (var i = 0; i < 5; i++) {
+    final y = mid + [-45, -17, 0, 17, 45][i] * scale;
+    c.drawLine(Offset(cx - 3 * scale, y - 3 * scale),
+        Offset(cx + 3 * scale, y + 3 * scale), Paint()..color = Colors.black);
+    c.drawLine(Offset(cx - 3 * scale, y + 3 * scale),
+        Offset(cx + 3 * scale, y - 3 * scale), Paint()..color = Colors.black);
+    void label(String t, Offset at, double font) {
+      final p = TextPainter(
+          text: TextSpan(
+              text: t, style: TextStyle(color: Colors.black, fontSize: font)),
+          textDirection: TextDirection.ltr)
+        ..layout();
+      p.paint(c, at);
+    }
+
+    label('${i + 1}', Offset(cx + 5 * scale, y - 7 * scale), 10 * scale);
+    label(['Осн. металл', 'ЗТВ', 'Шов', 'ЗТВ', 'Осн. металл'][i],
+        Offset(origin.dx + width * .53, y - 6 * scale), 9 * scale);
+  }
 }

@@ -20,8 +20,8 @@ from shared import cert_areas_list
 
 router = APIRouter(tags=["mobile"])
 
-MOBILE_APP_VERSION = os.getenv("MOBILE_APP_VERSION", "3.7.43")
-MOBILE_APP_BUILD = os.getenv("MOBILE_APP_BUILD", "86")
+MOBILE_APP_VERSION = os.getenv("MOBILE_APP_VERSION", "3.7.44")
+MOBILE_APP_BUILD = os.getenv("MOBILE_APP_BUILD", "87")
 MOBILE_APP_DOWNLOAD_URL = os.getenv(
     "MOBILE_APP_DOWNLOAD_URL",
     f"https://neftcontrol.ru/mobile/es-td-ngo-{MOBILE_APP_VERSION}-{MOBILE_APP_BUILD}.apk",

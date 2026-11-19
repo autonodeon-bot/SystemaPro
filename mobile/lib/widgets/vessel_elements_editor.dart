@@ -7,22 +7,70 @@ const vesselElementNames = <String, String>{
   'instrument': 'Бобышка КИП',
   'drain': 'Дренаж',
   'vent': 'Воздушник',
+  'valve': 'Кран / задвижка',
+  'elbow': 'Отвод',
   'pad': 'Укрепляющая накладка',
   'support': 'Опора',
   'lug': 'Строповая проушина',
 };
 
-void paintVesselElement(Canvas c, Offset p, String kind, {double radius = 10, bool engineering = false}) {
+void paintVesselElement(Canvas c, Offset p, String kind,
+    {double radius = 10, bool engineering = false}) {
+  if (kind == 'valve') {
+    final ink = Paint()
+      ..color = engineering ? Colors.black : const Color(0xff245a91)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    c.drawPath(
+        Path()
+          ..moveTo(p.dx - radius, p.dy - radius * .7)
+          ..lineTo(p.dx + radius, p.dy + radius * .7)
+          ..lineTo(p.dx + radius, p.dy - radius * .7)
+          ..lineTo(p.dx - radius, p.dy + radius * .7)
+          ..close(),
+        ink);
+    c.drawLine(p, p - Offset(0, radius * 1.3), ink);
+    c.drawLine(p + Offset(-radius * .6, -radius * 1.3),
+        p + Offset(radius * .6, -radius * 1.3), ink);
+    return;
+  }
+  if (kind == 'elbow') {
+    final ink = Paint()
+      ..color = engineering ? Colors.black : const Color(0xff245a91)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    c.drawPath(
+        Path()
+          ..moveTo(p.dx - radius, p.dy)
+          ..lineTo(p.dx - radius * .3, p.dy)
+          ..quadraticBezierTo(
+              p.dx + radius * .5, p.dy, p.dx + radius * .5, p.dy - radius * .8)
+          ..lineTo(p.dx + radius * .5, p.dy - radius * 1.4),
+        ink);
+    return;
+  }
   if (engineering && (kind == 'nozzle' || kind == 'manway')) {
-    final line = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.3;
+    final line = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3;
     c.drawCircle(p, radius, line);
     if (kind == 'manway') c.drawCircle(p, radius * .87, line);
-    final axis = Paint()..color = Colors.grey..strokeWidth = .6;
+    final axis = Paint()
+      ..color = Colors.grey
+      ..strokeWidth = .6;
     c.drawLine(p - Offset(radius + 4, 0), p + Offset(radius + 4, 0), axis);
     c.drawLine(p - Offset(0, radius + 4), p + Offset(0, radius + 4), axis);
     return;
   }
-  if(engineering && kind=='support'){c.drawRect(Rect.fromCenter(center:p,width:12,height:40),Paint()..color=Colors.black..style=PaintingStyle.stroke);return;}
+  if (engineering && kind == 'support') {
+    c.drawRect(
+        Rect.fromCenter(center: p, width: 12, height: 40),
+        Paint()
+          ..color = Colors.black
+          ..style = PaintingStyle.stroke);
+    return;
+  }
   final ink = Paint()
     ..color = const Color(0xff245a91)
     ..style = PaintingStyle.stroke
